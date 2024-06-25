@@ -1,6 +1,6 @@
 <template>
   <q-layout view="lHh Lpr lFf">
-    <q-header elevated>
+    <q-header class="transparent">
       <q-toolbar>
         <q-btn flat dense round icon="search" />
         <q-toolbar-title> bilibili 视频搜索 </q-toolbar-title>

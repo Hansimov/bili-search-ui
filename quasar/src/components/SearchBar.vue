@@ -3,16 +3,18 @@
     rounded
     outlined
     clearable
-    placeholder="Search"
+    placeholder="Ask me anything ..."
     v-model="search"
     type="search"
     style="width: 680px"
   >
     <template v-slot:prepend>
-      <q-btn unelevated padding="xs"><q-icon name="search" /></q-btn>
+      <q-btn unelevated padding="xs"
+        ><q-icon name="filter_center_focus"
+      /></q-btn>
     </template>
     <template v-slot:append>
-      <q-btn unelevated padding="xs"><q-icon name="image" /></q-btn>
+      <q-btn unelevated padding="xs"><q-icon name="search" /></q-btn>
     </template>
   </q-input>
 </template>

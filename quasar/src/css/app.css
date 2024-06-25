@@ -1,1 +1,11 @@
 /* app global css */
+body.body--light .q-toolbar {
+  color: RoyalBlue;
+}
+body.body--light .q-toggle {
+  color: black;
+}
+
+body.body--dark .q-toolbar {
+  color: white;
+}

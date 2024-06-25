@@ -1,7 +1,8 @@
 <template>
   <q-toggle
+    color="black"
     v-model="isDark"
-    icon="nightlight"
+    :icon="isDark ? 'bedtime' : 'wb_sunny'"
     @update:model-value="toggleDarkMode"
   />
 </template>
