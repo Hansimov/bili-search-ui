@@ -5,9 +5,10 @@
     clearable
     placeholder="Ask me anything ..."
     type="search"
+    for="search-input"
     style="width: 680px"
-    v-model="search"
-    @update:model-value="debouncedSuggest"
+    v-model="query"
+    @update:model-value="suggest"
   >
     <template v-slot:prepend>
       <q-btn unelevated padding="xs"
@@ -26,29 +27,30 @@ import { api } from 'boot/axios';
 
 export default {
   setup() {
-    const search = ref('');
     let timeoutId = null;
-    const SUGGEST_TRIGGER_INTERVAL = 250; // millisencods
+    const SUGGEST_DEBOUNCE_INTERVAL = 250; // millisencods
+    const query = ref('');
 
-    const debouncedSuggest = (newVal) => {
+    const suggest = (newVal) => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(async () => {
         if (newVal) {
-          const query = newVal;
           try {
-            console.log(`> Get suggestions for query: ${query}`);
-            api.post('/suggest', { query: query }).then((response) => {
-              console.log(response.data);
+            console.log(`> Query: [${newVal}]`);
+            api.post('/suggest', { query: newVal }).then((response) => {
+              let suggestions = response.data;
+              console.log(`+ Get ${suggestions.length} suggestions:`);
+              console.log(suggestions);
             });
           } catch (error) {
             console.error(error);
           }
         }
-      }, SUGGEST_TRIGGER_INTERVAL);
+      }, SUGGEST_DEBOUNCE_INTERVAL);
     };
     return {
-      search,
-      debouncedSuggest,
+      query,
+      suggest,
     };
   },
 };
