@@ -1,10 +1,22 @@
 <template>
-  <q-input v-model="search" filled type="search" hint="Search">
+  <q-input
+    rounded
+    outlined
+    clearable
+    placeholder="Search"
+    v-model="search"
+    type="search"
+    style="width: 680px"
+  >
+    <template v-slot:prepend>
+      <q-btn unelevated padding="xs"><q-icon name="search" /></q-btn>
+    </template>
     <template v-slot:append>
-      <q-icon name="search" />
+      <q-btn unelevated padding="xs"><q-icon name="image" /></q-btn>
     </template>
   </q-input>
 </template>
+
 <script>
 import { ref } from 'vue';
 
@@ -16,3 +28,9 @@ export default {
   },
 };
 </script>
+
+<style lang="scss">
+.q-focus-helper {
+  visibility: hidden;
+}
+</style>
