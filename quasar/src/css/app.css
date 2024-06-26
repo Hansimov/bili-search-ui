@@ -1,11 +1,21 @@
 /* app global css */
 body.body--light .q-toolbar {
-  color: RoyalBlue;
+  color: DodgerBlue;
 }
 body.body--light .q-toggle {
   color: black;
 }
 
 body.body--dark .q-toolbar {
-  color: white;
+  color: CornflowerBlue;
+}
+
+body.body--light .tv-icon {
+  filter: invert(0%) sepia(0%) saturate(100%) hue-rotate(0deg) brightness(100%)
+    contrast(100%);
+}
+
+body.body--dark .tv-icon {
+  filter: invert(0%) sepia(0%) saturate(50%) hue-rotate(0deg) brightness(115%)
+    contrast(100%);
 }

@@ -1,41 +1,40 @@
 <template>
-      <div class="search-bar">
-  <q-input
-    rounded
-    outlined
-    clearable
-    placeholder="Ask me anything ..."
-    type="search"
-    v-model="query"
-    @update:model-value="suggest"
-  >
-    <template v-slot:prepend>
-      <q-btn unelevated padding="xs"
-        ><q-icon name="filter_center_focus"
-      /></q-btn>
-    </template>
-    <template v-slot:append>
-      <q-btn unelevated padding="xs"><q-icon name="search" /></q-btn>
-    </template>
-  </q-input>
-      </div>
-      <q-list v-if="suggestions.length" class="suggestions-list">
-        <q-item
-          clickable
-          v-for="(suggestion, index) in suggestions"
-          :key="index"
-        >
-          <q-item-section avatar class="suggestion-avatar">
-            <q-icon><img src="../assets/bili-tv.svg" class="tv-icon" /></q-icon>
-          </q-item-section>
-          <q-item-section class="suggestion-title">
-            {{ suggestion.title }}
-          </q-item-section>
-          <q-item-section class="suggestion-pubdate">
-            {{ suggestion.pubdate.slice(0, 10) }}
-          </q-item-section>
-        </q-item></q-list
+  <q-page padding>
+    <div class="header-placeholder"><br /></div>
+    <div class="search-bar">
+      <q-input
+        rounded
+        outlined
+        clearable
+        placeholder="Ask me anything ..."
+        type="search"
+        v-model="query"
+        @update:model-value="suggest"
       >
+        <template v-slot:prepend>
+          <q-btn unelevated padding="xs"
+            ><q-icon name="filter_center_focus"
+          /></q-btn>
+        </template>
+        <template v-slot:append>
+          <q-btn unelevated padding="xs"><q-icon name="search" /></q-btn>
+        </template>
+      </q-input>
+    </div>
+    <q-list v-if="suggestions.length" class="suggestions-list">
+      <q-item clickable v-for="(suggestion, index) in suggestions" :key="index">
+        <q-item-section avatar class="suggestion-avatar">
+          <q-icon><img src="../assets/bili-tv.svg" class="tv-icon" /></q-icon>
+        </q-item-section>
+        <q-item-section class="suggestion-title">
+          {{ suggestion.title }}
+        </q-item-section>
+        <q-item-section class="suggestion-pubdate">
+          {{ suggestion.pubdate.slice(0, 10) }}
+        </q-item-section>
+      </q-item></q-list
+    >
+  </q-page>
 </template>
 
 <script>
@@ -77,6 +76,29 @@ export default {
 
 <style lang="scss">
 .q-focus-helper {
-  visibility: hidden;
+  // visibility: hidden;
+}
+.search-bar {
+  width: 680px;
+  max-width: 100vw;
+}
+.suggestions-list {
+  width: 680px;
+  max-width: 100vw;
+}
+.suggestion-avatar {
+  // todo
+}
+.suggestion-title {
+  white-space: nowrap;
+  word-wrap: break-word;
+}
+.suggestion-pubdate {
+  text-align: right;
+  opacity: 0.65;
+}
+.header-placeholder {
+  line-height: 100px;
+  text-align: center;
 }
 </style>
