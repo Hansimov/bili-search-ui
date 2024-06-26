@@ -1,12 +1,11 @@
 <template>
+      <div class="search-bar">
   <q-input
     rounded
     outlined
     clearable
     placeholder="Ask me anything ..."
     type="search"
-    for="search-input"
-    style="width: 680px"
     v-model="query"
     @update:model-value="suggest"
   >
@@ -19,6 +18,24 @@
       <q-btn unelevated padding="xs"><q-icon name="search" /></q-btn>
     </template>
   </q-input>
+      </div>
+      <q-list v-if="suggestions.length" class="suggestions-list">
+        <q-item
+          clickable
+          v-for="(suggestion, index) in suggestions"
+          :key="index"
+        >
+          <q-item-section avatar class="suggestion-avatar">
+            <q-icon><img src="../assets/bili-tv.svg" class="tv-icon" /></q-icon>
+          </q-item-section>
+          <q-item-section class="suggestion-title">
+            {{ suggestion.title }}
+          </q-item-section>
+          <q-item-section class="suggestion-pubdate">
+            {{ suggestion.pubdate.slice(0, 10) }}
+          </q-item-section>
+        </q-item></q-list
+      >
 </template>
 
 <script>
@@ -28,8 +45,9 @@ import { api } from 'boot/axios';
 export default {
   setup() {
     let timeoutId = null;
-    const SUGGEST_DEBOUNCE_INTERVAL = 250; // millisencods
+    const SUGGEST_DEBOUNCE_INTERVAL = 200; // millisencods
     const query = ref('');
+    const suggestions = ref([]);
 
     const suggest = (newVal) => {
       clearTimeout(timeoutId);
@@ -38,8 +56,8 @@ export default {
           try {
             console.log(`> Query: [${newVal}]`);
             api.post('/suggest', { query: newVal }).then((response) => {
-              let suggestions = response.data;
-              console.log(`+ Get ${suggestions.length} suggestions:`);
+              suggestions.value = response.data;
+              console.log(`+ Get ${suggestions.value.length} suggestions:`);
               console.log(suggestions);
             });
           } catch (error) {
@@ -51,6 +69,7 @@ export default {
     return {
       query,
       suggest,
+      suggestions,
     };
   },
 };
