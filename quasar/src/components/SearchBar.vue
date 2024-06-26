@@ -80,12 +80,21 @@ export default {
       if (!query.value) {
         try {
           console.log('> Getting random suggestions...');
-          api.post('/random', { seed_update_seconds: 10 }).then((response) => {
-            suggestions.value = response.data;
-            console.log(
-              `+ Get ${suggestions.value.length} random suggestions.`
-            );
+
+          const latestSuggestPromise = api.post('/latest', 3);
+          const randomSuggestPromise = api.post('/random', {
+            seed_update_seconds: 10,
+            limit: 7,
           });
+
+          const [latestSuggestResponse, randomSuggestResponse] =
+            await Promise.all([latestSuggestPromise, randomSuggestPromise]);
+
+          suggestions.value = [
+            ...latestSuggestResponse.data,
+            ...randomSuggestResponse.data,
+          ];
+          console.log(`+ Get ${suggestions.value.length} suggestions.`);
         } catch (error) {
           console.error(error);
         }
