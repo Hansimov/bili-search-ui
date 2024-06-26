@@ -6,10 +6,12 @@
         rounded
         outlined
         clearable
-        placeholder="Ask me anything ..."
+        placeholder="你是否在找：影视飓风的视频？"
         type="search"
         v-model="query"
         @update:model-value="suggest"
+        @focus="randomSuggest"
+        @blur="clearSuggest"
       >
         <template v-slot:prepend>
           <q-btn unelevated padding="xs"
@@ -21,7 +23,12 @@
         </template>
       </q-input>
     </div>
-    <q-list v-if="suggestions.length" class="suggestions-list">
+    <q-list
+      v-if="suggestions.length"
+      class="suggestions-list"
+      @mouseenter="isMouseInSuggestionList = true"
+      @mouseleave="isMouseInSuggestionList = false"
+    >
       <q-item clickable v-for="(suggestion, index) in suggestions" :key="index">
         <q-item-section avatar class="suggestion-avatar">
           <q-icon><img src="../assets/bili-tv.svg" class="tv-icon" /></q-icon>
@@ -43,10 +50,12 @@ import { api } from 'boot/axios';
 
 export default {
   setup() {
-    let timeoutId = null;
-    const SUGGEST_DEBOUNCE_INTERVAL = 200; // millisencods
     const query = ref('');
     const suggestions = ref([]);
+    const isMouseInSuggestionList = ref(false);
+
+    let timeoutId = null;
+    const SUGGEST_DEBOUNCE_INTERVAL = 200; // millisencods
 
     const suggest = (newVal) => {
       clearTimeout(timeoutId);
@@ -56,19 +65,46 @@ export default {
             console.log(`> Query: [${newVal}]`);
             api.post('/suggest', { query: newVal }).then((response) => {
               suggestions.value = response.data;
-              console.log(`+ Get ${suggestions.value.length} suggestions:`);
-              console.log(suggestions);
+              console.log(`+ Get ${suggestions.value.length} suggestions.`);
             });
           } catch (error) {
             console.error(error);
           }
+        } else {
+          suggestions.value = [];
         }
       }, SUGGEST_DEBOUNCE_INTERVAL);
     };
+
+    const randomSuggest = async () => {
+      if (!query.value) {
+        try {
+          console.log('> Getting random suggestions...');
+          api.post('/random', { seed_update_seconds: 10 }).then((response) => {
+            suggestions.value = response.data;
+            console.log(
+              `+ Get ${suggestions.value.length} random suggestions.`
+            );
+          });
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    };
+
+    const clearSuggest = () => {
+      if (!query.value && !isMouseInSuggestionList.value) {
+        suggestions.value = [];
+      }
+    };
+
     return {
       query,
-      suggest,
       suggestions,
+      isMouseInSuggestionList,
+      suggest,
+      randomSuggest,
+      clearSuggest,
     };
   },
 };
@@ -79,12 +115,12 @@ export default {
   // visibility: hidden;
 }
 .search-bar {
-  width: 680px;
-  max-width: 100vw;
+  width: 780px;
+  max-width: 95vw;
 }
 .suggestions-list {
-  width: 680px;
-  max-width: 100vw;
+  width: 780px;
+  max-width: 95vw;
 }
 .suggestion-avatar {
   // todo
@@ -98,7 +134,7 @@ export default {
   opacity: 0.65;
 }
 .header-placeholder {
-  line-height: 100px;
+  line-height: 12vh;
   text-align: center;
 }
 </style>
