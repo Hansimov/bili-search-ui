@@ -1,21 +1,14 @@
 <template>
   <q-layout view="lHh Lpr lFf">
-    <q-header class="transparent">
-      <q-toolbar>
-        <q-btn flat dense round icon="search" />
-        <q-toolbar-title> bilibili 视频搜索 </q-toolbar-title>
-        <dark-switch />
-      </q-toolbar>
-    </q-header>
     <q-page-container>
+      <index-header />
       <router-view />
     </q-page-container>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import DarkSwitch from 'components/DarkSwitch.vue';
-
+import IndexHeader from 'components/IndexHeader.vue';
 defineOptions({
   name: 'MainLayout',
 });
