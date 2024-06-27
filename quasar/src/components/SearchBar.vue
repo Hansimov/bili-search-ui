@@ -23,32 +23,24 @@
         </template>
       </q-input>
     </div>
-    <q-list
-      v-if="suggestions.length"
-      class="suggestions-list"
-      @mouseenter="isMouseInSuggestionList = true"
-      @mouseleave="isMouseInSuggestionList = false"
-    >
-      <q-item clickable v-for="(suggestion, index) in suggestions" :key="index">
-        <q-item-section avatar class="suggestion-avatar">
-          <q-icon><img src="../assets/bili-tv.svg" class="tv-icon" /></q-icon>
-        </q-item-section>
-        <q-item-section class="suggestion-title">
-          {{ suggestion.title }}
-        </q-item-section>
-        <q-item-section class="suggestion-pubdate">
-          {{ suggestion.pubdate.slice(0, 10) }}
-        </q-item-section>
-      </q-item>
-    </q-list>
+    <SuggestionsList
+      :suggestions="suggestions"
+      :isMouseInSuggestionList="isMouseInSuggestionList"
+      @mouse-enter="isMouseInSuggestionList = true"
+      @mouse-leave="isMouseInSuggestionList = false"
+    />
   </q-page>
 </template>
 
 <script>
 import { ref } from 'vue';
 import { api } from 'boot/axios';
+import SuggestionsList from './SuggestionsList.vue';
 
 export default {
+  components: {
+    SuggestionsList,
+  },
   setup() {
     const query = ref('');
     const suggestions = ref([]);
