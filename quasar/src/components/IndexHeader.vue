@@ -13,3 +13,9 @@
 <script setup lang="ts">
 import DarkSwitch from 'components/DarkSwitch.vue';
 </script>
+
+<style lang="scss">
+.q-toolbar .q-focus-helper {
+  visibility: hidden;
+}
+</style>

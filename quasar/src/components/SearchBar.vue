@@ -120,12 +120,12 @@ export default {
 </script>
 
 <style lang="scss">
-.q-focus-helper {
-  // visibility: hidden;
-}
 .search-bar {
   width: 780px;
   max-width: 95vw;
+}
+.search-bar .q-focus-helper {
+  visibility: hidden;
 }
 .suggestions-list {
   width: 780px;
