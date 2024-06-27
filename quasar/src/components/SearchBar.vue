@@ -6,7 +6,7 @@
         rounded
         outlined
         clearable
-        placeholder="你是否在找：影视飓风的视频？"
+        placeholder="正在浏览：影视飓风"
         type="search"
         v-model="query"
         @update:model-value="suggest"
@@ -14,9 +14,9 @@
         @blur="clearSuggest"
       >
         <template v-slot:prepend>
-          <q-btn unelevated padding="xs"
-            ><q-icon name="filter_center_focus"
-          /></q-btn>
+          <q-btn unelevated padding="xs">
+            <q-icon name="filter_center_focus" />
+          </q-btn>
         </template>
         <template v-slot:append>
           <q-btn unelevated padding="xs"><q-icon name="search" /></q-btn>
@@ -39,8 +39,8 @@
         <q-item-section class="suggestion-pubdate">
           {{ suggestion.pubdate.slice(0, 10) }}
         </q-item-section>
-      </q-item></q-list
-    >
+      </q-item>
+    </q-list>
   </q-page>
 </template>
 
