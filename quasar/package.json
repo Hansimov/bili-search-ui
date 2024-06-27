@@ -2,7 +2,7 @@
   "name": "bili-search-ui",
   "version": "0.0.1",
   "description": "A UI for Bili Search",
-  "productName": "Bili Search UI",
+  "productName": "Bilibili Search",
   "author": "Hansimov <591172499@qq.com>",
   "private": true,
   "scripts": {
