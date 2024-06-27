@@ -14,29 +14,28 @@
 </template>
 
 <script>
+import { computed } from 'vue';
+import { useSearchStore } from '../stores/searchStore';
 import SuggestionItem from './SuggestionItem.vue';
 
 export default {
   components: {
     SuggestionItem,
   },
-  props: {
-    suggestions: {
-      type: Array,
-      required: true,
-    },
-    isMouseInSuggestionList: {
-      type: Boolean,
-      required: true,
-    },
-  },
-  methods: {
-    mouseEnter() {
-      this.$emit('mouse-enter');
-    },
-    mouseLeave() {
-      this.$emit('mouse-leave');
-    },
+  setup() {
+    const searchStore = useSearchStore();
+    const mouseEnter = () => {
+      searchStore.setIsMouseInSuggestionList(true);
+    };
+    const mouseLeave = () => {
+      searchStore.setIsMouseInSuggestionList(false);
+    };
+    const suggestions = computed(() => searchStore.suggestions);
+    return {
+      mouseEnter,
+      mouseLeave,
+      suggestions,
+    };
   },
 };
 </script>
