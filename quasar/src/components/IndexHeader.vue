@@ -1,8 +1,10 @@
 <template>
   <q-header class="transparent">
     <q-toolbar>
-      <q-btn flat dense round icon="search" />
-      <q-toolbar-title> bilibili 视频搜索 </q-toolbar-title>
+      <q-btn flat dense no-caps icon="search" to="/">
+        <q-toolbar-title> bilibili 视频搜索 </q-toolbar-title>
+      </q-btn>
+      <q-space />
       <dark-switch />
     </q-toolbar>
   </q-header>
