@@ -1,139 +1,24 @@
 <template>
   <q-page padding>
     <div class="header-placeholder"><br /></div>
-    <div class="search-bar">
-      <q-input
-        rounded
-        outlined
-        clearable
-        placeholder="正在浏览：影视飓风"
-        type="search"
-        v-model="query"
-        @update:model-value="suggest"
-        @focus="randomSuggest"
-        @blur="clearSuggest"
-      >
-        <template v-slot:prepend>
-          <q-btn unelevated padding="xs">
-            <q-icon name="filter_center_focus" />
-          </q-btn>
-        </template>
-        <template v-slot:append>
-          <q-btn unelevated padding="xs"><q-icon name="search" /></q-btn>
-        </template>
-      </q-input>
-    </div>
-    <SuggestionsList
-      :suggestions="suggestions"
-      :isMouseInSuggestionList="isMouseInSuggestionList"
-      @mouse-enter="isMouseInSuggestionList = true"
-      @mouse-leave="isMouseInSuggestionList = false"
-    />
+    <SearchInput />
+    <SuggestionsList />
   </q-page>
 </template>
 
 <script>
-import { ref } from 'vue';
-import { api } from 'boot/axios';
+import SearchInput from './SearchInput.vue';
 import SuggestionsList from './SuggestionsList.vue';
 
 export default {
   components: {
+    SearchInput,
     SuggestionsList,
-  },
-  setup() {
-    const query = ref('');
-    const suggestions = ref([]);
-    const isMouseInSuggestionList = ref(false);
-
-    let timeoutId = null;
-    const SUGGEST_DEBOUNCE_INTERVAL = 200; // millisencods
-
-    const suggest = (newVal) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(async () => {
-        if (newVal) {
-          try {
-            console.log(`> Query: [${newVal}]`);
-            api.post('/suggest', { query: newVal }).then((response) => {
-              suggestions.value = response.data;
-              console.log(`+ Get ${suggestions.value.length} suggestions.`);
-            });
-          } catch (error) {
-            console.error(error);
-          }
-        } else {
-          suggestions.value = [];
-        }
-      }, SUGGEST_DEBOUNCE_INTERVAL);
-    };
-
-    const randomSuggest = async () => {
-      if (!query.value) {
-        try {
-          console.log('> Getting random suggestions...');
-
-          const latestSuggestPromise = api.post('/latest', 3);
-          const randomSuggestPromise = api.post('/random', {
-            seed_update_seconds: 10,
-            limit: 7,
-          });
-
-          const [latestSuggestResponse, randomSuggestResponse] =
-            await Promise.all([latestSuggestPromise, randomSuggestPromise]);
-
-          suggestions.value = [
-            ...latestSuggestResponse.data,
-            ...randomSuggestResponse.data,
-          ];
-          console.log(`+ Get ${suggestions.value.length} suggestions.`);
-        } catch (error) {
-          console.error(error);
-        }
-      }
-    };
-
-    const clearSuggest = () => {
-      if (!query.value && !isMouseInSuggestionList.value) {
-        suggestions.value = [];
-      }
-    };
-
-    return {
-      query,
-      suggestions,
-      isMouseInSuggestionList,
-      suggest,
-      randomSuggest,
-      clearSuggest,
-    };
   },
 };
 </script>
 
 <style lang="scss">
-.search-bar {
-  width: 780px;
-  max-width: 95vw;
-}
-.search-bar .q-focus-helper {
-  visibility: hidden;
-}
-.suggestions-list {
-  width: 780px;
-  max-width: 95vw;
-}
-.suggestion-avatar {
-  // todo
-}
-.suggestion-title {
-  white-space: nowrap;
-  word-wrap: break-word;
-}
-.suggestion-pubdate {
-  text-align: right;
-  opacity: 0.65;
-}
 .header-placeholder {
   line-height: 12vh;
   text-align: center;
