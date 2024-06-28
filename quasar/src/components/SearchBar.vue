@@ -1,9 +1,8 @@
 <template>
-  <q-page padding>
-    <div class="header-placeholder"><br /></div>
+  <div>
     <SearchInput />
     <SuggestionsList />
-  </q-page>
+  </div>
 </template>
 
 <script>
@@ -17,10 +16,3 @@ export default {
   },
 };
 </script>
-
-<style lang="scss">
-.header-placeholder {
-  line-height: 12vh;
-  text-align: center;
-}
-</style>

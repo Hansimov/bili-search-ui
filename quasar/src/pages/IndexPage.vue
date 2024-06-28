@@ -1,6 +1,9 @@
 <template>
-  <q-page class="row items-center justify-evenly">
-    <search-bar active></search-bar>
+  <q-page class="row items-start justify-evenly">
+    <div>
+      <div class="head-placeholder"><br /></div>
+      <search-bar active></search-bar>
+    </div>
   </q-page>
 </template>
 
@@ -11,3 +14,10 @@ defineOptions({
   name: 'IndexPage',
 });
 </script>
+
+<style lang="scss" scoped>
+.head-placeholder {
+  line-height: 16vh;
+  text-align: center;
+}
+</style>
