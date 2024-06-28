@@ -26,16 +26,15 @@ export default {
   computed: {
     highlightedTitle() {
       if (
+        this.suggestion.pinyin_highlights &&
+        this.suggestion.pinyin_highlights['title.pinyin']
+      ) {
+        return this.suggestion.pinyin_highlights['title.pinyin'][0];
+      } else if (
         this.suggestion.common_highlights &&
         this.suggestion.common_highlights.title
       ) {
         return this.suggestion.common_highlights.title[0];
-      } else if (
-        this.suggestion.pinyin_highlights &&
-        this.suggestion.pinyin_highlights['title.pinyin']
-      ) {
-        console.log('highlightedTitle');
-        return this.suggestion.pinyin_highlights['title.pinyin'][0];
       } else {
         return this.suggestion.title;
       }
