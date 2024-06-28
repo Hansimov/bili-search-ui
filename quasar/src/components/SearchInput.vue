@@ -10,6 +10,7 @@
       @update:model-value="suggest"
       @focus="randomSuggest"
       @blur="clearSuggest"
+      @keyup.enter="submitQuery"
     >
       <template v-slot:prepend>
         <q-btn unelevated padding="xs">
@@ -25,18 +26,21 @@
 
 <script>
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { useSearchStore } from '../stores/searchStore';
 
 export default {
   setup() {
-    const query = ref('');
     const searchStore = useSearchStore();
+    const router = useRouter();
+    const query = ref(searchStore.query || '');
 
     let timeoutId = null;
     const SUGGEST_DEBOUNCE_INTERVAL = 200; // millisencods
 
     const suggest = (newVal) => {
+      searchStore.setQuery(query.value);
       clearTimeout(timeoutId);
       timeoutId = setTimeout(async () => {
         if (newVal) {
@@ -87,11 +91,19 @@ export default {
       }
     };
 
+    const submitQuery = () => {
+      if (query.value) {
+        searchStore.setSuggestions([]);
+        router.push(`/search?q=${query.value}`);
+      }
+    };
+
     return {
       query,
       suggest,
       randomSuggest,
       clearSuggest,
+      submitQuery,
     };
   },
 };
