@@ -19,3 +19,13 @@ body.body--dark .tv-icon {
   filter: invert(0%) sepia(0%) saturate(50%) hue-rotate(0deg) brightness(115%)
     contrast(100%);
 }
+
+body.body--light hit {
+  font-weight: bold;
+  color: Salmon;
+}
+
+body.body--dark hit {
+  font-weight: bold;
+  color: LightCoral;
+}
