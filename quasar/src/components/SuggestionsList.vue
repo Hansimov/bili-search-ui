@@ -44,5 +44,7 @@ export default {
 .suggestions-list {
   width: 780px;
   max-width: 95vw;
+  position: absolute;
+  z-index: 1000;
 }
 </style>
