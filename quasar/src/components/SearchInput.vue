@@ -47,7 +47,7 @@ export default {
           try {
             console.log(`> Query: [${newVal}]`);
             api.post('/suggest', { query: newVal }).then((response) => {
-              searchStore.setSuggestions(response.data);
+              searchStore.setSuggestions(response.data.hits);
               console.log(
                 `+ Get ${searchStore.suggestions.length} suggestions.`
               );
@@ -73,8 +73,8 @@ export default {
           const [latestSuggestResponse, randomSuggestResponse] =
             await Promise.all([latestSuggestPromise, randomSuggestPromise]);
           searchStore.setSuggestions([
-            ...latestSuggestResponse.data,
-            ...randomSuggestResponse.data,
+            ...latestSuggestResponse.data.hits,
+            ...randomSuggestResponse.data.hits,
           ]);
           console.log(
             `+ Get ${searchStore.suggestions.length} random suggestions.`
@@ -91,10 +91,20 @@ export default {
       }
     };
 
-    const submitQuery = () => {
+    const submitQuery = async () => {
       if (query.value) {
         searchStore.setSuggestions([]);
+        searchStore.setQuery(query.value);
         router.push(`/search?q=${query.value}`);
+        try {
+          console.log('> Getting search results ...');
+          api.post('/search', { query: searchStore.query }).then((response) => {
+            searchStore.setResults(response.data.hits);
+            console.log(`+ Get ${searchStore.results.length} search results.`);
+          });
+        } catch (error) {
+          console.error(error);
+        }
       }
     };
 
