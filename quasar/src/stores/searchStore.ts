@@ -1,16 +1,18 @@
 import { defineStore } from 'pinia';
 
 interface SearchState {
-    suggestions: string[];
-    isMouseInSuggestionList: boolean;
     query: string;
+    isMouseInSuggestionList: boolean;
+    suggestions: string[];
+    results: string[];
 }
 
 export const useSearchStore = defineStore('search', {
     state: (): SearchState => ({
-        suggestions: [],
-        isMouseInSuggestionList: false,
         query: '',
+        isMouseInSuggestionList: false,
+        suggestions: [],
+        results: [],
     }),
     actions: {
         setSuggestions(newSuggestions: string[]) {
@@ -21,6 +23,9 @@ export const useSearchStore = defineStore('search', {
         },
         setQuery(newQuery: string) {
             this.query = newQuery;
+        },
+        setResults(newResults: string[]) {
+            this.results = newResults;
         }
     },
 });
