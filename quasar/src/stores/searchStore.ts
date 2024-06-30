@@ -5,18 +5,23 @@ interface SearchState {
     isMouseInSuggestionList: boolean;
     suggestions: string[];
     results: string[];
+    isSuggestionsVisible: boolean;
 }
 
 export const useSearchStore = defineStore('search', {
     state: (): SearchState => ({
         query: '',
         isMouseInSuggestionList: false,
+        isSuggestionsVisible: true,
         suggestions: [],
         results: [],
     }),
     actions: {
         setSuggestions(newSuggestions: string[]) {
             this.suggestions = newSuggestions;
+        },
+        setIsSuggestionsVisible(newVisibility: boolean) {
+            this.isSuggestionsVisible = newVisibility;
         },
         setIsMouseInSuggestionList(newIsMouseInSuggestionList: boolean) {
             this.isMouseInSuggestionList = newIsMouseInSuggestionList;
@@ -26,6 +31,6 @@ export const useSearchStore = defineStore('search', {
         },
         setResults(newResults: string[]) {
             this.results = newResults;
-        }
+        },
     },
 });
