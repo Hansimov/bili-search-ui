@@ -99,7 +99,9 @@ export default {
     };
 
     const hideSuggestions = () => {
-      searchStore.setIsSuggestionsVisible(false);
+      if (!searchStore.isMouseInSuggestionList) {
+        searchStore.setIsSuggestionsVisible(false);
+      }
     };
 
     const submitQuery = async () => {
