@@ -3,13 +3,7 @@
     <q-card-section>
       <div class="text-subtitle1">{{ result.title }}</div>
     </q-card-section>
-    <q-img
-      :src="
-        'https://hansimov-data-proxy-api.hf.space/img?url=' +
-        result.pic +
-        '@320w_200h_1c_!web-space-upload-video.webp'
-      "
-    />
+    <q-img :src="result.pic + coverPicSuffix" referrerpolicy="no-referrer" />
     <q-card-section>
       <div class="text-subtitle2">{{ result.owner.name }}</div>
       <div class="text-caption">{{ result.pubdate_str.slice(0, 10) }}</div>
@@ -18,7 +12,7 @@
 </template>
 
 <script>
-import config from '../stores/config.json';
+import constants from '../stores/constants.json';
 
 export default {
   props: {
@@ -29,8 +23,7 @@ export default {
   },
   data() {
     return {
-      coverPicPrefix: config.coverPicPrefix,
-      coverPicSuffix: config.coverPicSuffix,
+      coverPicSuffix: constants.coverPicSuffix,
     };
   },
 };
