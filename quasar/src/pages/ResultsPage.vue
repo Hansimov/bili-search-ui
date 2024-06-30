@@ -1,11 +1,13 @@
 <template>
-  <q-page class="row items-start justify-evenly">
-    <div>
-      <div class="head-placeholder"><br /></div>
-      <search-bar></search-bar>
+  <q-page-container class="row items-start justify-evenly">
+    <q-page>
       <results-list></results-list>
-    </div>
-  </q-page>
+      <q-page-sticky position="top">
+        <div class="head-placeholder"><br /></div>
+        <search-bar></search-bar>
+      </q-page-sticky>
+    </q-page>
+  </q-page-container>
 </template>
 
 <script setup lang="ts">
