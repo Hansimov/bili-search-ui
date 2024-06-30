@@ -1,43 +1,57 @@
 /* app global css */
+
+/* Toolbar */
 body.body--light .q-toolbar {
-  color: DodgerBlue;
+  color: #0070f0;
+  background: white;
 }
+body.body--dark .q-toolbar {
+  color: #50b0f0;
+  background: var(--q-dark-page);
+}
+
+/* Dark Mode Switch */
 body.body--light .q-toggle {
   color: black;
 }
 
-body.body--dark .q-toolbar {
-  color: CornflowerBlue;
+/* Search Input */
+body.body--light .search-input {
+  background: white;
+}
+body.body--dark .search-input {
+  background: var(--q-dark-page);
 }
 
+/* Suggestions List */
 body.body--light .suggestions-list {
   background-color: rgba(255, 255, 255, 0.95);
 }
-
 body.body--dark .suggestions-list {
   background-color: rgba(20, 20, 20, 0.95);
 }
 
+/* TV Icon */
 body.body--light .tv-icon {
   filter: invert(0%) sepia(0%) saturate(100%) hue-rotate(0deg) brightness(100%)
     contrast(100%);
 }
-
 body.body--dark .tv-icon {
   filter: invert(0%) sepia(0%) saturate(50%) hue-rotate(0deg) brightness(115%)
     contrast(100%);
 }
 
+/* Highlighted Hits */
 body.body--light hit {
   font-weight: bold;
-  color: Salmon;
+  color: #f060a0;
 }
-
 body.body--dark hit {
   font-weight: bold;
-  color: LightCoral;
+  color: #f060a0;
 }
 
+/* Root setting used by result title */
 :root {
   --result-title-font-size: 1em;
   --result-title-line-height: calc(1.5 * var(--result-title-font-size));
