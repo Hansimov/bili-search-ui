@@ -1,6 +1,6 @@
 <template>
   <q-card flat class="result-item q-py-sm">
-    <q-card-section class="result-cover q-pa-sm">
+    <q-card-section class="result-cover q-px-sm q-pt-none q-pb-xs">
       <router-link :to="`/video/${result.bvid}`" target="_blank">
         <q-img
           :src="result.pic + coverPicSuffix"
@@ -9,14 +9,14 @@
         />
       </router-link>
     </q-card-section>
-    <q-card-section class="q-pa-sm">
+    <q-card-section class="q-px-sm q-pt-none q-pb-xs">
       <router-link :to="`/video/${result.bvid}`" target="_blank">
-        <div class="result-title">{{ result.title }}</div>
+        <div class="result-title" v-html="highlightedTitle"></div>
       </router-link>
     </q-card-section>
-    <q-item class="q-pa-sm result-bottom">
+    <q-item class="q-px-sm q-pt-none q-pb-xs result-bottom">
       <q-item-section class="result-owner-name">
-        {{ result.owner.name }}
+        <div v-html="highlightedOwnerName"></div>
       </q-item-section>
       <q-item-section side class="result-pubdate">
         {{ result.pubdate_str.slice(0, 10) }}
@@ -40,6 +40,38 @@ export default {
       coverPicSuffix: constants.coverPicSuffix,
       userPicSuffix: constants.userPicSuffix,
     };
+  },
+  computed: {
+    highlightedTitle() {
+      if (
+        this.result.pinyin_highlights &&
+        this.result.pinyin_highlights['title.pinyin']
+      ) {
+        return this.result.pinyin_highlights['title.pinyin'][0];
+      } else if (
+        this.result.common_highlights &&
+        this.result.common_highlights.title
+      ) {
+        return this.result.common_highlights.title[0];
+      } else {
+        return this.result.title;
+      }
+    },
+    highlightedOwnerName() {
+      if (
+        this.result.pinyin_highlights &&
+        this.result.pinyin_highlights['owner.name.pinyin']
+      ) {
+        return this.result.pinyin_highlights['owner.name.pinyin'][0];
+      } else if (
+        this.result.common_highlights &&
+        this.result.common_highlights['owner.name']
+      ) {
+        return this.result.common_highlights['owner.name'][0];
+      } else {
+        return this.result.owner.name;
+      }
+    },
   },
 };
 </script>
@@ -69,9 +101,6 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
-}
-.result-title:hover {
-  overflow: visible;
 }
 .q-card a {
   text-decoration: none;
