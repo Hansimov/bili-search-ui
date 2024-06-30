@@ -8,8 +8,8 @@
       type="search"
       v-model="query"
       @update:model-value="suggest"
-      @focus="randomSuggest"
-      @blur="clearSuggest"
+      @focus="showSuggestions"
+      @blur="hideSuggestions"
       @keyup.enter="submitQuery"
     >
       <template v-slot:prepend>
@@ -61,27 +61,27 @@ export default {
       }, SUGGEST_DEBOUNCE_INTERVAL);
     };
 
-    const randomSuggest = async () => {
-      if (!query.value) {
-        try {
-          console.log('> Getting random suggestions ...');
-          const latestSuggestPromise = api.post('/latest', 3);
-          const randomSuggestPromise = api.post('/random', {
-            seed_update_seconds: 10,
-            limit: 7,
-          });
-          const [latestSuggestResponse, randomSuggestResponse] =
-            await Promise.all([latestSuggestPromise, randomSuggestPromise]);
-          searchStore.setSuggestions([
-            ...latestSuggestResponse.data.hits,
-            ...randomSuggestResponse.data.hits,
-          ]);
-          console.log(
-            `+ Get ${searchStore.suggestions.length} random suggestions.`
-          );
-        } catch (error) {
-          console.error(error);
-        }
+    const randomSuggest = () => {
+      try {
+        console.log('> Getting random suggestions ...');
+        const latestSuggestPromise = api.post('/latest', { limit: 3 });
+        const randomSuggestPromise = api.post('/random', {
+          seed_update_seconds: 10,
+          limit: 7,
+        });
+        Promise.all([latestSuggestPromise, randomSuggestPromise]).then(
+          ([latestSuggestResponse, randomSuggestResponse]) => {
+            searchStore.setSuggestions([
+              ...latestSuggestResponse.data.hits,
+              ...randomSuggestResponse.data.hits,
+            ]);
+            console.log(
+              `+ Get ${searchStore.suggestions.length} random suggestions.`
+            );
+          }
+        );
+      } catch (error) {
+        console.error(error);
       }
     };
 
@@ -91,9 +91,19 @@ export default {
       }
     };
 
+    const showSuggestions = async () => {
+      searchStore.setIsSuggestionsVisible(true);
+      if (!query.value) {
+        randomSuggest();
+      }
+    };
+
+    const hideSuggestions = () => {
+      searchStore.setIsSuggestionsVisible(false);
+    };
+
     const submitQuery = async () => {
       if (query.value) {
-        searchStore.setSuggestions([]);
         searchStore.setQuery(query.value);
         router.push(`/search?q=${query.value}`);
         try {
@@ -101,6 +111,7 @@ export default {
           api.post('/search', { query: searchStore.query }).then((response) => {
             searchStore.setResults(response.data.hits);
             console.log(`+ Get ${searchStore.results.length} search results.`);
+            searchStore.setIsSuggestionsVisible(false);
           });
         } catch (error) {
           console.error(error);
@@ -114,6 +125,8 @@ export default {
       randomSuggest,
       clearSuggest,
       submitQuery,
+      showSuggestions,
+      hideSuggestions,
     };
   },
 };

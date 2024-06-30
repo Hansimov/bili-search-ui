@@ -1,6 +1,6 @@
 <template>
   <q-list
-    v-if="suggestions.length"
+    v-if="suggestions.length && isSuggestionsVisible"
     class="suggestions-list"
     @mouseenter="mouseEnter"
     @mouseleave="mouseLeave"
@@ -31,10 +31,14 @@ export default {
       searchStore.setIsMouseInSuggestionList(false);
     };
     const suggestions = computed(() => searchStore.suggestions);
+    const isSuggestionsVisible = computed(
+      () => searchStore.isSuggestionsVisible
+    );
     return {
       mouseEnter,
       mouseLeave,
       suggestions,
+      isSuggestionsVisible,
     };
   },
 };
