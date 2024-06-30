@@ -110,11 +110,18 @@ export default {
         router.push(`/search?q=${query.value}`);
         try {
           console.log('> Getting search results ...');
-          api.post('/search', { query: searchStore.query }).then((response) => {
-            searchStore.setResults(response.data.hits);
-            console.log(`+ Get ${searchStore.results.length} search results.`);
-            searchStore.setIsSuggestionsVisible(false);
-          });
+          api
+            .post('/search', {
+              query: searchStore.query,
+              match_type: 'most_fields',
+            })
+            .then((response) => {
+              searchStore.setResults(response.data.hits);
+              console.log(
+                `+ Get ${searchStore.results.length} search results.`
+              );
+              searchStore.setIsSuggestionsVisible(false);
+            });
         } catch (error) {
           console.error(error);
         }
