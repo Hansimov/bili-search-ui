@@ -145,6 +145,7 @@ export default {
 .search-input {
   width: 780px;
   max-width: 95vw;
+  padding-bottom: 10px;
 }
 .search-input .q-focus-helper {
   visibility: hidden;

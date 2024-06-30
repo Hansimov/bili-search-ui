@@ -6,7 +6,8 @@
           :src="result.pic + coverPicSuffix"
           referrerpolicy="no-referrer"
           class="rounded-borders"
-        />
+        >
+        </q-img>
       </router-link>
     </q-card-section>
     <q-card-section class="q-px-sm q-pt-none q-pb-xs">
@@ -90,6 +91,7 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
+  opacity: 0.7;
 }
 .result-title {
   display: -webkit-box;
@@ -101,6 +103,9 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
+}
+.result-title:hover {
+  color: #60c0f0;
 }
 .q-card a {
   text-decoration: none;
