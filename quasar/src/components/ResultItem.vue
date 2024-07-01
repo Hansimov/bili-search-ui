@@ -16,9 +16,10 @@
       </router-link>
     </q-card-section>
     <q-item class="q-px-sm q-pt-none q-pb-xs result-bottom">
-      <q-item-section class="result-owner-name">
+      <q-item-section side class="result-owner-name">
         <div v-html="highlightedOwnerName"></div>
       </q-item-section>
+      <q-item-section></q-item-section>
       <q-item-section side class="result-pubdate">
         {{ result.pubdate_str.slice(0, 10) }}
       </q-item-section>
@@ -85,16 +86,14 @@ export default {
 .result-owner-avatar,
 .result-pubdate {
   flex: 0 0 auto;
+  opacity: 0.9;
 }
 .result-owner-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
-  opacity: 0.5;
-}
-.result-pubdate {
-  opacity: 0.75;
+  opacity: 0.9;
 }
 .result-title {
   display: -webkit-box;
@@ -106,7 +105,7 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 .result-title:hover {
   color: #60c0f0;
