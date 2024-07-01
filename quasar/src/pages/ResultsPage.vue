@@ -1,13 +1,11 @@
 <template>
-  <q-page-container class="row items-start justify-evenly">
-    <q-page>
-      <results-list></results-list>
-      <q-page-sticky position="top">
-        <div class="head-placeholder"><br /></div>
-        <search-bar></search-bar>
-      </q-page-sticky>
-    </q-page>
-  </q-page-container>
+  <q-page class="row items-start justify-evenly q-pa-none">
+    <results-list class="results-list"></results-list>
+    <q-page-sticky position="top">
+      <div class="head-placeholder"><br /></div>
+      <search-bar></search-bar>
+    </q-page-sticky>
+  </q-page>
 </template>
 
 <script setup lang="ts">
@@ -23,5 +21,8 @@ defineOptions({
 .head-placeholder {
   line-height: 0vh;
   text-align: center;
+}
+.results-list {
+  margin-top: 60px;
 }
 </style>

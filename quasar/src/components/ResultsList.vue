@@ -1,10 +1,8 @@
 <template>
-  <div class="results-list">
-    <ResultItem
-      v-for="(result, index) in results"
-      :key="index"
-      :result="result"
-    />
+  <div class="q-gutter-xs results-list">
+    <div v-for="(result, index) in results" :key="index">
+      <ResultItem :result="result" />
+    </div>
   </div>
 </template>
 
@@ -30,7 +28,10 @@ export default {
 <style lang="scss" scoped>
 .results-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  padding: 10px;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(var(--result-item-width), 1fr)
+  );
+  max-width: min(1280px, 95vw);
 }
 </style>

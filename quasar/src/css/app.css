@@ -55,6 +55,7 @@ body.body--dark hit {
 :root {
   --result-title-font-size: 1em;
   --result-title-line-height: calc(1.5 * var(--result-title-font-size));
+  --result-item-width: 240px;
 }
 
 /* Scrollbar */

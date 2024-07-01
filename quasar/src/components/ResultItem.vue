@@ -80,8 +80,8 @@ export default {
 <style scoped>
 .result-item {
   background-color: transparent;
+  width: var(--result-item-width);
 }
-
 .result-owner-avatar,
 .result-pubdate {
   flex: 0 0 auto;
