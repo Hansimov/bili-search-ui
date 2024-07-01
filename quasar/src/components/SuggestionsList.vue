@@ -46,9 +46,9 @@ export default {
 
 <style lang="scss" scoped>
 .suggestions-list {
-  width: 780px;
-  max-width: 95vw;
   position: absolute;
+  width: var(--search-input-width);
+  max-width: var(--search-input-max-width);
   z-index: 1000;
 }
 </style>

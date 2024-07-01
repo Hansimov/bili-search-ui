@@ -17,9 +17,9 @@
           <q-icon name="filter_center_focus" />
         </q-btn>
       </template>
-      <template v-slot:append>
+      <!-- <template v-slot:append>
         <q-btn unelevated padding="xs"><q-icon name="search" /></q-btn>
-      </template>
+      </template> -->
     </q-input>
   </div>
 </template>
@@ -143,8 +143,8 @@ export default {
 
 <style lang="scss">
 .search-input {
-  width: 780px;
-  max-width: 95vw;
+  width: var(--search-input-width);
+  max-width: var(--search-input-max-width);
   padding-bottom: 10px;
 }
 .search-input .q-focus-helper {
