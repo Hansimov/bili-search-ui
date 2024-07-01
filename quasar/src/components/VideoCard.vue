@@ -25,13 +25,11 @@
       <q-item-section></q-item-section>
       <q-item-section side>
         <q-item-label>
-          <q-icon
-            ><img
-              :src="videoDetails?.owner.face + userPicSuffix"
-              class="rounded-borders"
-              referrerpolicy="no-referrer"
-          /></q-icon>
-          {{ videoDetails?.owner.name }}
+          <a
+            :href="`https://space.bilibili.com/${videoDetails?.owner.mid}/video`"
+            target="_blank"
+            >{{ videoDetails?.owner.name }}
+          </a>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
@@ -67,6 +65,12 @@
         <q-item-label>
           <q-icon name="fa-solid fa-share"></q-icon>
           {{ videoDetails?.stat.share }}
+        </q-item-label>
+      </q-item-section>
+      <q-item-section></q-item-section>
+      <q-item-section side>
+        <q-item-label>
+          数据更新于：{{ videoDetails?.record_date_str }}
         </q-item-label>
       </q-item-section>
     </q-item>
@@ -127,5 +131,9 @@ export default {
 .result-desc {
   font-size: 1.1em;
   opacity: 0.8;
+}
+.q-item__label a {
+  text-decoration: none;
+  color: inherit;
 }
 </style>
