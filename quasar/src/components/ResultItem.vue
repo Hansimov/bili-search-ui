@@ -91,7 +91,10 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
-  opacity: 0.7;
+  opacity: 0.5;
+}
+.result-pubdate {
+  opacity: 0.75;
 }
 .result-title {
   display: -webkit-box;
@@ -103,6 +106,7 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
+  opacity: 0.8;
 }
 .result-title:hover {
   color: #60c0f0;
