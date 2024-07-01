@@ -58,9 +58,9 @@ body.body--dark hit {
   --result-title-font-size: 1em;
   --result-title-line-height: calc(1.5 * var(--result-title-font-size));
   --result-item-width: 240px;
-  --video-embed-width: 800px;
+  --video-embed-width: 1000px;
   --video-embed-max-width: 95vw;
-  --video-embed-height: 450px;
+  --video-embed-height: 563px;
   --video-embed-max-height: 95vh;
 }
 

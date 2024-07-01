@@ -1,6 +1,9 @@
 <template>
-  <q-page class="row items-center justify-evenly">
-    <video-card :bvid="bvid" active></video-card>
+  <q-page class="row items-start justify-evenly">
+    <div>
+      <div class="head-placeholder"><br /></div>
+      <video-card :bvid="bvid" active></video-card>
+    </div>
   </q-page>
 </template>
 
@@ -15,3 +18,10 @@ defineOptions({
   name: 'VideoPage',
 });
 </script>
+
+<style scoped>
+.head-placeholder {
+  line-height: 2vh;
+  text-align: center;
+}
+</style>
