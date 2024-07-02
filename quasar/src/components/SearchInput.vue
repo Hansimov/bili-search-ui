@@ -14,12 +14,34 @@
     >
       <template v-slot:prepend>
         <q-btn unelevated padding="xs">
-          <q-icon name="filter_center_focus" />
+          <q-icon name="search" />
         </q-btn>
       </template>
-      <!-- <template v-slot:append>
-        <q-btn unelevated padding="xs"><q-icon name="search" /></q-btn>
-      </template> -->
+      <template v-slot:append>
+        <q-toggle
+          :color="isEnableAISearch ? 'green' : 'grey'"
+          class="q-px-none ai-search-toggle"
+          v-model="isEnableAISearch"
+          :icon="isEnableAISearch ? 'fa-solid fa-rocket' : ''"
+          @update:model-value="toggleAISearch"
+          ><q-tooltip
+            anchor="center left"
+            self="center right"
+            transition-show="fade"
+            transition-hide="fade"
+            class="bg-transparent q-px-none"
+          >
+            <span
+              class="search-tooltip"
+              :class="{
+                'text-green': isEnableAISearch,
+                'text-grey': !isEnableAISearch,
+              }"
+              >AI 搜索 {{ isEnableAISearch ? '已启用' : '已关闭' }}</span
+            >
+          </q-tooltip>
+        </q-toggle>
+      </template>
     </q-input>
   </div>
 </template>
@@ -35,9 +57,14 @@ export default {
     const searchStore = useSearchStore();
     const router = useRouter();
     const query = ref(searchStore.query || '');
+    const isEnableAISearch = ref(searchStore.isEnableAISearch || false);
 
     let timeoutId = null;
     const SUGGEST_DEBOUNCE_INTERVAL = 200; // millisencods
+
+    const toggleAISearch = (newVal) => {
+      searchStore.setEnableAISearch(newVal);
+    };
 
     const suggest = (newVal) => {
       searchStore.setQuery(query.value);
@@ -136,12 +163,14 @@ export default {
       submitQuery,
       showSuggestions,
       hideSuggestions,
+      toggleAISearch,
+      isEnableAISearch,
     };
   },
 };
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
 .search-input {
   width: var(--search-input-width);
   max-width: var(--search-input-max-width);
@@ -149,5 +178,8 @@ export default {
 }
 .search-input .q-focus-helper {
   visibility: hidden;
+}
+.search-tooltip {
+  font-size: 14px;
 }
 </style>

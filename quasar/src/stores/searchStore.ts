@@ -6,6 +6,7 @@ interface SearchState {
     suggestions: string[];
     results: string[];
     isSuggestionsVisible: boolean;
+    isEnableAISearch: boolean;
 }
 
 export const useSearchStore = defineStore('search', {
@@ -15,6 +16,7 @@ export const useSearchStore = defineStore('search', {
         isSuggestionsVisible: true,
         suggestions: [],
         results: [],
+        isEnableAISearch: false,
     }),
     actions: {
         setSuggestions(newSuggestions: string[]) {
@@ -32,5 +34,8 @@ export const useSearchStore = defineStore('search', {
         setResults(newResults: string[]) {
             this.results = newResults;
         },
+        setEnableAISearch(newIsEnableAISearch: boolean) {
+            this.isEnableAISearch = newIsEnableAISearch;
+        }
     },
 });
