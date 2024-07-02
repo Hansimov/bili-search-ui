@@ -107,8 +107,13 @@ export default {
   flex-grow: 1;
   opacity: 0.85;
 }
-.result-title:hover {
+body.body--light .result-title:hover {
+  color: #0080d0;
+  opacity: 1;
+}
+body.body--dark .result-title:hover {
   color: #60c0f0;
+  opacity: 1;
 }
 .q-card a {
   text-decoration: none;

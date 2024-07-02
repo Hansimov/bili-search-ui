@@ -2,7 +2,7 @@
   <q-header>
     <q-toolbar>
       <q-btn flat dense no-caps icon="search" to="/">
-        <q-toolbar-title> bilibili 视频搜索 </q-toolbar-title>
+        <q-toolbar-title> bilibili 极速搜索 </q-toolbar-title>
       </q-btn>
       <q-space />
       <dark-switch />
