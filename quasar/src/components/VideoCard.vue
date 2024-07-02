@@ -104,6 +104,26 @@
         </q-item-label>
       </q-item-section>
     </q-item>
+    <q-item
+      class="q-px-sm q-pt-none q-pb-xs"
+      v-if="videoDetails && videoDetails?.staff"
+    >
+      <q-item-section
+        side
+        v-for="(staff, index) in videoDetails?.staff"
+        v-show="index > 0"
+        :key="index"
+      >
+        <q-item-label>
+          <a
+            :href="`https://space.bilibili.com/${staff?.mid}/video`"
+            target="_blank"
+          >
+            {{ staff.name }} <q-badge outline> {{ staff.title }} </q-badge>
+          </a>
+        </q-item-label>
+      </q-item-section>
+    </q-item>
     <q-card-section
       class="result-desc q-px-sm q-pt-none q-pb-xs"
       v-if="videoDetails"
@@ -164,6 +184,9 @@ export default {
 .result-desc {
   font-size: 1.1em;
   opacity: 0.8;
+}
+.q-item {
+  min-height: 36px;
 }
 .q-card a,
 .q-item__label a,
