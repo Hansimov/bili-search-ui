@@ -1,6 +1,9 @@
 <template>
   <q-card flat class="video-card">
-    <q-card-section class="result-title q-px-sm q-pt-none q-pb-xs">
+    <q-card-section
+      class="result-title q-px-sm q-pt-none q-pb-xs"
+      v-if="videoDetails"
+    >
       <a :href="`https://www.bilibili.com/video/${bvid}`" target="_blank">
         {{ videoDetails?.title }}
         <q-tooltip
@@ -10,12 +13,12 @@
           transition-hide="fade"
           class="bg-transparent"
         >
-          <q-icon size="sm"><img src="../assets/bili-tv.svg" /></q-icon>
+          <q-icon size="xs"><img src="../assets/bili-tv.svg" /></q-icon>
           <span class="title-tooltip">前往B站观看</span>
         </q-tooltip>
       </a>
     </q-card-section>
-    <q-item class="q-px-sm q-pt-none q-pb-xs">
+    <q-item class="q-px-sm q-pt-none q-pb-xs" v-if="videoDetails">
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-regular fa-play-circle"></q-icon>
@@ -34,27 +37,38 @@
           <span>{{ videoDetails?.stat.danmaku }}</span>
         </q-item-label>
       </q-item-section>
+      <template
+        v-for="(honor, index) in videoDetails.honor_reply.honor"
+        :key="index"
+      >
+        <q-item-section side v-if="honor.type === 2 || honor.type === 3">
+          <q-item-label>
+            <q-badge outline>
+              <span>{{ honor.desc }}</span>
+            </q-badge>
+          </q-item-label>
+        </q-item-section>
+      </template>
       <q-item-section></q-item-section>
       <q-item-section side>
         <q-item-label>
           <a
             :href="`https://space.bilibili.com/${videoDetails?.owner.mid}/video`"
             target="_blank"
-            >{{ videoDetails?.owner.name }}
+          >
+            {{ videoDetails?.owner.name }} <q-badge outline>UP</q-badge>
           </a>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
-        <q-item-label>
-          {{ videoDetails?.pubdate_str }}
-        </q-item-label>
+        <q-item-label>{{ videoDetails?.pubdate_str }} </q-item-label>
       </q-item-section>
     </q-item>
     <q-video
       class="video-embed q-px-sm q-pt-none q-pb-xs"
       :src="`//player.bilibili.com/player.html?bvid=${bvid}`"
     />
-    <q-item class="q-px-sm q-pt-none q-pb-xs">
+    <q-item class="q-px-sm q-pt-none q-pb-xs" v-if="videoDetails">
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-thumbs-up"> </q-icon>
@@ -86,7 +100,10 @@
         </q-item-label>
       </q-item-section>
     </q-item>
-    <q-card-section class="result-desc q-px-sm q-pt-none q-pb-xs">
+    <q-card-section
+      class="result-desc q-px-sm q-pt-none q-pb-xs"
+      v-if="videoDetails"
+    >
       {{ videoDetails?.desc }}
     </q-card-section>
   </q-card>
@@ -145,7 +162,8 @@ export default {
   opacity: 0.8;
 }
 .q-card a,
-.q-item__label a {
+.q-item__label a,
+.q-badge {
   text-decoration: none;
   color: inherit;
 }
@@ -156,7 +174,7 @@ export default {
   content: '\00a0';
 }
 .title-tooltip {
-  font-size: 16px;
+  font-size: 14px;
   vertical-align: -12%;
 }
 .title-tooltip::before {
