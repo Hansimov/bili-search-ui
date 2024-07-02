@@ -12,6 +12,7 @@
           transition-show="fade"
           transition-hide="fade"
           class="bg-transparent"
+          v-if="$q.screen.gt.md"
         >
           <q-icon size="xs"><img src="../assets/bili-tv.svg" /></q-icon>
           <span class="title-tooltip">前往B站观看</span>
@@ -41,10 +42,13 @@
         v-for="(honor, index) in videoDetails.honor_reply.honor"
         :key="index"
       >
-        <q-item-section side v-if="honor.type === 2 || honor.type === 3">
+        <q-item-section
+          side
+          v-if="(honor.type === 2 || honor.type === 3) && $q.screen.gt.xs"
+        >
           <q-item-label>
             <q-badge outline>
-              <span>{{ honor.desc }}</span>
+              {{ honor.desc }}
             </q-badge>
           </q-item-label>
         </q-item-section>
@@ -60,7 +64,7 @@
           </a>
         </q-item-label>
       </q-item-section>
-      <q-item-section side>
+      <q-item-section side v-if="$q.screen.gt.xs">
         <q-item-label>{{ videoDetails?.pubdate_str }} </q-item-label>
       </q-item-section>
     </q-item>
@@ -94,7 +98,7 @@
         </q-item-label>
       </q-item-section>
       <q-item-section></q-item-section>
-      <q-item-section side>
+      <q-item-section side v-if="$q.screen.gt.xs">
         <q-item-label>
           数据更新于：{{ videoDetails?.record_date_str }}
         </q-item-label>

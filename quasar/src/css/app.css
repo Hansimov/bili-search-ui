@@ -61,7 +61,7 @@ body.body--dark hit {
   --video-embed-width: 1000px;
   --video-embed-max-width: 95vw;
   --video-embed-height: 563px;
-  --video-embed-max-height: 95vh;
+  --video-embed-max-height: 53vw; /* 9/16*0.95 */
 }
 
 /* Scrollbar */
