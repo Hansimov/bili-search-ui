@@ -1,25 +1,37 @@
 <template>
   <q-card flat class="video-card">
     <q-card-section class="result-title q-px-sm q-pt-none q-pb-xs">
-      {{ videoDetails?.title }}
+      <a :href="`https://www.bilibili.com/video/${bvid}`" target="_blank">
+        {{ videoDetails?.title }}
+        <q-tooltip
+          anchor="center end"
+          self="center left"
+          transition-show="fade"
+          transition-hide="fade"
+          class="bg-transparent"
+        >
+          <q-icon size="sm"><img src="../assets/bili-tv.svg" /></q-icon>
+          <span class="title-tooltip">前往B站观看</span>
+        </q-tooltip>
+      </a>
     </q-card-section>
     <q-item class="q-px-sm q-pt-none q-pb-xs">
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-regular fa-play-circle"></q-icon>
-          {{ videoDetails?.stat.view }}
+          <span>{{ videoDetails?.stat.view }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-regular fa-commenting"></q-icon>
-          {{ videoDetails?.stat.reply }}
+          <span>{{ videoDetails?.stat.reply }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-align-left"></q-icon>
-          {{ videoDetails?.stat.danmaku }}
+          <span>{{ videoDetails?.stat.danmaku }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section></q-item-section>
@@ -46,25 +58,25 @@
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-thumbs-up"> </q-icon>
-          {{ videoDetails?.stat.like }}
+          <span>{{ videoDetails?.stat.like }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-soccer-ball"> </q-icon>
-          {{ videoDetails?.stat.coin }}
+          <span>{{ videoDetails?.stat.coin }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-star"></q-icon>
-          {{ videoDetails?.stat.favorite }}
+          <span>{{ videoDetails?.stat.favorite }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-share"></q-icon>
-          {{ videoDetails?.stat.share }}
+          <span>{{ videoDetails?.stat.share }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section></q-item-section>
@@ -132,8 +144,22 @@ export default {
   font-size: 1.1em;
   opacity: 0.8;
 }
+.q-card a,
 .q-item__label a {
   text-decoration: none;
   color: inherit;
+}
+.q-item__label span {
+  vertical-align: -4%;
+}
+.q-item__label span::before {
+  content: '\00a0';
+}
+.title-tooltip {
+  font-size: 16px;
+  vertical-align: -12%;
+}
+.title-tooltip::before {
+  content: '\00a0';
 }
 </style>
