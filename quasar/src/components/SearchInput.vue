@@ -170,7 +170,7 @@ export default {
 };
 </script>
 
-<style lang="scss" scoped>
+<style lang="scss">
 .search-input {
   width: var(--search-input-width);
   max-width: var(--search-input-max-width);
@@ -181,5 +181,20 @@ export default {
 }
 .search-tooltip {
   font-size: 14px;
+}
+body.body--light .q-toggle__inner--falsy .q-toggle__track {
+  background: #c0c0c0;
+}
+body.body--dark .q-toggle__inner--falsy .q-toggle__track {
+  background: #505050;
+}
+body.body--light .q-toggle__inner--falsy .q-toggle__thumb:after {
+  background: #f0f0f0;
+}
+body.body--dark
+  .ai-search-toggle
+  .q-toggle__inner--falsy
+  .q-toggle__thumb:after {
+  background: #404040;
 }
 </style>
