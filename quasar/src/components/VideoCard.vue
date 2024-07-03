@@ -19,23 +19,23 @@
         </q-tooltip>
       </a>
     </q-card-section>
-    <q-item class="q-px-sm q-pt-none q-pb-xs" v-if="videoDetails">
+    <q-item class="q-px-sm q-pt-none q-pb-sm" v-if="videoDetails">
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-regular fa-play-circle"></q-icon>
-          <span>{{ videoDetails?.stat.view }}</span>
-        </q-item-label>
-      </q-item-section>
-      <q-item-section side>
-        <q-item-label>
-          <q-icon name="fa-regular fa-commenting"></q-icon>
-          <span>{{ videoDetails?.stat.reply }}</span>
+          <span>{{ humanReadableNumber(videoDetails?.stat.view) }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-align-left"></q-icon>
-          <span>{{ videoDetails?.stat.danmaku }}</span>
+          <span>{{ humanReadableNumber(videoDetails?.stat.danmaku) }}</span>
+        </q-item-label>
+      </q-item-section>
+      <q-item-section side>
+        <q-item-label>
+          <q-icon name="fa-regular fa-commenting"></q-icon>
+          <span>{{ humanReadableNumber(videoDetails?.stat.reply) }}</span>
         </q-item-label>
       </q-item-section>
       <template
@@ -72,29 +72,29 @@
       class="video-embed q-px-sm q-pt-none q-pb-xs"
       :src="`//player.bilibili.com/player.html?bvid=${bvid}`"
     />
-    <q-item class="q-px-sm q-pt-none q-pb-xs" v-if="videoDetails">
+    <q-item class="q-px-sm q-pt-xs q-pb-none" v-if="videoDetails">
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-thumbs-up"> </q-icon>
-          <span>{{ videoDetails?.stat.like }}</span>
+          <span>{{ humanReadableNumber(videoDetails?.stat.like) }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-soccer-ball"> </q-icon>
-          <span>{{ videoDetails?.stat.coin }}</span>
+          <span>{{ humanReadableNumber(videoDetails?.stat.coin) }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-star"></q-icon>
-          <span>{{ videoDetails?.stat.favorite }}</span>
+          <span>{{ humanReadableNumber(videoDetails?.stat.favorite) }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
         <q-item-label>
           <q-icon name="fa-solid fa-share"></q-icon>
-          <span>{{ videoDetails?.stat.share }}</span>
+          <span>{{ humanReadableNumber(videoDetails?.stat.share) }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section></q-item-section>
@@ -111,7 +111,7 @@
       <q-item-section
         side
         v-for="(staff, index) in videoDetails?.staff"
-        v-show="index > 0"
+        v-show="index >= 0"
         :key="index"
       >
         <q-item-label>
@@ -159,6 +159,13 @@ export default {
         console.error('Failed to fetch video details:', error);
       }
     },
+    humanReadableNumber(num) {
+      if (num >= 10000) {
+        return `${(num / 10000).toFixed(1)}万`;
+      } else {
+        return `${num}`;
+      }
+    },
   },
   mounted() {
     this.fetchVideoDetails();
@@ -186,7 +193,7 @@ export default {
   opacity: 0.8;
 }
 .q-item {
-  min-height: 36px;
+  min-height: 40px;
 }
 .q-card a,
 .q-item__label a,
