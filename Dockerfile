@@ -24,6 +24,5 @@ WORKDIR /app/quasar
 RUN npm config set registry $NPM_MIRROR
 RUN npm i -g @quasar/cli
 RUN npm install
-COPY . .
 EXPOSE 9000
 CMD ["quasar", "dev"]

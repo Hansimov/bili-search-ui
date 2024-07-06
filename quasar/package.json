@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "A UI for Bili Search",
   "productName": "Bilibili Search",
-  "author": "Hansimov <591172499@qq.com>",
+  "author": "Hansimov",
   "private": true,
   "scripts": {
     "lint": "eslint --ext .js,.ts,.vue ./",
