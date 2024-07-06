@@ -1,0 +1,12 @@
+services:
+  bili-seach-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        UBUNTU_MIRROR: http://mirrors.tuna.tsinghua.edu.cn/ubuntu/
+        NPM_MIRROR: https://registry.npmmirror.com
+        COMMIT_HASH: 9295b6a
+    image: bili-search-ui
+    network_mode: host
+# docker compose up --build
