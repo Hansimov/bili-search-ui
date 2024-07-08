@@ -91,9 +91,9 @@ module.exports = configure(function (/* ctx */) {
           rewrite: (path) => path.replace(/^\/api/, ''),
         },
       },
-      port: 29000,
+      port: 21002,
       hmr: {
-        clientPort: 29000,
+        clientPort: 21002,
       },
     },
 
