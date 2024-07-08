@@ -43,7 +43,7 @@ module.exports = configure(function (/* ctx */) {
         node: 'node20',
       },
 
-      vueRouterMode: 'hash', // available values: 'hash', 'history'
+      vueRouterMode: 'history', // available values: 'hash', 'history'
       // vueRouterBase,
       // vueDevtools,
       // vueOptionsAPI: false,
@@ -81,7 +81,7 @@ module.exports = configure(function (/* ctx */) {
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#devServer
     devServer: {
       // https: true
-      open: true, // opens browser window automatically
+      open: false, // opens browser window automatically
       proxy: {
         // https://quasar.dev/quasar-cli-vite/api-proxying
         // proxy all requests starting with /api to jsonplaceholder
@@ -90,6 +90,10 @@ module.exports = configure(function (/* ctx */) {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ''),
         },
+      },
+      port: 29000,
+      hmr: {
+        clientPort: 29000,
       },
     },
 
