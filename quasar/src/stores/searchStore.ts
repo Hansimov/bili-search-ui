@@ -36,7 +36,7 @@ export const useSearchStore = defineStore('search', {
         setResults(newResults: string[]) {
             this.results = newResults;
         },
-        setEnableAISearch(newIsEnableAISearch: boolean) {
+        setIsEnableAISearch(newIsEnableAISearch: boolean) {
             this.isEnableAISearch = newIsEnableAISearch;
         },
         toggleSearchOptionsBarVisibility() {

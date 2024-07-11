@@ -1,11 +1,11 @@
 <template>
   <div class="q-px-xs q-pb-xs" v-if="searchStore.isSearchOptionsBarVisible">
     <q-toggle
-      class="q-pl-xs search-options-toggle"
+      class="q-pl-none search-options-toggle"
       icon="rocket_launch"
       :color="isEnableAISearch ? 'green' : 'grey'"
       v-model="isEnableAISearch"
-      @update:model-value="toggleAISearch"
+      @update:model-value="toggleIsEnableAISearch"
     >
       <span
         :class="{
@@ -13,11 +13,12 @@
           'text-grey': !isEnableAISearch,
         }"
       >
-        语义理解
+        AI 理解
       </span>
     </q-toggle>
     <q-toggle
-      class="q-pl-sm search-options-toggle"
+      disable
+      class="q-pl-xs search-options-toggle"
       icon="photo"
       :color="isSearchCover ? 'blue' : 'grey'"
       v-model="isSearchCover"
@@ -28,11 +29,12 @@
           'text-grey': !isSearchCover,
         }"
       >
-        搜索封面
+        封面
       </span>
     </q-toggle>
     <q-toggle
-      class="q-pl-sm search-options-toggle"
+      disable
+      class="q-pl-xs search-options-toggle"
       icon="description"
       :color="isSearchSubtitle ? 'cyan' : 'grey'"
       v-model="isSearchSubtitle"
@@ -43,7 +45,7 @@
           'text-grey': !isSearchSubtitle,
         }"
       >
-        搜索字幕
+        字幕
       </span>
     </q-toggle>
   </div>
@@ -56,15 +58,15 @@ import { useSearchStore } from '../stores/searchStore';
 export default {
   setup() {
     const searchStore = useSearchStore();
-    const isEnableAISearch = ref(searchStore.isEnableAISearch || false);
-    const toggleAISearch = (newVal) => {
-      searchStore.setEnableAISearch(newVal);
+    const toggleIsEnableAISearch = (newVal) => {
+      searchStore.setIsEnableAISearch(newVal);
     };
+    const isEnableAISearch = ref(searchStore.isEnableAISearch || false);
     return {
-      isEnableAISearch,
       isSearchCover: ref(false),
       isSearchSubtitle: ref(false),
-      toggleAISearch,
+      isEnableAISearch,
+      toggleIsEnableAISearch,
       searchStore,
     };
   },
@@ -87,7 +89,6 @@ body.body--dark
   .q-toggle__thumb:after {
   background: #404040;
 }
-
 body.body--dark .search-options-toggle .q-toggle__thumb.q-toggle__thumb:before {
   background: #606060;
 }

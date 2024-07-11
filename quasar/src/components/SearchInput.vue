@@ -16,7 +16,7 @@
       <template v-slot:prepend>
         <q-btn
           unelevated
-          padding="xs"
+          class="q-px-none"
           @click="searchStore.toggleSearchOptionsBarVisibility"
         >
           <q-icon
