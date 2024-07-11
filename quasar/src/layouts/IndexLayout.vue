@@ -1,15 +1,17 @@
 <template>
   <q-layout view="lHh Lpr lFf">
+    <q-header>
+      <TitleToolbar />
+    </q-header>
     <q-page-container>
-      <index-header />
       <router-view />
     </q-page-container>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import IndexHeader from 'components/IndexHeader.vue';
+import TitleToolbar from 'components/TitleToolbar.vue';
 defineOptions({
-  name: 'MainLayout',
+  name: 'IndexLayout',
 });
 </script>

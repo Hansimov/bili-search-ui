@@ -3,6 +3,7 @@
     <q-input
       rounded
       outlined
+      :dense="$route.path !== '/'"
       clearable
       placeholder="正在浏览：影视飓风"
       type="search"
