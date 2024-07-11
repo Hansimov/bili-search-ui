@@ -1,7 +1,7 @@
 <template>
-  <div class="q-px-xs q-pb-xs">
+  <div class="q-px-xs q-pb-xs" v-if="searchStore.isSearchOptionsBarVisible">
     <q-toggle
-      class="q-pr-sm search-options-toggle"
+      class="q-pl-xs search-options-toggle"
       icon="rocket_launch"
       :color="isEnableAISearch ? 'green' : 'grey'"
       v-model="isEnableAISearch"
@@ -17,7 +17,7 @@
       </span>
     </q-toggle>
     <q-toggle
-      class="q-pr-sm search-options-toggle"
+      class="q-pl-sm search-options-toggle"
       icon="photo"
       :color="isSearchCover ? 'blue' : 'grey'"
       v-model="isSearchCover"
@@ -32,7 +32,7 @@
       </span>
     </q-toggle>
     <q-toggle
-      class="q-pr-sm search-options-toggle"
+      class="q-pl-sm search-options-toggle"
       icon="description"
       :color="isSearchSubtitle ? 'cyan' : 'grey'"
       v-model="isSearchSubtitle"
@@ -65,6 +65,7 @@ export default {
       isSearchCover: ref(false),
       isSearchSubtitle: ref(false),
       toggleAISearch,
+      searchStore,
     };
   },
 };

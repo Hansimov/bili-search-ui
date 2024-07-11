@@ -1,7 +1,7 @@
 <template>
   <div>
-    <SearchOptionsBar />
     <SearchInput />
+    <SearchOptionsBar />
     <SuggestionsList />
   </div>
 </template>

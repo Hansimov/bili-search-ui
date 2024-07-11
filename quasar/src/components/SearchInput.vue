@@ -1,5 +1,5 @@
 <template>
-  <div class="search-input">
+  <div class="search-input q-pb-xs">
     <q-input
       rounded
       outlined
@@ -14,8 +14,18 @@
       @keyup.enter="submitQuery"
     >
       <template v-slot:prepend>
-        <q-btn unelevated padding="xs">
-          <q-icon name="search" />
+        <q-btn
+          unelevated
+          padding="xs"
+          @click="searchStore.toggleSearchOptionsBarVisibility"
+        >
+          <q-icon
+            :name="
+              searchStore.isSearchOptionsBarVisible
+                ? 'keyboard_arrow_up'
+                : 'keyboard_arrow_down'
+            "
+          />
         </q-btn>
       </template>
     </q-input>
@@ -134,6 +144,7 @@ export default {
       submitQuery,
       showSuggestions,
       hideSuggestions,
+      searchStore,
     };
   },
 };
@@ -143,7 +154,6 @@ export default {
 .search-input {
   width: var(--search-input-width);
   max-width: var(--search-input-max-width);
-  padding-bottom: 10px;
 }
 .search-input .q-focus-helper {
   visibility: hidden;

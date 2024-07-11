@@ -7,6 +7,7 @@ interface SearchState {
     results: string[];
     isSuggestionsVisible: boolean;
     isEnableAISearch: boolean;
+    isSearchOptionsBarVisible: boolean;
 }
 
 export const useSearchStore = defineStore('search', {
@@ -17,6 +18,7 @@ export const useSearchStore = defineStore('search', {
         suggestions: [],
         results: [],
         isEnableAISearch: false,
+        isSearchOptionsBarVisible: true,
     }),
     actions: {
         setSuggestions(newSuggestions: string[]) {
@@ -36,6 +38,9 @@ export const useSearchStore = defineStore('search', {
         },
         setEnableAISearch(newIsEnableAISearch: boolean) {
             this.isEnableAISearch = newIsEnableAISearch;
+        },
+        toggleSearchOptionsBarVisibility() {
+            this.isSearchOptionsBarVisible = !this.isSearchOptionsBarVisible;
         }
     },
 });
