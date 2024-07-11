@@ -14,19 +14,12 @@
       @keyup.enter="submitQuery"
     >
       <template v-slot:prepend>
-        <q-btn
-          unelevated
-          class="q-px-none"
-          @click="searchStore.toggleSearchOptionsBarVisibility"
-        >
-          <q-icon
-            :name="
-              searchStore.isSearchOptionsBarVisible
-                ? 'keyboard_arrow_up'
-                : 'keyboard_arrow_down'
-            "
-          />
+        <q-btn unelevated class="q-px-xs">
+          <q-icon name="search" />
         </q-btn>
+      </template>
+      <template v-slot:append>
+        <AISearchToggle />
       </template>
     </q-input>
   </div>
@@ -37,8 +30,12 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { useSearchStore } from '../stores/searchStore';
+import AISearchToggle from './AISearchToggle.vue';
 
 export default {
+  components: {
+    AISearchToggle,
+  },
   setup() {
     const searchStore = useSearchStore();
     const router = useRouter();
@@ -144,7 +141,7 @@ export default {
       submitQuery,
       showSuggestions,
       hideSuggestions,
-      searchStore,
+      AISearchToggle,
     };
   },
 };
