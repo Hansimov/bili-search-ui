@@ -4,6 +4,10 @@
       rounded
       outlined
       :dense="$route.path !== '/'"
+      :class="{
+        'q-pa-none': $route.path === '/',
+        'q-pb-sm': $route.path !== '/',
+      }"
       clearable
       placeholder="正在浏览：影视飓风"
       type="search"

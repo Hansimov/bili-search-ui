@@ -59,4 +59,10 @@ export default {
   text-align: right;
   opacity: 0.65;
 }
+body.body--light .suggestion-title {
+  color: #202020;
+}
+body.body--dark .suggestion-title {
+  color: #e0e0e0;
+}
 </style>
