@@ -15,7 +15,7 @@
       @update:model-value="suggest"
       @focus="showSuggestions"
       @blur="hideSuggestions"
-      @keyup.enter="submitQuery"
+      @keyup.enter="submitQuery(false)"
     >
       <template v-slot:prepend>
         <q-btn unelevated class="q-px-xs">
@@ -31,7 +31,7 @@
 
 <script>
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { useSearchStore } from '../stores/searchStore';
 import AISearchToggle from './AISearchToggle.vue';
@@ -42,14 +42,15 @@ export default {
   },
   setup() {
     const searchStore = useSearchStore();
+    const route = useRoute();
     const router = useRouter();
-    const query = ref(searchStore.query || '');
+    const query = ref(searchStore.query || route.query.q || '');
 
     let timeoutId = null;
     const SUGGEST_DEBOUNCE_INTERVAL = 200; // millisencods
 
     const suggest = (newVal) => {
-      searchStore.setQuery(query.value);
+      searchStore.setQuery(newVal);
       clearTimeout(timeoutId);
       timeoutId = setTimeout(async () => {
         if (newVal) {
@@ -65,7 +66,7 @@ export default {
             console.error(error);
           }
         } else {
-          searchStore.setSuggestions([]);
+          // searchStore.setSuggestions([]);
         }
       }, SUGGEST_DEBOUNCE_INTERVAL);
     };
@@ -113,15 +114,17 @@ export default {
       }
     };
 
-    const submitQuery = async () => {
+    const submitQuery = async (isFromURL = false) => {
       if (query.value) {
         searchStore.setQuery(query.value);
-        router.push(`/search?q=${query.value}`);
+        if (!isFromURL) {
+          await router.push(`/search?q=${query.value}`);
+        }
         try {
           console.log('> Getting search results ...');
           api
             .post('/search', {
-              query: searchStore.query,
+              query: query.value,
               match_type: 'most_fields',
             })
             .then((response) => {
@@ -142,10 +145,10 @@ export default {
       suggest,
       randomSuggest,
       clearSuggest,
-      submitQuery,
       showSuggestions,
       hideSuggestions,
       AISearchToggle,
+      submitQuery,
     };
   },
 };
