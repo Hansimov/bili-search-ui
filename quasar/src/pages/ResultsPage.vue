@@ -1,7 +1,6 @@
 <template>
   <q-page class="row items-start justify-evenly q-pa-none">
     <q-card flat class="results-tabs-card">
-      <ResultsTypesBar />
       <div class="results-panels-card">
         <q-tab-panels
           keep-alive
@@ -36,12 +35,10 @@
 import { computed } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import ResultsList from 'src/components/ResultsList.vue';
-import ResultsTypesBar from 'src/components/ResultsTypesTab.vue';
 
 export default {
   components: {
     ResultsList,
-    ResultsTypesBar,
   },
   setup() {
     const searchStore = useSearchStore();
