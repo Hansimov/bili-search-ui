@@ -140,6 +140,10 @@ export default {
       }
     };
 
+    if (query.value) {
+      submitQuery(query.value);
+    }
+
     return {
       query,
       suggest,
