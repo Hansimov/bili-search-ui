@@ -4,7 +4,7 @@
     class="q-px-none ai-search-toggle"
     v-model="isEnableAISearch"
     :icon="isEnableAISearch ? 'fa-solid fa-rocket' : ''"
-    @update:model-value="toggleAISearch"
+    @update:model-value="toggleIsEnableAISearch"
     ><q-tooltip
       anchor="center left"
       self="center right"

@@ -2,6 +2,7 @@
   <q-tabs
     class="results-types-tabs"
     narrow-indicator
+    align="justify"
     v-model="activeTab"
     @update:model-value="updateTab"
   >
