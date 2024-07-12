@@ -1,5 +1,5 @@
 <template>
-  <div class="search-input q-pb-xs">
+  <div class="search-input q-pa-none">
     <q-input
       rounded
       outlined

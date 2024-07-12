@@ -1,7 +1,7 @@
 <template>
   <q-tabs
+    class="results-types-tabs"
     narrow-indicator
-    align="justify"
     v-model="activeTab"
     @update:model-value="updateTab"
   >
@@ -29,3 +29,13 @@ export default {
   },
 };
 </script>
+
+<style>
+.q-tab {
+  color: white;
+  min-height: 36px;
+}
+.q-toolbar {
+  min-height: 42px;
+}
+</style>

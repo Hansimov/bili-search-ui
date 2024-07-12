@@ -1,7 +1,7 @@
 <template>
   <q-list
     v-if="suggestions.length && isSuggestionsVisible"
-    class="suggestions-list"
+    class="suggestions-list q-pt-xs"
     @mouseenter="mouseEnter"
     @mouseleave="mouseLeave"
   >
