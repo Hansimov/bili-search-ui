@@ -105,6 +105,10 @@ export default {
       searchStore.setIsSuggestionsVisible(true);
       if (!query.value) {
         randomSuggest();
+      } else {
+        if (!searchStore.suggestions.length) {
+          suggest(query.value);
+        }
       }
     };
 
