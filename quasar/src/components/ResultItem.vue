@@ -7,17 +7,33 @@
           referrerpolicy="no-referrer"
           class="rounded-borders"
         >
+          <span
+            class="text-caption absolute-bottom text-center result-bottom-bar"
+          ></span>
+          <span
+            class="text-caption absolute-top text-center result-top-bar"
+          ></span>
+          <span class="text-caption absolute-top text-right result-score">
+            {{ result?.score.toFixed(1) }}
+          </span>
+          <span class="text-caption absolute-bottom text-left result-view">
+            <q-icon name="fa-regular fa-play-circle"></q-icon>
+            {{ humanReadableNumber(result?.stat.view) }}
+          </span>
+          <span class="text-caption absolute-bottom text-right result-duration">
+            {{ secondsToDuration(result?.duration) }}
+          </span>
         </q-img>
       </router-link>
     </q-card-section>
     <q-card-section class="q-px-sm q-pt-none q-pb-xs">
       <router-link :to="`/video/${result.bvid}`" target="_blank">
-        <div class="result-title" v-html="highlightedTitle"></div>
+        <div class="result-title" v-html="highlightedTitle()"></div>
       </router-link>
     </q-card-section>
     <q-item class="q-px-sm q-pt-none q-pb-xs result-bottom">
       <q-item-section side class="result-owner-name">
-        <div v-html="highlightedOwnerName"></div>
+        <div v-html="highlightedOwnerName()"></div>
       </q-item-section>
       <q-item-section></q-item-section>
       <q-item-section side class="result-pubdate">
@@ -29,6 +45,7 @@
 
 <script>
 import constants from '../stores/constants.json';
+import { humanReadableNumber, secondsToDuration } from 'src/utils/convert';
 
 export default {
   props: {
@@ -43,7 +60,7 @@ export default {
       userPicSuffix: constants.userPicSuffix,
     };
   },
-  computed: {
+  methods: {
     highlightedTitle() {
       if (
         this.result.pinyin_highlights &&
@@ -74,6 +91,8 @@ export default {
         return this.result.owner.name;
       }
     },
+    humanReadableNumber,
+    secondsToDuration,
   },
 };
 </script>
@@ -121,5 +140,21 @@ body.body--dark .result-title:hover {
 }
 .q-item {
   min-height: var(--result-title-line-height);
+}
+.result-score,
+.result-view,
+.result-duration {
+  padding: 2px 4px 2px 4px;
+  font-size: 14px;
+  background: transparent;
+  color: white;
+}
+.result-top-bar,
+.result-bottom-bar {
+  background: rgba(0, 0, 0, 0.4);
+  padding: 12px 0px 12px 0px;
+}
+.q-img i {
+  vertical-align: 2%;
 }
 </style>
