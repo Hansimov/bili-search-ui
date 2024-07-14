@@ -33,8 +33,13 @@ export default {
 
 <style>
 .q-tab {
-  color: white;
   min-height: 36px;
+}
+body.body--dark .q-tab {
+  color: white;
+}
+body.body--light .q-tab {
+  color: black;
 }
 .q-toolbar {
   min-height: 42px;

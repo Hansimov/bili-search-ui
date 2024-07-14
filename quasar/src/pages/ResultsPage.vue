@@ -70,7 +70,7 @@ body.body--dark .search-bar-row {
   display: grid;
   max-width: min(1280px, 95vw);
 }
-.q-tab-panels {
+body.body--dark .q-tab-panels {
   background: var(--q-dark-page);
 }
 .q-tab-panel {
