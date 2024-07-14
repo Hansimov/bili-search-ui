@@ -136,6 +136,7 @@
 <script>
 import { api } from 'boot/axios';
 import constants from '../stores/constants.json';
+import { humanReadableNumber } from 'src/utils/convert';
 
 export default {
   props: {
@@ -159,13 +160,7 @@ export default {
         console.error('Failed to fetch video details:', error);
       }
     },
-    humanReadableNumber(num) {
-      if (num >= 10000) {
-        return `${(num / 10000).toFixed(1)}万`;
-      } else {
-        return `${num}`;
-      }
-    },
+    humanReadableNumber,
   },
   mounted() {
     this.fetchVideoDetails();
