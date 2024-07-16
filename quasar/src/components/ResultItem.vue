@@ -37,7 +37,7 @@
       </q-item-section>
       <q-item-section></q-item-section>
       <q-item-section side class="result-pubdate">
-        {{ result.pubdate_str.slice(0, 10) }}
+        <div v-html="highlightedPubdateStr()"></div>
       </q-item-section>
     </q-item>
   </q-card>
@@ -89,6 +89,24 @@ export default {
         return this.result.common_highlights['owner.name'][0];
       } else {
         return this.result.owner.name;
+      }
+    },
+    highlightedPubdateStr() {
+      if (
+        this.result.common_highlights &&
+        this.result.common_highlights['pubdate_str']
+      ) {
+        let pubdate_str = this.result.common_highlights['pubdate_str'][0];
+        return pubdate_str.split(' ')[0];
+      } else if (
+        this.result.common_highlights &&
+        this.result.common_highlights['pubdate_str.string']
+      ) {
+        let pubdate_str =
+          this.result.common_highlights['pubdate_str.string'][0];
+        return pubdate_str.split(' ')[0];
+      } else {
+        return this.result.pubdate_str.slice(0, 10);
       }
     },
     humanReadableNumber,
@@ -144,7 +162,7 @@ body.body--dark .result-title:hover {
 .result-score,
 .result-view,
 .result-duration {
-  padding: 2px 4px 2px 4px;
+  padding: 2px 5px 0px 5px;
   font-size: 14px;
   background: transparent;
   color: white;
