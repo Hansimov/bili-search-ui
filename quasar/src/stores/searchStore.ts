@@ -1,10 +1,17 @@
 import { defineStore } from 'pinia';
 
+interface ResultsResponse {
+    hits: string[];
+    total_hits: number;
+    return_hits: number;
+    detail_level: number;
+}
+
 interface SearchState {
     query: string;
     isMouseInSuggestionList: boolean;
     suggestions: string[];
-    results: string[];
+    results: ResultsResponse;
     isSuggestionsVisible: boolean;
     isEnableAISearch: boolean;
     isSearchOptionsBarVisible: boolean;
@@ -17,7 +24,12 @@ export const useSearchStore = defineStore('search', {
         isMouseInSuggestionList: false,
         isSuggestionsVisible: true,
         suggestions: [],
-        results: [],
+        results: {
+            hits: [],
+            total_hits: 0,
+            return_hits: 0,
+            detail_level: 1,
+        },
         isEnableAISearch: false,
         isSearchOptionsBarVisible: true,
         activeTab: 'titles',
@@ -35,8 +47,9 @@ export const useSearchStore = defineStore('search', {
         setQuery(newQuery: string) {
             this.query = newQuery;
         },
-        setResults(newResults: string[]) {
+        setResults(newResults: ResultsResponse) {
             this.results = newResults;
+            console.log('Results:', this.results);
         },
         setIsEnableAISearch(newIsEnableAISearch: boolean) {
             this.isEnableAISearch = newIsEnableAISearch;

@@ -129,10 +129,9 @@ export default {
           api
             .post('/search', {
               query: query.value,
-              match_type: 'most_fields',
             })
             .then((response) => {
-              searchStore.setResults(response.data.hits);
+              searchStore.setResults(response.data);
               console.log(
                 `+ Get ${searchStore.results.length} search results.`
               );
