@@ -1,6 +1,11 @@
 <template>
+  <span class="results-info"
+    >精确等级：{{ results.detail_level }}，匹配视频：{{
+      results.total_hits
+    }}，展示视频：{{ results.return_hits }}</span
+  >
   <div class="q-gutter-xs results-list">
-    <div v-for="(result, index) in results" :key="index">
+    <div v-for="(result, index) in results.hits" :key="index">
       <ResultItem :result="result" />
     </div>
   </div>
@@ -33,5 +38,8 @@ export default {
     minmax(var(--result-item-width), 1fr)
   );
   max-width: min(1280px, 95vw);
+}
+.results-info {
+  padding-left: 10px;
 }
 </style>

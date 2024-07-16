@@ -10,19 +10,15 @@
           transition-duration="0"
         >
           <q-tab-panel name="titles">
-            <span>标题搜索结果</span>
             <results-list class="titles-results-list"></results-list>
           </q-tab-panel>
           <q-tab-panel name="frames">
-            <span>画面搜索结果</span>
             <div class="q-gutter-xs frames-results-list"></div>
           </q-tab-panel>
           <q-tab-panel name="subtitles">
-            <span>字幕搜索结果</span>
             <div class="q-gutter-xs subtitles-results-list"></div>
           </q-tab-panel>
           <q-tab-panel name="ai">
-            <span>AI 回答</span>
             <div class="q-gutter-xs ai-results-list"></div>
           </q-tab-panel>
         </q-tab-panels>
