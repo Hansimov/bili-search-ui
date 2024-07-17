@@ -85,6 +85,12 @@ export default {
         icon: 'fa-solid fa-check',
       },
       {
+        field: 'title',
+        order: 'asc',
+        label: '标题文本',
+        icon: 'fa-solid fa-sort-alpha-asc',
+      },
+      {
         field: 'pubdate_str',
         order: 'desc',
         label: '最新发布',
@@ -139,10 +145,12 @@ export default {
           return valueA < valueB ? 1 : -1;
         }
       });
+      currentPage.value = 1;
     }
 
     watch(results, () => {
       sortResults(resultsSortMethod.value);
+      currentPage.value = 1;
     });
 
     return {
