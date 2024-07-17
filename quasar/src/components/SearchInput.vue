@@ -129,6 +129,7 @@ export default {
           api
             .post('/search', {
               query: query.value,
+              limit: 200,
             })
             .then((response) => {
               searchStore.setResults(response.data);

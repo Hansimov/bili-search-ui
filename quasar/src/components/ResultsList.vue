@@ -37,10 +37,30 @@
       </q-menu>
     </q-btn>
   </div>
+  <div class="flex flex-center q-pb-xs">
+    <q-pagination
+      direction-links
+      color="none"
+      active-color="primary"
+      v-model="currentPage"
+      :max="totalPages"
+      v-if="totalPages > 1"
+    />
+  </div>
   <div class="q-gutter-xs results-list">
-    <div v-for="(result, index) in results.hits" :key="index">
+    <div v-for="(result, index) in paginatedResults" :key="index">
       <ResultItem :result="result" />
     </div>
+  </div>
+  <div class="flex flex-center q-pt-xs">
+    <q-pagination
+      direction-links
+      color="none"
+      active-color="primary"
+      v-model="currentPage"
+      :max="totalPages"
+      v-if="totalPages > 1"
+    />
   </div>
 </template>
 
@@ -96,6 +116,17 @@ export default {
       },
     ]);
 
+    const currentPage = ref(1);
+    const itemsPerPage = ref(25);
+    const totalPages = computed(() =>
+      Math.ceil(results.value.hits.length / itemsPerPage.value)
+    );
+    const paginatedResults = computed(() => {
+      const start = (currentPage.value - 1) * itemsPerPage.value;
+      const end = start + itemsPerPage.value;
+      return results.value.hits.slice(start, end);
+    });
+
     function sortResults(method) {
       searchStore.setResultsSortMethod(method);
       resultsSortMethod.value = method;
@@ -119,6 +150,9 @@ export default {
       resultsSortMethods,
       resultsSortMethod,
       sortResults,
+      currentPage,
+      totalPages,
+      paginatedResults,
     };
   },
   methods: {
