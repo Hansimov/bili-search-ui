@@ -1,5 +1,5 @@
 <template>
-  <div class="row results-list-row">
+  <div class="row results-list-row justify-between">
     <div class="results-info">
       <span>精确等级：{{ results.detail_level }}</span
       ><span v-show="isReturnResultsLessThanTotal()"
@@ -10,7 +10,16 @@
         }}</span
       >
     </div>
-    <q-space></q-space>
+    <div class="results-paginate" v-if="$q.screen.gt.sm">
+      <q-pagination
+        direction-links
+        color="none"
+        active-color="primary"
+        v-model="currentPage"
+        :max="totalPages"
+        v-if="totalPages > 1"
+      />
+    </div>
     <q-btn
       class="results-sort"
       flat
@@ -36,16 +45,6 @@
         </q-list>
       </q-menu>
     </q-btn>
-  </div>
-  <div class="flex flex-center q-pb-xs">
-    <q-pagination
-      direction-links
-      color="none"
-      active-color="primary"
-      v-model="currentPage"
-      :max="totalPages"
-      v-if="totalPages > 1"
-    />
   </div>
   <div class="q-gutter-xs results-list">
     <div v-for="(result, index) in paginatedResults" :key="index">
@@ -183,11 +182,16 @@ export default {
 .results-info {
   padding: 3px 0px 4px 10px;
 }
+.results-paginate {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
 .q-btn {
   min-height: 28px;
   height: 28px;
   font-size: 14px;
-  padding: 0px 6px 0px 6px;
+  padding: 0px 8px 0px 8px;
   margin: 0px;
 }
 </style>
