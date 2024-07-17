@@ -11,14 +11,14 @@
       >
     </div>
     <q-space></q-space>
-    <q-btn-dropdown class="results-sort" flat :label="resultsSortLabel">
+    <q-btn-dropdown class="results-sort" flat :label="resultsSortMethod.label">
       <q-list dense>
         <q-item
           v-for="(method, index) in resultsSortMethods"
           :key="index"
           clickable
           v-close-popup
-          @click="sortResults(method.field, method.order, method.label)"
+          @click="sortResults(method)"
         >
           <q-item-section>
             <span>{{ method.label }}</span>
@@ -35,7 +35,7 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useSearchStore } from '../stores/searchStore';
 import ResultItem from './ResultItem.vue';
 
@@ -46,7 +46,7 @@ export default {
   setup() {
     const searchStore = useSearchStore();
     const results = computed(() => searchStore.results);
-    const resultsSortLabel = ref('相关度');
+    const resultsSortMethod = ref(searchStore.resultsSortMethod);
     const resultsSortMethods = ref([
       { field: 'score', order: 'desc', label: '相关度' },
       { field: 'pubdate_str', order: 'desc', label: '发布时间（最新）' },
@@ -54,27 +54,35 @@ export default {
       { field: 'stat.view', order: 'desc', label: '播放量（最多）' },
       { field: 'stat.view', order: 'asc', label: '播放量（最少）' },
     ]);
-    return {
-      results,
-      resultsSortMethods,
-      resultsSortLabel,
-    };
-  },
-  methods: {
-    isReturnResultsLessThanTotal() {
-      return this.results.return_hits < this.results.total_hits;
-    },
-    sortResults(field, order, label) {
-      this.resultsSortLabel = label;
-      this.results.hits.sort((a, b) => {
-        const valueA = field.split('.').reduce((o, i) => o[i], a);
-        const valueB = field.split('.').reduce((o, i) => o[i], b);
-        if (order === 'asc') {
+
+    function sortResults(method) {
+      searchStore.setResultsSortMethod(method);
+      resultsSortMethod.value = method;
+      results.value.hits.sort((a, b) => {
+        const valueA = method.field.split('.').reduce((o, i) => o[i], a);
+        const valueB = method.field.split('.').reduce((o, i) => o[i], b);
+        if (method.order === 'asc') {
           return valueA > valueB ? 1 : -1;
         } else {
           return valueA < valueB ? 1 : -1;
         }
       });
+    }
+
+    watch(results, () => {
+      sortResults(resultsSortMethod.value);
+    });
+
+    return {
+      results,
+      resultsSortMethods,
+      resultsSortMethod,
+      sortResults,
+    };
+  },
+  methods: {
+    isReturnResultsLessThanTotal() {
+      return this.results.return_hits < this.results.total_hits;
     },
   },
 };

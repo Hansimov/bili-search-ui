@@ -16,6 +16,11 @@ interface SearchState {
     isEnableAISearch: boolean;
     isSearchOptionsBarVisible: boolean;
     activeTab: string;
+    resultsSortMethod: {
+        field: string,
+        order: string,
+        label: string
+    };
 }
 
 export const useSearchStore = defineStore('search', {
@@ -33,6 +38,9 @@ export const useSearchStore = defineStore('search', {
         isEnableAISearch: false,
         isSearchOptionsBarVisible: true,
         activeTab: 'titles',
+        resultsSortMethod: {
+            field: 'score', order: 'desc', label: '相关度'
+        }
     }),
     actions: {
         setSuggestions(newSuggestions: string[]) {
@@ -59,6 +67,11 @@ export const useSearchStore = defineStore('search', {
         },
         setActiveTab(newActiveTab: string) {
             this.activeTab = newActiveTab;
+        },
+        setResultsSortMethod(newResultsSortMethod: {
+            field: string, order: string, label: string
+        }) {
+            this.resultsSortMethod = newResultsSortMethod;
         }
     },
 });
