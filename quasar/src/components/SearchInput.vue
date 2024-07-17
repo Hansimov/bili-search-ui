@@ -9,7 +9,7 @@
         'q-pb-sm': $route.path !== '/',
       }"
       clearable
-      placeholder="正在浏览：影视飓风"
+      :placeholder="searchInputPlaceholder"
       type="search"
       v-model="query"
       @update:model-value="suggest"
@@ -30,7 +30,7 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { useSearchStore } from '../stores/searchStore';
@@ -148,6 +148,20 @@ export default {
       submitQuery(query.value);
     }
 
+    const searchInputPlaceholder = computed(() => {
+      const now = new Date();
+      const options = {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+      };
+      const now_str = new Intl.DateTimeFormat('zh-CN', options).format(now);
+      return `访问时间：${now_str}`;
+    });
+
     return {
       query,
       suggest,
@@ -157,6 +171,7 @@ export default {
       hideSuggestions,
       AISearchToggle,
       submitQuery,
+      searchInputPlaceholder,
     };
   },
 };
