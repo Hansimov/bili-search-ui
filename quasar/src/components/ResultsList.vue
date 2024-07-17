@@ -104,7 +104,7 @@ export default {
   min-height: 28px;
   height: 28px;
   font-size: 14px;
-  padding: 0px 5px 0px 5px;
+  padding: 0px 6px 0px 6px;
   margin: 0px;
 }
 </style>

@@ -53,7 +53,16 @@ body.body--dark hit {
 
 /* Button Dropdown */
 .q-btn-dropdown--simple * + .q-btn-dropdown__arrow {
-  margin-left: 0px;
+  margin-left: 4px;
+}
+.on-left {
+  margin-right: 6px;
+}
+.on-right {
+  margin-left: 6px;
+}
+.results-list-row .q-btn .q-icon {
+  font-size: 1.1em;
 }
 
 /* Root setting used by result title */
