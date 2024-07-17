@@ -12,6 +12,10 @@
     </div>
     <div class="results-paginate" v-if="$q.screen.gt.sm">
       <q-pagination
+        flat
+        unelevated
+        gutter="2px"
+        padding="1px 5px"
         direction-links
         color="none"
         active-color="primary"
@@ -53,6 +57,10 @@
   </div>
   <div class="flex flex-center q-pt-xs">
     <q-pagination
+      flat
+      unelevated
+      gutter="2px"
+      padding="1px 5px"
       direction-links
       color="none"
       active-color="primary"
@@ -179,8 +187,10 @@ export default {
   );
   max-width: min(1280px, 95vw);
 }
-.results-info {
-  padding: 3px 0px 4px 10px;
+.results-info,
+.results-paginate,
+.q-btn {
+  padding: 7px 8px 8px 10px;
 }
 .results-paginate {
   position: absolute;
@@ -191,7 +201,6 @@ export default {
   min-height: 28px;
   height: 28px;
   font-size: 14px;
-  padding: 0px 8px 0px 8px;
   margin: 0px;
 }
 </style>
