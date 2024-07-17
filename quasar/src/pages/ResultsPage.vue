@@ -10,7 +10,7 @@
           transition-duration="0"
         >
           <q-tab-panel name="titles">
-            <results-list class="titles-results-list"></results-list>
+            <results-list></results-list>
           </q-tab-panel>
           <q-tab-panel name="frames">
             <div class="q-gutter-xs frames-results-list"></div>

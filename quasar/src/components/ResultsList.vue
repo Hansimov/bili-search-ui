@@ -11,15 +11,10 @@
       >
     </div>
     <q-space></q-space>
-    <q-btn-dropdown
-      class="results-sort"
-      flat
-      unelevated
-      :label="currentSortLabel"
-    >
+    <q-btn-dropdown class="results-sort" flat :label="resultsSortLabel">
       <q-list dense>
         <q-item
-          v-for="(method, index) in sortMethods"
+          v-for="(method, index) in resultsSortMethods"
           :key="index"
           clickable
           v-close-popup
@@ -40,7 +35,7 @@
 </template>
 
 <script>
-import { computed, ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useSearchStore } from '../stores/searchStore';
 import ResultItem from './ResultItem.vue';
 
@@ -51,9 +46,8 @@ export default {
   setup() {
     const searchStore = useSearchStore();
     const results = computed(() => searchStore.results);
-
-    const currentSortLabel = ref('相关度');
-    const sortMethods = ref([
+    const resultsSortLabel = ref('相关度');
+    const resultsSortMethods = ref([
       { field: 'score', order: 'desc', label: '相关度' },
       { field: 'pubdate_str', order: 'desc', label: '发布时间（最新）' },
       { field: 'pubdate_str', order: 'asc', label: '发布时间（最早）' },
@@ -62,16 +56,16 @@ export default {
     ]);
     return {
       results,
-      currentSortLabel,
-      sortMethods,
+      resultsSortMethods,
+      resultsSortLabel,
     };
   },
   methods: {
     isReturnResultsLessThanTotal() {
       return this.results.return_hits < this.results.total_hits;
     },
-    sortResults(field, order, method) {
-      this.currentSortLabel = method;
+    sortResults(field, order, label) {
+      this.resultsSortLabel = label;
       this.results.hits.sort((a, b) => {
         const valueA = field.split('.').reduce((o, i) => o[i], a);
         const valueB = field.split('.').reduce((o, i) => o[i], b);
@@ -96,9 +90,16 @@ export default {
   max-width: min(1280px, 95vw);
 }
 .results-info {
-  padding-left: 10px;
+  padding: 3px 0px 4px 10px;
 }
-.results-sort {
-  padding-right: 10px;
+.q-btn {
+  min-height: 28px;
+  height: 28px;
+  font-size: 14px;
+  padding: 0px 5px 0px 5px;
+  margin: 0px;
+}
+.q-btn-dropdown--simple * + .q-btn-dropdown__arrow i {
+  margin: 0px;
 }
 </style>
