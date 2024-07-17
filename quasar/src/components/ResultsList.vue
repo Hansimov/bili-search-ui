@@ -99,7 +99,4 @@ export default {
   padding: 0px 5px 0px 5px;
   margin: 0px;
 }
-.q-btn-dropdown--simple * + .q-btn-dropdown__arrow i {
-  margin: 0px;
-}
 </style>
