@@ -1,5 +1,5 @@
 <template>
-  <div class="row">
+  <div class="row results-list-row">
     <div class="results-info">
       <span>精确等级：{{ results.detail_level }}</span
       ><span v-show="isReturnResultsLessThanTotal()"
@@ -11,21 +11,31 @@
       >
     </div>
     <q-space></q-space>
-    <q-btn-dropdown class="results-sort" flat :label="resultsSortMethod.label">
-      <q-list dense>
-        <q-item
-          v-for="(method, index) in resultsSortMethods"
-          :key="index"
-          clickable
-          v-close-popup
-          @click="sortResults(method)"
-        >
-          <q-item-section>
-            <span>{{ method.label }}</span>
-          </q-item-section>
-        </q-item>
-      </q-list>
-    </q-btn-dropdown>
+    <q-btn
+      class="results-sort"
+      flat
+      :icon-right="resultsSortMethod.icon"
+      :label="resultsSortMethod.label"
+    >
+      <q-menu>
+        <q-list dense>
+          <q-item
+            v-for="(method, index) in resultsSortMethods"
+            :key="index"
+            clickable
+            v-close-popup
+            @click="sortResults(method)"
+          >
+            <q-item-section>
+              <span>
+                {{ method.label }}&nbsp;
+                <q-icon :name="method.icon"></q-icon>
+              </span>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-menu>
+    </q-btn>
   </div>
   <div class="q-gutter-xs results-list">
     <div v-for="(result, index) in results.hits" :key="index">
@@ -48,11 +58,42 @@ export default {
     const results = computed(() => searchStore.results);
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
     const resultsSortMethods = ref([
-      { field: 'score', order: 'desc', label: '相关度' },
-      { field: 'pubdate_str', order: 'desc', label: '发布时间（最新）' },
-      { field: 'pubdate_str', order: 'asc', label: '发布时间（最早）' },
-      { field: 'stat.view', order: 'desc', label: '播放量（最多）' },
-      { field: 'stat.view', order: 'asc', label: '播放量（最少）' },
+      {
+        field: 'score',
+        order: 'desc',
+        label: '最为匹配',
+        icon: 'fa-solid fa-check',
+      },
+      {
+        field: 'pubdate_str',
+        order: 'desc',
+        label: '最新发布',
+        icon: 'fa-regular fa-clock',
+      },
+      {
+        field: 'stat.view',
+        order: 'desc',
+        label: '最高播放',
+        icon: 'fa-regular fa-play-circle',
+      },
+      {
+        field: 'stat.danmaku',
+        order: 'desc',
+        label: '最多弹幕',
+        icon: 'fa-solid fa-align-left',
+      },
+      {
+        field: 'stat.coin',
+        order: 'desc',
+        label: '最多投币',
+        icon: 'fa-solid fa-soccer-ball',
+      },
+      {
+        field: 'stat.star',
+        order: 'desc',
+        label: '最多收藏',
+        icon: 'fa-solid fa-star',
+      },
     ]);
 
     function sortResults(method) {

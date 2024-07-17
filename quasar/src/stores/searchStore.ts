@@ -19,7 +19,8 @@ interface SearchState {
     resultsSortMethod: {
         field: string,
         order: string,
-        label: string
+        label: string,
+        icon: string
     };
 }
 
@@ -39,7 +40,7 @@ export const useSearchStore = defineStore('search', {
         isSearchOptionsBarVisible: true,
         activeTab: 'titles',
         resultsSortMethod: {
-            field: 'score', order: 'desc', label: '相关度'
+            field: 'score', order: 'desc', label: '最为匹配', icon: 'fa-solid fa-check'
         }
     }),
     actions: {
@@ -69,7 +70,7 @@ export const useSearchStore = defineStore('search', {
             this.activeTab = newActiveTab;
         },
         setResultsSortMethod(newResultsSortMethod: {
-            field: string, order: string, label: string
+            field: string, order: string, label: string, icon: string
         }) {
             this.resultsSortMethod = newResultsSortMethod;
         }
