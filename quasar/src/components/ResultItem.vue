@@ -63,30 +63,20 @@ export default {
   methods: {
     highlightedTitle() {
       if (
-        this.result.pinyin_highlights &&
-        this.result.pinyin_highlights['title.pinyin']
+        this.result.merged_highlights &&
+        this.result.merged_highlights['title']
       ) {
-        return this.result.pinyin_highlights['title.pinyin'][0];
-      } else if (
-        this.result.common_highlights &&
-        this.result.common_highlights.title
-      ) {
-        return this.result.common_highlights.title[0];
+        return this.result.merged_highlights['title'][0];
       } else {
         return this.result.title;
       }
     },
     highlightedOwnerName() {
       if (
-        this.result.pinyin_highlights &&
-        this.result.pinyin_highlights['owner.name.pinyin']
+        this.result.merged_highlights &&
+        this.result.merged_highlights['owner.name']
       ) {
-        return this.result.pinyin_highlights['owner.name.pinyin'][0];
-      } else if (
-        this.result.common_highlights &&
-        this.result.common_highlights['owner.name']
-      ) {
-        return this.result.common_highlights['owner.name'][0];
+        return this.result.merged_highlights['owner.name'][0];
       } else {
         return this.result.owner.name;
       }
