@@ -33,7 +33,12 @@
     </q-card-section>
     <q-item class="q-px-sm q-pt-none q-pb-xs result-bottom">
       <q-item-section side class="result-owner-name">
-        <div v-html="highlightedOwnerName()"></div>
+        <a
+          :href="`https://space.bilibili.com/${result.owner.mid}/video`"
+          target="_blank"
+        >
+          <div v-html="highlightedOwnerName()"></div>
+        </a>
       </q-item-section>
       <q-item-section></q-item-section>
       <q-item-section side class="result-pubdate">
@@ -88,13 +93,6 @@ export default {
       ) {
         let pubdate_str = this.result.common_highlights['pubdate_str'][0];
         return pubdate_str.split(' ')[0];
-      } else if (
-        this.result.common_highlights &&
-        this.result.common_highlights['pubdate_str.string']
-      ) {
-        let pubdate_str =
-          this.result.common_highlights['pubdate_str.string'][0];
-        return pubdate_str.split(' ')[0];
       } else {
         return this.result.pubdate_str.slice(0, 10);
       }
@@ -134,10 +132,12 @@ export default {
   flex-grow: 1;
   opacity: 0.85;
 }
+body.body--light .result-owner-name:hover,
 body.body--light .result-title:hover {
   color: #0080d0;
   opacity: 1;
 }
+body.body--dark .result-owner-name:hover,
 body.body--dark .result-title:hover {
   color: #60c0f0;
   opacity: 1;
