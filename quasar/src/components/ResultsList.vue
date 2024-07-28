@@ -88,14 +88,8 @@ export default {
       {
         field: 'score',
         order: 'desc',
-        label: '最为匹配',
+        label: '综合排序',
         icon: 'fa-solid fa-check',
-      },
-      {
-        field: 'title',
-        order: 'asc',
-        label: '标题文本',
-        icon: 'fa-solid fa-sort-alpha-asc',
       },
       {
         field: 'pubdate_str',
@@ -126,6 +120,12 @@ export default {
         order: 'desc',
         label: '最多收藏',
         icon: 'fa-solid fa-star',
+      },
+      {
+        field: 'title',
+        order: 'asc',
+        label: '标题文本',
+        icon: 'fa-solid fa-sort-alpha-asc',
       },
     ]);
 

@@ -40,7 +40,7 @@ export const useSearchStore = defineStore('search', {
         isSearchOptionsBarVisible: true,
         activeTab: 'titles',
         resultsSortMethod: {
-            field: 'score', order: 'desc', label: '最为匹配', icon: 'fa-solid fa-check'
+            field: 'score', order: 'desc', label: '综合排序', icon: 'fa-solid fa-check'
         }
     }),
     actions: {
