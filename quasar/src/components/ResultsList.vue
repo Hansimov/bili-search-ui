@@ -110,13 +110,7 @@ export default {
         icon: 'fa-solid fa-align-left',
       },
       {
-        field: 'stat.coin',
-        order: 'desc',
-        label: '最多投币',
-        icon: 'fa-solid fa-soccer-ball',
-      },
-      {
-        field: 'stat.star',
+        field: 'stat.favorite',
         order: 'desc',
         label: '最多收藏',
         icon: 'fa-solid fa-star',
