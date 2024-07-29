@@ -74,22 +74,16 @@ export default {
     const randomSuggest = () => {
       try {
         console.log('> Getting random suggestions ...');
-        const latestSuggestPromise = api.post('/latest', { limit: 3 });
         const randomSuggestPromise = api.post('/random', {
           seed_update_seconds: 10,
-          limit: 7,
+          limit: 10,
         });
-        Promise.all([latestSuggestPromise, randomSuggestPromise]).then(
-          ([latestSuggestResponse, randomSuggestResponse]) => {
-            searchStore.setSuggestions([
-              ...latestSuggestResponse.data.hits,
-              ...randomSuggestResponse.data.hits,
-            ]);
-            console.log(
-              `+ Get ${searchStore.suggestions.length} random suggestions.`
-            );
-          }
-        );
+        randomSuggestPromise.then((randomSuggestResponse) => {
+          searchStore.setSuggestions([...randomSuggestResponse.data.hits]);
+          console.log(
+            `+ Got ${searchStore.suggestions.length} random suggestions.`
+          );
+        });
       } catch (error) {
         console.error(error);
       }
