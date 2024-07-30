@@ -9,17 +9,14 @@
           transition-next="fade"
           transition-duration="0"
         >
-          <q-tab-panel name="titles">
+          <q-tab-panel name="videos">
             <results-list></results-list>
-          </q-tab-panel>
-          <q-tab-panel name="frames">
-            <div class="q-gutter-xs frames-results-list"></div>
-          </q-tab-panel>
-          <q-tab-panel name="subtitles">
-            <div class="q-gutter-xs subtitles-results-list"></div>
           </q-tab-panel>
           <q-tab-panel name="ai">
             <div class="q-gutter-xs ai-results-list"></div>
+          </q-tab-panel>
+          <q-tab-panel name="graph">
+            <div class="q-gutter-xs graph-results-list"></div>
           </q-tab-panel>
         </q-tab-panels>
       </div>
@@ -39,7 +36,7 @@ export default {
   setup() {
     const searchStore = useSearchStore();
     return {
-      activeTab: computed(() => searchStore.activeTab || 'titles'),
+      activeTab: computed(() => searchStore.activeTab || 'videos'),
     };
   },
 };
@@ -56,9 +53,8 @@ body.body--dark .search-bar-row {
 .results-panels-card {
   background: transparent;
 }
-.frames-results-list,
-.subtitles-results-list,
-.ai-results-list {
+.ai-results-list,
+.graph-results-list {
   grid-template-columns: repeat(
     auto-fill,
     minmax(var(--result-item-width), 1fr)

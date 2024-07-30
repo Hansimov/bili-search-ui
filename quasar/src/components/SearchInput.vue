@@ -128,7 +128,7 @@ export default {
             .then((response) => {
               searchStore.setResults(response.data);
               console.log(
-                `+ Get ${searchStore.results.length} search results.`
+                `+ Get ${searchStore.results.hits.length} search results.`
               );
               searchStore.setIsSuggestionsVisible(false);
             });

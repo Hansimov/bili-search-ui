@@ -6,10 +6,9 @@
     v-model="activeTab"
     @update:model-value="updateTab"
   >
-    <q-tab name="titles" label="标题"> </q-tab>
-    <q-tab name="frames" label="画面"> </q-tab>
-    <q-tab name="subtitles" label="字幕"> </q-tab>
+    <q-tab name="videos" label="视频"> </q-tab>
     <q-tab name="ai" label="AI"> </q-tab>
+    <q-tab name="graphs" label="图谱"> </q-tab>
   </q-tabs>
 </template>
 
@@ -24,7 +23,7 @@ export default {
       searchStore.setActiveTab(newActiveTab);
     };
     return {
-      activeTab: ref(searchStore.activeTab || 'titles'),
+      activeTab: ref(searchStore.activeTab || 'videos'),
       updateTab,
     };
   },

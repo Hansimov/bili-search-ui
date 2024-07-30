@@ -38,7 +38,7 @@ export const useSearchStore = defineStore('search', {
         },
         isEnableAISearch: false,
         isSearchOptionsBarVisible: true,
-        activeTab: 'titles',
+        activeTab: 'videos',
         resultsSortMethod: {
             field: 'score', order: 'desc', label: '综合排序', icon: 'fa-solid fa-check'
         }

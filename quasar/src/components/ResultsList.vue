@@ -124,7 +124,7 @@ export default {
     ]);
 
     const currentPage = ref(1);
-    const itemsPerPage = ref(25);
+    const itemsPerPage = ref(20);
     const totalPages = computed(() =>
       Math.ceil(results.value.hits.length / itemsPerPage.value)
     );
