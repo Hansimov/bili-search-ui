@@ -1,5 +1,21 @@
 /* app global css */
 
+/* Root setting used by result title */
+:root {
+  --search-input-width: 780px;
+  --search-input-max-width: 95vw;
+  --result-title-font-size: 1em;
+  --result-title-line-height: calc(1.5 * var(--result-title-font-size));
+  --result-item-width: 240px;
+  --video-embed-width: 1000px;
+  --video-embed-max-width: 95vw;
+  --video-embed-height: 563px;
+  --video-embed-max-height: 53vw; /* 9/16*0.95 */
+  --main-color-light: #0062d1;
+  --main-color-dark: #55b0ff;
+  --sub-color-dark: #fe64e2;
+}
+
 /* Toolbar */
 body.body--light .q-toolbar {
   color: #0070f0;
@@ -63,19 +79,6 @@ body.body--dark hit {
 }
 .results-list-row .q-btn .q-icon {
   font-size: 1.1em;
-}
-
-/* Root setting used by result title */
-:root {
-  --search-input-width: 780px;
-  --search-input-max-width: 95vw;
-  --result-title-font-size: 1em;
-  --result-title-line-height: calc(1.5 * var(--result-title-font-size));
-  --result-item-width: 240px;
-  --video-embed-width: 1000px;
-  --video-embed-max-width: 95vw;
-  --video-embed-height: 563px;
-  --video-embed-max-height: 53vw; /* 9/16*0.95 */
 }
 
 /* Scrollbar */
