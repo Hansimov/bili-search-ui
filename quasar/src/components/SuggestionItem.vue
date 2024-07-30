@@ -57,25 +57,29 @@ export default {
 </script>
 
 <style scoped>
-.suggestion-avatar,
-.suggestion-owner,
-.suggestion-pubdate {
-  flex: 0 0 auto;
-}
-.suggestion-title {
+.suggestion-title-view-owner {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
 }
+.suggestion-view {
+  opacity: 0.65;
+}
+.suggestion-view i {
+  vertical-align: 1%;
+}
+body.body--light .suggestion-title {
+  color: var(--main-color-light);
+}
+body.body--dark .suggestion-title {
+  color: var(--main-color-dark);
+}
+body.body--dark .suggestion-owner {
+  color: #f0f0f0;
+}
 .suggestion-pubdate {
   text-align: right;
   opacity: 0.65;
-}
-body.body--light .suggestion-title {
-  color: #202020;
-}
-body.body--dark .suggestion-title {
-  color: #e0e0e0;
 }
 </style>
