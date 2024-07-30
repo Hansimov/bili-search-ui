@@ -3,19 +3,27 @@
     <q-item-section avatar side class="suggestion-avatar">
       <q-icon><img src="../assets/bili-tv.svg" class="tv-icon" /></q-icon>
     </q-item-section>
-    <q-item-section class="suggestion-title">
-      <div v-html="highlightedTitle"></div>
+    <q-item-section class="suggestion-title-view-owner">
+      <span class="suggestion-title" v-html="highlightedTitle"></span>
+      <span>
+        <span class="suggestion-view"
+          ><q-icon name="fa-regular fa-play-circle"></q-icon>
+          {{ humanReadableNumber(suggestion.stat.view) }}</span
+        >
+        · <span class="suggestion-owner">{{ suggestion.owner.name }}</span>
+      </span>
     </q-item-section>
-    <q-item-section side class="suggestion-owner">
-      {{ suggestion.owner.name }}
-    </q-item-section>
-    <q-item-section side class="suggestion-pubdate">
-      {{ suggestion.pubdate_str.slice(0, 10) }}
+    <q-item-section side class="suggestion-tname-pubdate">
+      <span class="suggestion-tname">{{ suggestion.tname }}</span>
+      <span class="suggestion-pubdate">{{
+        suggestion.pubdate_str.slice(0, 10)
+      }}</span>
     </q-item-section>
   </q-item>
 </template>
 
 <script>
+import { humanReadableNumber } from 'src/utils/convert';
 export default {
   props: {
     suggestion: {
@@ -39,6 +47,11 @@ export default {
         return this.suggestion.title;
       }
     },
+  },
+  setup() {
+    return {
+      humanReadableNumber,
+    };
   },
 };
 </script>
