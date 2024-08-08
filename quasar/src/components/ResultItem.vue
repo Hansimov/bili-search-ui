@@ -13,6 +13,9 @@
           <span
             class="text-caption absolute-top text-center result-top-bar"
           ></span>
+          <span class="text-caption absolute-top text-left result-score">
+            {{ result?.score.toFixed(1) }}
+          </span>
           <span class="text-caption absolute-top text-right result-tname">
             {{ result?.tname }}
           </span>
@@ -149,6 +152,7 @@ body.body--dark .result-title:hover {
 .q-item {
   min-height: var(--result-title-line-height);
 }
+.result-score,
 .result-tname,
 .result-view,
 .result-duration {

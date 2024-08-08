@@ -47,7 +47,7 @@ export default {
     const query = ref(searchStore.query || route.query.q || '');
 
     let timeoutId = null;
-    const SUGGEST_DEBOUNCE_INTERVAL = 200; // millisencods
+    const SUGGEST_DEBOUNCE_INTERVAL = 150; // millisencods
 
     const suggest = (newVal) => {
       searchStore.setQuery(newVal);
