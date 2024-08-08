@@ -47,23 +47,32 @@ export default {
     const query = ref(searchStore.query || route.query.q || '');
 
     let timeoutId = null;
+    let abortController = new AbortController();
     const SUGGEST_DEBOUNCE_INTERVAL = 150; // millisencods
 
     const suggest = (newVal) => {
       searchStore.setQuery(newVal);
       clearTimeout(timeoutId);
+      abortController.abort();
+      abortController = new AbortController();
+
       timeoutId = setTimeout(async () => {
         if (newVal) {
           try {
             console.log(`> Query: [${newVal}]`);
-            api.post('/suggest', { query: newVal }).then((response) => {
-              searchStore.setSuggestions(response.data.hits);
-              console.log(
-                `+ Get ${searchStore.suggestions.length} suggestions.`
-              );
-            });
+            const response = await api.post(
+              '/suggest',
+              { query: newVal },
+              { signal: abortController.signal }
+            );
+            searchStore.setSuggestions(response.data.hits);
+            console.log(`+ Get ${searchStore.suggestions.length} suggestions.`);
           } catch (error) {
-            console.error(error);
+            if (error.name === 'CanceledError') {
+              // console.log('Previous request aborted');
+            } else {
+              console.error(error);
+            }
           }
         } else {
           // searchStore.setSuggestions([]);
