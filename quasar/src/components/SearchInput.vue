@@ -47,14 +47,16 @@ export default {
     const query = ref(searchStore.query || route.query.q || '');
 
     let timeoutId = null;
-    let abortController = new AbortController();
     const SUGGEST_DEBOUNCE_INTERVAL = 150; // millisencods
+
+    let suggestAbortController = new AbortController();
+    let searchAbortController = new AbortController();
 
     const suggest = (newVal) => {
       searchStore.setQuery(newVal);
       clearTimeout(timeoutId);
-      abortController.abort();
-      abortController = new AbortController();
+      suggestAbortController.abort();
+      suggestAbortController = new AbortController();
 
       timeoutId = setTimeout(async () => {
         if (newVal) {
@@ -63,8 +65,11 @@ export default {
             const response = await api.post(
               '/suggest',
               { query: newVal },
-              { signal: abortController.signal }
+              { signal: suggestAbortController.signal }
             );
+            if (suggestAbortController.signal.aborted) {
+              return;
+            }
             searchStore.setSuggestions(response.data.hits);
             console.log(`+ Get ${searchStore.suggestions.length} suggestions.`);
           } catch (error) {
@@ -129,18 +134,25 @@ export default {
         }
         try {
           console.log('> Getting search results ...');
-          api
-            .post('/search', {
+          searchAbortController.abort();
+          searchAbortController = new AbortController();
+          const response = await api.post(
+            '/search',
+            {
               query: query.value,
               limit: 200,
-            })
-            .then((response) => {
-              searchStore.setResults(response.data);
-              console.log(
-                `+ Get ${searchStore.results.hits.length} search results.`
-              );
-              searchStore.setIsSuggestionsVisible(false);
-            });
+            },
+            { signal: suggestAbortController.signal }
+          );
+          if (searchAbortController.signal.aborted) {
+            return;
+          }
+
+          searchStore.setResults(response.data);
+          console.log(
+            `+ Get ${searchStore.results.hits.length} search results.`
+          );
+          searchStore.setIsSuggestionsVisible(false);
         } catch (error) {
           console.error(error);
         }

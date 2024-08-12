@@ -10,9 +10,10 @@ interface ResultsResponse {
 interface SearchState {
     query: string;
     isMouseInSuggestionList: boolean;
+    suggestQuery: string;
     suggestions: string[];
-    results: ResultsResponse;
     isSuggestionsVisible: boolean;
+    results: ResultsResponse;
     isEnableAISearch: boolean;
     isSearchOptionsBarVisible: boolean;
     activeTab: string;
@@ -29,6 +30,7 @@ export const useSearchStore = defineStore('search', {
         query: '',
         isMouseInSuggestionList: false,
         isSuggestionsVisible: true,
+        suggestQuery: '',
         suggestions: [],
         results: {
             hits: [],
@@ -46,6 +48,9 @@ export const useSearchStore = defineStore('search', {
     actions: {
         setSuggestions(newSuggestions: string[]) {
             this.suggestions = newSuggestions;
+        },
+        setSuggestQuery(newSuggestQuery: string) {
+            this.suggestQuery = newSuggestQuery;
         },
         setIsSuggestionsVisible(newVisibility: boolean) {
             this.isSuggestionsVisible = newVisibility;
