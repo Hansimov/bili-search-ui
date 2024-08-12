@@ -30,9 +30,12 @@
       </router-link>
     </q-card-section>
     <q-card-section class="q-px-sm q-pt-none q-pb-xs">
-      <router-link :to="`/video/${result.bvid}`" target="_blank">
+      <a
+        :href="`https://www.bilibili.com/video/${result.bvid}`"
+        target="_blank"
+      >
         <div class="result-title" v-html="highlightedTitle()"></div>
-      </router-link>
+      </a>
     </q-card-section>
     <q-item class="q-px-sm q-pt-none q-pb-xs result-bottom">
       <q-item-section side class="result-owner-name">

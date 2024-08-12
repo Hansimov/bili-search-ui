@@ -1,6 +1,11 @@
 <template>
   <q-item clickable :to="`/video/${suggestion.bvid}`">
-    <q-item-section avatar side class="suggestion-avatar">
+    <q-item-section
+      v-show="$q.screen.gt.sm"
+      avatar
+      side
+      class="suggestion-avatar"
+    >
       <q-icon><img src="../assets/bili-tv.svg" class="tv-icon" /></q-icon>
     </q-item-section>
     <q-item-section class="suggestion-title-view-owner">
