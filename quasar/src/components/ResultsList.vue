@@ -181,6 +181,12 @@ export default {
   );
   max-width: min(1280px, 95vw);
 }
+@media (max-width: 520px) {
+  .results-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: auto;
+  }
+}
 .results-info,
 .results-paginate,
 .q-btn {
