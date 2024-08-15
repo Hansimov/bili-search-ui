@@ -5,7 +5,7 @@
         <q-img
           :src="result.pic + coverPicSuffix"
           referrerpolicy="no-referrer"
-          class="rounded-borders"
+          class="rounded-borders result-item-cover"
         >
           <span
             class="text-caption absolute-bottom text-center result-bottom-bar"
@@ -112,7 +112,16 @@ export default {
 <style scoped>
 .result-item {
   background-color: transparent;
-  width: var(--result-item-width);
+  max-width: var(--result-item-width);
+}
+.result-item-cover {
+  max-width: 224px;
+  max-height: 140px;
+}
+@media (max-width: 520px) {
+  .result-item-cover {
+    max-height: calc(40vw * 140 / 224);
+  }
 }
 .result-owner-avatar,
 .result-pubdate {
