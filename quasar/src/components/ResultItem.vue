@@ -6,6 +6,8 @@
           :src="result.pic + coverPicSuffix"
           referrerpolicy="no-referrer"
           class="rounded-borders result-item-cover"
+          no-transition
+          no-spinner
         >
           <span
             class="text-caption absolute-bottom text-center result-bottom-bar"
