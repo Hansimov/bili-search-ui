@@ -1,6 +1,6 @@
 <template>
   <q-card flat class="result-item q-py-sm">
-    <q-card-section class="result-cover q-px-sm q-pt-none q-pb-xs">
+    <q-card-section class="q-px-xs q-pt-none q-pb-xs">
       <router-link :to="`/video/${result.bvid}`" target="_blank">
         <q-img
           :src="result.pic + coverPicSuffix"
@@ -31,7 +31,7 @@
         </q-img>
       </router-link>
     </q-card-section>
-    <q-card-section class="q-px-sm q-pt-none q-pb-xs">
+    <q-card-section class="q-px-xs q-pt-none q-pb-xs">
       <a
         :href="`https://www.bilibili.com/video/${result.bvid}`"
         target="_blank"
@@ -39,7 +39,7 @@
         <div class="result-title" v-html="highlightedTitle()"></div>
       </a>
     </q-card-section>
-    <q-item class="q-px-sm q-pt-none q-pb-xs result-bottom">
+    <q-item class="q-px-xs q-pt-none q-pb-xs result-bottom">
       <q-item-section side class="result-owner-name">
         <a
           :href="`https://space.bilibili.com/${result.owner.mid}/video`"
@@ -117,7 +117,7 @@ export default {
   max-width: var(--result-item-width);
 }
 .result-item-cover {
-  max-width: 224px;
+  max-width: 240px;
   max-height: 140px;
 }
 @media (max-width: 520px) {
