@@ -2,12 +2,12 @@
   <div class="row results-list-row justify-between">
     <div class="results-info">
       <span>精确等级：{{ results.detail_level }}</span
-      ><span v-show="isReturnResultsLessThanTotal()"
+      ><span v-show="!isSmallScreen && isReturnResultsLessThanTotal()"
         >，匹配视频：{{ results.total_hits }}</span
       ><span
-        >，{{ isReturnResultsLessThanTotal() ? '展示' : '匹配' }}视频：{{
-          results.return_hits
-        }}</span
+        >，{{
+          !isSmallScreen && isReturnResultsLessThanTotal() ? '展示' : '匹配'
+        }}视频：{{ results.return_hits }}</span
       >
     </div>
     <div class="results-paginate" v-if="$q.screen.gt.sm">
@@ -50,7 +50,7 @@
       </q-menu>
     </q-btn>
   </div>
-  <div class="q-gutter-xs results-list">
+  <div :class="resultsListClass">
     <div v-for="(result, index) in paginatedResults" :key="index">
       <ResultItem :result="result" />
     </div>
@@ -72,7 +72,7 @@
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useSearchStore } from '../stores/searchStore';
 import ResultItem from './ResultItem.vue';
 
@@ -154,6 +154,25 @@ export default {
       currentPage.value = 1;
     });
 
+    const isSmallScreen = ref(window.innerWidth <= 520);
+    const resultsListClass = ref(
+      isSmallScreen.value
+        ? 'q-gutter-none results-list'
+        : 'q-gutter-xs results-list'
+    );
+    const updateScreenSize = () => {
+      isSmallScreen.value = window.innerWidth <= 520;
+      resultsListClass.value = isSmallScreen.value
+        ? 'q-gutter-none results-list'
+        : 'q-gutter-xs results-list';
+    };
+    onMounted(() => {
+      window.addEventListener('resize', updateScreenSize);
+    });
+    onUnmounted(() => {
+      window.removeEventListener('resize', updateScreenSize);
+    });
+
     return {
       results,
       resultsSortMethods,
@@ -162,6 +181,8 @@ export default {
       currentPage,
       totalPages,
       paginatedResults,
+      isSmallScreen,
+      resultsListClass,
     };
   },
   methods: {
@@ -190,7 +211,7 @@ export default {
 .results-info,
 .results-paginate,
 .q-btn {
-  padding: 7px 8px 8px 10px;
+  padding: 7px 5px 8px 6px;
 }
 .results-paginate {
   position: absolute;
