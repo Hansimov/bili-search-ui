@@ -3,11 +3,13 @@
     <div class="results-info">
       <span>精确等级：{{ results.detail_level }}</span
       ><span v-show="!isSmallScreen && isReturnResultsLessThanTotal()"
-        >，匹配视频：{{ results.total_hits }}</span
+        >，匹配视频：{{
+          results.total_hits >= 10000 ? '≥10000' : results.total_hits
+        }}</span
       ><span
-        >，{{
-          !isSmallScreen && isReturnResultsLessThanTotal() ? '展示' : '匹配'
-        }}视频：{{ results.return_hits }}</span
+        >，{{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}视频：{{
+          results.return_hits
+        }}</span
       >
     </div>
     <div class="results-paginate" v-if="$q.screen.gt.sm">
@@ -209,9 +211,8 @@ export default {
   }
 }
 .results-info,
-.results-paginate,
-.q-btn {
-  padding: 7px 5px 8px 6px;
+.results-paginate {
+  padding: 7px 5px 6px 6px;
 }
 .results-paginate {
   position: absolute;
@@ -219,6 +220,7 @@ export default {
   transform: translateX(-50%);
 }
 .q-btn {
+  padding: 6px 5px 6px 6px;
   min-height: 28px;
   height: 28px;
   font-size: 14px;
