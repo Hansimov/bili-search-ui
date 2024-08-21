@@ -1,13 +1,12 @@
 <template>
   <div class="row results-list-row justify-between">
     <div class="results-info">
-      <span>精确等级：{{ results.detail_level }}</span
-      ><span v-show="!isSmallScreen && isReturnResultsLessThanTotal()"
-        >，匹配视频：{{
-          results.total_hits >= 10000 ? '≥10000' : results.total_hits
-        }}</span
-      ><span
-        >，{{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}视频：{{
+      <span>精度：{{ results.detail_level }}</span>
+      <span v-show="isReturnResultsLessThanTotal()"
+        >，匹配：{{ results.total_hits }}</span
+      >
+      <span
+        >，{{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}：{{
           results.return_hits
         }}</span
       >

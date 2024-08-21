@@ -1,7 +1,7 @@
 {
   "name": "bili-search-ui",
   "version": "0.0.1",
-  "description": "Next-Gen Multi-Modal Search Engine",
+  "description": "下一代B站搜索引擎",
   "productName": "blbl.top",
   "author": "Hansimov",
   "private": true,
