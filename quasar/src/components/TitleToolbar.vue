@@ -1,8 +1,8 @@
 <template>
   <q-toolbar>
-    <q-btn flat dense no-caps icon="search" to="/">
+    <router-link to="/">
       <q-toolbar-title>blbl.top</q-toolbar-title>
-    </q-btn>
+    </router-link>
     <q-space />
     <dark-switch />
   </q-toolbar>
@@ -15,5 +15,9 @@ import DarkSwitch from 'components/DarkSwitch.vue';
 <style lang="scss">
 .q-toolbar .q-focus-helper {
   visibility: hidden;
+}
+.q-toolbar a {
+  text-decoration: none;
+  color: inherit;
 }
 </style>
