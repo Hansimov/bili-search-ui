@@ -140,7 +140,7 @@ export default {
             '/search',
             {
               query: query.value,
-              limit: 200,
+              limit: 500,
             },
             { signal: suggestAbortController.signal }
           );

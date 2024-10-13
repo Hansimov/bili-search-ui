@@ -12,17 +12,10 @@
       >
     </div>
     <div class="results-paginate" v-if="$q.screen.gt.sm">
-      <q-pagination
-        flat
-        unelevated
-        gutter="2px"
-        padding="1px 5px"
-        direction-links
-        color="none"
-        active-color="primary"
-        v-model="currentPage"
-        :max="totalPages"
-        v-if="totalPages > 1"
+      <ResultsPagination
+        :currentPage="currentPage"
+        :totalPages="totalPages"
+        @update:currentPage="currentPage = $event"
       />
     </div>
     <q-btn
@@ -57,17 +50,10 @@
     </div>
   </div>
   <div class="flex flex-center q-pt-xs">
-    <q-pagination
-      flat
-      unelevated
-      gutter="2px"
-      padding="1px 5px"
-      direction-links
-      color="none"
-      active-color="primary"
-      v-model="currentPage"
-      :max="totalPages"
-      v-if="totalPages > 1"
+    <ResultsPagination
+      :currentPage="currentPage"
+      :totalPages="totalPages"
+      @update:currentPage="currentPage = $event"
     />
   </div>
 </template>
@@ -76,10 +62,12 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useSearchStore } from '../stores/searchStore';
 import ResultItem from './ResultItem.vue';
+import ResultsPagination from './ResultsPagination.vue';
 
 export default {
   components: {
     ResultItem,
+    ResultsPagination,
   },
   setup() {
     const searchStore = useSearchStore();
