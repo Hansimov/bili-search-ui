@@ -10,7 +10,6 @@
     @update:model-value="$emit('update:currentPage', $event)"
     :max="totalPages"
     :max-pages="8"
-    boundary-links="false"
     boundary-numbers
     direction-links
     v-if="totalPages > 1"
