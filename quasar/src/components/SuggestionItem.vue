@@ -1,30 +1,35 @@
 <template>
-  <q-item clickable :to="`/video/${suggestion.bvid}`">
-    <q-item-section
-      v-show="$q.screen.gt.sm"
-      avatar
-      side
-      class="suggestion-avatar"
-    >
-      <q-icon><img src="../assets/bili-tv.svg" class="tv-icon" /></q-icon>
-    </q-item-section>
-    <q-item-section class="suggestion-title-view-owner">
-      <span class="suggestion-title" v-html="highlightedTitle"></span>
-      <span>
-        <span class="suggestion-view"
-          ><q-icon name="fa-regular fa-play-circle"></q-icon>
-          {{ humanReadableNumber(suggestion.stat.view) }}</span
-        >
-        · <span class="suggestion-owner">{{ suggestion.owner.name }}</span>
-      </span>
-    </q-item-section>
-    <q-item-section side class="suggestion-tname-pubdate">
-      <span class="suggestion-tname">{{ suggestion.tname }}</span>
-      <span class="suggestion-pubdate">{{
-        suggestion.pubdate_str.slice(0, 10)
-      }}</span>
-    </q-item-section>
-  </q-item>
+  <a
+    :href="`https://www.bilibili.com/video/${suggestion.bvid}`"
+    target="_blank"
+  >
+    <q-item class="suggestion-item">
+      <q-item-section
+        v-show="$q.screen.gt.sm"
+        avatar
+        side
+        class="suggestion-avatar"
+      >
+        <q-icon><img src="../assets/bili-tv.svg" class="tv-icon" /></q-icon>
+      </q-item-section>
+      <q-item-section class="suggestion-title-view-owner">
+        <span class="suggestion-title" v-html="highlightedTitle"></span>
+        <span>
+          <span class="suggestion-view"
+            ><q-icon name="fa-regular fa-play-circle"></q-icon>
+            {{ humanReadableNumber(suggestion.stat.view) }}</span
+          >
+          · <span class="suggestion-owner">{{ suggestion.owner.name }}</span>
+        </span>
+      </q-item-section>
+      <q-item-section side class="suggestion-tname-pubdate">
+        <span class="suggestion-tname">{{ suggestion.tname }}</span>
+        <span class="suggestion-pubdate">{{
+          suggestion.pubdate_str.slice(0, 10)
+        }}</span>
+      </q-item-section>
+    </q-item>
+  </a>
 </template>
 
 <script>
@@ -62,6 +67,19 @@ export default {
 </script>
 
 <style scoped>
+.suggestion-item {
+  transition: background-color 0.25s ease;
+  transition: transform 0.25s ease;
+}
+.suggestion-item:hover {
+  transform: scale(1.02);
+}
+body.body--light .suggestion-item:hover {
+  background-color: #dddddd;
+}
+body.body--dark .suggestion-item:hover {
+  background-color: #444444;
+}
 .suggestion-title-view-owner {
   white-space: nowrap;
   overflow: hidden;
@@ -80,6 +98,11 @@ body.body--light .suggestion-title {
 body.body--dark .suggestion-title {
   color: var(--main-color-dark);
 }
+body.body--light .suggestion-view,
+body.body--light .suggestion-owner {
+  color: #101010;
+}
+body.body--dark .suggestion-view,
 body.body--dark .suggestion-owner {
   color: #f0f0f0;
 }
