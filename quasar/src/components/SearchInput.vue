@@ -46,6 +46,23 @@ export default {
     const router = useRouter();
     const query = ref(searchStore.query || route.query.q || '');
 
+    const showSuggestions = async () => {
+      searchStore.setIsSuggestionsVisible(true);
+      if (!query.value) {
+        randomSuggest();
+      } else {
+        if (!searchStore.suggestions.length) {
+          suggest(query.value);
+        }
+      }
+    };
+
+    const hideSuggestions = () => {
+      if (!searchStore.isMouseInSuggestionList) {
+        searchStore.setIsSuggestionsVisible(false);
+      }
+    };
+
     let timeoutId = null;
     const SUGGEST_DEBOUNCE_INTERVAL = 150; // millisencods
 
@@ -54,6 +71,7 @@ export default {
 
     const suggest = (newVal) => {
       searchStore.setQuery(newVal);
+      showSuggestions();
       clearTimeout(timeoutId);
       suggestAbortController.abort();
       suggestAbortController = new AbortController();
@@ -109,24 +127,8 @@ export default {
       }
     };
 
-    const showSuggestions = async () => {
-      searchStore.setIsSuggestionsVisible(true);
-      if (!query.value) {
-        randomSuggest();
-      } else {
-        if (!searchStore.suggestions.length) {
-          suggest(query.value);
-        }
-      }
-    };
-
-    const hideSuggestions = () => {
-      if (!searchStore.isMouseInSuggestionList) {
-        searchStore.setIsSuggestionsVisible(false);
-      }
-    };
-
     const submitQuery = async (isFromURL = false) => {
+      hideSuggestions();
       if (query.value) {
         searchStore.setQuery(query.value);
         if (!isFromURL) {
@@ -147,12 +149,10 @@ export default {
           if (searchAbortController.signal.aborted) {
             return;
           }
-
           searchStore.setResults(response.data);
           console.log(
             `+ Get ${searchStore.results.hits.length} search results.`
           );
-          searchStore.setIsSuggestionsVisible(false);
         } catch (error) {
           console.error(error);
         }
