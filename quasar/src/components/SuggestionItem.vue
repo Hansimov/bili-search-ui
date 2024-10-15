@@ -110,4 +110,8 @@ body.body--dark .suggestion-owner {
   text-align: right;
   opacity: 0.65;
 }
+a {
+  text-decoration: none;
+  color: inherit;
+}
 </style>
