@@ -125,6 +125,19 @@ export default {
     max-height: calc(40vw * 140 / 224);
   }
 }
+.result-item {
+  transition: background-color 0.5s ease;
+  transition: transform 0.25s ease;
+}
+.result-item:hover {
+  transform: scale(1.025);
+}
+body.body--light .result-item:hover {
+  background-color: #eeeeeeee;
+}
+body.body--dark .result-item:hover {
+  background-color: #33333399;
+}
 .result-owner-avatar,
 .result-pubdate {
   flex: 0 0 auto;
