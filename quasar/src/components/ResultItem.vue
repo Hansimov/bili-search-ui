@@ -133,11 +133,11 @@ export default {
 }
 body.body--light .result-item:hover {
   background: linear-gradient(#ffffff00, #eeeeeeee);
-  filter: contrast(1.25) saturate(1.25) brightness(1.05);
+  filter: contrast(1.25) saturate(1.15) brightness(1.05);
 }
 body.body--dark .result-item:hover {
   background: linear-gradient(#22222200, #55555555);
-  filter: contrast(1.25) saturate(1.25) brightness(1.15);
+  filter: contrast(1.25) saturate(1.15) brightness(1.1);
 }
 .result-owner-avatar,
 .result-pubdate {

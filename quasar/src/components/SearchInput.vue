@@ -13,7 +13,7 @@
       type="search"
       v-model="query"
       @update:model-value="suggest"
-      @focus="showSuggestions"
+      @focus="triggerSuggestions"
       @blur="hideSuggestions"
       @keyup.enter="submitQuery(false)"
     >
@@ -46,8 +46,10 @@ export default {
     const router = useRouter();
     const query = ref(searchStore.query || route.query.q || '');
 
-    const showSuggestions = async () => {
-      searchStore.setIsSuggestionsVisible(true);
+    const triggerSuggestions = async () => {
+      if (!searchStore.isSuggestionsVisible) {
+        searchStore.setIsSuggestionsVisible(true);
+      }
       if (!query.value) {
         randomSuggest();
       } else {
@@ -71,7 +73,9 @@ export default {
 
     const suggest = (newVal) => {
       searchStore.setQuery(newVal);
-      showSuggestions();
+      if (!searchStore.isSuggestionsVisible) {
+        searchStore.setIsSuggestionsVisible(true);
+      }
       clearTimeout(timeoutId);
       suggestAbortController.abort();
       suggestAbortController = new AbortController();
@@ -182,7 +186,7 @@ export default {
       suggest,
       randomSuggest,
       clearSuggest,
-      showSuggestions,
+      triggerSuggestions,
       hideSuggestions,
       AISearchToggle,
       submitQuery,
