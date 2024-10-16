@@ -126,17 +126,18 @@ export default {
   }
 }
 .result-item {
-  transition: background-color 0.5s ease;
-  transition: transform 0.25s ease;
+  transition: transform 0.25s ease, filter 0.3s ease;
 }
 .result-item:hover {
   transform: scale(1.025);
 }
 body.body--light .result-item:hover {
-  background-color: #eeeeeeee;
+  background: linear-gradient(#ffffff00, #eeeeeeee);
+  filter: contrast(1.25) saturate(1.25) brightness(1.05);
 }
 body.body--dark .result-item:hover {
-  background-color: #33333399;
+  background: linear-gradient(#22222200, #55555555);
+  filter: contrast(1.25) saturate(1.25) brightness(1.15);
 }
 .result-owner-avatar,
 .result-pubdate {

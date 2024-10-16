@@ -68,17 +68,16 @@ export default {
 
 <style scoped>
 .suggestion-item {
-  transition: background-color 0.25s ease;
-  transition: transform 0.25s ease;
+  transition: background-color 0.25s ease, transform 0.25s ease;
 }
 .suggestion-item:hover {
   transform: scale(1.02);
 }
 body.body--light .suggestion-item:hover {
-  background-color: #dddddd;
+  background-color: #ddddddee;
 }
 body.body--dark .suggestion-item:hover {
-  background-color: #444444;
+  background-color: #444444bb;
 }
 .suggestion-title-view-owner {
   white-space: nowrap;

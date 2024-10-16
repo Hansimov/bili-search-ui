@@ -184,6 +184,10 @@ export default {
 
 <style lang="scss" scoped>
 .results-list {
+  overflow: hidden;
+  padding-top: 3px;
+}
+.results-list {
   display: grid;
   grid-template-columns: repeat(
     auto-fill,
