@@ -1,19 +1,40 @@
 import { defineStore } from 'pinia';
 
-interface ResultsResponse {
+interface SearchResultResponse {
     hits: string[];
     total_hits: number;
     return_hits: number;
     detail_level: number;
 }
 
+interface HighlightedKeywords {
+    [field: string]: { [keyword: string]: number };
+}
+
+interface RelatedAuthor {
+    uid: number;
+    count: number;
+    highlighted?: boolean;
+}
+
+interface RelatedAuthors {
+    [authorName: string]: RelatedAuthor;
+}
+
+interface SuggestResultResponse {
+    hits: string[];
+    highlighted_keywords?: HighlightedKeywords;
+    related_authors?: RelatedAuthors;
+}
+
 interface SearchState {
     query: string;
     isMouseInSuggestionList: boolean;
     suggestQuery: string;
+    suggestResultCache: { [key: string]: SuggestResultResponse };
     suggestions: string[];
     isSuggestionsVisible: boolean;
-    results: ResultsResponse;
+    results: SearchResultResponse;
     isEnableAISearch: boolean;
     isSearchOptionsBarVisible: boolean;
     activeTab: string;
@@ -31,6 +52,7 @@ export const useSearchStore = defineStore('search', {
         isMouseInSuggestionList: false,
         isSuggestionsVisible: true,
         suggestQuery: '',
+        suggestResultCache: {},
         suggestions: [],
         results: {
             hits: [],
@@ -46,11 +68,15 @@ export const useSearchStore = defineStore('search', {
         }
     }),
     actions: {
-        setSuggestions(newSuggestions: string[]) {
-            this.suggestions = newSuggestions;
-        },
         setSuggestQuery(newSuggestQuery: string) {
             this.suggestQuery = newSuggestQuery;
+        },
+        setSuggestResultCache(query: string, newSuggestResult: SuggestResultResponse) {
+            this.suggestResultCache[query] = newSuggestResult;
+            console.log('Suggest result:', newSuggestResult);
+        },
+        setSuggestions(newSuggestions: string[]) {
+            this.suggestions = newSuggestions;
         },
         setIsSuggestionsVisible(newVisibility: boolean) {
             this.isSuggestionsVisible = newVisibility;
@@ -61,9 +87,9 @@ export const useSearchStore = defineStore('search', {
         setQuery(newQuery: string) {
             this.query = newQuery;
         },
-        setResults(newResults: ResultsResponse) {
-            this.results = newResults;
-            console.log('Results:', this.results);
+        setSearchResult(newSearchResult: SearchResultResponse) {
+            this.results = newSearchResult;
+            console.log('Search results:', newSearchResult);
         },
         setIsEnableAISearch(newIsEnableAISearch: boolean) {
             this.isEnableAISearch = newIsEnableAISearch;

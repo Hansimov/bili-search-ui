@@ -80,6 +80,12 @@ export default {
       suggestAbortController.abort();
       suggestAbortController = new AbortController();
 
+      if (searchStore.suggestResultCache[newVal]) {
+        searchStore.setSuggestions(searchStore.suggestResultCache[newVal].hits);
+        console.log(`+ Cached Query: [${newVal}]`);
+        return;
+      }
+
       timeoutId = setTimeout(async () => {
         if (newVal) {
           try {
@@ -92,7 +98,9 @@ export default {
             if (suggestAbortController.signal.aborted) {
               return;
             }
-            searchStore.setSuggestions(response.data.hits);
+            const suggesResult = response.data;
+            searchStore.setSuggestResultCache(newVal, suggesResult);
+            searchStore.setSuggestions(suggesResult.hits);
             console.log(`+ Get ${searchStore.suggestions.length} suggestions.`);
           } catch (error) {
             if (error.name === 'CanceledError') {
@@ -153,7 +161,7 @@ export default {
           if (searchAbortController.signal.aborted) {
             return;
           }
-          searchStore.setResults(response.data);
+          searchStore.setSearchResult(response.data);
           console.log(
             `+ Get ${searchStore.results.hits.length} search results.`
           );
