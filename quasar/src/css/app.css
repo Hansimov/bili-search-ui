@@ -82,6 +82,10 @@ body.body--dark hit {
 }
 
 /* Scrollbar */
+body {
+  overflow-y: scroll;
+}
+
 ::-webkit-scrollbar {
   height: 12px;
   width: 12px;
