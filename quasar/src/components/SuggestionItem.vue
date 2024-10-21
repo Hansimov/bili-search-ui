@@ -19,7 +19,7 @@
             ><q-icon name="fa-regular fa-play-circle"></q-icon>
             {{ humanReadableNumber(suggestion.stat.view) }}</span
           >
-          · <span class="suggestion-owner">{{ suggestion.owner.name }}</span>
+          · <span class="suggestion-owner" v-html="highlightedOwnerName"></span>
         </span>
       </q-item-section>
       <q-item-section side class="suggestion-tname-pubdate">
@@ -44,17 +44,22 @@ export default {
   computed: {
     highlightedTitle() {
       if (
-        this.suggestion.pinyin_highlights &&
-        this.suggestion.pinyin_highlights['title.pinyin']
+        this.suggestion.merged_highlights &&
+        this.suggestion.merged_highlights.title
       ) {
-        return this.suggestion.pinyin_highlights['title.pinyin'][0];
-      } else if (
-        this.suggestion.common_highlights &&
-        this.suggestion.common_highlights.title
-      ) {
-        return this.suggestion.common_highlights.title[0];
+        return this.suggestion.merged_highlights.title[0];
       } else {
         return this.suggestion.title;
+      }
+    },
+    highlightedOwnerName() {
+      if (
+        this.suggestion.merged_highlights &&
+        this.suggestion.merged_highlights['owner.name']
+      ) {
+        return this.suggestion.merged_highlights['owner.name'][0];
+      } else {
+        return this.suggestion.owner.name;
       }
     },
   },

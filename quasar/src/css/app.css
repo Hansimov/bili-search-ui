@@ -66,6 +66,16 @@ body.body--dark hit {
   font-weight: bold;
   color: #f060a0;
 }
+body.body--light .suggestion-owner hit,
+body.body--light .result-owner-name hit {
+  font-weight: bold;
+  color: #f08880;
+}
+body.body--dark .suggestion-owner hit,
+body.body--dark .result-owner-name hit {
+  font-weight: bold;
+  color: #f08880;
+}
 
 /* Button Dropdown */
 .q-btn-dropdown--simple * + .q-btn-dropdown__arrow {
