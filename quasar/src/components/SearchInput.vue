@@ -13,8 +13,8 @@
       type="search"
       v-model="query"
       @update:model-value="suggest"
-      @focus="triggerSuggestions"
-      @blur="hideSuggestions"
+      @focus="handleFocus"
+      @blur="handleBlur"
       @keyup.enter="submitQuery(false)"
     >
       <template v-slot:prepend>
@@ -30,7 +30,7 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { useSearchStore } from '../stores/searchStore';
@@ -46,9 +46,21 @@ export default {
     const router = useRouter();
     const query = ref(searchStore.query || route.query.q || '');
 
-    const triggerSuggestions = async () => {
-      if (!searchStore.isSuggestionsVisible) {
-        searchStore.setIsSuggestionsVisible(true);
+    const hideSuggestions = () => {
+      if (!searchStore.isMouseInSearchBar) {
+        searchStore.setIsSuggestVisible(false);
+      }
+    };
+
+    const handleBlur = () => {
+      if (!searchStore.isMouseInSearchBar) {
+        searchStore.setIsSuggestVisible(false);
+      }
+    };
+
+    const handleFocus = async () => {
+      if (!searchStore.isSuggestVisible) {
+        searchStore.setIsSuggestVisible(true);
       }
       if (!query.value) {
         randomSuggest();
@@ -59,11 +71,19 @@ export default {
       }
     };
 
-    const hideSuggestions = () => {
-      if (!searchStore.isMouseInSuggestionList) {
-        searchStore.setIsSuggestionsVisible(false);
+    const handleGlobalClick = () => {
+      if (!searchStore.isMouseInSearchBar) {
+        searchStore.setIsSuggestVisible(false);
       }
     };
+
+    onMounted(() => {
+      document.addEventListener('click', handleGlobalClick);
+    });
+
+    onBeforeUnmount(() => {
+      document.removeEventListener('click', handleGlobalClick);
+    });
 
     let timeoutId = null;
     const SUGGEST_DEBOUNCE_INTERVAL = 150; // millisencods
@@ -73,8 +93,8 @@ export default {
 
     const suggest = async (newVal, showSuggestions = true) => {
       searchStore.setQuery(newVal);
-      if (showSuggestions && !searchStore.isSuggestionsVisible) {
-        searchStore.setIsSuggestionsVisible(true);
+      if (showSuggestions && !searchStore.isSuggestVisible) {
+        searchStore.setIsSuggestVisible(true);
       }
       clearTimeout(timeoutId);
       suggestAbortController.abort();
@@ -136,12 +156,6 @@ export default {
         });
       } catch (error) {
         console.error(error);
-      }
-    };
-
-    const clearSuggest = () => {
-      if (!query.value && !searchStore.isMouseInSuggestionList) {
-        searchStore.setSuggestions([]);
       }
     };
 
@@ -210,11 +224,10 @@ export default {
 
     return {
       query,
+      handleFocus,
+      handleBlur,
       suggest,
       randomSuggest,
-      clearSuggest,
-      triggerSuggestions,
-      hideSuggestions,
       AISearchToggle,
       submitQuery,
       searchInputPlaceholder,
