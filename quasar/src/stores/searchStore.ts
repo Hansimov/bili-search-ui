@@ -8,7 +8,7 @@ interface SearchResultResponse {
 }
 
 interface HighlightedKeywords {
-    [field: string]: { [keyword: string]: number };
+    [qword: string]: { [new_qword: string]: number };
 }
 
 interface RelatedAuthor {

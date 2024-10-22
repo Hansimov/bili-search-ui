@@ -6,7 +6,7 @@
     @mouseleave="mouseLeave"
   >
     <SuggestionItem
-      v-for="(suggestion, index) in suggestions"
+      v-for="(suggestion, index) in suggestions.slice(0, 10)"
       :key="index"
       :suggestion="suggestion"
     />
