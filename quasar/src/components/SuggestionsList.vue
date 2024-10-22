@@ -46,10 +46,8 @@ export default {
 
 <style lang="scss" scoped>
 .suggestions-list {
-  position: absolute;
   width: var(--search-input-width);
   max-width: var(--search-input-max-width);
-  z-index: 1000;
   max-height: min(300px, calc(100vh - 100px));
   overflow-y: scroll;
   overflow-x: hidden;
@@ -57,8 +55,5 @@ export default {
     width: 8px;
     background: transparent;
   }
-}
-.search-bar {
-  position: relative;
 }
 </style>

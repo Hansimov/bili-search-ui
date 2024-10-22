@@ -1,8 +1,10 @@
 <template>
   <div class="search-bar">
     <SearchInput />
-    <SuggestAuthorsList />
-    <SuggestionsList />
+    <div class="suggest-container">
+      <SuggestAuthorsList />
+      <SuggestionsList />
+    </div>
   </div>
 </template>
 
@@ -19,3 +21,13 @@ export default {
   },
 };
 </script>
+
+<style lang="scss" scoped>
+.search-bar {
+  position: relative;
+}
+.suggest-container {
+  position: absolute;
+  z-index: 1000;
+}
+</style>
