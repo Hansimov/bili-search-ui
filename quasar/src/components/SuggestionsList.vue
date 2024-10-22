@@ -50,5 +50,15 @@ export default {
   width: var(--search-input-width);
   max-width: var(--search-input-max-width);
   z-index: 1000;
+  max-height: min(300px, calc(100vh - 100px));
+  overflow-y: scroll;
+  overflow-x: hidden;
+  &::-webkit-scrollbar {
+    width: 8px;
+    background: transparent;
+  }
+}
+.search-bar {
+  position: relative;
 }
 </style>

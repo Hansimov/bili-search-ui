@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="search-bar">
     <SearchInput />
     <SuggestionsList />
   </div>
