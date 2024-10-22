@@ -66,6 +66,7 @@ export default {
     };
 
     let timeoutId = null;
+    let cached_suggest;
     const SUGGEST_DEBOUNCE_INTERVAL = 150; // millisencods
 
     let suggestAbortController = new AbortController();
@@ -80,9 +81,11 @@ export default {
       suggestAbortController.abort();
       suggestAbortController = new AbortController();
 
-      if (searchStore.suggestResultCache[newVal]) {
-        searchStore.setSuggestions(searchStore.suggestResultCache[newVal].hits);
+      cached_suggest = searchStore.suggestResultCache[newVal];
+      if (cached_suggest) {
+        searchStore.setSuggestions(cached_suggest.hits);
         console.log(`+ Cached Query: [${newVal}]`);
+        console.log('Cached suggest results:', cached_suggest);
         return;
       }
 
@@ -92,7 +95,7 @@ export default {
             console.log(`> Query: [${newVal}]`);
             const response = await api.post(
               '/suggest',
-              { query: newVal },
+              { query: newVal, limit: 25 },
               { signal: suggestAbortController.signal }
             );
             if (suggestAbortController.signal.aborted) {
@@ -150,10 +153,24 @@ export default {
           console.log('> Getting search results ...');
           searchAbortController.abort();
           searchAbortController = new AbortController();
+          let cached_suggest = searchStore.suggestResultCache[query.value];
+          if (!cached_suggest) {
+            suggest(query.value);
+            cached_suggest = searchStore.suggestResultCache[query.value];
+          }
+
+          let suggest_info = {};
+          if (cached_suggest && Object.keys(cached_suggest).length > 0) {
+            suggest_info = {
+              highlighted_keywords: cached_suggest.highlighted_keywords || {},
+              related_authors: cached_suggest.related_authors || [],
+            };
+          }
           const response = await api.post(
             '/search',
             {
               query: query.value,
+              suggest_info: suggest_info,
               limit: 200,
             },
             { signal: suggestAbortController.signal }
