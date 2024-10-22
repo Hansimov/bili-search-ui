@@ -1,5 +1,7 @@
 {
   "coverPicSuffix": "@320w_200h_1c_!web-space-upload-video.webp",
   "userPicSuffix": "@240w_240h_1c_1s_!web-avatar-search-user.avif",
-  "avatarPicSuffix": "@160w_160h_1c_1s_!web-avatar-comment.avif"
+  "avatarCommentSuffix": "@160w_160h_1c_1s_!web-avatar-comment.avif",
+  "avatarSpaceSuffix":"@160w_160h_1c_1s_!web-avatar-space-header.avif",
+  "avatarDefault":"https://i0.hdslb.com/bfs/face/member/noface.jpg@96w_96h.avif"
 }
