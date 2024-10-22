@@ -1,22 +1,18 @@
 <template>
-  <q-item class="suggest-author-item q-pt-sm q-pb-sm">
+  <q-item class="suggest-author-item q-pl-xs">
     <q-item-section avatar side>
       <q-avatar>
-        <img
-          :src="authorAvatarUrl"
-          referrerpolicy="no-referrer"
-          :style="{ filter: avatarFilter }"
-        />
+        <img :src="authorAvatarUrl" referrerpolicy="no-referrer" />
       </q-avatar>
     </q-item-section>
     <q-item-section>
-      <div class="author-name">{{ authorName }}</div>
+      <div class="suggest-author-name">{{ authorName }}</div>
     </q-item-section>
   </q-item>
 </template>
 
 <script>
-import constants from '../stores/constants.json';
+import defaultAvatarUrl from '../assets/noface.jpg@96w_96h.avif';
 
 export default {
   props: {
@@ -31,22 +27,20 @@ export default {
   },
   computed: {
     authorAvatarUrl() {
-      return this.authorInfo.face || constants.avatarDefault;
-    },
-    avatarFilter() {
-      const hue = Math.random() * 360;
-      return `contrast(0.8) brightness(1.1) saturate(1.2) hue-rotate(${hue}deg)`;
+      return this.authorInfo.face || defaultAvatarUrl;
     },
   },
 };
 </script>
 
 <style scoped>
-.author-name {
-  font-weight: bold;
+.suggest-author-item {
+  /* width: 150px; */
 }
-.author-count {
-  font-size: 0.9em;
-  color: gray;
+.suggest-author-name {
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
