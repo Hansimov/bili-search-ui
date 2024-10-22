@@ -66,22 +66,21 @@ export default {
     };
 
     let timeoutId = null;
-    let cached_suggest;
     const SUGGEST_DEBOUNCE_INTERVAL = 150; // millisencods
 
     let suggestAbortController = new AbortController();
     let searchAbortController = new AbortController();
 
-    const suggest = (newVal) => {
+    const suggest = async (newVal, showSuggestions = true) => {
       searchStore.setQuery(newVal);
-      if (!searchStore.isSuggestionsVisible) {
+      if (showSuggestions && !searchStore.isSuggestionsVisible) {
         searchStore.setIsSuggestionsVisible(true);
       }
       clearTimeout(timeoutId);
       suggestAbortController.abort();
       suggestAbortController = new AbortController();
 
-      cached_suggest = searchStore.suggestResultCache[newVal];
+      const cached_suggest = searchStore.suggestResultCache[newVal];
       if (cached_suggest) {
         searchStore.setSuggestions(cached_suggest.hits);
         console.log(`+ Cached Query: [${newVal}]`);
@@ -89,33 +88,37 @@ export default {
         return;
       }
 
-      timeoutId = setTimeout(async () => {
-        if (newVal) {
-          try {
-            console.log(`> Query: [${newVal}]`);
-            const response = await api.post(
-              '/suggest',
-              { query: newVal, limit: 25 },
-              { signal: suggestAbortController.signal }
-            );
-            if (suggestAbortController.signal.aborted) {
-              return;
+      await new Promise((resolve) => {
+        timeoutId = setTimeout(async () => {
+          if (newVal) {
+            try {
+              console.log(`> Query: [${newVal}]`);
+              const response = await api.post(
+                '/suggest',
+                { query: newVal, limit: 25 },
+                { signal: suggestAbortController.signal }
+              );
+
+              if (!suggestAbortController.signal.aborted) {
+                const suggestResult = response.data;
+                searchStore.setSuggestResultCache(newVal, suggestResult);
+                searchStore.setSuggestions(suggestResult.hits);
+                console.log(
+                  `+ Get ${searchStore.suggestions.length} suggestions.`
+                );
+              }
+              resolve();
+            } catch (error) {
+              if (error.name !== 'CanceledError') {
+                console.error(error);
+              }
+              resolve();
             }
-            const suggesResult = response.data;
-            searchStore.setSuggestResultCache(newVal, suggesResult);
-            searchStore.setSuggestions(suggesResult.hits);
-            console.log(`+ Get ${searchStore.suggestions.length} suggestions.`);
-          } catch (error) {
-            if (error.name === 'CanceledError') {
-              // console.log('Previous request aborted');
-            } else {
-              console.error(error);
-            }
+          } else {
+            resolve();
           }
-        } else {
-          // searchStore.setSuggestions([]);
-        }
-      }, SUGGEST_DEBOUNCE_INTERVAL);
+        }, SUGGEST_DEBOUNCE_INTERVAL);
+      });
     };
 
     const randomSuggest = () => {
@@ -155,10 +158,9 @@ export default {
           searchAbortController = new AbortController();
           let cached_suggest = searchStore.suggestResultCache[query.value];
           if (!cached_suggest) {
-            suggest(query.value);
+            await suggest(query.value, false);
             cached_suggest = searchStore.suggestResultCache[query.value];
           }
-
           let suggest_info = {};
           if (cached_suggest && Object.keys(cached_suggest).length > 0) {
             suggest_info = {
@@ -173,7 +175,7 @@ export default {
               suggest_info: suggest_info,
               limit: 200,
             },
-            { signal: suggestAbortController.signal }
+            { signal: searchAbortController.signal }
           );
           if (searchAbortController.signal.aborted) {
             return;
