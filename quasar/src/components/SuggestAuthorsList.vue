@@ -1,5 +1,5 @@
 <template>
-  <q-list v-if="relatedAuthorsList.length" class="suggest-authors-list q-pt-xs">
+  <q-list v-if="relatedAuthorsList.length" class="suggest-authors-list">
     <SuggestAuthorItem
       v-for="(authorItem, index) in relatedAuthorsList"
       :key="index"
@@ -54,8 +54,19 @@ export default {
 
 <style lang="scss" scoped>
 .suggest-authors-list {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  justify-content: flex-start;
   width: var(--search-input-width);
+  height: 60px;
+  padding-bottom: 5px;
   max-width: var(--search-input-max-width);
   z-index: 1000;
+  &::-webkit-scrollbar {
+    height: 8px;
+    background: transparent;
+  }
 }
 </style>
