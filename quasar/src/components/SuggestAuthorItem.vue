@@ -1,5 +1,5 @@
 <template>
-  <q-item class="suggest-author-item q-pl-xs">
+  <q-item class="suggest-author-item q-pr-xs">
     <q-item-section avatar side>
       <q-avatar>
         <img :src="authorAvatarUrl" referrerpolicy="no-referrer" />
@@ -34,13 +34,15 @@ export default {
 </script>
 
 <style scoped>
-.suggest-author-item {
-  /* width: 150px; */
-}
 .suggest-author-name {
   font-weight: bold;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.q-item__section--avatar {
+  margin: 0;
+  padding-right: 6px;
+  min-width: 0px;
 }
 </style>
