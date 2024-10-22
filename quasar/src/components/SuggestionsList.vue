@@ -1,10 +1,5 @@
 <template>
-  <q-list
-    v-if="suggestions.length && isSuggestionsVisible"
-    class="suggestions-list q-pt-xs"
-    @mouseenter="mouseEnter"
-    @mouseleave="mouseLeave"
-  >
+  <q-list v-if="suggestions.length" class="suggestions-list q-pt-xs">
     <SuggestionItem
       v-for="(suggestion, index) in suggestions.slice(0, 10)"
       :key="index"
@@ -24,21 +19,9 @@ export default {
   },
   setup() {
     const searchStore = useSearchStore();
-    const mouseEnter = () => {
-      searchStore.setIsMouseInSuggestionList(true);
-    };
-    const mouseLeave = () => {
-      searchStore.setIsMouseInSuggestionList(false);
-    };
     const suggestions = computed(() => searchStore.suggestions);
-    const isSuggestionsVisible = computed(
-      () => searchStore.isSuggestionsVisible
-    );
     return {
-      mouseEnter,
-      mouseLeave,
       suggestions,
-      isSuggestionsVisible,
     };
   },
 };
