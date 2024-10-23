@@ -1,18 +1,22 @@
 <template>
   <q-item class="suggest-author-item q-pr-xs">
     <q-item-section avatar side>
-      <q-avatar>
+      <q-avatar class="suggest-author-avatar" @click="onAuthorClick">
         <img :src="authorAvatarUrl" referrerpolicy="no-referrer" />
       </q-avatar>
     </q-item-section>
     <q-item-section>
-      <div class="suggest-author-name">{{ authorName }}</div>
+      <div class="suggest-author-name" @click="onAuthorClick">
+        {{ authorName }}
+      </div>
     </q-item-section>
   </q-item>
 </template>
 
 <script>
 import defaultAvatarUrl from '../assets/noface.jpg@96w_96h.avif';
+import { useRouter } from 'vue-router';
+import { submitQuery } from '../functions/search';
 
 export default {
   props: {
@@ -30,10 +34,23 @@ export default {
       return this.authorInfo.face || defaultAvatarUrl;
     },
   },
+  setup(props) {
+    const router = useRouter();
+    const onAuthorClick = () => {
+      const queryValue = `@${props.authorName}`;
+      submitQuery(queryValue, router, false, false);
+    };
+    return {
+      onAuthorClick,
+    };
+  },
 };
 </script>
 
 <style scoped>
+.suggest-author-item {
+  cursor: pointer;
+}
 .suggest-author-name {
   font-weight: bold;
   white-space: nowrap;
