@@ -6,9 +6,11 @@ let suggestAbortController = new AbortController();
 let searchAbortController = new AbortController();
 const SUGGEST_DEBOUNCE_INTERVAL = 150; // milliseconds
 
-export const suggest = async (newVal: string, showSuggestions = true): Promise<void> => {
+export const suggest = async (newVal: string, showSuggestions = true, setSearchStoreQuery = true): Promise<void> => {
     const searchStore = useSearchStore();
-    searchStore.setQuery(newVal);
+    if (setSearchStoreQuery) {
+        searchStore.setQuery(newVal);
+    }
 
     if (showSuggestions && !searchStore.isSuggestVisible) {
         searchStore.setIsSuggestVisible(true);
@@ -71,12 +73,13 @@ export const randomSuggest = async () => {
     }
 };
 
-export const submitQuery = async (queryValue: string, router: Router, isFromURL = false) => {
+export const submitQuery = async (queryValue: string, router: Router, isFromURL = false, setSearchStoreQuery = true) => {
     const searchStore = useSearchStore();
     searchStore.setIsSuggestVisible(false);
-
     if (queryValue) {
-        searchStore.setQuery(queryValue);
+        if (setSearchStoreQuery) {
+            searchStore.setQuery(queryValue);
+        }
         if (!isFromURL) {
             const newRoute = `/search?q=${queryValue}`;
             if (router.currentRoute.value.path !== newRoute) {
@@ -90,7 +93,7 @@ export const submitQuery = async (queryValue: string, router: Router, isFromURL 
 
             let cachedSuggest = searchStore.suggestResultCache[queryValue];
             if (!cachedSuggest) {
-                await suggest(queryValue, false);
+                await suggest(queryValue, false, setSearchStoreQuery);
                 cachedSuggest = searchStore.suggestResultCache[queryValue];
             }
 
