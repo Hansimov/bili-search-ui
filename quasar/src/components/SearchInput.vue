@@ -46,12 +46,6 @@ export default {
     const router = useRouter();
     const query = ref(searchStore.query || route.query.q || '');
 
-    const hideSuggestions = () => {
-      if (!searchStore.isMouseInSearchBar) {
-        searchStore.setIsSuggestVisible(false);
-      }
-    };
-
     const handleBlur = () => {
       if (!searchStore.isMouseInSearchBar) {
         searchStore.setIsSuggestVisible(false);
@@ -160,7 +154,7 @@ export default {
     };
 
     const submitQuery = async (isFromURL = false) => {
-      hideSuggestions();
+      searchStore.setIsSuggestVisible(false);
       if (query.value) {
         searchStore.setQuery(query.value);
         if (!isFromURL) {
