@@ -15,7 +15,7 @@
       @update:model-value="suggest"
       @focus="handleFocus"
       @blur="handleBlur"
-      @keyup.enter="submitQuery(false)"
+      @keyup.enter="submitQueryInInput(false)"
     >
       <template v-slot:prepend>
         <q-btn unelevated class="q-px-xs">
@@ -32,8 +32,8 @@
 <script>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { api } from 'boot/axios';
 import { useSearchStore } from '../stores/searchStore';
+import { suggest, randomSuggest, submitQuery } from '../functions/search';
 import AISearchToggle from './AISearchToggle.vue';
 
 export default {
@@ -79,127 +79,12 @@ export default {
       document.removeEventListener('click', handleGlobalClick);
     });
 
-    let timeoutId = null;
-    const SUGGEST_DEBOUNCE_INTERVAL = 150; // millisencods
-
-    let suggestAbortController = new AbortController();
-    let searchAbortController = new AbortController();
-
-    const suggest = async (newVal, showSuggestions = true) => {
-      searchStore.setQuery(newVal);
-      if (showSuggestions && !searchStore.isSuggestVisible) {
-        searchStore.setIsSuggestVisible(true);
-      }
-      clearTimeout(timeoutId);
-      suggestAbortController.abort();
-      suggestAbortController = new AbortController();
-
-      const cached_suggest = searchStore.suggestResultCache[newVal];
-      if (cached_suggest) {
-        searchStore.setSuggestions(cached_suggest.hits);
-        console.log(`+ Cached Query: [${newVal}]`);
-        console.log('Cached suggest results:', cached_suggest);
-        return;
-      }
-
-      await new Promise((resolve) => {
-        timeoutId = setTimeout(async () => {
-          if (newVal) {
-            try {
-              console.log(`> Query: [${newVal}]`);
-              const response = await api.post(
-                '/suggest',
-                { query: newVal, limit: 25 },
-                { signal: suggestAbortController.signal }
-              );
-
-              if (!suggestAbortController.signal.aborted) {
-                const suggestResult = response.data;
-                searchStore.setSuggestResultCache(newVal, suggestResult);
-                searchStore.setSuggestions(suggestResult.hits);
-                console.log(
-                  `+ Get ${searchStore.suggestions.length} suggestions.`
-                );
-              }
-              resolve();
-            } catch (error) {
-              if (error.name !== 'CanceledError') {
-                console.error(error);
-              }
-              resolve();
-            }
-          } else {
-            resolve();
-          }
-        }, SUGGEST_DEBOUNCE_INTERVAL);
-      });
-    };
-
-    const randomSuggest = () => {
-      try {
-        console.log('> Getting random suggestions ...');
-        const randomSuggestPromise = api.post('/random', {
-          seed_update_seconds: 10,
-          limit: 10,
-        });
-        randomSuggestPromise.then((randomSuggestResponse) => {
-          searchStore.setSuggestions([...randomSuggestResponse.data.hits]);
-          console.log(
-            `+ Got ${searchStore.suggestions.length} random suggestions.`
-          );
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    const submitQuery = async (isFromURL = false) => {
-      searchStore.setIsSuggestVisible(false);
-      if (query.value) {
-        searchStore.setQuery(query.value);
-        if (!isFromURL) {
-          await router.push(`/search?q=${query.value}`);
-        }
-        try {
-          console.log('> Getting search results ...');
-          searchAbortController.abort();
-          searchAbortController = new AbortController();
-          let cached_suggest = searchStore.suggestResultCache[query.value];
-          if (!cached_suggest) {
-            await suggest(query.value, false);
-            cached_suggest = searchStore.suggestResultCache[query.value];
-          }
-          let suggest_info = {};
-          if (cached_suggest && Object.keys(cached_suggest).length > 0) {
-            suggest_info = {
-              highlighted_keywords: cached_suggest.highlighted_keywords || {},
-              related_authors: cached_suggest.related_authors || [],
-            };
-          }
-          const response = await api.post(
-            '/search',
-            {
-              query: query.value,
-              suggest_info: suggest_info,
-              limit: 200,
-            },
-            { signal: searchAbortController.signal }
-          );
-          if (searchAbortController.signal.aborted) {
-            return;
-          }
-          searchStore.setSearchResult(response.data);
-          console.log(
-            `+ Get ${searchStore.results.hits.length} search results.`
-          );
-        } catch (error) {
-          console.error(error);
-        }
-      }
+    const submitQueryInInput = async (isFromURL = false) => {
+      await submitQuery(query.value, router, isFromURL);
     };
 
     if (query.value) {
-      submitQuery(query.value);
+      submitQueryInInput(query.value);
     }
 
     const searchInputPlaceholder = computed(() => {
@@ -223,7 +108,7 @@ export default {
       suggest,
       randomSuggest,
       AISearchToggle,
-      submitQuery,
+      submitQueryInInput,
       searchInputPlaceholder,
     };
   },
