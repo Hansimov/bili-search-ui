@@ -1,9 +1,9 @@
 <template>
   <q-toggle
-    :color="isEnableAiSearch ? 'green' : 'grey'"
+    :color="isEnableAiSearch ? 'teal' : 'grey'"
     class="q-px-none ai-search-toggle"
     v-model="isEnableAiSearch"
-    :icon="isEnableAiSearch ? 'fa-solid fa-rocket' : ''"
+    :icon="isEnableAiSearch ? 'fa-solid fa-bolt' : ''"
     @update:model-value="toggleIsEnableAiSearch"
     @mouseover="mouseEnter"
     @mouseleave="mouseLeave"
@@ -17,7 +17,7 @@
       <span
         class="search-tooltip"
         :class="{
-          'text-green': isEnableAiSearch,
+          'text-teal': isEnableAiSearch,
           'text-grey': !isEnableAiSearch,
         }"
         >AI 搜索 {{ isEnableAiSearch ? '已启用' : '已关闭' }}</span

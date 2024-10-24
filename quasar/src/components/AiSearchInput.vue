@@ -13,10 +13,11 @@
       v-model="aiQuery"
       @update:model-value="handleAiSearchInput"
       @keyup.enter="submitAiQueryInInput(false)"
+      color="teal-5"
     >
       <template v-slot:prepend>
         <q-btn unelevated class="q-px-xs">
-          <q-icon name="rocket" />
+          <q-icon name="bolt" />
         </q-btn>
       </template>
       <template v-slot:append>
@@ -28,6 +29,7 @@
 
 <script>
 import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { useSearchStore } from '../stores/searchStore';
 import AiSearchToggle from './AiSearchToggle.vue';
 import { submitAiQuery } from '../functions/ai';
@@ -39,6 +41,7 @@ export default {
   setup() {
     const searchStore = useSearchStore();
     const aiQuery = ref(searchStore.aiQuery || '');
+    const router = useRouter();
 
     const handleAiSearchInput = (value) => {
       console.log('aiSearchInput:', value);
@@ -67,5 +70,8 @@ export default {
 .ai-search-input {
   width: var(--search-input-width);
   max-width: var(--search-input-max-width);
+}
+.ai-search-input .q-focus-helper {
+  visibility: hidden;
 }
 </style>
