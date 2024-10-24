@@ -4,10 +4,6 @@
       rounded
       outlined
       :dense="$route.path !== '/'"
-      :class="{
-        'q-pa-none': $route.path === '/',
-        'q-pb-sm': $route.path !== '/',
-      }"
       :placeholder="aiSearchInputPlaceholder"
       type="search"
       v-model="aiQuery"
@@ -20,9 +16,6 @@
           <q-icon name="bolt" />
         </q-btn>
       </template>
-      <template v-slot:append>
-        <AiSearchToggle />
-      </template>
     </q-input>
   </div>
 </template>
@@ -31,13 +24,9 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSearchStore } from '../stores/searchStore';
-import AiSearchToggle from './AiSearchToggle.vue';
 import { submitAiQuery } from '../functions/ai';
 
 export default {
-  components: {
-    AiSearchToggle,
-  },
   setup() {
     const searchStore = useSearchStore();
     const aiQuery = ref(searchStore.aiQuery || '');
