@@ -35,7 +35,7 @@ interface SearchState {
     suggestions: string[];
     isSuggestVisible: boolean;
     results: SearchResultResponse;
-    isEnableAISearch: boolean;
+    isEnableAiSearch: boolean;
     isSearchOptionsBarVisible: boolean;
     activeTab: string;
     resultsSortMethod: {
@@ -60,7 +60,7 @@ export const useSearchStore = defineStore('search', {
             return_hits: 0,
             detail_level: 1,
         },
-        isEnableAISearch: false,
+        isEnableAiSearch: false,
         isSearchOptionsBarVisible: true,
         activeTab: 'videos',
         resultsSortMethod: {
@@ -91,8 +91,8 @@ export const useSearchStore = defineStore('search', {
             this.results = newSearchResult;
             console.log('Search results:', newSearchResult);
         },
-        setIsEnableAISearch(newIsEnableAISearch: boolean) {
-            this.isEnableAISearch = newIsEnableAISearch;
+        setIsEnableAiSearch(newIsEnableAiSearch: boolean) {
+            this.isEnableAiSearch = newIsEnableAiSearch;
         },
         toggleSearchOptionsBarVisibility() {
             this.isSearchOptionsBarVisible = !this.isSearchOptionsBarVisible;

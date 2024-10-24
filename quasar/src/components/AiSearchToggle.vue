@@ -1,10 +1,10 @@
 <template>
   <q-toggle
-    :color="isEnableAISearch ? 'green' : 'grey'"
+    :color="isEnableAiSearch ? 'green' : 'grey'"
     class="q-px-none ai-search-toggle"
-    v-model="isEnableAISearch"
-    :icon="isEnableAISearch ? 'fa-solid fa-rocket' : ''"
-    @update:model-value="toggleIsEnableAISearch"
+    v-model="isEnableAiSearch"
+    :icon="isEnableAiSearch ? 'fa-solid fa-rocket' : ''"
+    @update:model-value="toggleIsEnableAiSearch"
     ><q-tooltip
       anchor="center left"
       self="center right"
@@ -15,10 +15,10 @@
       <span
         class="search-tooltip"
         :class="{
-          'text-green': isEnableAISearch,
-          'text-grey': !isEnableAISearch,
+          'text-green': isEnableAiSearch,
+          'text-grey': !isEnableAiSearch,
         }"
-        >AI 搜索 {{ isEnableAISearch ? '已启用' : '已关闭' }}</span
+        >AI 搜索 {{ isEnableAiSearch ? '已启用' : '已关闭' }}</span
       >
     </q-tooltip>
   </q-toggle>
@@ -31,15 +31,15 @@ import { useSearchStore } from '../stores/searchStore';
 export default {
   setup() {
     const searchStore = useSearchStore();
-    const toggleIsEnableAISearch = (newVal) => {
-      searchStore.setIsEnableAISearch(newVal);
+    const toggleIsEnableAiSearch = (newVal) => {
+      searchStore.setIsEnableAiSearch(newVal);
     };
-    const isEnableAISearch = ref(searchStore.isEnableAISearch || false);
+    const isEnableAiSearch = ref(searchStore.isEnableAiSearch || false);
     return {
       isSearchCover: ref(false),
       isSearchSubtitle: ref(false),
-      isEnableAISearch,
-      toggleIsEnableAISearch,
+      isEnableAiSearch,
+      toggleIsEnableAiSearch,
       searchStore,
     };
   },

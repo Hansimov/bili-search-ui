@@ -3,14 +3,14 @@
     <q-toggle
       class="q-pl-none search-options-toggle"
       icon="rocket_launch"
-      :color="isEnableAISearch ? 'green' : 'grey'"
-      v-model="isEnableAISearch"
-      @update:model-value="toggleIsEnableAISearch"
+      :color="isEnableAiSearch ? 'green' : 'grey'"
+      v-model="isEnableAiSearch"
+      @update:model-value="toggleIsEnableAiSearch"
     >
       <span
         :class="{
-          'text-green': isEnableAISearch,
-          'text-grey': !isEnableAISearch,
+          'text-green': isEnableAiSearch,
+          'text-grey': !isEnableAiSearch,
         }"
       >
         AI 理解
@@ -58,15 +58,15 @@ import { useSearchStore } from '../stores/searchStore';
 export default {
   setup() {
     const searchStore = useSearchStore();
-    const toggleIsEnableAISearch = (newVal) => {
-      searchStore.setIsEnableAISearch(newVal);
+    const toggleIsEnableAiSearch = (newVal) => {
+      searchStore.setIsEnableAiSearch(newVal);
     };
-    const isEnableAISearch = ref(searchStore.isEnableAISearch || false);
+    const isEnableAiSearch = ref(searchStore.isEnableAiSearch || false);
     return {
       isSearchCover: ref(false),
       isSearchSubtitle: ref(false),
-      isEnableAISearch,
-      toggleIsEnableAISearch,
+      isEnableAiSearch,
+      toggleIsEnableAiSearch,
       searchStore,
     };
   },

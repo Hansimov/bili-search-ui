@@ -8,7 +8,6 @@
         'q-pa-none': $route.path === '/',
         'q-pb-sm': $route.path !== '/',
       }"
-      clearable
       :placeholder="searchInputPlaceholder"
       type="search"
       v-model="query"
@@ -23,7 +22,7 @@
         </q-btn>
       </template>
       <template v-slot:append>
-        <AISearchToggle />
+        <AiSearchToggle />
       </template>
     </q-input>
   </div>
@@ -34,11 +33,11 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSearchStore } from '../stores/searchStore';
 import { suggest, randomSuggest, submitQuery } from '../functions/search';
-import AISearchToggle from './AISearchToggle.vue';
+import AiSearchToggle from './AiSearchToggle.vue';
 
 export default {
   components: {
-    AISearchToggle,
+    AiSearchToggle,
   },
   setup() {
     const searchStore = useSearchStore();
@@ -107,7 +106,7 @@ export default {
       handleBlur,
       suggest,
       randomSuggest,
-      AISearchToggle,
+      AiSearchToggle,
       submitQueryInInput,
       searchInputPlaceholder,
     };
