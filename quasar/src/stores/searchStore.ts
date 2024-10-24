@@ -31,6 +31,7 @@ interface SearchState {
     query: string;
     aiQuery: string;
     isMouseInSearchBar: boolean;
+    isMouseInAiSearchToggle: boolean;
     suggestQuery: string;
     suggestResultCache: { [key: string]: SuggestResultResponse };
     suggestions: string[];
@@ -52,6 +53,7 @@ export const useSearchStore = defineStore('search', {
         query: '',
         aiQuery: '',
         isMouseInSearchBar: false,
+        isMouseInAiSearchToggle: false,
         isSuggestVisible: true,
         suggestQuery: '',
         suggestResultCache: {},
@@ -85,6 +87,9 @@ export const useSearchStore = defineStore('search', {
         },
         setIsMouseInSearchBar(newIsMouseInSearchBar: boolean) {
             this.isMouseInSearchBar = newIsMouseInSearchBar;
+        },
+        setIsMouseInAiSearchToggle(newIsMouseInAiSearchToggle: boolean) {
+            this.isMouseInAiSearchToggle = newIsMouseInAiSearchToggle;
         },
         setQuery(newQuery: string) {
             this.query = newQuery;

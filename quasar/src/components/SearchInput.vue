@@ -52,7 +52,10 @@ export default {
     };
 
     const handleFocus = async () => {
-      if (!searchStore.isSuggestVisible) {
+      if (
+        !searchStore.isSuggestVisible &&
+        !searchStore.isMouseInAiSearchToggle
+      ) {
         searchStore.setIsSuggestVisible(true);
       }
       if (!query.value) {

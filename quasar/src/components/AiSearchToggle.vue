@@ -5,6 +5,8 @@
     v-model="isEnableAiSearch"
     :icon="isEnableAiSearch ? 'fa-solid fa-rocket' : ''"
     @update:model-value="toggleIsEnableAiSearch"
+    @mouseover="mouseEnter"
+    @mouseleave="mouseLeave"
     ><q-tooltip
       anchor="center left"
       self="center right"
@@ -35,12 +37,17 @@ export default {
       searchStore.setIsEnableAiSearch(newVal);
     };
     const isEnableAiSearch = ref(searchStore.isEnableAiSearch || false);
+    const mouseEnter = () => {
+      searchStore.setIsMouseInAiSearchToggle(true);
+    };
+    const mouseLeave = () => {
+      searchStore.setIsMouseInAiSearchToggle(false);
+    };
     return {
-      isSearchCover: ref(false),
-      isSearchSubtitle: ref(false),
       isEnableAiSearch,
       toggleIsEnableAiSearch,
-      searchStore,
+      mouseEnter,
+      mouseLeave,
     };
   },
 };
