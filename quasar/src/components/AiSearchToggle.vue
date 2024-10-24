@@ -12,7 +12,7 @@
       self="center right"
       transition-show="fade"
       transition-hide="fade"
-      class="bg-transparent q-px-none"
+      class="bg-transparent q-px-none ai-search-tooltip"
     >
       <span
         class="search-tooltip"
@@ -20,7 +20,8 @@
           'text-teal': isEnableAiSearch,
           'text-grey': !isEnableAiSearch,
         }"
-        >AI 搜索 {{ isEnableAiSearch ? '已启用' : '已关闭' }}</span
+      >
+        {{ isEnableAiSearch ? '已启用' : '已关闭' }} AI 推理</span
       >
     </q-tooltip>
   </q-toggle>
@@ -74,5 +75,8 @@ body.body--dark
 }
 body.body--dark .ai-search-toggle .q-toggle__thumb.q-toggle__thumb:before {
   background: #606060;
+}
+.ai-search-tooltip {
+  transform: translateX(14px);
 }
 </style>
