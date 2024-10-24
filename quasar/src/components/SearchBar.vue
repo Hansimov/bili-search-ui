@@ -1,7 +1,7 @@
 <template>
   <div class="search-bar" @mouseenter="mouseEnter" @mouseleave="mouseLeave">
-    <SearchInput />
-    <div class="suggest-container" v-if="isSuggestVisible">
+    <component :is="isEnableAiSearch ? 'AiSearchInput' : 'SearchInput'" />
+    <div class="suggest-container" v-if="isSuggestVisible && !isEnableAiSearch">
       <SuggestAuthorsList />
       <SuggestionsList />
     </div>
@@ -14,16 +14,19 @@ import { useSearchStore } from '../stores/searchStore';
 import SearchInput from './SearchInput.vue';
 import SuggestAuthorsList from './SuggestAuthorsList.vue';
 import SuggestionsList from './SuggestionsList.vue';
+import AiSearchInput from './AiSearchInput.vue';
 
 export default {
   components: {
     SearchInput,
     SuggestAuthorsList,
     SuggestionsList,
+    AiSearchInput,
   },
   setup() {
     const searchStore = useSearchStore();
     const isSuggestVisible = computed(() => searchStore.isSuggestVisible);
+    const isEnableAiSearch = computed(() => searchStore.isEnableAiSearch);
     const mouseEnter = () => {
       searchStore.setIsMouseInSearchBar(true);
     };
@@ -34,6 +37,7 @@ export default {
       mouseEnter,
       mouseLeave,
       isSuggestVisible,
+      isEnableAiSearch,
     };
   },
 };
