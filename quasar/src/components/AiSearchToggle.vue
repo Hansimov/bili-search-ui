@@ -21,7 +21,7 @@
           'text-grey': !isEnableAiSearch,
         }"
       >
-        {{ isEnableAiSearch ? '已启用' : '已关闭' }} AI 推理</span
+        AI {{ isEnableAiSearch ? '已启用' : '已关闭' }}</span
       >
     </q-tooltip>
   </q-toggle>

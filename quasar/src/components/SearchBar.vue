@@ -69,5 +69,6 @@ export default {
 }
 .ai-search-toggle-item {
   transform: translateX(-60px);
+  width: 0px;
 }
 </style>

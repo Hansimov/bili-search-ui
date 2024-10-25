@@ -12,8 +12,8 @@
       color="teal-5"
     >
       <template v-slot:prepend>
-        <q-btn unelevated class="q-px-xs">
-          <q-icon name="bolt" />
+        <q-btn unelevated class="q-px-none">
+          <q-icon name="hdr_weak" color="teal-5" />
         </q-btn>
       </template>
     </q-input>

@@ -13,8 +13,8 @@
       @keyup.enter="submitQueryInInput(false)"
     >
       <template v-slot:prepend>
-        <q-btn unelevated class="q-px-xs">
-          <q-icon name="search" />
+        <q-btn unelevated class="q-px-none">
+          <q-icon name="search" color="blue-5" />
         </q-btn>
       </template>
     </q-input>
