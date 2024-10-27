@@ -57,6 +57,7 @@ export const submitAiQuery = async (aiQueryValue: string, router: Router, isFrom
         if (setSearchStoreAiQuery) {
             searchStore.setAiQuery(aiQueryValue);
         }
+        aiChatStore.setIsUserScrollAiChat(false);
         if (!isFromURL) {
             const newRoute = `/search?ai=${aiQueryValue}`;
             if (router.currentRoute.value.path !== newRoute) {
@@ -94,6 +95,9 @@ export const submitAiQuery = async (aiQueryValue: string, router: Router, isFrom
                             if (content) {
                                 aiChatStore.appendToActiveMessage(content);
                             }
+                        }
+                        if (!aiChatStore.isUserScrollAiChat) {
+                            aiChatStore.scrollAiChatToBottom();
                         }
                     }
                 };
