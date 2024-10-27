@@ -27,6 +27,10 @@ interface SuggestResultResponse {
     related_authors?: RelatedAuthors;
 }
 
+interface AiSuggestResultResponse {
+    choices: string[];
+}
+
 interface SearchState {
     query: string;
     aiQuery: string;
@@ -34,8 +38,11 @@ interface SearchState {
     isMouseInAiSearchToggle: boolean;
     suggestQuery: string;
     suggestResultCache: { [key: string]: SuggestResultResponse };
+    aiSuggestResultCache: { [key: string]: AiSuggestResultResponse };
     suggestions: string[];
+    aiSuggestions: string[];
     isSuggestVisible: boolean;
+    isAiSuggestVisible: boolean;
     results: SearchResultResponse;
     isEnableAiSearch: boolean;
     isSearchOptionsBarVisible: boolean;
@@ -55,9 +62,12 @@ export const useSearchStore = defineStore('search', {
         isMouseInSearchBar: false,
         isMouseInAiSearchToggle: false,
         isSuggestVisible: true,
+        isAiSuggestVisible: true,
         suggestQuery: '',
         suggestResultCache: {},
+        aiSuggestResultCache: {},
         suggestions: [],
+        aiSuggestions: [],
         results: {
             hits: [],
             total_hits: 0,
@@ -79,11 +89,21 @@ export const useSearchStore = defineStore('search', {
             this.suggestResultCache[query] = newSuggestResult;
             console.log('Suggest result:', newSuggestResult);
         },
+        setAiSuggestResultCache(query: string, newAiSuggestResult: AiSuggestResultResponse) {
+            this.aiSuggestResultCache[query] = newAiSuggestResult;
+            console.log('Ai suggest result:', newAiSuggestResult);
+        },
         setSuggestions(newSuggestions: string[]) {
             this.suggestions = newSuggestions;
         },
+        setAiSuggestions(newAiSuggestions: string[]) {
+            this.aiSuggestions = newAiSuggestions;
+        },
         setIsSuggestVisible(newVisibility: boolean) {
             this.isSuggestVisible = newVisibility;
+        },
+        setIsAiSuggestVisible(newVisibility: boolean) {
+            this.isAiSuggestVisible = newVisibility;
         },
         setIsMouseInSearchBar(newIsMouseInSearchBar: boolean) {
             this.isMouseInSearchBar = newIsMouseInSearchBar;

@@ -7,7 +7,7 @@
       :placeholder="aiSearchInputPlaceholder"
       type="search"
       v-model="aiQuery"
-      @update:model-value="handleAiSearchInput"
+      @update:model-value="aiSuggest"
       @keyup.enter="submitAiQueryInInput(false)"
       color="teal-5"
     >
@@ -25,18 +25,13 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSearchStore } from '../stores/searchStore';
-import { submitAiQuery } from '../functions/ai';
+import { aiSuggest, submitAiQuery } from '../functions/ai';
 
 export default {
   setup() {
     const searchStore = useSearchStore();
     const aiQuery = ref(searchStore.aiQuery || '');
     const router = useRouter();
-
-    const handleAiSearchInput = (value) => {
-      console.log('aiSearchInput:', value);
-      // Add logic to process natural language input here
-    };
 
     const submitAiQueryInInput = async (isFromURL = false) => {
       await submitAiQuery(aiQuery.value, router, isFromURL);
@@ -48,7 +43,7 @@ export default {
 
     return {
       aiQuery,
-      handleAiSearchInput,
+      aiSuggest,
       submitAiQueryInInput,
       aiSearchInputPlaceholder,
     };
