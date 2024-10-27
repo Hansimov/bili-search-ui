@@ -43,6 +43,7 @@ interface SearchState {
     aiSuggestions: string[];
     isSuggestVisible: boolean;
     isAiSuggestVisible: boolean;
+    isAiChatVisible: boolean;
     results: SearchResultResponse;
     isEnableAiSearch: boolean;
     isSearchOptionsBarVisible: boolean;
@@ -63,6 +64,7 @@ export const useSearchStore = defineStore('search', {
         isMouseInAiSearchToggle: false,
         isSuggestVisible: true,
         isAiSuggestVisible: true,
+        isAiChatVisible: true,
         suggestQuery: '',
         suggestResultCache: {},
         aiSuggestResultCache: {},
@@ -104,6 +106,9 @@ export const useSearchStore = defineStore('search', {
         },
         setIsAiSuggestVisible(newVisibility: boolean) {
             this.isAiSuggestVisible = newVisibility;
+        },
+        setIsAiChatVisible(newVisibility: boolean) {
+            this.isAiChatVisible = newVisibility;
         },
         setIsMouseInSearchBar(newIsMouseInSearchBar: boolean) {
             this.isMouseInSearchBar = newIsMouseInSearchBar;
