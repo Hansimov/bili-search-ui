@@ -76,7 +76,7 @@ export const useSearchStore = defineStore('search', {
             return_hits: 0,
             detail_level: 1,
         },
-        isEnableAiSearch: false,
+        isEnableAiSearch: true,
         isSearchOptionsBarVisible: true,
         activeTab: 'videos',
         resultsSortMethod: {

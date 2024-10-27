@@ -89,6 +89,7 @@ export const submitAiQuery = async (aiQueryValue: string, router: Router, isFrom
                         if (role === 'stop') {
                             console.log('x ws stopped');
                             console.log(aiChatStore.aiChatMessages);
+                            aiChatStore.appendToActiveMessage('\n');
                         } else {
                             if (content) {
                                 aiChatStore.appendToActiveMessage(content);

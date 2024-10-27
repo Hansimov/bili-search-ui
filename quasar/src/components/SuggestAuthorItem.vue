@@ -50,6 +50,17 @@ export default {
 <style scoped>
 .suggest-author-item {
   cursor: pointer;
+  transition: transform 0.25s ease, filter 0.3s ease;
+}
+.suggest-author-item:hover {
+  transform: scale(1.1);
+  filter: contrast(1.25) saturate(1.1) brightness(1.05);
+}
+body.body--light .suggest-author-name {
+  color: #404040;
+}
+body.body--dark .suggest-author-name {
+  color: #d0d0d0;
 }
 .suggest-author-name {
   font-weight: bold;
