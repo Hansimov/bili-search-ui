@@ -4,7 +4,16 @@ export default [
         rule: {
             target: 'http://localhost:21001',
             changeOrigin: true,
-            pathRewrite: { '^/api': '' }
+            pathRewrite: { '^/api': '' },
+        },
+    },
+    {
+        path: '/ws',
+        rule: {
+            target: 'ws://localhost:21001/ws',
+            changeOrigin: true,
+            ws: true,
+            pathRewrite: { '^/ws': '' },
         },
     },
 ];

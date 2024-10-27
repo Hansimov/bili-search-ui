@@ -91,6 +91,13 @@ module.exports = configure(function (/* ctx */) {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ''),
         },
+        // proxy all websocket requests to the websocket server
+        '/ws': {
+          target: 'ws://localhost:21001/ws',
+          ws: true,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/ws/, ''),
+        },
       },
       port: 21002,
       hmr: {
