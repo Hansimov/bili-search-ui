@@ -11,9 +11,15 @@
       <AiSearchInput v-show="isEnableAiSearch" />
       <AiSearchToggle class="ai-search-toggle-item" />
     </div>
-    <div class="suggest-container" v-if="isSuggestVisible && !isEnableAiSearch">
+    <div
+      class="suggest-container"
+      v-show="isSuggestVisible && !isEnableAiSearch"
+    >
       <SuggestAuthorsList />
       <SuggestionsList />
+    </div>
+    <div class="ai-chat-container" v-show="isAiChatVisible && isEnableAiSearch">
+      <AiChat />
     </div>
   </div>
 </template>
@@ -26,6 +32,7 @@ import SuggestAuthorsList from './SuggestAuthorsList.vue';
 import SuggestionsList from './SuggestionsList.vue';
 import AiSearchInput from './AiSearchInput.vue';
 import AiSearchToggle from './AiSearchToggle.vue';
+import AiChat from './AiChat.vue';
 
 export default {
   components: {
@@ -33,12 +40,14 @@ export default {
     SuggestAuthorsList,
     SuggestionsList,
     AiSearchInput,
+    AiChat,
     AiSearchToggle,
   },
   setup() {
     const searchStore = useSearchStore();
-    const isSuggestVisible = computed(() => searchStore.isSuggestVisible);
     const isEnableAiSearch = computed(() => searchStore.isEnableAiSearch);
+    const isSuggestVisible = computed(() => searchStore.isSuggestVisible);
+    const isAiChatVisible = computed(() => searchStore.isAiChatVisible);
     const mouseEnter = () => {
       searchStore.setIsMouseInSearchBar(true);
     };
@@ -49,6 +58,7 @@ export default {
       mouseEnter,
       mouseLeave,
       isSuggestVisible,
+      isAiChatVisible,
       isEnableAiSearch,
     };
   },
