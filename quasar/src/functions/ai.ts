@@ -4,7 +4,16 @@ import { Router } from 'vue-router';
 
 const searchStore = useSearchStore();
 const aiChatStore = useAiChatStore();
-const WS_URL = '/ws';
+
+const getWsUrl = () => {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host;
+    const wsUrl = `${wsProtocol}//${wsHost}/ws`;
+    console.log(`+ ws url: ${wsUrl}`);
+    return wsUrl;
+}
+const WS_URL = getWsUrl();
+
 
 let aiSuggestAbortController = new AbortController();
 const AI_SUGGEST_DEBOUNCE_INTERVAL = 150; // milliseconds
