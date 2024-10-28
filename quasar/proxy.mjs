@@ -10,7 +10,7 @@ export default [
     {
         path: '/ws',
         rule: {
-            target: 'ws://localhost:21001/ws',
+            target: 'ws://localhost:21003/ws',
             changeOrigin: true,
             ws: true,
             pathRewrite: { '^/ws': '' },
