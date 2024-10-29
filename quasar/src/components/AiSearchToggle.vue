@@ -4,7 +4,6 @@
     class="q-px-none ai-search-toggle"
     v-model="isEnableAiSearch"
     :icon="isEnableAiSearch ? 'fa-solid fa-bolt' : ''"
-    @update:model-value="toggleIsEnableAiSearch"
     @mouseover="mouseEnter"
     @mouseleave="mouseLeave"
     ><q-tooltip
@@ -28,16 +27,18 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { computed } from 'vue';
 import { useSearchStore } from '../stores/searchStore';
 
 export default {
   setup() {
     const searchStore = useSearchStore();
-    const toggleIsEnableAiSearch = (newVal) => {
-      searchStore.setIsEnableAiSearch(newVal);
-    };
-    const isEnableAiSearch = ref(searchStore.isEnableAiSearch || false);
+    const isEnableAiSearch = computed({
+      get: () => searchStore.isEnableAiSearch,
+      set: (val) => {
+        searchStore.setIsEnableAiSearch(val);
+      },
+    });
     const mouseEnter = () => {
       searchStore.setIsMouseInAiSearchToggle(true);
     };
@@ -46,7 +47,6 @@ export default {
     };
     return {
       isEnableAiSearch,
-      toggleIsEnableAiSearch,
       mouseEnter,
       mouseLeave,
     };

@@ -76,7 +76,7 @@ export const useSearchStore = defineStore('search', {
             return_hits: 0,
             detail_level: 1,
         },
-        isEnableAiSearch: true,
+        isEnableAiSearch: JSON.parse(localStorage.getItem('isEnableAiSearch') || 'true'),
         isSearchOptionsBarVisible: true,
         activeTab: 'videos',
         resultsSortMethod: {
@@ -128,6 +128,7 @@ export const useSearchStore = defineStore('search', {
         },
         setIsEnableAiSearch(newIsEnableAiSearch: boolean) {
             this.isEnableAiSearch = newIsEnableAiSearch;
+            localStorage.setItem('isEnableAiSearch', JSON.stringify(newIsEnableAiSearch));
         },
         toggleSearchOptionsBarVisibility() {
             this.isSearchOptionsBarVisible = !this.isSearchOptionsBarVisible;
