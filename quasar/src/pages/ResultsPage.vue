@@ -9,9 +9,7 @@
           transition-next="fade"
           transition-duration="0"
         >
-          <q-tab-panel name="videos">
-            <results-list></results-list>
-          </q-tab-panel>
+          <q-tab-panel name="videos"><ResultsList /> </q-tab-panel>
           <q-tab-panel name="ai">
             <div class="q-gutter-xs ai-results-list"></div>
           </q-tab-panel>

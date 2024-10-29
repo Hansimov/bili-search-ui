@@ -1,5 +1,5 @@
 <template>
-  <q-card flat class="result-item q-py-sm">
+  <q-card flat class="result-item q-pt-none q-pb-sm">
     <q-card-section class="q-px-xs q-pt-none q-pb-xs">
       <router-link :to="`/video/${result.bvid}`" target="_blank">
         <q-img
