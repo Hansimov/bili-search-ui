@@ -3,25 +3,29 @@
     color="black"
     v-model="isDark"
     :icon="isDark ? 'bedtime' : 'wb_sunny'"
-    @update:model-value="toggleDarkMode"
   />
 </template>
 
 <script>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Dark } from 'quasar';
 
 export default {
   setup() {
-    const isDark = ref(Dark.isActive);
-    const toggleDarkMode = (newValue) => {
-      isDark.value = newValue;
-      Dark.set(newValue);
-    };
+    const isDarkRef = ref(JSON.parse(localStorage.getItem('isDark') || 'true'));
+    Dark.set(isDarkRef.value);
+
+    const isDark = computed({
+      get: () => isDarkRef.value,
+      set: (newValue) => {
+        isDarkRef.value = newValue;
+        Dark.set(newValue);
+        localStorage.setItem('isDark', JSON.stringify(newValue));
+      },
+    });
 
     return {
       isDark,
-      toggleDarkMode,
     };
   },
 };
