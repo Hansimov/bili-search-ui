@@ -72,13 +72,15 @@ export default {
   word-wrap: break-word;
   overflow-x: hidden;
   overflow-y: scroll;
-  max-height: min(200px, calc(100vh - 200px));
+  max-height: min(600px, calc(100vh - 200px));
   &::-webkit-scrollbar {
     width: 6px;
     background: transparent;
   }
   scroll-behavior: smooth;
   transition: scroll 0.25s ease-in-out;
+  padding: 5px 2px 2px 5px;
+  border-radius: 5px;
 }
 
 .ai-chat-message {
@@ -98,6 +100,10 @@ export default {
 }
 
 body.body--light {
+  .ai-chat-messages-list {
+    background-color: #ffffffee;
+    border: 1px solid #00000044;
+  }
   .user-content {
     color: #dd2288;
     background-color: #88888822;
@@ -111,6 +117,10 @@ body.body--light {
 }
 
 body.body--dark {
+  .ai-chat-messages-list {
+    background-color: #111111ee;
+    border: 1px solid #eeeeee44;
+  }
   .user-content {
     color: #ff66ee;
     background-color: #55555555;
