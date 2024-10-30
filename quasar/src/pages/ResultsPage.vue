@@ -1,25 +1,23 @@
 <template>
-  <q-page class="row items-start justify-evenly q-pa-none">
-    <q-card flat class="results-tabs-card">
-      <div class="results-panels-card">
-        <q-tab-panels
-          keep-alive
-          v-model="activeTab"
-          transition-prev="fade"
-          transition-next="fade"
-          transition-duration="0"
-        >
-          <q-tab-panel name="videos"><ResultsList /> </q-tab-panel>
-          <q-tab-panel name="ai">
-            <div class="q-gutter-xs ai-results-list"></div>
-          </q-tab-panel>
-          <q-tab-panel name="graph">
-            <div class="q-gutter-xs graph-results-list"></div>
-          </q-tab-panel>
-        </q-tab-panels>
-      </div>
-    </q-card>
-  </q-page>
+  <q-card flat class="results-tabs-card">
+    <div class="results-panels-card">
+      <q-tab-panels
+        keep-alive
+        v-model="activeTab"
+        transition-prev="fade"
+        transition-next="fade"
+        transition-duration="0"
+      >
+        <q-tab-panel name="videos"><ResultsList /> </q-tab-panel>
+        <q-tab-panel name="ai">
+          <div class="q-gutter-xs ai-results-list"></div>
+        </q-tab-panel>
+        <q-tab-panel name="graph">
+          <div class="q-gutter-xs graph-results-list"></div>
+        </q-tab-panel>
+      </q-tab-panels>
+    </div>
+  </q-card>
 </template>
 
 <script>
@@ -50,6 +48,8 @@ body.body--dark .search-bar-row {
 .results-tabs-card,
 .results-panels-card {
   background: transparent;
+  display: flex;
+  justify-content: center;
 }
 .ai-results-list,
 .graph-results-list {

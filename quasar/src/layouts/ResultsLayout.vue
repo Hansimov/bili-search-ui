@@ -4,7 +4,7 @@
       <TitleToolbar />
     </q-header>
     <q-page-container>
-      <q-page class="column no-padding">
+      <q-page class="row items-start justify-evenly q-pa-none">
         <router-view />
         <q-page-sticky position="bottom" class="q-pa-md">
           <SearchBar />
