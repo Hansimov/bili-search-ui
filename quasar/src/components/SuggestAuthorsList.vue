@@ -1,4 +1,5 @@
 <template>
+  <slot name="top" v-if="relatedAuthorsList.length"></slot>
   <q-list v-if="relatedAuthorsList.length" class="suggest-authors-list">
     <SuggestAuthorItem
       v-for="(authorItem, index) in relatedAuthorsList"
@@ -7,6 +8,7 @@
       :authorInfo="authorItem.authorInfo"
     />
   </q-list>
+  <slot name="bottom" v-if="relatedAuthorsList.length"></slot>
 </template>
 
 <script>

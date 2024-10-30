@@ -22,7 +22,11 @@
           'suggest-container-reverse': !isIndexRoute,
         }"
       >
-        <SuggestAuthorsList />
+        <SuggestAuthorsList>
+          <template v-slot:bottom>
+            <q-separator inset />
+          </template>
+        </SuggestAuthorsList>
         <SuggestionsList />
       </div>
       <div
