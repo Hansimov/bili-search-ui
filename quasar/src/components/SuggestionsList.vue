@@ -29,8 +29,10 @@ export default {
 
 <style lang="scss" scoped>
 .suggestions-list {
-  width: var(--search-input-width);
-  max-width: var(--search-input-max-width);
+  width: calc(var(--search-input-width) - var(--search-input-width-more));
+  max-width: calc(
+    var(--search-input-max-width) - var(--search-input-width-more)
+  );
   max-height: min(300px, calc(100vh - 100px));
   overflow-y: scroll;
   overflow-x: hidden;

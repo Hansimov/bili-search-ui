@@ -59,9 +59,11 @@ export default {
   overflow-x: auto;
   overflow-y: hidden;
   justify-content: flex-start;
-  width: var(--search-input-width);
   height: 60px;
-  max-width: var(--search-input-max-width);
+  width: calc(var(--search-input-width) - var(--search-input-width-more));
+  max-width: calc(
+    var(--search-input-max-width) - var(--search-input-width-more)
+  );
   z-index: 1000;
   &::-webkit-scrollbar {
     height: 8px;

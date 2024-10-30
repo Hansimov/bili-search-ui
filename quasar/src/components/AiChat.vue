@@ -67,8 +67,10 @@ export default {
 
 <style lang="scss">
 .ai-chat-messages-list {
-  width: var(--search-input-width);
-  max-width: var(--search-input-max-width);
+  width: calc(var(--search-input-width) - var(--search-input-width-more));
+  max-width: calc(
+    var(--search-input-max-width) - var(--search-input-width-more)
+  );
   word-wrap: break-word;
   overflow-x: hidden;
   overflow-y: scroll;

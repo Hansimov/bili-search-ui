@@ -4,6 +4,7 @@
 :root {
   --search-input-width: 780px;
   --search-input-max-width: 95vw;
+  --search-input-width-more: 6px;
   --result-title-font-size: 1em;
   --result-title-line-height: calc(1.5 * var(--result-title-font-size));
   --result-item-width: 240px;
