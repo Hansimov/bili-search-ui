@@ -11,15 +11,20 @@
       <AiSearchInput v-show="isEnableAiSearch" />
       <AiSearchToggle class="ai-search-toggle-item" />
     </div>
-    <div
-      class="suggest-container"
-      v-show="isSuggestVisible && !isEnableAiSearch"
-    >
-      <SuggestAuthorsList />
-      <SuggestionsList />
-    </div>
-    <div class="ai-chat-container" v-show="isAiChatVisible && isEnableAiSearch">
-      <AiChat />
+    <div class="search-sub-container">
+      <div
+        class="suggest-container"
+        v-show="isSuggestVisible && !isEnableAiSearch"
+      >
+        <SuggestionsList />
+        <SuggestAuthorsList />
+      </div>
+      <div
+        class="ai-chat-container"
+        v-show="isAiChatVisible && isEnableAiSearch"
+      >
+        <AiChat />
+      </div>
     </div>
   </div>
 </template>
@@ -68,14 +73,18 @@ export default {
 <style lang="scss" scoped>
 .search-bar {
   position: relative;
+  display: flex;
+  justify-content: center;
 }
 .search-container {
   display: flex;
   align-items: center;
+  justify-content: center;
 }
-.suggest-container {
+.search-sub-container {
   position: absolute;
   z-index: 1000;
+  bottom: 55px;
 }
 .ai-search-toggle-item {
   transform: translateX(-60px);
