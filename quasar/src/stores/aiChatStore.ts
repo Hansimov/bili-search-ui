@@ -41,7 +41,6 @@ export const useAiChatStore = defineStore('aiChat', {
             if (this.aiChatMessagesListRef) {
                 this.aiChatMessagesListRef.scrollTo({
                     top: this.aiChatMessagesListRef.scrollHeight,
-                    behavior: 'smooth',
                 })
             }
         }

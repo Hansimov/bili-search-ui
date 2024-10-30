@@ -5,11 +5,15 @@
       :key="index"
       class="ai-chat-message"
     >
-      <div
-        :class="message.role === 'user' ? 'user-content' : 'assistant-content'"
-      >
+      <div v-if="message.role === 'user'" class="user-content">
         {{ message.content }}
       </div>
+      <VueShowdown
+        v-else
+        class="assistant-content"
+        :markdown="message.content"
+        flavor="github"
+      />
     </div>
   </div>
 </template>
@@ -17,8 +21,12 @@
 <script>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 import { useAiChatStore } from 'src/stores/aiChatStore';
+import { VueShowdown } from 'vue-showdown';
 
 export default {
+  components: {
+    VueShowdown,
+  },
   setup() {
     const aiChatStore = useAiChatStore();
     const aiChatMessages = computed(() => aiChatStore.aiChatMessages);
@@ -79,7 +87,6 @@ export default {
     width: 6px;
     background: transparent;
   }
-  scroll-behavior: smooth;
   transition: scroll 0.25s ease-in-out;
 }
 
@@ -99,29 +106,71 @@ export default {
   padding-right: 5px;
 }
 
+.assistant-content {
+  ol,
+  ul {
+    margin: 0 auto 0 auto;
+    padding: 0 auto 0 auto;
+    line-height: 1em;
+    padding-left: 2.5em;
+  }
+  p {
+    margin: 0 auto 0 auto;
+    padding: 0 auto 0 auto;
+    display: inline-block;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+    border-radius: 5px;
+    padding: 3px;
+  }
+  code {
+    font-family: 'consolas';
+    padding: 3px;
+    border-radius: 5px;
+  }
+}
+
 body.body--light {
   .user-content {
     color: #dd2288;
-    background-color: #88888822;
+    background-color: #77777722;
     border: 1px solid #dddddd;
   }
   .assistant-content {
-    color: #005599;
+    color: #222222;
     background-color: #eeeeee22;
     border: 1px solid #dddddd;
+  }
+  .assistant-content a {
+    border: 1px solid #22222244;
+    color: #228800;
+  }
+  .assistant-content code {
+    border: 1px dashed #22222244;
+    color: #dd5500;
   }
 }
 
 body.body--dark {
   .user-content {
     color: #ff66ee;
-    background-color: #55555555;
+    background-color: #44444444;
     border: 1px solid #222222;
   }
   .assistant-content {
-    color: #00aabb;
+    color: #cccccc;
     background-color: #22222222;
     border: 1px solid #222222;
+  }
+  .assistant-content a {
+    border: 1px solid #eeeeee66;
+    color: #44cc00;
+  }
+  .assistant-content code {
+    border: 1px dashed #eeeeee66;
+    color: #ff8800;
   }
 }
 </style>
