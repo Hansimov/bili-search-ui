@@ -13,6 +13,7 @@
         class="assistant-content"
         :markdown="message.content"
         flavor="github"
+        :options="{ openLinksInNewWindow: true }"
       />
     </div>
   </div>
@@ -96,8 +97,7 @@ export default {
 
 .user-content,
 .assistant-content {
-  text-align: justify;
-  text-justify: auto;
+  text-align: start;
   white-space: pre-wrap;
   border-radius: 4px;
   padding-top: 4px;
@@ -109,26 +109,33 @@ export default {
 .assistant-content {
   ol,
   ul {
-    margin: 0 auto 0 auto;
+    margin: -2em auto -0.75em auto;
     padding: 0 auto 0 auto;
     line-height: 1em;
     padding-left: 2.5em;
   }
+  li {
+    margin: 0 auto -0.75em auto;
+    padding: 0 auto 0 auto;
+    line-height: 1.25em;
+  }
   p {
     margin: 0 auto 0 auto;
     padding: 0 auto 0 auto;
-    display: inline-block;
   }
   a {
     color: inherit;
     text-decoration: none;
-    border-radius: 5px;
     padding: 3px;
+    margin: 0em auto auto;
+    border-radius: 6px;
+    display: inline-block;
+    vertical-align: middle;
   }
   code {
     font-family: 'consolas';
-    padding: 3px;
-    border-radius: 5px;
+    padding: 2px;
+    border-radius: 4px;
   }
 }
 
