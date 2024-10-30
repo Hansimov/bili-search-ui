@@ -102,10 +102,6 @@ export default {
 }
 
 body.body--light {
-  .ai-chat-messages-list {
-    background-color: #ffffffee;
-    border: 1px solid #00000044;
-  }
   .user-content {
     color: #dd2288;
     background-color: #88888822;
@@ -119,10 +115,6 @@ body.body--light {
 }
 
 body.body--dark {
-  .ai-chat-messages-list {
-    background-color: #111111ee;
-    border: 1px solid #eeeeee44;
-  }
   .user-content {
     color: #ff66ee;
     background-color: #55555555;

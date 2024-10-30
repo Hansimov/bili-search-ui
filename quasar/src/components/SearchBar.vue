@@ -94,6 +94,17 @@ export default {
 .search-sub-bottom {
   bottom: 55px;
 }
+body.body--light {
+  .search-sub-container {
+    background-color: #ffffffee;
+  }
+}
+body.body--dark {
+  .search-sub-container {
+    background-color: #111111ee;
+  }
+}
+
 .ai-search-toggle-item {
   transform: translateX(-60px);
   width: 0px;
