@@ -81,8 +81,6 @@ export default {
   }
   scroll-behavior: smooth;
   transition: scroll 0.25s ease-in-out;
-  padding: 5px 2px 2px 5px;
-  border-radius: 5px;
 }
 
 .ai-chat-message {

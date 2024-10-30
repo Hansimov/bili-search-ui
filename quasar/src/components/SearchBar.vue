@@ -10,6 +10,9 @@
       :class="{
         'search-sub-top': isIndexRoute,
         'search-sub-bottom': !isIndexRoute,
+        'search-sub-bordered':
+          (isSuggestVisible && !isEnableAiSearch) ||
+          (isAiChatVisible && isEnableAiSearch),
       }"
     >
       <div
@@ -88,24 +91,33 @@ export default {
   align-items: center;
   justify-content: center;
 }
+
 .search-sub-container {
   position: absolute;
   z-index: 1000;
+  border-radius: 8px;
+  padding: 5px 0px 5px 5px;
 }
 .search-sub-top {
   top: 65px;
 }
 .search-sub-bottom {
-  bottom: 55px;
+  bottom: 52px;
 }
 body.body--light {
   .search-sub-container {
     background-color: #ffffffee;
   }
+  .search-sub-bordered {
+    border: 1px solid #00000044;
+  }
 }
 body.body--dark {
   .search-sub-container {
     background-color: #111111ee;
+  }
+  .search-sub-bordered {
+    border: 1px solid #eeeeee44;
   }
 }
 
