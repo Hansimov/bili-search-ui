@@ -132,6 +132,16 @@ export default {
     display: inline-block;
     vertical-align: middle;
   }
+  a[href^="https://www.bilibili.com/video"]::before
+  {
+    content: '📺 ';
+    vertical-align: 8%;
+  }
+  a[href^="https://space.bilibili.com"]::before
+  {
+    content: '@';
+    vertical-align: 3%;
+  }
   code {
     font-family: 'consolas';
     padding: 2px;
@@ -150,13 +160,25 @@ body.body--light {
     background-color: #eeeeee22;
     border: 1px solid #dddddd;
   }
-  .assistant-content a {
-    border: 1px solid #22222244;
-    color: #228800;
-  }
-  .assistant-content code {
-    border: 1px dashed #22222244;
-    color: #dd5500;
+  .assistant-content {
+    a {
+      border: 1px dashed #22222244;
+      color: #1166bb;
+    }
+    a[href^="https://www.bilibili.com/video"]
+    {
+      border: 1px solid #22222244;
+      color: #119900;
+    }
+    a[href^="https://space.bilibili.com"]
+    {
+      border: none;
+      color: #dd6600;
+    }
+    code {
+      border: 1px dashed #22222244;
+      color: #11aacc;
+    }
   }
 }
 
@@ -171,13 +193,26 @@ body.body--dark {
     background-color: #22222222;
     border: 1px solid #222222;
   }
-  .assistant-content a {
-    border: 1px solid #eeeeee66;
-    color: #44cc00;
-  }
-  .assistant-content code {
-    border: 1px dashed #eeeeee66;
-    color: #ff8800;
+  .assistant-content {
+    a {
+      border: 1px solid #eeeeee66;
+      color: #3399ee;
+    }
+    a[href^="https://www.bilibili.com/video"]
+    {
+      border: 1px solid #eeeeee66;
+      color: #44cc00;
+    }
+    a[href^="https://space.bilibili.com"]
+    {
+      // border: 1px dashed #eeeeee66;
+      border: none;
+      color: #ff8800;
+    }
+    code {
+      border: 1px dashed #eeeeee66;
+      color: #44ccee;
+    }
   }
 }
 </style>
