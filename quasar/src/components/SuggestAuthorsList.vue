@@ -60,8 +60,7 @@ export default {
   overflow-y: hidden;
   justify-content: flex-start;
   width: var(--search-input-width);
-  height: 62px;
-  padding-top: 2px;
+  height: 60px;
   max-width: var(--search-input-max-width);
   z-index: 1000;
   &::-webkit-scrollbar {

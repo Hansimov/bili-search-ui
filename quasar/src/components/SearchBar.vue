@@ -1,23 +1,26 @@
 <template>
   <div class="search-bar" @mouseenter="mouseEnter" @mouseleave="mouseLeave">
-    <div
-      class="search-container"
-      :class="{
-        'q-pa-none': $route.path === '/',
-        'q-pb-sm': $route.path !== '/',
-      }"
-    >
+    <div class="search-container">
       <SearchInput v-show="!isEnableAiSearch" />
       <AiSearchInput v-show="isEnableAiSearch" />
       <AiSearchToggle class="ai-search-toggle-item" />
     </div>
-    <div class="search-sub-container">
+    <div
+      class="search-sub-container"
+      :class="{
+        'search-sub-top': $route.path === '/',
+        'search-sub-bottom': $route.path !== '/',
+      }"
+    >
       <div
         class="suggest-container"
         v-show="isSuggestVisible && !isEnableAiSearch"
+        :class="{
+          'suggest-container-reverse': $route.path !== '/',
+        }"
       >
-        <SuggestionsList />
         <SuggestAuthorsList />
+        <SuggestionsList />
       </div>
       <div
         class="ai-chat-container"
@@ -84,10 +87,22 @@ export default {
 .search-sub-container {
   position: absolute;
   z-index: 1000;
+}
+.search-sub-top {
+  top: 65px;
+}
+.search-sub-bottom {
   bottom: 55px;
 }
 .ai-search-toggle-item {
   transform: translateX(-60px);
   width: 0px;
+}
+.suggest-container {
+  display: flex;
+  flex-direction: column;
+}
+.suggest-container-reverse {
+  flex-direction: column-reverse;
 }
 </style>

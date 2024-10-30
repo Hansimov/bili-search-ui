@@ -6,7 +6,7 @@
     <q-page-container>
       <q-page class="row items-start justify-evenly q-pa-none">
         <router-view />
-        <q-page-sticky position="bottom" class="q-pa-md">
+        <q-page-sticky position="bottom" class="q-pa-lg">
           <SearchBar />
         </q-page-sticky>
       </q-page>
