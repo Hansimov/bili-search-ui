@@ -8,15 +8,15 @@
     <div
       class="search-sub-container"
       :class="{
-        'search-sub-top': $route.path === '/',
-        'search-sub-bottom': $route.path !== '/',
+        'search-sub-top': isIndexRoute,
+        'search-sub-bottom': !isIndexRoute,
       }"
     >
       <div
         class="suggest-container"
         v-show="isSuggestVisible && !isEnableAiSearch"
         :class="{
-          'suggest-container-reverse': $route.path !== '/',
+          'suggest-container-reverse': !isIndexRoute,
         }"
       >
         <SuggestAuthorsList />
@@ -34,6 +34,7 @@
 
 <script>
 import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 import { useSearchStore } from '../stores/searchStore';
 import SearchInput from './SearchInput.vue';
 import SuggestAuthorsList from './SuggestAuthorsList.vue';
@@ -56,6 +57,8 @@ export default {
     const isEnableAiSearch = computed(() => searchStore.isEnableAiSearch);
     const isSuggestVisible = computed(() => searchStore.isSuggestVisible);
     const isAiChatVisible = computed(() => searchStore.isAiChatVisible);
+    const $route = useRoute();
+    const isIndexRoute = computed(() => $route.path === '/');
     const mouseEnter = () => {
       searchStore.setIsMouseInSearchBar(true);
     };
@@ -68,6 +71,7 @@ export default {
       isSuggestVisible,
       isAiChatVisible,
       isEnableAiSearch,
+      isIndexRoute,
     };
   },
 };
