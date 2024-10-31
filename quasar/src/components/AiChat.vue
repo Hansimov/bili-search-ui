@@ -83,7 +83,7 @@ export default {
   word-wrap: break-word;
   overflow-x: hidden;
   overflow-y: scroll;
-  max-height: min(600px, calc(100vh - 200px));
+  max-height: min(500px, calc(100vh - 300px));
   &::-webkit-scrollbar {
     width: 6px;
     background: transparent;
@@ -146,6 +146,43 @@ export default {
     font-family: 'consolas';
     padding: 2px;
     border-radius: 4px;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 0 auto 0 auto;
+    padding: 0 auto 0 auto;
+    font-weight: bold;
+    line-height: 1.25em;
+  }
+  h1 {
+    font-size: 20px;
+    line-height: 22px;
+  }
+  h1::before {
+    content: '# ';
+  }
+  h2 {
+    font-size: 18px;
+    line-height: 20px;
+  }
+  h2::before {
+    content: '## ';
+  }
+  h3 {
+    font-size: 16px;
+    line-height: 18px;
+  }
+  h3::before {
+    content: '### ';
+  }
+  h4,
+  h5,
+  h6 {
+    font-size: 14px;
   }
 }
 
