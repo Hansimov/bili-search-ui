@@ -1,7 +1,7 @@
 <template>
   <div class="ai-search-options-bar q-pb-xs q-pr-xs">
     <q-btn-group flat spread>
-      <q-btn dense xlabel="rewrite" icon="fa-solid fa-quote-right"
+      <q-btn dense xlabel="rewrite" icon="fa-solid fa-check"
         ><ButtonTooltip text="禁用自动纠错"
       /></q-btn>
       <q-btn dense xlabel="search-history" icon="fa-solid fa-list">

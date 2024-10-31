@@ -17,23 +17,32 @@
     >
       <div
         class="suggest-container"
-        v-show="isSuggestVisible && !isEnableAiSearch"
+        v-show="!isEnableAiSearch && isSuggestVisible"
         :class="{
           'suggest-container-reverse': !isIndexRoute,
         }"
       >
+        <SearchOptionsBar />
         <SuggestAuthorsList>
           <template v-slot:bottom>
+            <q-separator inset />
+          </template>
+          <template v-slot:top>
             <q-separator inset />
           </template>
         </SuggestAuthorsList>
         <SuggestionsList />
       </div>
+
       <div
-        class="ai-chat-container"
-        v-show="isAiChatVisible && isEnableAiSearch"
+        class="aichat-container"
+        v-show="isEnableAiSearch"
+        :class="{
+          'aichat-container-reverse': !isIndexRoute,
+        }"
       >
-        <AiChat />
+        <AiSearchOptionsBar />
+        <AiChat v-show="isAiChatVisible" />
       </div>
     </div>
   </div>
@@ -44,18 +53,22 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useSearchStore } from '../stores/searchStore';
 import SearchInput from './SearchInput.vue';
+import SearchOptionsBar from './SearchOptionsBar.vue';
 import SuggestAuthorsList from './SuggestAuthorsList.vue';
 import SuggestionsList from './SuggestionsList.vue';
 import AiSearchInput from './AiSearchInput.vue';
 import AiSearchToggle from './AiSearchToggle.vue';
 import AiChat from './AiChat.vue';
+import AiSearchOptionsBar from './AiSearchOptionsBar.vue';
 
 export default {
   components: {
     SearchInput,
+    SearchOptionsBar,
     SuggestAuthorsList,
     SuggestionsList,
     AiSearchInput,
+    AiSearchOptionsBar,
     AiChat,
     AiSearchToggle,
   },
@@ -100,13 +113,13 @@ export default {
   position: absolute;
   z-index: 1000;
   border-radius: 8px;
-  padding: 5px 0px 5px 5px;
+  padding: 5px 0px 0px 5px;
 }
 .search-sub-top {
   top: 65px;
 }
 .search-sub-bottom {
-  bottom: 52px;
+  bottom: 48px;
 }
 body.body--light {
   .search-sub-container {
@@ -134,6 +147,13 @@ body.body--dark {
   flex-direction: column;
 }
 .suggest-container-reverse {
+  flex-direction: column-reverse;
+}
+.aichat-container {
+  display: flex;
+  flex-direction: column;
+}
+.aichat-container-reverse {
   flex-direction: column-reverse;
 }
 </style>
