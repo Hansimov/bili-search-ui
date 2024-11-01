@@ -97,10 +97,10 @@ body.body--dark .suggestion-item:hover {
   vertical-align: 1%;
 }
 body.body--light .suggestion-title {
-  color: var(--main-color-light);
+  color: var(--main-color-l);
 }
 body.body--dark .suggestion-title {
-  color: var(--main-color-dark);
+  color: var(--main-color-d);
 }
 body.body--light .suggestion-view,
 body.body--light .suggestion-owner {

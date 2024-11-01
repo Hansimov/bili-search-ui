@@ -28,11 +28,11 @@ export default {
   font-size: 14px;
 }
 body.body--light .button-tooltip {
-  color: coral;
+  color: var(--btn-hover-color-l);
   background-color: #ffffffaa;
 }
 body.body--dark .button-tooltip {
   background-color: #222222aa;
-  color: coral;
+  color: var(--btn-hover-color-d);
 }
 </style>

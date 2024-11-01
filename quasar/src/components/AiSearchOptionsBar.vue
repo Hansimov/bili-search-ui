@@ -48,6 +48,16 @@ export default {
 }
 .ai-search-options-bar .q-btn__content:hover {
   transform: scale(1.5);
-  color: coral;
+  color: var(--btn-hover-color-d);
+}
+body.body--light {
+  .ai-search-options-bar .q-btn__content:hover {
+    color: var(--btn-hover-color-l);
+  }
+}
+body.body--dark {
+  .ai-search-options-bar .q-btn__content:hover {
+    color: var(--btn-hover-color-d);
+  }
 }
 </style>
