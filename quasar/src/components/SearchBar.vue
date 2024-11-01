@@ -36,13 +36,13 @@
 
       <div
         class="aichat-container"
-        v-show="isEnableAiSearch"
+        v-show="isEnableAiSearch && isAiChatVisible"
         :class="{
           'aichat-container-reverse': !isIndexRoute,
         }"
       >
         <AiSearchOptionsBar />
-        <AiChat v-show="isAiChatVisible" />
+        <AiChat />
       </div>
     </div>
   </div>

@@ -8,6 +8,7 @@
       type="search"
       v-model="aiQuery"
       @update:model-value="aiSuggest"
+      @focus="handleFocus"
       @keyup.enter="submitAiQueryInInput(false)"
       color="teal-5"
     >
@@ -22,16 +23,44 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSearchStore } from '../stores/searchStore';
+import { useAiChatStore } from '../stores/aiChatStore';
 import { aiSuggest, submitAiQuery } from '../functions/ai';
 
 export default {
   setup() {
     const searchStore = useSearchStore();
+    const aiChatStore = useAiChatStore();
     const aiQuery = ref(searchStore.aiQuery || '');
     const router = useRouter();
+
+    const handleFocus = async () => {
+      if (
+        !searchStore.isAiChatVisible &&
+        !searchStore.isMouseInAiSearchToggle
+      ) {
+        searchStore.setIsAiChatVisible(true);
+      }
+    };
+
+    const handleGlobalClick = () => {
+      if (
+        !searchStore.isMouseInSearchBar &&
+        !aiChatStore.aiChatMessages.length
+      ) {
+        searchStore.setIsAiChatVisible(false);
+      }
+    };
+
+    onMounted(() => {
+      document.addEventListener('click', handleGlobalClick);
+    });
+
+    onBeforeUnmount(() => {
+      document.removeEventListener('click', handleGlobalClick);
+    });
 
     const submitAiQueryInInput = async (isFromURL = false) => {
       await submitAiQuery(aiQuery.value, router, isFromURL);
@@ -43,6 +72,7 @@ export default {
 
     return {
       aiQuery,
+      handleFocus,
       aiSuggest,
       submitAiQueryInInput,
       aiSearchInputPlaceholder,
