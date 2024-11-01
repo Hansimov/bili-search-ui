@@ -1,0 +1,63 @@
+/* Abbrs:
+
+l: light
+d: dark
+bg: background
+bd: border
+uc: user-content
+ac: assistant-content
+
+*/
+
+/* main colors */
+:root {
+  --main-color-l: #115599;
+  --main-color-d: #66aaee;
+  --sub-color-d: #fe64e2;
+}
+
+/* button colors */
+:root {
+  --btn-hover-color-l: var(--main-color-l);
+  --btn-hover-color-d: var(--main-color-d);
+}
+
+/* (light) chat content colors */
+:root {
+  --uc-color-l: #404040;
+  --uc-bg-color-l: #cccccc55;
+  --uc-bd-color-l: #909090;
+
+  --ac-color-l: #484848;
+  --ac-bg-color-l: #eeeeee22;
+  --ac-bd-color-l: #d0d0d0;
+
+  --ac-link-color-l: #0055aa;
+  --ac-link-bd-color-l: #22222299;
+  --ac-video-link-color-l: #007744;
+  --ac-video-link-bd-color-l: #eeeeee66;
+  --ac-user-link-color-l: #dd5511;
+  --ac-user-link-bd-color-l: #eeeeee66;
+  --ac-code-color-l: #772277;
+  --ac-code-bd-color-l: #33333366;
+}
+
+/* (dark) chat content colors */
+:root {
+  --uc-color-d: #c0c0c0;
+  --uc-bg-color-d: #55555544;
+  --uc-bd-color-d: #888888;
+
+  --ac-color-d: #b0b0b0;
+  --ac-bg-color-d: #22222222;
+  --ac-bd-color-d: #444444;
+
+  --ac-link-color-d: #5599ee;
+  --ac-link-bd-color-d: #eeeeee66;
+  --ac-video-link-color-d: #229966;
+  --ac-video-link-bd-color-d: #eeeeee66;
+  --ac-user-link-color-d: #dd7711;
+  --ac-user-link-bd-color-d: #eeeeee66;
+  --ac-code-color-d: #bbbb88;
+  --ac-code-bd-color-d: #eeeeee66;
+}
