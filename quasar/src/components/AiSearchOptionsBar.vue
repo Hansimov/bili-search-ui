@@ -1,29 +1,29 @@
 <template>
   <div class="ai-search-options-bar q-pb-xs q-pr-xs">
     <q-btn-group flat spread>
-      <q-btn dense xlabel="new" icon="fa-solid fa-plus"
-        ><ButtonTooltip text="新建对话"
+      <q-btn dense label="新建" icon="fa-solid fa-plus"
+        ><ButtonTooltip text="新建对话" hidden
       /></q-btn>
       <q-btn
         dense
-        xlabel="terminate"
+        label="中止"
         icon="o_stop_circle"
         @click="terminateGeneration"
-        ><ButtonTooltip text="中止"
+        ><ButtonTooltip text="中止" hidden
       /></q-btn>
-      <q-btn dense xlabel="regenerate" icon="fa-solid fa-random"
-        ><ButtonTooltip text="重新生成" />
+      <q-btn dense label="重答" icon="fa-solid fa-rotate-right"
+        ><ButtonTooltip text="重新生成" hidden />
       </q-btn>
-      <q-btn dense xlabel="history" icon="fa-solid fa-list" v-if="false">
-        <ButtonTooltip text="历史记录" />
+      <q-btn dense label="历史记录" icon="fa-solid fa-list" v-if="false">
+        <ButtonTooltip text="历史记录" hidden />
       </q-btn>
       <q-btn
         dense
-        xlabel="send"
-        icon="fa-solid fa-paper-plane"
+        label="发送"
+        icon="fa-regular fa-paper-plane"
         @click="sendAiQuery"
       >
-        <ButtonTooltip text="发送" />
+        <ButtonTooltip text="发送" hidden />
       </q-btn>
     </q-btn-group>
   </div>
@@ -63,16 +63,19 @@ export default {
   );
 }
 .ai-search-options-bar .q-btn__content {
-  transition: transform 0.2s ease-in-out;
+  transition: transform 0.2s ease-out;
   .material-icons-outlined {
     transform: scale(1.25);
   }
   i {
-    font-size: 1em;
+    font-size: 1.1em;
+  }
+  span {
+    margin-bottom: -2px;
   }
 }
 .ai-search-options-bar .q-btn__content:hover {
-  transform: scale(1.5);
+  transform: scale(1.2);
   color: var(--btn-hover-color-d);
 }
 body.body--light {

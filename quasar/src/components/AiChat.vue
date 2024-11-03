@@ -142,12 +142,12 @@ export default {
   a[href^="https://www.bilibili.com/video"]::before
   {
     content: '📺 ';
-    vertical-align: 8%;
+    vertical-align: text-bottom;
   }
   a[href^="https://space.bilibili.com"]::before
   {
     content: '@';
-    vertical-align: 3%;
+    vertical-align: text-bottom;
   }
   code {
     font-family: 'consolas';
