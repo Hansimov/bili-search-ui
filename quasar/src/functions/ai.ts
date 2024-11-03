@@ -66,7 +66,11 @@ export const submitAiQuery = async (aiQueryValue: string, router: Router, isFrom
         }
         try {
             console.log('> submit ai query:', aiQueryValue);
-            const sentMessage = JSON.stringify({ type: 'chat', info: [{ 'role': 'user', 'content': aiQueryValue }] });
+            const combinedMessages = [
+                ...aiChatStore.aiChatMessages,
+                { role: 'user', content: aiQueryValue }
+            ];
+            const sentMessage = JSON.stringify({ type: 'chat', info: combinedMessages });
             sendMessageToWebsocket(sentMessage);
             console.log(`+ sent ai query: ${aiQueryValue}`);
         } catch (error) {
