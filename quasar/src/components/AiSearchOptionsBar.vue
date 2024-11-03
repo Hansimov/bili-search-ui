@@ -1,7 +1,7 @@
 <template>
   <div class="ai-search-options-bar q-pb-xs q-pr-xs">
     <q-btn-group flat spread>
-      <q-btn dense label="新建" icon="fa-solid fa-plus"
+      <q-btn dense label="新建" icon="fa-solid fa-plus" @click="newChat"
         ><ButtonTooltip text="新建对话" hidden
       /></q-btn>
       <q-btn
@@ -34,6 +34,7 @@ import ButtonTooltip from './ButtonTooltip.vue';
 import { terminateGeneration, submitAiQuery } from '../functions/ai';
 import { useRouter } from 'vue-router';
 import { useSearchStore } from '../stores/searchStore';
+import { useAiChatStore } from 'src/stores/aiChatStore';
 
 export default {
   components: {
@@ -41,15 +42,20 @@ export default {
   },
   setup() {
     const searchStore = useSearchStore();
+    const aiChatStore = useAiChatStore();
     const router = useRouter();
 
     const sendAiQuery = () => {
       submitAiQuery(searchStore.aiQuery, router);
     };
+    const newChat = () => {
+      aiChatStore.saveAndClearAiChatMessages();
+    };
 
     return {
       terminateGeneration,
       sendAiQuery,
+      newChat,
     };
   },
 };

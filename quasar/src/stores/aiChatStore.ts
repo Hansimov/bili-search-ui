@@ -10,6 +10,7 @@ interface AiChatMessage {
 interface AiChatState {
     aiChatMessages: AiChatMessage[];
     aiChatMessagesListRef: HTMLElement | null;
+    aiChatMessagesCollection: AiChatMessage[][];
     isUserScrollAiChat: boolean;
     ws: WebSocket | null;
 }
@@ -18,6 +19,7 @@ export const useAiChatStore = defineStore('aiChat', {
     state: (): AiChatState => ({
         aiChatMessages: [] as AiChatMessage[],
         aiChatMessagesListRef: null,
+        aiChatMessagesCollection: [] as AiChatMessage[][],
         ws: null,
         isUserScrollAiChat: false,
     }),
@@ -33,6 +35,10 @@ export const useAiChatStore = defineStore('aiChat', {
         },
         setAiChatMessagesListRef(ref: HTMLElement) {
             this.aiChatMessagesListRef = ref;
+        },
+        saveAndClearAiChatMessages() {
+            this.aiChatMessagesCollection.push([...this.aiChatMessages]);
+            this.aiChatMessages = [];
         },
         setIsUserScrollAiChat(isUserScrollAiChat: boolean) {
             this.isUserScrollAiChat = isUserScrollAiChat;
