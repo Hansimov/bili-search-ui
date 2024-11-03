@@ -127,3 +127,14 @@ export const submitAiQuery = async (aiQueryValue: string, router: Router, isFrom
         }
     }
 };
+
+export const terminateGeneration = () => {
+    const ws = aiChatStore.ws;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        const terminateMessage = JSON.stringify({ type: 'terminate', info: [] });
+        ws.send(terminateMessage);
+        console.log('+ sent terminate message');
+    } else {
+        console.warn('× WebSocket is not open. Unable to send terminate message.');
+    }
+};
