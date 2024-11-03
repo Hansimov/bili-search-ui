@@ -142,7 +142,7 @@ export default {
   a[href^="https://www.bilibili.com/video"]::before
   {
     content: '📺 ';
-    vertical-align: text-bottom;
+    vertical-align: 8%;
   }
   a[href^="https://space.bilibili.com"]::before
   {
