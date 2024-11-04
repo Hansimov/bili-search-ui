@@ -13,7 +13,12 @@
         class="assistant-content"
         :markdown="message.content"
         flavor="github"
-        :options="{ openLinksInNewWindow: true }"
+        :options="{
+          openLinksInNewWindow: true,
+          literalMidWordUnderscores: true,
+          tables: true,
+        }"
+        :extensions="[replaceHtmlTags]"
       />
     </div>
   </div>
@@ -23,6 +28,7 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 import { useAiChatStore } from 'src/stores/aiChatStore';
 import { VueShowdown } from 'vue-showdown';
+import { replaceHtmlTags } from 'src/utils/html';
 
 export default {
   components: {
@@ -69,6 +75,7 @@ export default {
     return {
       aiChatMessages,
       aiChatMessagesList,
+      replaceHtmlTags,
     };
   },
 };
@@ -114,27 +121,35 @@ export default {
 }
 
 .assistant-content {
-  ol,
-  ul {
-    margin: -2em auto -0.75em auto;
-    padding: 0 auto 0 auto;
-    line-height: 1em;
-    padding-left: 2.5em;
-  }
-  li {
-    margin: 0 auto -0.75em auto;
-    padding: 0 auto 0 auto;
-    line-height: 1.25em;
-  }
-  p {
+  div {
     margin: 0 auto 0 auto;
     padding: 0 auto 0 auto;
+  }
+  brx {
+    display: block;
+    margin: 0 auto -0.5em auto;
+  }
+  ol,
+  ul {
+    margin: -2.25em auto -1.25em auto;
+    padding: 0 auto 0 auto;
+    line-height: 1.25em;
+    padding-left: 2.5em;
+  }
+  ol:not(:has(ol, ul)),
+  ul:not(:has(ol, ul)) {
+    margin: -2em auto 0 auto;
+  }
+  li:not(:has(ol, ul)) {
+    margin: 0 auto -1em auto;
+    padding: 0 auto 0 auto;
+    line-height: 1.25em;
   }
   a {
     color: inherit;
     text-decoration: none;
-    padding: 3px;
-    margin: 0em auto auto;
+    padding: 2px 4px 2px 4px;
+    margin: 0em auto;
     border-radius: 6px;
     display: inline-block;
     vertical-align: middle;
