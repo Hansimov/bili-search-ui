@@ -148,11 +148,16 @@ export default {
   a {
     color: inherit;
     text-decoration: none;
-    padding: 2px 4px 2px 4px;
-    margin: 0em auto;
-    border-radius: 6px;
+    margin: 0;
+    padding: 0;
+  }
+  a[href^="https://www.bilibili.com/video"]
+  {
     display: inline-block;
-    vertical-align: middle;
+    padding: 1px 4px 1px 4px;
+    margin: 0 auto -4px auto;
+    border-radius: 6px;
+    // vertical-align: middle;
   }
   a[href^="https://www.bilibili.com/video"]::before
   {
@@ -205,6 +210,13 @@ export default {
   h5,
   h6 {
     font-size: 14px;
+  }
+  table,
+  th,
+  td {
+    border: 1px solid #888888;
+    border-collapse: collapse;
+    padding: 1px 2px 1px 2px;
   }
 }
 
