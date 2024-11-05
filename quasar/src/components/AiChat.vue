@@ -112,7 +112,6 @@ export default {
 .user-content,
 .assistant-content {
   text-align: start;
-  white-space: pre-wrap;
   border-radius: 4px;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -121,57 +120,43 @@ export default {
 }
 
 .assistant-content {
-  div {
+  * {
+    white-space-collapse: collapse;
     margin: 0 auto 0 auto;
     padding: 0 auto 0 auto;
+    line-height: 1.75em;
   }
   brx {
     display: block;
-    margin: 0 auto -0.5em auto;
+    height: 0.75em;
   }
   ol,
   ul {
-    margin: -2.25em auto -1.25em auto;
-    padding: 0 auto 0 auto;
-    line-height: 1.25em;
-    padding-left: 2.5em;
-  }
-  ol:not(:has(ol, ul)),
-  ul:not(:has(ol, ul)) {
-    margin: -2em auto 0 auto;
-  }
-  li:not(:has(ol, ul)) {
-    margin: 0 auto -1em auto;
-    padding: 0 auto 0 auto;
-    line-height: 1.25em;
+    display: block;
+    padding-left: 2em;
   }
   a {
     color: inherit;
     text-decoration: none;
-    margin: 0;
-    padding: 0;
   }
   a[href^="https://www.bilibili.com/video"]
   {
     display: inline-block;
-    padding: 1px 4px 1px 4px;
-    margin: 0 auto -4px auto;
+    padding: 0px 4px 0px 4px;
+    margin: 1px 0px 1px 2px;
     border-radius: 6px;
-    // vertical-align: middle;
   }
   a[href^="https://www.bilibili.com/video"]::before
   {
     content: '📺 ';
-    vertical-align: 8%;
   }
   a[href^="https://space.bilibili.com"]::before
   {
     content: '@';
-    vertical-align: text-bottom;
   }
   code {
     font-family: 'consolas';
-    padding: 2px;
+    padding: 1px 2px 1px 2px;
     border-radius: 4px;
   }
   h1,
@@ -180,10 +165,7 @@ export default {
   h4,
   h5,
   h6 {
-    margin: 0 auto 0 auto;
-    padding: 0 auto 0 auto;
     font-weight: bold;
-    line-height: 1.25em;
   }
   h1 {
     font-size: 20px;
