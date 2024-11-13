@@ -25,10 +25,10 @@
         <SearchOptionsBar />
         <SuggestAuthorsList>
           <template v-slot:bottom>
-            <q-separator inset />
+            <q-separator inset class="suggest-sep-bottom" />
           </template>
           <template v-slot:top>
-            <q-separator inset />
+            <q-separator inset class="suggest-sep-top" />
           </template>
         </SuggestAuthorsList>
         <SuggestionsList />
@@ -121,6 +121,14 @@ export default {
 .search-sub-bottom {
   bottom: 48px;
 }
+
+.suggest-sep-top {
+  margin: 0 0 4px 0;
+}
+.suggest-sep-bottom {
+  margin: 4px 0 0 0;
+}
+
 body.body--light {
   .search-sub-container {
     background-color: #ffffffee;

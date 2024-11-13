@@ -14,8 +14,8 @@
       <q-btn dense label="重答" icon="fa-solid fa-rotate-right"
         ><ButtonTooltip text="重新生成" hidden />
       </q-btn>
-      <q-btn dense label="历史记录" icon="fa-solid fa-list" v-if="false">
-        <ButtonTooltip text="历史记录" hidden />
+      <q-btn dense label="对话记录" icon="fa-solid fa-list" v-if="false">
+        <ButtonTooltip text="对话记录" hidden />
       </q-btn>
       <q-btn
         dense
@@ -75,9 +75,6 @@ export default {
   }
   i {
     font-size: 1.1em;
-  }
-  span {
-    margin-bottom: -2px;
   }
 }
 .ai-search-options-bar .q-btn__content:hover {
