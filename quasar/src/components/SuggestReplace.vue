@@ -24,18 +24,18 @@ export default defineComponent({
   setup() {
     const searchStore = useSearchStore();
     const router = useRouter();
-    const originalQuery = computed(() => searchStore.results?.query);
+    const originalQuery = computed(() => searchStore.query);
     const keywordsOriginal = computed(
-      () => searchStore.results?.keywords_original
+      () =>
+        searchStore.suggestResultCache[originalQuery.value]?.keywords_original
     );
     const keywordsRewrited = computed(
-      () => searchStore.results?.keywords_rewrited
+      () =>
+        searchStore.suggestResultCache[originalQuery.value]?.keywords_rewrited
     );
-
     const searchOriginalQuery = () => {
       submitQuery(originalQuery.value, router, false, true, false);
     };
-
     const searchRewritedQuery = () => {
       submitQuery(originalQuery.value, router, false, true, true);
     };

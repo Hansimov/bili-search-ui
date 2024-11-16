@@ -6,6 +6,7 @@
         :label="$q.screen.gt.xs ? '自动纠错' : '纠错'"
         icon="fa-solid fa-check"
         class="auto-check-enabled"
+        v-if="false"
         ><ButtonTooltip text="自动纠错" hidden
       /></q-btn>
       <q-btn
