@@ -23,6 +23,7 @@
         }"
       >
         <SearchOptionsBar />
+        <SuggestReplace />
         <SuggestAuthorsList>
           <template v-slot:bottom>
             <q-separator inset class="suggest-sep-bottom" />
@@ -56,6 +57,7 @@ import SearchInput from './SearchInput.vue';
 import SearchOptionsBar from './SearchOptionsBar.vue';
 import SuggestAuthorsList from './SuggestAuthorsList.vue';
 import SuggestionsList from './SuggestionsList.vue';
+import SuggestReplace from './SuggestReplace.vue';
 import AiSearchInput from './AiSearchInput.vue';
 import AiSearchToggle from './AiSearchToggle.vue';
 import AiChat from './AiChat.vue';
@@ -67,6 +69,7 @@ export default {
     SearchOptionsBar,
     SuggestAuthorsList,
     SuggestionsList,
+    SuggestReplace,
     AiSearchInput,
     AiSearchOptionsBar,
     AiChat,
