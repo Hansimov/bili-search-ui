@@ -12,7 +12,9 @@ ac: assistant-content
 /* main colors */
 :root {
   --main-color-l: #115599;
+  --main-bg-color-l: #2266aa;
   --main-color-d: #66aaee;
+  --main-bg-color-d: #114477;
   --sub-color-d: #fe64e2;
 }
 
@@ -20,6 +22,8 @@ ac: assistant-content
 :root {
   --btn-hover-color-l: var(--main-color-l);
   --btn-hover-color-d: var(--main-color-d);
+  --options-btn-color-l: #222222;
+  --options-btn-color-d: #dddddd;
 }
 
 /* (light) chat content colors */

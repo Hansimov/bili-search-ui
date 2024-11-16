@@ -79,16 +79,15 @@ export default {
 }
 .ai-search-options-bar .q-btn__content:hover {
   transform: scale(1.2);
-  color: var(--btn-hover-color-d);
 }
 body.body--light {
-  .ai-search-options-bar .q-btn__content:hover {
-    color: var(--btn-hover-color-l);
+  .ai-search-options-bar button {
+    color: var(--options-btn-color-l);
   }
 }
 body.body--dark {
-  .ai-search-options-bar .q-btn__content:hover {
-    color: var(--btn-hover-color-d);
+  .ai-search-options-bar button {
+    color: var(--options-btn-color-d);
   }
 }
 </style>
