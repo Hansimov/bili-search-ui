@@ -117,7 +117,7 @@ export const submitQuery = async (queryValue: string, router: Router, isFromURL 
 
             if (!searchAbortController.signal.aborted) {
                 searchStore.setSearchResult(response.data);
-                console.log(`+ Got ${searchStore.results.hits.length} search results.`);
+                console.log(`+ Got ${searchStore.searchResultDict.hits.length} search results.`);
             }
         } catch (error) {
             console.error(error);

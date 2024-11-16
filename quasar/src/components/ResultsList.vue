@@ -1,13 +1,13 @@
 <template>
   <div class="row results-list-info-top justify-between">
     <div class="results-stats">
-      <span>精度：{{ results.detail_level }}</span>
+      <span>精度：{{ searchResultDict.detail_level }}</span>
       <span v-show="isReturnResultsLessThanTotal()"
-        >，匹配：{{ results.total_hits }}</span
+        >，匹配：{{ searchResultDict.total_hits }}</span
       >
       <span
         >，{{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}：{{
-          results.return_hits
+          searchResultDict.return_hits
         }}</span
       >
     </div>
@@ -71,7 +71,7 @@ export default {
   },
   setup() {
     const searchStore = useSearchStore();
-    const results = computed(() => searchStore.results);
+    const searchResultDict = computed(() => searchStore.searchResultDict);
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
     const resultsSortMethods = ref([
       {
@@ -115,18 +115,18 @@ export default {
     const currentPage = ref(1);
     const itemsPerPage = ref(20);
     const totalPages = computed(() =>
-      Math.ceil(results.value.hits.length / itemsPerPage.value)
+      Math.ceil(searchResultDict.value.hits.length / itemsPerPage.value)
     );
     const paginatedResults = computed(() => {
       const start = (currentPage.value - 1) * itemsPerPage.value;
       const end = start + itemsPerPage.value;
-      return results.value.hits.slice(start, end);
+      return searchResultDict.value.hits.slice(start, end);
     });
 
     function sortResults(method) {
       searchStore.setResultsSortMethod(method);
       resultsSortMethod.value = method;
-      results.value.hits.sort((a, b) => {
+      searchResultDict.value.hits.sort((a, b) => {
         const valueA = method.field.split('.').reduce((o, i) => o[i], a);
         const valueB = method.field.split('.').reduce((o, i) => o[i], b);
         if (method.order === 'asc') {
@@ -138,7 +138,7 @@ export default {
       currentPage.value = 1;
     }
 
-    watch(results, () => {
+    watch(searchResultDict, () => {
       sortResults(resultsSortMethod.value);
       currentPage.value = 1;
     });
@@ -163,7 +163,7 @@ export default {
     });
 
     return {
-      results,
+      searchResultDict,
       resultsSortMethods,
       resultsSortMethod,
       sortResults,
@@ -176,7 +176,9 @@ export default {
   },
   methods: {
     isReturnResultsLessThanTotal() {
-      return this.results.return_hits < this.results.total_hits;
+      return (
+        this.searchResultDict.return_hits < this.searchResultDict.total_hits
+      );
     },
   },
 };

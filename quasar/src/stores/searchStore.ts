@@ -25,8 +25,11 @@ interface RelatedAuthors {
 }
 
 interface SuggestResultResponse {
+    filters: string;
     hits: string[];
     highlighted_keywords?: HighlightedKeywords;
+    keywords_original: string;
+    keywords_rewrited: string;
     related_authors?: RelatedAuthors;
 }
 
@@ -47,7 +50,7 @@ interface SearchState {
     isSuggestVisible: boolean;
     isAiSuggestVisible: boolean;
     isAiChatVisible: boolean;
-    results: SearchResultResponse;
+    searchResultDict: SearchResultResponse;
     isEnableAiSearch: boolean;
     isSearchOptionsBarVisible: boolean;
     activeTab: string;
@@ -73,7 +76,7 @@ export const useSearchStore = defineStore('search', {
         aiSuggestResultCache: {},
         suggestions: [],
         aiSuggestions: [],
-        results: {
+        searchResultDict: {
             detail_level: 1,
             filters: '',
             hits: [],
@@ -129,7 +132,7 @@ export const useSearchStore = defineStore('search', {
             this.aiQuery = newAiQuery;
         },
         setSearchResult(newSearchResult: SearchResultResponse) {
-            this.results = newSearchResult;
+            this.searchResultDict = newSearchResult;
             console.log('Search results:', newSearchResult);
         },
         setIsEnableAiSearch(newIsEnableAiSearch: boolean) {
