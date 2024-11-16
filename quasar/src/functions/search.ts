@@ -73,7 +73,7 @@ export const randomSuggest = async () => {
     }
 };
 
-export const submitQuery = async (queryValue: string, router: Router, isFromURL = false, setSearchStoreQuery = true) => {
+export const submitQuery = async (queryValue: string, router: Router, isFromURL = false, setSearchStoreQuery = true, isReplaceKeywords = true) => {
     const searchStore = useSearchStore();
     searchStore.setIsSuggestVisible(false);
     if (queryValue) {
@@ -98,7 +98,7 @@ export const submitQuery = async (queryValue: string, router: Router, isFromURL 
             }
 
             let suggestInfo = {};
-            if (cachedSuggest && Object.keys(cachedSuggest).length > 0) {
+            if (isReplaceKeywords && cachedSuggest && Object.keys(cachedSuggest).length > 0) {
                 suggestInfo = {
                     highlighted_keywords: cachedSuggest.highlighted_keywords || {},
                     related_authors: cachedSuggest.related_authors || [],

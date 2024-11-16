@@ -1,10 +1,13 @@
 import { defineStore } from 'pinia';
 
 interface SearchResultResponse {
-    hits: string[];
-    total_hits: number;
-    return_hits: number;
     detail_level: number;
+    filters: string;
+    hits: string[];
+    keywords_original: string;
+    keywords_rewrited: string;
+    return_hits: number;
+    total_hits: number;
 }
 
 interface HighlightedKeywords {
@@ -71,10 +74,13 @@ export const useSearchStore = defineStore('search', {
         suggestions: [],
         aiSuggestions: [],
         results: {
-            hits: [],
-            total_hits: 0,
-            return_hits: 0,
             detail_level: 1,
+            filters: '',
+            hits: [],
+            keywords_original: '',
+            keywords_rewrited: '',
+            return_hits: 0,
+            total_hits: 0,
         },
         isEnableAiSearch: JSON.parse(localStorage.getItem('isEnableAiSearch') || 'true'),
         isSearchOptionsBarVisible: true,
