@@ -1,16 +1,19 @@
 <template>
   <div class="suggest-replace">
-    智能改写：<a
-      href="#"
-      class="suggest-replace-rewrite"
-      @click.prevent="searchRewritedQuery"
-      >{{ keywordsRewrited }}</a
-    >，仍然搜索：<a
+    猜你想搜：<span v-for="(rewriteString, index) in rewritesList" :key="index">
+      <a
+        class="suggest-replace-rewrite-item"
+        href="#"
+        @click.prevent="searchRewritedQuery(rewriteString)"
+        >{{ rewriteString }}
+      </a>
+    </span>
+    ，仍然搜索：<a
       href="#"
       class="suggest-replace-original"
       @click.prevent="searchOriginalQuery"
-      >{{ keywordsOriginal }}</a
-    >
+      >{{ keywordsString }}
+    </a>
   </div>
 </template>
 
@@ -24,25 +27,29 @@ export default defineComponent({
   setup() {
     const searchStore = useSearchStore();
     const router = useRouter();
-    const originalQuery = computed(() => searchStore.query);
-    const keywordsOriginal = computed(
-      () =>
-        searchStore.suggestResultCache[originalQuery.value]?.keywords_original
+    const query = computed(() => searchStore.query);
+    const keywords = computed(
+      () => searchStore.suggestResultCache[query.value]?.query_info?.keywords
     );
-    const keywordsRewrited = computed(
-      () =>
-        searchStore.suggestResultCache[originalQuery.value]?.keywords_rewrited
+    const keywordsString = computed(() => (keywords.value || []).join(' '));
+    const filters = computed(
+      () => searchStore.suggestResultCache[query.value]?.query_info?.filters
+    );
+    const rewritesList = computed(
+      () => searchStore.suggestResultCache[query.value]?.rewrite_info?.list
     );
     const searchOriginalQuery = () => {
-      submitQuery(originalQuery.value, router, false, true, false);
+      submitQuery(query.value, router, false, true, false);
     };
-    const searchRewritedQuery = () => {
-      submitQuery(originalQuery.value, router, false, true, true);
+    const searchRewritedQuery = (rewriteString) => {
+      const filtersString = (filters.value || []).join(' ');
+      const rewriteQuery = `${rewriteString} ${filtersString}`.trim();
+      submitQuery(rewriteQuery, router, false, true, false);
     };
 
     return {
-      keywordsOriginal,
-      keywordsRewrited,
+      keywordsString,
+      rewritesList,
       searchOriginalQuery,
       searchRewritedQuery,
     };
@@ -57,8 +64,10 @@ export default defineComponent({
 .suggest-replace a {
   text-decoration: inherit;
 }
-.suggest-replace-rewrite {
+.suggest-replace-rewrite-item {
   color: greenyellow;
+  border: 1px dashed gray;
+  padding: 2px;
 }
 .suggest-replace-original {
   color: var(--main-color-d);
