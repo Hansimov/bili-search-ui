@@ -1,17 +1,15 @@
 import { defineStore } from 'pinia';
 
-interface SearchResultResponse {
-    detail_level: number;
-    filters: string;
-    hits: string[];
-    keywords_original: string;
-    keywords_rewrited: string;
-    return_hits: number;
-    total_hits: number;
-}
-
-interface HighlightedKeywords {
-    [qword: string]: { [new_qword: string]: number };
+interface QueryInfo {
+    query: string;
+    keywords: string[];
+    keywords_body: string[];
+    keywords_date: string[];
+    filters: string[];
+    filters_stat: string[];
+    filters_date: string[];
+    filters_uid: string[];
+    filters_user: string[];
 }
 
 interface RelatedAuthor {
@@ -24,17 +22,61 @@ interface RelatedAuthors {
     [authorName: string]: RelatedAuthor;
 }
 
+interface SuggestInfo {
+    qword_hword_count: {
+        [qword: string]: {
+            [hword: string]: number;
+        }
+    };
+    hword_qword_count: {
+        [hwords_str: string]: number;
+    };
+    related_authors: RelatedAuthors
+}
+
+interface RewriteInfo {
+    list: string[];
+    tuples: [string, number][];
+}
+
+
 interface SuggestResultResponse {
-    filters: string;
+    detail_level: number;
+    return_hits: number;
+    total_hits: number;
     hits: string[];
-    highlighted_keywords?: HighlightedKeywords;
-    keywords_original: string;
-    keywords_rewrited: string;
-    related_authors?: RelatedAuthors;
+    suggest_info: SuggestInfo;
+    query_info: QueryInfo;
+    rewrite_info: RewriteInfo;
+}
+
+interface SearchResultResponse {
+    detail_level: number;
+    return_hits: number;
+    total_hits: number;
+    hits: string[];
+    suggest_info: SuggestInfo;
+    query_info: QueryInfo;
+    rewrite_info: RewriteInfo;
 }
 
 interface AiSuggestResultResponse {
     choices: string[];
+}
+
+interface SuggestResultCache {
+    [key: string]: SuggestResultResponse;
+}
+
+interface AiSuggestResultCache {
+    [key: string]: AiSuggestResultResponse;
+}
+
+interface ResultsSortMethod {
+    field: string;
+    order: string;
+    label: string;
+    icon: string;
 }
 
 interface SearchState {
@@ -43,8 +85,8 @@ interface SearchState {
     isMouseInSearchBar: boolean;
     isMouseInAiSearchToggle: boolean;
     suggestQuery: string;
-    suggestResultCache: { [key: string]: SuggestResultResponse };
-    aiSuggestResultCache: { [key: string]: AiSuggestResultResponse };
+    suggestResultCache: SuggestResultCache;
+    aiSuggestResultCache: AiSuggestResultCache;
     suggestions: string[];
     aiSuggestions: string[];
     isSuggestVisible: boolean;
@@ -54,12 +96,7 @@ interface SearchState {
     isEnableAiSearch: boolean;
     isSearchOptionsBarVisible: boolean;
     activeTab: string;
-    resultsSortMethod: {
-        field: string,
-        order: string,
-        label: string,
-        icon: string
-    };
+    resultsSortMethod: ResultsSortMethod;
 }
 
 export const useSearchStore = defineStore('search', {
@@ -72,18 +109,18 @@ export const useSearchStore = defineStore('search', {
         isAiSuggestVisible: false,
         isAiChatVisible: false,
         suggestQuery: '',
-        suggestResultCache: {},
-        aiSuggestResultCache: {},
+        suggestResultCache: {} as SuggestResultCache,
+        aiSuggestResultCache: {} as AiSuggestResultCache,
         suggestions: [],
         aiSuggestions: [],
         searchResultDict: {
-            detail_level: 1,
-            filters: '',
+            detail_level: 0,
             hits: [],
-            keywords_original: '',
-            keywords_rewrited: '',
             return_hits: 0,
             total_hits: 0,
+            suggest_info: {} as SuggestInfo,
+            query_info: {} as QueryInfo,
+            rewrite_info: {} as RewriteInfo
         },
         isEnableAiSearch: JSON.parse(localStorage.getItem('isEnableAiSearch') || 'true'),
         isSearchOptionsBarVisible: true,
@@ -145,9 +182,7 @@ export const useSearchStore = defineStore('search', {
         setActiveTab(newActiveTab: string) {
             this.activeTab = newActiveTab;
         },
-        setResultsSortMethod(newResultsSortMethod: {
-            field: string, order: string, label: string, icon: string
-        }) {
+        setResultsSortMethod(newResultsSortMethod: ResultsSortMethod) {
             this.resultsSortMethod = newResultsSortMethod;
         }
     },
