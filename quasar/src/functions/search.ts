@@ -99,10 +99,7 @@ export const submitQuery = async (queryValue: string, router: Router, isFromURL 
 
             let suggestInfo = {};
             if (isReplaceKeywords && cachedSuggest && Object.keys(cachedSuggest).length > 0) {
-                suggestInfo = {
-                    highlighted_keywords: cachedSuggest.highlighted_keywords || {},
-                    related_authors: cachedSuggest.related_authors || [],
-                };
+                suggestInfo = cachedSuggest?.suggest_info || {};
             }
 
             const response = await api.post(

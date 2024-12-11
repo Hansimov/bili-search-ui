@@ -37,7 +37,8 @@ export default {
     const query = computed(() => searchStore.query);
     const relatedAuthorsList = computed(() => {
       const relatedAuthors =
-        searchStore.suggestResultCache[query.value]?.related_authors || {};
+        searchStore.suggestResultCache[query.value]?.suggest_info
+          ?.related_authors || {};
       const authorsList = Object.entries(relatedAuthors).map(
         ([authorName, authorInfo]) => ({
           authorName,
