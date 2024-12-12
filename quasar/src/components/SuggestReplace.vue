@@ -93,7 +93,7 @@ export default {
 
 <style>
 .suggest-replace {
-  padding: 4px 1rem 8px 1rem;
+  padding: 0px 1rem 0px 1rem;
   line-height: 1.85;
 }
 .suggest-replace a {

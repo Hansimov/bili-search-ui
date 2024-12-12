@@ -22,17 +22,20 @@
           'suggest-container-reverse': !isIndexRoute,
         }"
       >
+        <div class="search-sub-sep-top"></div>
         <SearchOptionsBar />
         <SuggestReplace />
+        <div class="suggest-replace-sep"></div>
         <SuggestAuthorsList>
-          <template v-slot:bottom>
-            <q-separator inset class="suggest-sep-bottom" />
-          </template>
           <template v-slot:top>
             <q-separator inset class="suggest-sep-top" />
           </template>
+          <template v-slot:bottom>
+            <q-separator inset class="suggest-sep-bottom" />
+          </template>
         </SuggestAuthorsList>
         <SuggestionsList />
+        <div class="search-sub-sep-bottom"></div>
       </div>
 
       <div
@@ -42,8 +45,10 @@
           'aichat-container-reverse': !isIndexRoute,
         }"
       >
+        <div class="search-sub-sep-top"></div>
         <AiSearchOptionsBar />
         <AiChat />
+        <div class="search-sub-sep-bottom"></div>
       </div>
     </div>
   </div>
@@ -116,7 +121,7 @@ export default {
   position: absolute;
   z-index: 1000;
   border-radius: 8px;
-  padding: 5px 0px 0px 5px;
+  padding: 0px 0px 0px 5px;
 }
 .search-sub-top {
   top: 65px;
@@ -126,10 +131,19 @@ export default {
 }
 
 .suggest-sep-top {
-  margin: 0 0 0px 0;
+  margin: 0px 0 0px 0;
 }
 .suggest-sep-bottom {
-  margin: 0px 0 0 0;
+  margin: 0px 0 0px 0;
+}
+.search-sub-sep-top {
+  padding: 4px 0 0 0;
+}
+.search-sub-sep-bottom {
+  padding: 0 0 4px 0;
+}
+.suggest-replace-sep {
+  padding: 2px 0;
 }
 
 body.body--light {
