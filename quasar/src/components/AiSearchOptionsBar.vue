@@ -78,7 +78,7 @@ export default {
   }
 }
 .ai-search-options-bar .q-btn__content:hover {
-  transform: scale(1.2);
+  transform: scale(1.1);
 }
 body.body--light {
   .ai-search-options-bar button {
