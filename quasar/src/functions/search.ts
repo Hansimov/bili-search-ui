@@ -1,13 +1,38 @@
 import { api } from 'boot/axios';
-import { useSearchStore } from '../stores/searchStore';
 import { Router } from 'vue-router';
+import { useSearchStore } from '../stores/searchStore';
+import { debounce } from '../utils/time';
 
 let suggestAbortController = new AbortController();
 let searchAbortController = new AbortController();
 const SUGGEST_DEBOUNCE_INTERVAL = 150; // milliseconds
+const searchStore = useSearchStore();
+
+export const suggestRequest = async (newVal: string, suggestAbortController: AbortController) => {
+    if (newVal) {
+        try {
+            console.log(`> Query: [${newVal}]`);
+            const response = await api.post(
+                '/suggest',
+                { query: newVal, limit: 25 },
+                { signal: suggestAbortController.signal }
+            );
+
+            if (!suggestAbortController.signal.aborted) {
+                const suggestResult = response.data;
+                searchStore.setSuggestResultCache(newVal, suggestResult);
+                searchStore.setSuggestions(suggestResult.hits);
+                console.log(`+ Got ${searchStore.suggestions.length} suggestions.`);
+            }
+        } catch (error) {
+            if (error instanceof Error && error.name !== 'CanceledError') {
+                console.error(error);
+            }
+        }
+    }
+};
 
 export const suggest = async (newVal: string, showSuggestions = true, setSearchStoreQuery = true): Promise<void> => {
-    const searchStore = useSearchStore();
     if (setSearchStoreQuery) {
         searchStore.setQuery(newVal);
     }
@@ -27,35 +52,7 @@ export const suggest = async (newVal: string, showSuggestions = true, setSearchS
         return;
     }
 
-    return new Promise<void>((resolve) => {
-        setTimeout(async () => {
-            if (newVal) {
-                try {
-                    console.log(`> Query: [${newVal}]`);
-                    const response = await api.post(
-                        '/suggest',
-                        { query: newVal, limit: 25 },
-                        { signal: suggestAbortController.signal }
-                    );
-
-                    if (!suggestAbortController.signal.aborted) {
-                        const suggestResult = response.data;
-                        searchStore.setSuggestResultCache(newVal, suggestResult);
-                        searchStore.setSuggestions(suggestResult.hits);
-                        console.log(`+ Got ${searchStore.suggestions.length} suggestions.`);
-                    }
-                    resolve();
-                } catch (error) {
-                    if (error instanceof Error && error.name !== 'CanceledError') {
-                        console.error(error);
-                    }
-                    resolve();
-                }
-            } else {
-                resolve();
-            }
-        }, SUGGEST_DEBOUNCE_INTERVAL);
-    });
+    debounce(suggestRequest, SUGGEST_DEBOUNCE_INTERVAL)(newVal, suggestAbortController);
 };
 
 export const randomSuggest = async () => {
