@@ -2,45 +2,38 @@
   <div class="suggest-replace" v-if="rewritesList?.length">
     <span class="suggest-replace-rewrite"
       ><span v-for="(rewriteString, index) in rewritesList" :key="index">
-        <a
-          class="suggest-replace-rewrite-text"
-          href="#"
-          @click.prevent="searchRewritedQuery(rewriteString)"
-          >{{ rewriteString }}
-        </a>
-        <span
-          class="suggest-replace-rewrite-index"
-          v-if="rewritesList.length > 1 || !isOriginalInRewrites"
-          >{{ index + 1 }}</span
-        >
-        <span
-          class="suggest-replace-rewrite-sep"
-          v-if="index < rewritesList.length - 1"
-        >
-        </span> </span
-    ></span>
-    <span class="suggest-replace-rewrite-sep"></span>
-    <span
-      class="suggest-replace-original"
-      v-if="!isOriginalInRewrites && keywordsString.trim() !== ''"
-      ><a
-        href="#"
-        class="suggest-replace-original-text"
-        @click.prevent="searchOriginalQuery"
-        >{{ keywordsString }}
-      </a>
-      <span class="suggest-replace-original-index">原文</span>
+        <SuggestReplaceRewriteItem
+          :rewriteString="rewriteString"
+          :index="index"
+          :isShowRewriteIndex="isShowRewriteIndex"
+          :isShowRewriteSep="isShowRewriteSepByIndex(index)"
+          @searchRewritedQuery="searchRewritedQuery"
+        />
+      </span>
+    </span>
+    <span class="suggest-replace-rewrite-sep" v-if="isShowOriginal"></span>
+    <span class="suggest-replace-original" v-if="isShowOriginal">
+      <SuggestReplaceOriginalItem
+        :keywordsString="keywordsString"
+        @searchOriginalQuery="searchOriginalQuery"
+      />
     </span>
   </div>
 </template>
 
 <script>
-import { defineComponent, computed } from 'vue';
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSearchStore } from '../stores/searchStore';
 import { submitQuery } from 'src/functions/search';
+import SuggestReplaceRewriteItem from './SuggestReplaceRewriteItem.vue';
+import SuggestReplaceOriginalItem from './SuggestReplaceOriginalItem.vue';
 
-export default defineComponent({
+export default {
+  components: {
+    SuggestReplaceRewriteItem,
+    SuggestReplaceOriginalItem,
+  },
   setup() {
     const searchStore = useSearchStore();
     const router = useRouter();
@@ -59,6 +52,20 @@ export default defineComponent({
     const rewritesTuples = computed(
       () => searchStore.suggestResultCache[query.value]?.rewrite_info?.tuples
     );
+
+    const isOriginalInRewrites = computed(
+      () => rewritesList.value?.includes(keywordsString.value) || false
+    );
+    const isShowRewriteIndex = computed(
+      () => rewritesList.value?.length > 1 || !isOriginalInRewrites.value
+    );
+    const isShowRewriteSepByIndex = (index) => {
+      return index < rewritesList.value.length - 1;
+    };
+    const isShowOriginal = computed(
+      () => !isOriginalInRewrites.value && keywordsString.value.trim() !== ''
+    );
+
     const searchOriginalQuery = () => {
       submitQuery(query.value, router, false, true, false);
     };
@@ -67,9 +74,6 @@ export default defineComponent({
       const rewriteQuery = `${rewriteString} ${filtersString}`.trim();
       submitQuery(rewriteQuery, router, false, true, false);
     };
-    const isOriginalInRewrites = computed(
-      () => rewritesList.value?.includes(keywordsString.value) || false
-    );
 
     return {
       keywordsString,
@@ -77,26 +81,32 @@ export default defineComponent({
       rewritesTuples,
       suggestResultCache,
       isOriginalInRewrites,
+      isShowRewriteIndex,
+      isShowRewriteSepByIndex,
+      isShowOriginal,
       searchOriginalQuery,
       searchRewritedQuery,
     };
   },
-});
+};
 </script>
 
-<style scoped>
+<style>
 .suggest-replace {
-  padding: 0px 1rem 4px 1rem;
-  line-height: 1.75;
+  padding: 4px 1rem 8px 1rem;
+  line-height: 1.85;
 }
 .suggest-replace a {
   text-decoration: inherit;
 }
+.suggest-replace-original-item,
+.suggest-replace-rewrite-item {
+  display: inline-block;
+}
 .suggest-replace-rewrite-text,
 .suggest-replace-original-text {
-  display: inline-block;
   border: 1px solid gray;
-  padding: 0px 4px;
+  padding: 2px 4px;
   border-radius: 4px;
 }
 .suggest-replace-rewrite-text {
