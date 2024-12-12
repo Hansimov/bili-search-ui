@@ -126,10 +126,10 @@ export default {
 }
 
 .suggest-sep-top {
-  margin: 0 0 4px 0;
+  margin: 0 0 0px 0;
 }
 .suggest-sep-bottom {
-  margin: 4px 0 0 0;
+  margin: 0px 0 0 0;
 }
 
 body.body--light {

@@ -62,7 +62,7 @@ export default {
   overflow-x: auto;
   overflow-y: hidden;
   justify-content: flex-start;
-  height: 60px;
+  // height: 50px;
   width: calc(var(--search-input-width) - var(--search-input-width-more));
   max-width: calc(
     var(--search-input-max-width) - var(--search-input-width-more)
