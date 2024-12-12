@@ -1,5 +1,5 @@
 <template>
-  <div class="ai-search-options-bar q-pb-xs q-pr-xs">
+  <div class="ai-search-options-bar q-pb-xs q-pr-xs" v-if="isQueryEmpty">
     <q-btn-group flat spread>
       <q-btn
         dense
@@ -31,9 +31,20 @@
 </template>
 
 <script>
+import { computed } from 'vue';
+import { useSearchStore } from '../stores/searchStore';
 import ButtonTooltip from './ButtonTooltip.vue';
 
 export default {
+  setup() {
+    const searchStore = useSearchStore();
+    const isQueryEmpty = computed(() => {
+      return !searchStore.query || searchStore.query.trim() === '';
+    });
+    return {
+      isQueryEmpty,
+    };
+  },
   components: {
     ButtonTooltip,
   },
