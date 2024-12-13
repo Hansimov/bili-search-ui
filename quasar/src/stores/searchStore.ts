@@ -158,6 +158,9 @@ export const useSearchStore = defineStore('search', {
                 tuples: [[state.query, 1]]
             };
         },
+        isSuggestionsListVisible: (state) => {
+            return state.suggestions?.length;
+        },
         isSuggestReplaceVisible: (state) => {
             return (state.query && state.query.trim() !== '')
         },

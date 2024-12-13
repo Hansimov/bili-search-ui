@@ -1,5 +1,5 @@
 <template>
-  <q-list v-if="suggestions.length" class="suggestions-list q-pt-xs">
+  <q-list v-if="isSuggestionsListVisible" class="suggestions-list q-pt-xs">
     <SuggestionItem
       v-for="(suggestion, index) in suggestions.slice(0, 10)"
       :key="index"
@@ -20,8 +20,12 @@ export default {
   setup() {
     const searchStore = useSearchStore();
     const suggestions = computed(() => searchStore.suggestions);
+    const isSuggestionsListVisible = computed(
+      () => searchStore.isSuggestionsListVisible
+    );
     return {
       suggestions,
+      isSuggestionsListVisible,
     };
   },
 };
