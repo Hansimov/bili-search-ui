@@ -22,20 +22,22 @@
           'suggest-container-reverse': !isIndexRoute,
         }"
       >
-        <div class="search-sub-sep-top"></div>
+        <div class="search-sub-space-top"></div>
         <SearchOptionsBar />
         <SuggestReplace />
-        <div class="suggest-replace-sep"></div>
-        <SuggestAuthorsList>
-          <template v-slot:top>
-            <q-separator inset class="suggest-sep-top" />
-          </template>
-          <template v-slot:bottom>
-            <q-separator inset class="suggest-sep-bottom" />
-          </template>
-        </SuggestAuthorsList>
+        <q-separator
+          inset
+          class="suggest-component-sep"
+          v-if="isSuggestAuthorsListVisible"
+        />
+        <SuggestAuthorsList />
+        <q-separator
+          inset
+          class="suggest-component-sep"
+          v-if="isSuggestionsListVisible"
+        />
         <SuggestionsList />
-        <div class="search-sub-sep-bottom"></div>
+        <div class="search-sub-space-bottom"></div>
       </div>
 
       <div
@@ -45,10 +47,10 @@
           'aichat-container-reverse': !isIndexRoute,
         }"
       >
-        <div class="search-sub-sep-top"></div>
+        <div class="search-sub-space-top"></div>
         <AiSearchOptionsBar />
         <AiChat />
-        <div class="search-sub-sep-bottom"></div>
+        <div class="search-sub-space-bottom"></div>
       </div>
     </div>
   </div>
@@ -82,8 +84,18 @@ export default {
   },
   setup() {
     const searchStore = useSearchStore();
+    const isQueryEmpty = computed(() => searchStore.isQueryEmpty);
     const isEnableAiSearch = computed(() => searchStore.isEnableAiSearch);
     const isSuggestVisible = computed(() => searchStore.isSuggestVisible);
+    const isSuggestionsListVisible = computed(
+      () => searchStore.isSuggestionsListVisible
+    );
+    const isSuggestRepaceVisible = computed(
+      () => searchStore.isSuggestReplaceVisible
+    );
+    const isSuggestAuthorsListVisible = computed(
+      () => searchStore.isSuggestAuthorsListVisible
+    );
     const isAiChatVisible = computed(() => searchStore.isAiChatVisible);
     const $route = useRoute();
     const isIndexRoute = computed(() => $route.path === '/');
@@ -96,7 +108,11 @@ export default {
     return {
       mouseEnter,
       mouseLeave,
+      isQueryEmpty,
       isSuggestVisible,
+      isSuggestionsListVisible,
+      isSuggestRepaceVisible,
+      isSuggestAuthorsListVisible,
       isAiChatVisible,
       isEnableAiSearch,
       isIndexRoute,
@@ -122,6 +138,8 @@ export default {
   z-index: 1000;
   border-radius: 8px;
   padding: 0px 0px 0px 5px;
+  width: var(--search-input-width);
+  max-width: var(--search-input-max-width);
 }
 .search-sub-top {
   top: 65px;
@@ -130,20 +148,18 @@ export default {
   bottom: 48px;
 }
 
-.suggest-sep-top {
-  margin: 0px 0 0px 0;
+.search-sub-space-top {
+  padding-top: 0px;
+  padding-bottom: 0px;
 }
-.suggest-sep-bottom {
-  margin: 0px 0 0px 0;
+.search-sub-space-bottom {
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
-.search-sub-sep-top {
-  padding: 4px 0 0 0;
-}
-.search-sub-sep-bottom {
-  padding: 0 0 4px 0;
-}
-.suggest-replace-sep {
-  padding: 2px 0;
+
+.suggest-component-sep {
+  margin-top: 0px;
+  margin-bottom: 0px;
 }
 
 body.body--light {
