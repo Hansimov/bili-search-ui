@@ -94,6 +94,7 @@ interface SearchState {
     suggestQuery: string;
     suggestResultCache: SuggestResultCache;
     aiSuggestResultCache: AiSuggestResultCache;
+    rewrite_info: RewriteInfo;
     suggestions: string[];
     relatedAuthorsList: RelatedAuthorsList;
     aiSuggestions: string[];
@@ -131,6 +132,7 @@ export const useSearchStore = defineStore('search', {
         suggestResultCache: {} as SuggestResultCache,
         aiSuggestResultCache: {} as AiSuggestResultCache,
         suggestions: [],
+        rewrite_info: {} as RewriteInfo,
         relatedAuthorsList: [] as RelatedAuthorsList,
         aiSuggestions: [],
         searchResultDict: {
@@ -150,6 +152,15 @@ export const useSearchStore = defineStore('search', {
         }
     }),
     getters: {
+        rewrite_info: (state) => {
+            return state.suggestResultCache[state.query]?.rewrite_info || {
+                list: [state.query],
+                tuples: [[state.query, 1]]
+            };
+        },
+        isSuggestReplaceVisible: (state) => {
+            return (state.query && state.query.trim() !== '')
+        },
         isSuggestAuthorsListVisible: (state) => {
             return (state.query && state.query.trim() !== '') && state.relatedAuthorsList?.length > 0;
         },

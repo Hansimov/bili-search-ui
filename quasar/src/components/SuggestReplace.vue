@@ -1,5 +1,5 @@
 <template>
-  <div class="suggest-replace" v-if="rewritesList?.length">
+  <div class="suggest-replace" v-if="isSuggestReplaceVisible">
     <span class="suggest-replace-rewrite"
       ><span v-for="(rewriteString, index) in rewritesList" :key="index">
         <SuggestReplaceRewriteItem
@@ -46,18 +46,19 @@ export default {
     const filters = computed(
       () => searchStore.suggestResultCache[query.value]?.query_info?.filters
     );
-    const rewritesList = computed(
-      () => searchStore.suggestResultCache[query.value]?.rewrite_info?.list
-    );
-    const rewritesTuples = computed(
-      () => searchStore.suggestResultCache[query.value]?.rewrite_info?.tuples
-    );
+    const rewritesList = computed(() => searchStore.rewrite_info?.list);
+    const rewritesTuples = computed(() => searchStore.rewrite_info?.tuples);
 
     const isOriginalInRewrites = computed(
-      () => rewritesList.value?.includes(keywordsString.value) || false
+      () =>
+        rewritesList.value?.includes(keywordsString.value.toLowerCase()) ||
+        false
+    );
+    const isSuggestReplaceVisible = computed(
+      () => searchStore.isSuggestReplaceVisible
     );
     const isShowRewriteIndex = computed(
-      () => rewritesList.value?.length > 1 || !isOriginalInRewrites.value
+      () => rewritesList.value?.length >= 1 || !isOriginalInRewrites.value
     );
     const isShowRewriteSepByIndex = (index) => {
       return index < rewritesList.value.length - 1;
@@ -81,6 +82,7 @@ export default {
       rewritesTuples,
       suggestResultCache,
       isOriginalInRewrites,
+      isSuggestReplaceVisible,
       isShowRewriteIndex,
       isShowRewriteSepByIndex,
       isShowOriginal,
@@ -93,7 +95,8 @@ export default {
 
 <style>
 .suggest-replace {
-  padding: 0px 1rem 0px 1rem;
+  padding: 2px 1rem 2px 1rem;
+  margin: 2px 0px 2px 0px;
   line-height: 1.85;
 }
 .suggest-replace a {
