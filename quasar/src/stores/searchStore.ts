@@ -152,6 +152,9 @@ export const useSearchStore = defineStore('search', {
         }
     }),
     getters: {
+        isQueryEmpty: (state) => {
+            return !state.query || state.query.trim() === '';
+        },
         rewrite_info: (state) => {
             return state.suggestResultCache[state.query]?.rewrite_info || {
                 list: [state.query],

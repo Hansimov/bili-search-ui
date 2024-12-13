@@ -67,6 +67,8 @@ export default {
   max-width: calc(
     var(--search-input-max-width) - var(--search-input-width-more)
   );
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 .ai-search-options-bar .q-btn__content {
   transition: transform 0.2s ease-out;

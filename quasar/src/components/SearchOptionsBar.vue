@@ -39,7 +39,7 @@ export default {
   setup() {
     const searchStore = useSearchStore();
     const isQueryEmpty = computed(() => {
-      return !searchStore.query || searchStore.query.trim() === '';
+      return searchStore.isQueryEmpty;
     });
     return {
       isQueryEmpty,
