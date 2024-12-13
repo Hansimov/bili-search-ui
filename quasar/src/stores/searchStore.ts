@@ -22,6 +22,14 @@ interface RelatedAuthors {
     [authorName: string]: RelatedAuthor;
 }
 
+interface RelatedAuthorsListItem {
+    authorName: string;
+    authorInfo: RelatedAuthor;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+interface RelatedAuthorsList extends Array<RelatedAuthorsListItem> { }
+
 interface SuggestInfo {
     qword_hword_count: {
         [qword: string]: {
@@ -38,7 +46,6 @@ interface RewriteInfo {
     list: string[];
     tuples: [string, number][];
 }
-
 
 interface SuggestResultResponse {
     detail_level: number;
@@ -88,6 +95,7 @@ interface SearchState {
     suggestResultCache: SuggestResultCache;
     aiSuggestResultCache: AiSuggestResultCache;
     suggestions: string[];
+    relatedAuthorsList: RelatedAuthorsList;
     aiSuggestions: string[];
     isSuggestVisible: boolean;
     isAiSuggestVisible: boolean;
@@ -98,6 +106,17 @@ interface SearchState {
     activeTab: string;
     resultsSortMethod: ResultsSortMethod;
 }
+
+export const sortAuthors = (a: RelatedAuthorsListItem, b: RelatedAuthorsListItem) => {
+    const highlightedA = a.authorInfo.highlighted || false;
+    const highlightedB = b.authorInfo.highlighted || false;
+    // sort by highlighted, true is first
+    if (highlightedA !== highlightedB) {
+        return highlightedA ? -1 : 1;
+    }
+    // sort by count, larger is higher
+    return b.authorInfo.count - a.authorInfo.count;
+};
 
 export const useSearchStore = defineStore('search', {
     state: (): SearchState => ({
@@ -112,6 +131,7 @@ export const useSearchStore = defineStore('search', {
         suggestResultCache: {} as SuggestResultCache,
         aiSuggestResultCache: {} as AiSuggestResultCache,
         suggestions: [],
+        relatedAuthorsList: [] as RelatedAuthorsList,
         aiSuggestions: [],
         searchResultDict: {
             detail_level: 0,
@@ -129,6 +149,23 @@ export const useSearchStore = defineStore('search', {
             field: 'score', order: 'desc', label: '综合排序', icon: 'fa-solid fa-check'
         }
     }),
+    getters: {
+        isSuggestAuthorsListVisible: (state) => {
+            return (state.query && state.query.trim() !== '') && state.relatedAuthorsList?.length > 0;
+        },
+        relatedAuthorsList: (state) => {
+            const relatedAuthors =
+                state.suggestResultCache[state.query]?.suggest_info
+                    ?.related_authors || {};
+            const authorsList = Object.entries(relatedAuthors).map(
+                ([authorName, authorInfo]) => ({
+                    authorName,
+                    authorInfo,
+                })
+            );
+            return authorsList.sort(sortAuthors);
+        }
+    },
     actions: {
         setSuggestQuery(newSuggestQuery: string) {
             this.suggestQuery = newSuggestQuery;

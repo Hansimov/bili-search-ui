@@ -1,6 +1,5 @@
 <template>
-  <slot name="top" v-if="relatedAuthorsList.length"></slot>
-  <q-list v-if="relatedAuthorsList.length" class="suggest-authors-list">
+  <q-list v-if="isSuggestAuthorsListVisible" class="suggest-authors-list">
     <SuggestAuthorItem
       v-for="(authorItem, index) in relatedAuthorsList"
       :key="index"
@@ -8,7 +7,6 @@
       :authorInfo="authorItem.authorInfo"
     />
   </q-list>
-  <slot name="bottom" v-if="relatedAuthorsList.length"></slot>
 </template>
 
 <script>
@@ -16,40 +14,19 @@ import { computed } from 'vue';
 import { useSearchStore } from '../stores/searchStore';
 import SuggestAuthorItem from './SuggestAuthorItem.vue';
 
-const sortAuthors = (a, b) => {
-  const highlightedA = a.authorInfo.highlighted || false;
-  const highlightedB = b.authorInfo.highlighted || false;
-
-  // sort by highlighted, true is first
-  if (highlightedA !== highlightedB) {
-    return highlightedA ? -1 : 1;
-  }
-  // sort by count, larger is higher
-  return b.authorInfo.count - a.authorInfo.count;
-};
-
 export default {
   components: {
     SuggestAuthorItem,
   },
   setup() {
     const searchStore = useSearchStore();
-    const query = computed(() => searchStore.query);
-    const relatedAuthorsList = computed(() => {
-      const relatedAuthors =
-        searchStore.suggestResultCache[query.value]?.suggest_info
-          ?.related_authors || {};
-      const authorsList = Object.entries(relatedAuthors).map(
-        ([authorName, authorInfo]) => ({
-          authorName,
-          authorInfo,
-        })
-      );
-      return authorsList.sort(sortAuthors);
-    });
-
+    const relatedAuthorsList = computed(() => searchStore.relatedAuthorsList);
+    const isSuggestAuthorsListVisible = computed(
+      () => searchStore.isSuggestAuthorsListVisible
+    );
     return {
       relatedAuthorsList,
+      isSuggestAuthorsListVisible,
     };
   },
 };
