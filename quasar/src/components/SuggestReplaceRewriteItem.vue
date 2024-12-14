@@ -6,9 +6,9 @@
       @click.prevent="searchRewritedQuery(rewriteString)"
       >{{ rewriteString }}
     </a>
-    <span class="suggest-replace-rewrite-index" v-if="isShowRewriteIndex">{{
-      index + 1
-    }}</span>
+    <span class="suggest-replace-rewrite-index" v-if="isShowRewriteIndex">
+      {{ isRewrited ? index + 1 : '解析中' }}
+    </span>
     <span class="suggest-replace-rewrite-sep" v-if="isShowRewriteSep"> </span>
   </span>
 </template>
@@ -22,6 +22,10 @@ export default {
     },
     index: {
       type: Number,
+      required: true,
+    },
+    isRewrited: {
+      type: Boolean,
       required: true,
     },
     isShowRewriteIndex: {

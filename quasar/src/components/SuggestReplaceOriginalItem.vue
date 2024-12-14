@@ -6,11 +6,15 @@
       @click.prevent="searchOriginalQuery"
       >{{ keywordsString }}
     </a>
-    <span class="suggest-replace-original-index">原文</span>
+    <span class="suggest-replace-original-index">
+      {{ isSuggestionsListVisible ? '原文' : '暂无结果' }}
+    </span>
   </span>
 </template>
 
 <script>
+import { computed } from 'vue';
+import { useSearchStore } from '../stores/searchStore';
 export default {
   props: {
     keywordsString: {
@@ -22,6 +26,15 @@ export default {
     searchOriginalQuery() {
       this.$emit('searchOriginalQuery');
     },
+  },
+  setup() {
+    const searchStore = useSearchStore();
+    const isSuggestionsListVisible = computed(
+      () => searchStore.isSuggestionsListVisible
+    );
+    return {
+      isSuggestionsListVisible,
+    };
   },
 };
 </script>

@@ -45,6 +45,9 @@ interface SuggestInfo {
 interface RewriteInfo {
     list: string[];
     tuples: [string, number][];
+    dict: { [key: string]: string };
+    query: string;
+    rewrited: boolean;
 }
 
 interface SuggestResultResponse {
@@ -158,7 +161,10 @@ export const useSearchStore = defineStore('search', {
         rewrite_info: (state) => {
             return state.suggestResultCache[state.query]?.rewrite_info || {
                 list: [state.query],
-                tuples: [[state.query, 1]]
+                tuples: [[state.query, 1]],
+                dict: {},
+                query: state.query,
+                rewrited: false
             };
         },
         isSuggestionsListVisible: (state) => {

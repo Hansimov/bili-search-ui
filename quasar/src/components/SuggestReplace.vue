@@ -5,6 +5,7 @@
         <SuggestReplaceRewriteItem
           :rewriteString="rewriteString"
           :index="index"
+          :isRewrited="isRewrited"
           :isShowRewriteIndex="isShowRewriteIndex"
           :isShowRewriteSep="isShowRewriteSepByIndex(index)"
           @searchRewritedQuery="searchRewritedQuery"
@@ -48,6 +49,7 @@ export default {
     );
     const rewritesList = computed(() => searchStore.rewrite_info?.list);
     const rewritesTuples = computed(() => searchStore.rewrite_info?.tuples);
+    const isRewrited = computed(() => searchStore.rewrite_info?.rewrited);
 
     const isOriginalInRewrites = computed(
       () =>
@@ -80,6 +82,7 @@ export default {
       keywordsString,
       rewritesList,
       rewritesTuples,
+      isRewrited,
       suggestResultCache,
       isOriginalInRewrites,
       isSuggestReplaceVisible,
