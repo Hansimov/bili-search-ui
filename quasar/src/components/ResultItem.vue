@@ -76,30 +76,30 @@ export default {
   methods: {
     highlightedTitle() {
       if (
-        this.result.merged_highlights &&
-        this.result.merged_highlights['title']
+        this.result.highlights?.merged &&
+        this.result.highlights?.merged['title']
       ) {
-        return this.result.merged_highlights['title'][0];
+        return this.result.highlights?.merged['title'][0];
       } else {
         return this.result.title;
       }
     },
     highlightedOwnerName() {
       if (
-        this.result.merged_highlights &&
-        this.result.merged_highlights['owner.name']
+        this.result.highlights?.merged &&
+        this.result.highlights?.merged['owner.name']
       ) {
-        return this.result.merged_highlights['owner.name'][0];
+        return this.result.highlights?.merged['owner.name'][0];
       } else {
         return this.result.owner.name;
       }
     },
     highlightedPubdateStr() {
       if (
-        this.result.common_highlights &&
-        this.result.common_highlights['pubdate_str']
+        this.result.highlights?.common &&
+        this.result.highlights?.common['pubdate_str']
       ) {
-        let pubdate_str = this.result.common_highlights['pubdate_str'][0];
+        let pubdate_str = this.result.highlights?.common['pubdate_str'][0];
         return pubdate_str.split(' ')[0];
       } else {
         return this.result.pubdate_str.slice(0, 10);

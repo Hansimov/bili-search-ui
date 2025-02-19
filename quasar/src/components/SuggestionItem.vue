@@ -44,20 +44,20 @@ export default {
   computed: {
     highlightedTitle() {
       if (
-        this.suggestion.merged_highlights &&
-        this.suggestion.merged_highlights.title
+        this.suggestion.highlights?.merged &&
+        this.suggestion.highlights?.merged.title
       ) {
-        return this.suggestion.merged_highlights.title[0];
+        return this.suggestion.highlights?.merged.title[0];
       } else {
         return this.suggestion.title;
       }
     },
     highlightedOwnerName() {
       if (
-        this.suggestion.merged_highlights &&
-        this.suggestion.merged_highlights['owner.name']
+        this.suggestion.highlights?.merged &&
+        this.suggestion.highlights?.merged['owner.name']
       ) {
-        return this.suggestion.merged_highlights['owner.name'][0];
+        return this.suggestion.highlights?.merged['owner.name'][0];
       } else {
         return this.suggestion.owner.name;
       }
