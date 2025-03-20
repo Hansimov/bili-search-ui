@@ -41,20 +41,19 @@ export default {
     const query = computed(() => searchStore.query);
     const suggestResultCache = computed(() => searchStore.suggestResultCache);
     const keywords = computed(
-      () => searchStore.suggestResultCache[query.value]?.query_info?.keywords
+      () =>
+        searchStore.suggestResultCache[query.value]?.query_info?.keywords_body
     );
     const keywordsString = computed(() => (keywords.value || []).join(' '));
     const filters = computed(
       () => searchStore.suggestResultCache[query.value]?.query_info?.filters
     );
-    const rewritesList = computed(() => searchStore.rewrite_info?.list);
-    const rewritesTuples = computed(() => searchStore.rewrite_info?.tuples);
+    const rewritesList = computed(
+      () => searchStore.rewrite_info?.rewrited_word_exprs
+    );
     const isRewrited = computed(() => searchStore.rewrite_info?.rewrited);
-
     const isOriginalInRewrites = computed(
-      () =>
-        rewritesList.value?.includes(keywordsString.value.toLowerCase()) ||
-        false
+      () => searchStore.rewrite_info?.is_original_in_rewrites || false
     );
     const isSuggestReplaceVisible = computed(
       () => searchStore.isSuggestReplaceVisible
@@ -81,7 +80,6 @@ export default {
     return {
       keywordsString,
       rewritesList,
-      rewritesTuples,
       isRewrited,
       suggestResultCache,
       isOriginalInRewrites,
