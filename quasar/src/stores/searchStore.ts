@@ -1,15 +1,22 @@
 import { defineStore } from 'pinia';
 
+// interface QueryInfoV1 {
+//     query: string;
+//     keywords: string[];
+//     keywords_body: string[];
+//     keywords_date: string[];
+//     filters: string[];
+//     filters_stat: string[];
+//     filters_date: string[];
+//     filters_uid: string[];
+//     filters_user: string[];
+// }
+
 interface QueryInfo {
     query: string;
-    keywords: string[];
+    words_expr: string;
     keywords_body: string[];
     keywords_date: string[];
-    filters: string[];
-    filters_stat: string[];
-    filters_date: string[];
-    filters_uid: string[];
-    filters_user: string[];
 }
 
 interface RelatedAuthor {
@@ -30,24 +37,43 @@ interface RelatedAuthorsListItem {
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface RelatedAuthorsList extends Array<RelatedAuthorsListItem> { }
 
+// interface SuggestInfoV1 {
+//     qword_hword_count: {
+//         [qword: string]: {
+//             [hword: string]: number;
+//         }
+//     };
+//     hword_qword_count: {
+//         [hwords_str: string]: number;
+//     };
+//     related_authors: RelatedAuthors
+// }
+
 interface SuggestInfo {
     qword_hword_count: {
         [qword: string]: {
             [hword: string]: number;
         }
     };
-    hword_qword_count: {
-        [hwords_str: string]: number;
+    hword_count_qword: {
+        [hword: string]: [number, string];
     };
+    group_replaces_count: [string[], number][];
     related_authors: RelatedAuthors
 }
 
+// interface RewriteInfoV1 {
+//     list: string[];
+//     tuples: [string, number][];
+//     dict: { [key: string]: string };
+//     query: string;
+//     rewrited: boolean;
+// }
+
 interface RewriteInfo {
-    list: string[];
-    tuples: [string, number][];
-    dict: { [key: string]: string };
-    query: string;
     rewrited: boolean;
+    is_original_in_rewrites: boolean;
+    rewrited_word_exprs: string[];
 }
 
 interface SuggestResultResponse {
@@ -160,11 +186,9 @@ export const useSearchStore = defineStore('search', {
         },
         rewrite_info: (state) => {
             return state.suggestResultCache[state.query]?.rewrite_info || {
-                list: [state.query],
-                tuples: [[state.query, 1]],
-                dict: {},
-                query: state.query,
-                rewrited: false
+                rewrited: false,
+                is_original_in_rewrites: false,
+                rewrited_word_exprs: [],
             };
         },
         isSuggestionsListVisible: (state) => {
