@@ -24,9 +24,7 @@
       </q-item-section>
       <q-item-section side class="suggestion-tname-pubdate">
         <span class="suggestion-tname">{{ suggestion.tname }}</span>
-        <span class="suggestion-pubdate">{{
-          suggestion.pubdate_str.slice(0, 10)
-        }}</span>
+        <span class="suggestion-pubdate">{{ highlightedPubdateStr }}</span>
       </q-item-section>
     </q-item>
   </a>
@@ -34,6 +32,7 @@
 
 <script>
 import { humanReadableNumber } from 'src/utils/convert';
+import { tsToYmd } from 'src/utils/convert';
 export default {
   props: {
     suggestion: {
@@ -61,6 +60,9 @@ export default {
       } else {
         return this.suggestion.owner.name;
       }
+    },
+    highlightedPubdateStr() {
+      return tsToYmd(this.suggestion.pubdate);
     },
   },
   setup() {

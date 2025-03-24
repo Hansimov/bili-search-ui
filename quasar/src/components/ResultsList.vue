@@ -81,7 +81,7 @@ export default {
         icon: 'fa-solid fa-check',
       },
       {
-        field: 'pubdate_str',
+        field: 'pubdate',
         order: 'desc',
         label: '最新发布',
         icon: 'fa-regular fa-clock',

@@ -65,7 +65,7 @@
         </q-item-label>
       </q-item-section>
       <q-item-section side v-if="$q.screen.gt.xs">
-        <q-item-label>{{ videoInfo?.pubdate_str }} </q-item-label>
+        <q-item-label>{{ tsToYmd(videoInfo?.pubdate) }} </q-item-label>
       </q-item-section>
     </q-item>
     <q-video
@@ -136,7 +136,7 @@
 <script>
 import { api } from 'boot/axios';
 import constants from '../stores/constants.json';
-import { humanReadableNumber } from 'src/utils/convert';
+import { humanReadableNumber, tsToYmd } from 'src/utils/convert';
 
 export default {
   props: {
@@ -161,6 +161,7 @@ export default {
       }
     },
     humanReadableNumber,
+    tsToYmd,
   },
   mounted() {
     this.fetchVideoInfo();

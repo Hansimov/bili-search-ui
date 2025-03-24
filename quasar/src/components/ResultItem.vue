@@ -19,7 +19,7 @@
             {{ result?.score.toFixed(1) }}
           </span>
           <span class="text-caption absolute-top text-right result-tname">
-            {{ result?.tname }}
+            {{ getRegionName() }}
           </span>
           <span class="text-caption absolute-bottom text-left result-view">
             <q-icon name="fa-regular fa-play-circle"></q-icon>
@@ -58,7 +58,11 @@
 
 <script>
 import constants from '../stores/constants.json';
-import { humanReadableNumber, secondsToDuration } from 'src/utils/convert';
+import {
+  humanReadableNumber,
+  secondsToDuration,
+  tsToYmd,
+} from 'src/utils/convert';
 
 export default {
   props: {
@@ -95,18 +99,13 @@ export default {
       }
     },
     highlightedPubdateStr() {
-      if (
-        this.result.highlights?.common &&
-        this.result.highlights?.common['pubdate_str']
-      ) {
-        let pubdate_str = this.result.highlights?.common['pubdate_str'][0];
-        return pubdate_str.split(' ')[0];
-      } else {
-        return this.result.pubdate_str.slice(0, 10);
-      }
+      return tsToYmd(this.result.pubdate);
     },
     humanReadableNumber,
     secondsToDuration,
+    getRegionName() {
+      return this.result.tid;
+    },
   },
 };
 </script>

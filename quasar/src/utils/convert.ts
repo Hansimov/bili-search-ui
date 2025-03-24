@@ -6,8 +6,16 @@ export function humanReadableNumber(num: number): string {
     }
 }
 
+export function intToIso(num: number): string {
+    return new Date(num * 1000).toISOString();
+}
+
 export function secondsToDuration(seconds: number): string {
     // https://stackoverflow.com/questions/1322732/convert-seconds-to-hh-mm-ss-with-javascript
     const start_idx = seconds < 3600 ? 14 : 11;
-    return new Date(seconds * 1000).toISOString().substring(start_idx, 19);
+    return intToIso(seconds).substring(start_idx, 19);
+}
+
+export function tsToYmd(ts: number): string {
+    return intToIso(ts).slice(0, 10);
 }
