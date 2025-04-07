@@ -6,8 +6,21 @@ export function humanReadableNumber(num: number): string {
     }
 }
 
+const localeArgs: Intl.LocalesArgument = 'zh-CN';
+const localeOptions: Intl.DateTimeFormatOptions = {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+}
+
 export function intToIso(num: number): string {
-    return new Date(num * 1000).toISOString();
+    // return new Date(num * 1000).toISOString();
+    return new Date(num * 1000).toLocaleString(localeArgs, localeOptions);
 }
 
 export function secondsToDuration(seconds: number): string {
