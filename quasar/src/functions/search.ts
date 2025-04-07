@@ -70,7 +70,19 @@ export const randomSuggest = async () => {
     }
 };
 
-export const submitQuery = async (queryValue: string, router: Router, isFromURL = false, setSearchStoreQuery = true, isReplaceKeywords = true) => {
+export const submitQuery = async ({
+    queryValue,
+    router,
+    isFromURL = false,
+    setSearchStoreQuery = true,
+    // isReplaceKeywords = true
+}: {
+    queryValue: string,
+    router: Router,
+    isFromURL?: boolean,
+    setSearchStoreQuery?: boolean,
+    isReplaceKeywords?: boolean
+}) => {
     const searchStore = useSearchStore();
     searchStore.setIsSuggestVisible(false);
     if (queryValue) {
@@ -78,7 +90,7 @@ export const submitQuery = async (queryValue: string, router: Router, isFromURL 
             searchStore.setQuery(queryValue);
         }
         if (!isFromURL) {
-            const newRoute = `/search?q=${queryValue}`;
+            const newRoute = `/search?q=${encodeURIComponent(queryValue)}`;
             if (router.currentRoute.value.path !== newRoute) {
                 await router.push(newRoute);
             }
@@ -88,22 +100,22 @@ export const submitQuery = async (queryValue: string, router: Router, isFromURL 
             searchAbortController.abort();
             searchAbortController = new AbortController();
 
-            let cachedSuggest = searchStore.suggestResultCache[queryValue];
-            if (!cachedSuggest) {
-                await suggest(queryValue, false, setSearchStoreQuery);
-                cachedSuggest = searchStore.suggestResultCache[queryValue];
-            }
+            // let cachedSuggest = searchStore.suggestResultCache[queryValue];
+            // if (!cachedSuggest) {
+            //     await suggest(queryValue, false, setSearchStoreQuery);
+            //     cachedSuggest = searchStore.suggestResultCache[queryValue];
+            // }
 
-            let suggestInfo = {};
-            if (isReplaceKeywords && cachedSuggest && Object.keys(cachedSuggest).length > 0) {
-                suggestInfo = cachedSuggest?.suggest_info || {};
-            }
+            // let suggestInfo = {};
+            // if (isReplaceKeywords && cachedSuggest && Object.keys(cachedSuggest).length > 0) {
+            //     suggestInfo = cachedSuggest?.suggest_info || {};
+            // }
 
             const response = await api.post(
                 '/search',
                 {
                     query: queryValue,
-                    suggest_info: suggestInfo,
+                    // suggest_info: suggestInfo,
                     limit: 200,
                 },
                 { signal: searchAbortController.signal }

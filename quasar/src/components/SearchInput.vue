@@ -7,10 +7,10 @@
       :placeholder="searchInputPlaceholder"
       type="search"
       v-model="query"
-      @update:model-value="suggest"
       @focus="handleFocus"
       @blur="handleBlur"
       @keyup.enter="submitQueryInInput(false)"
+      @update:model-value="handleInputComplete"
     >
       <template v-slot:prepend>
         <q-btn unelevated class="q-px-none">
@@ -62,6 +62,8 @@ export default {
       }
     };
 
+    const handleInputComplete = () => undefined;
+
     onMounted(() => {
       document.addEventListener('click', handleGlobalClick);
     });
@@ -71,7 +73,11 @@ export default {
     });
 
     const submitQueryInInput = async (isFromURL = false) => {
-      await submitQuery(query.value, router, isFromURL);
+      await submitQuery({
+        queryValue: query.value,
+        router: router,
+        isFromURL: isFromURL,
+      });
     };
 
     if (query.value) {
@@ -97,6 +103,7 @@ export default {
       handleFocus,
       handleBlur,
       suggest,
+      handleInputComplete,
       randomSuggest,
       submitQueryInInput,
       searchInputPlaceholder,

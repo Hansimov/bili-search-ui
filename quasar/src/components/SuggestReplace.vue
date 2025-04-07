@@ -69,12 +69,24 @@ export default {
     );
 
     const searchOriginalQuery = () => {
-      submitQuery(query.value, router, false, true, false);
+      submitQuery({
+        queryValue: query.value,
+        router: router,
+        isFromURL: false,
+        setSearchStoreQuery: true,
+        // isReplaceKeywords: false,
+      });
     };
     const searchRewritedQuery = (rewriteString) => {
       const filtersString = (filters.value || []).join(' ');
-      const rewriteQuery = `${rewriteString} ${filtersString}`.trim();
-      submitQuery(rewriteQuery, router, false, true, false);
+      const rewriteQueryValue = `${rewriteString} ${filtersString}`.trim();
+      submitQuery({
+        queryValue: rewriteQueryValue,
+        router: router,
+        isFromURL: false,
+        setSearchStoreQuery: true,
+        // isReplaceKeywords: false,
+      });
     };
 
     return {

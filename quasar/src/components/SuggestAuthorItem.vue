@@ -38,7 +38,12 @@ export default {
     const router = useRouter();
     const onAuthorClick = () => {
       const queryValue = `@${props.authorName}`;
-      submitQuery(queryValue, router, false, false);
+      submitQuery({
+        queryValue: queryValue,
+        router: router,
+        isFromURL: false,
+        setSearchStoreQuery: false,
+      });
     };
     return {
       onAuthorClick,
