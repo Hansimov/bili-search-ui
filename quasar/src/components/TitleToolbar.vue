@@ -1,5 +1,7 @@
 <template>
   <q-toolbar>
+    <search-records-list-switch />
+    <q-space />
     <router-link to="/">
       <q-toolbar-title>blbl.top</q-toolbar-title>
     </router-link>
@@ -10,6 +12,7 @@
 
 <script setup lang="ts">
 import DarkSwitch from 'components/DarkSwitch.vue';
+import SearchRecordsListSwitch from 'components/SearchRecordsListSwitch.vue';
 </script>
 
 <style lang="scss">
