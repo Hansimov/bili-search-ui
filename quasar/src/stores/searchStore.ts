@@ -12,6 +12,10 @@ import { defineStore } from 'pinia';
 //     filters_user: string[];
 // }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Dict = Record<string, any>;
+type DictList = Dict[];
+
 interface QueryInfo {
     query: string;
     words_expr: string;
@@ -76,11 +80,12 @@ interface RewriteInfo {
     rewrited_word_exprs: string[];
 }
 
+
 interface SuggestResultResponse {
     detail_level: number;
     return_hits: number;
     total_hits: number;
-    hits: string[];
+    hits: DictList;
     suggest_info: SuggestInfo;
     query_info: QueryInfo;
     rewrite_info: RewriteInfo;
@@ -90,14 +95,14 @@ interface SearchResultResponse {
     detail_level: number;
     return_hits: number;
     total_hits: number;
-    hits: string[];
+    hits: DictList;
     suggest_info: SuggestInfo;
     query_info: QueryInfo;
     rewrite_info: RewriteInfo;
 }
 
 interface AiSuggestResultResponse {
-    choices: string[];
+    choices: DictList;
 }
 
 interface SuggestResultCache {
@@ -124,9 +129,9 @@ interface SearchState {
     suggestResultCache: SuggestResultCache;
     aiSuggestResultCache: AiSuggestResultCache;
     rewrite_info: RewriteInfo;
-    suggestions: string[];
+    suggestions: DictList;
     relatedAuthorsList: RelatedAuthorsList;
-    aiSuggestions: string[];
+    aiSuggestions: DictList;
     isSuggestVisible: boolean;
     isAiSuggestVisible: boolean;
     isAiChatVisible: boolean;
@@ -225,10 +230,10 @@ export const useSearchStore = defineStore('search', {
             this.aiSuggestResultCache[query] = newAiSuggestResult;
             console.log('Ai suggest result:', newAiSuggestResult);
         },
-        setSuggestions(newSuggestions: string[]) {
+        setSuggestions(newSuggestions: DictList) {
             this.suggestions = newSuggestions;
         },
-        setAiSuggestions(newAiSuggestions: string[]) {
+        setAiSuggestions(newAiSuggestions: DictList) {
             this.aiSuggestions = newAiSuggestions;
         },
         setIsSuggestVisible(newVisibility: boolean) {
