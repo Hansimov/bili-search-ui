@@ -44,7 +44,7 @@
       </q-menu>
     </q-btn>
   </div>
-  <div :class="resultsListClass">
+  <div :class="resultsListClass" :style="dynamicListStyle">
     <div v-for="(result, index) in paginatedResults" :key="index">
       <ResultItem :result="result" />
     </div>
@@ -61,6 +61,7 @@
 <script>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useSearchStore } from '../stores/searchStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
 import ResultItem from './ResultItem.vue';
 import ResultsPagination from './ResultsPagination.vue';
 
@@ -71,6 +72,7 @@ export default {
   },
   setup() {
     const searchStore = useSearchStore();
+    const layoutStore = useLayoutStore();
     const searchResultDict = computed(() => searchStore.searchResultDict);
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
     const resultsSortMethods = ref([
@@ -123,6 +125,12 @@ export default {
       return searchResultDict.value.hits.slice(start, end);
     });
 
+    function isReturnResultsLessThanTotal() {
+      return (
+        searchResultDict.value.return_hits < searchResultDict.value.total_hits
+      );
+    }
+
     function sortResults(method) {
       searchStore.setResultsSortMethod(method);
       resultsSortMethod.value = method;
@@ -143,23 +151,23 @@ export default {
       currentPage.value = 1;
     });
 
-    const isSmallScreen = ref(window.innerWidth <= 520);
-    const resultsListClass = ref(
+    const isSmallScreen = computed(() => {
+      return layoutStore.isSmallScreen();
+    });
+    const resultsListClass = computed(() =>
       isSmallScreen.value
         ? 'q-gutter-none results-list'
         : 'q-gutter-xs results-list'
     );
-    const updateScreenSize = () => {
-      isSmallScreen.value = window.innerWidth <= 520;
-      resultsListClass.value = isSmallScreen.value
-        ? 'q-gutter-none results-list'
-        : 'q-gutter-xs results-list';
-    };
+    const dynamicListStyle = computed(() => {
+      return layoutStore.dynamicResultsListStyle();
+    });
+
     onMounted(() => {
-      window.addEventListener('resize', updateScreenSize);
+      layoutStore.addWindowResizeListener();
     });
     onUnmounted(() => {
-      window.removeEventListener('resize', updateScreenSize);
+      layoutStore.removeWindowResizeListener();
     });
 
     return {
@@ -170,16 +178,10 @@ export default {
       currentPage,
       totalPages,
       paginatedResults,
-      isSmallScreen,
       resultsListClass,
+      dynamicListStyle,
+      isReturnResultsLessThanTotal,
     };
-  },
-  methods: {
-    isReturnResultsLessThanTotal() {
-      return (
-        this.searchResultDict.return_hits < this.searchResultDict.total_hits
-      );
-    },
   },
 };
 </script>
@@ -211,7 +213,7 @@ export default {
     auto-fill,
     minmax(var(--result-item-width), 1fr)
   );
-  max-width: min(1280px, 95vw);
+  /* Note: max-width is now dynamically applied via inline styles */
   max-height: calc(100vh - 200px);
   overflow-y: scroll;
   overflow-x: hidden;
