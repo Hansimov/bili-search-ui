@@ -3,9 +3,9 @@
 </template>
 
 <script setup lang="ts">
-import { useRecordsStore } from 'src/stores/recordsStore';
-const recordsStore = useRecordsStore();
+import { useLayoutStore } from 'src/stores/layoutStore';
+const layoutStore = useLayoutStore();
 const toggleSearchRecordsList = () => {
-  recordsStore.toggleSearchRecordsList();
+  layoutStore.toggleSearchRecordsList();
 };
 </script>

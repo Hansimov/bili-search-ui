@@ -1,5 +1,5 @@
 <template>
-  <q-drawer v-model="recordsStore.isSearchRecordsVisible" :width="drawerWidth">
+  <q-drawer v-model="layoutStore.isSearchRecordsVisible" :width="drawerWidth">
     <q-scroll-area class="fit" side="left">
       <q-list>
         <q-item
@@ -20,15 +20,20 @@
 </template>
 
 <script setup lang="ts">
-import { useRecordsStore } from 'src/stores/recordsStore';
+import { ref, watch } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
-import { ref } from 'vue';
+import { useLayoutStore } from 'src/stores/layoutStore';
 import { TouchPanValue } from 'quasar';
 
-const recordsStore = useRecordsStore();
 const searchStore = useSearchStore();
+const layoutStore = useLayoutStore();
 
 const drawerWidth = ref(300);
+layoutStore.updateDrawerWidth(drawerWidth.value);
+watch(drawerWidth, (newWidth) => {
+  layoutStore.updateDrawerWidth(newWidth);
+});
+
 let initDrawerWidth: number;
 const resizeDrawer: TouchPanValue = (evt) => {
   if (evt.isFirst) {
