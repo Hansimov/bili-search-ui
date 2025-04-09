@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { TouchPanValue } from 'quasar';
@@ -28,19 +28,16 @@ import { TouchPanValue } from 'quasar';
 const searchStore = useSearchStore();
 const layoutStore = useLayoutStore();
 
-const drawerWidth = ref(300);
-layoutStore.updateDrawerWidth(drawerWidth.value);
-watch(drawerWidth, (newWidth) => {
-  layoutStore.updateDrawerWidth(newWidth);
+const drawerWidth = computed(() => {
+  return layoutStore.searchRecordsListWidth;
 });
-
 let initDrawerWidth: number;
 const resizeDrawer: TouchPanValue = (evt) => {
   if (evt.isFirst) {
     initDrawerWidth = drawerWidth.value;
   }
   if (typeof evt.offset?.x === 'number') {
-    drawerWidth.value = initDrawerWidth + evt.offset.x;
+    layoutStore.updateDrawerWidth(initDrawerWidth + evt.offset.x);
   }
 };
 </script>

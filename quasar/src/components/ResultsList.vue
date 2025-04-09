@@ -44,7 +44,7 @@
       </q-menu>
     </q-btn>
   </div>
-  <div :class="resultsListClass" :style="dynamicListStyle">
+  <div :class="dynamicResultsListClass" :style="dynamicResultsListStyle">
     <div v-for="(result, index) in paginatedResults" :key="index">
       <ResultItem :result="result" />
     </div>
@@ -151,15 +151,10 @@ export default {
       currentPage.value = 1;
     });
 
-    const isSmallScreen = computed(() => {
-      return layoutStore.isSmallScreen();
+    const dynamicResultsListClass = computed(() => {
+      return layoutStore.dynamicResultsListClass();
     });
-    const resultsListClass = computed(() =>
-      isSmallScreen.value
-        ? 'q-gutter-none results-list'
-        : 'q-gutter-xs results-list'
-    );
-    const dynamicListStyle = computed(() => {
+    const dynamicResultsListStyle = computed(() => {
       return layoutStore.dynamicResultsListStyle();
     });
 
@@ -178,8 +173,8 @@ export default {
       currentPage,
       totalPages,
       paginatedResults,
-      resultsListClass,
-      dynamicListStyle,
+      dynamicResultsListClass,
+      dynamicResultsListStyle,
       isReturnResultsLessThanTotal,
     };
   },

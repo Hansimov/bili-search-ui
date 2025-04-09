@@ -32,6 +32,13 @@ export const useLayoutStore = defineStore('layout', {
         isSmallScreen() {
             return this.availableContentWidth() < 520;
         },
+        dynamicResultsListClass() {
+            if (this.isSmallScreen()) {
+                return 'q-gutter-none results-list';
+            } else {
+                return 'q-gutter-xs results-list';
+            }
+        },
         dynamicResultsListStyle() {
             return {
                 maxWidth: `${Math.min(this.availableContentWidth(), 1280)}px`,
