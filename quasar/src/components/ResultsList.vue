@@ -11,7 +11,7 @@
         }}</span
       >
     </div>
-    <div class="results-paginate-top" v-if="$q.screen.gt.sm">
+    <div class="results-paginate-top" v-if="!isCollapsePaginate">
       <ResultsPagination
         :currentPage="currentPage"
         :totalPages="totalPages"
@@ -151,6 +151,9 @@ export default {
       currentPage.value = 1;
     });
 
+    const isCollapsePaginate = computed(() => {
+      return layoutStore.isCollapsePaginate();
+    });
     const dynamicResultsListClass = computed(() => {
       return layoutStore.dynamicResultsListClass();
     });
@@ -173,6 +176,7 @@ export default {
       currentPage,
       totalPages,
       paginatedResults,
+      isCollapsePaginate,
       dynamicResultsListClass,
       dynamicResultsListStyle,
       isReturnResultsLessThanTotal,

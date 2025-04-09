@@ -3,7 +3,7 @@
 /* Root setting used by result title */
 :root {
   --search-input-width: 780px;
-  --search-input-max-width: 95vw;
+  /* --search-input-max-width: 95vw; */ /* already dynamicly calced in layoutStore.ts */
   --search-input-width-more: 6px;
   --result-title-font-size: 1em;
   --result-title-line-height: calc(1.5 * var(--result-title-font-size));
