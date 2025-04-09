@@ -99,7 +99,7 @@ export default {
       }
     },
     highlightedPubdateStr() {
-      return tsToYmd(this.result.pubdate);
+      return tsToYmd(this.result?.pubdate);
     },
     humanReadableNumber,
     secondsToDuration,

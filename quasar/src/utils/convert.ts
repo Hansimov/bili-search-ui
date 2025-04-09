@@ -20,7 +20,11 @@ const localeOptions: Intl.DateTimeFormatOptions = {
 
 export function intToIso(num: number): string {
     // return new Date(num * 1000).toISOString();
-    return new Date(num * 1000).toLocaleString(localeArgs, localeOptions);
+    try {
+        return new Date(num * 1000).toLocaleString(localeArgs, localeOptions);
+    } catch (e) {
+        return '1970-01-01 00:00:00';
+    }
 }
 
 export function secondsToDuration(seconds: number): string {

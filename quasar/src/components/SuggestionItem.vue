@@ -62,7 +62,7 @@ export default {
       }
     },
     highlightedPubdateStr() {
-      return tsToYmd(this.suggestion.pubdate);
+      return tsToYmd(this.suggestion?.pubdate);
     },
   },
   setup() {
