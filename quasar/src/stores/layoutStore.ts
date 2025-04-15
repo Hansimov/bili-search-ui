@@ -15,8 +15,14 @@ export const useLayoutStore = defineStore('layout', {
 
     }),
     actions: {
+        isDesktopMode() {
+            // https://quasar.dev/layout/drawer/
+            // screenWidth >= 1024: desktop
+            // screenWidth <= 1023: mobile
+            return this.screenWidth >= 1024;
+        },
         isSearchRecordsListHasWidth() {
-            return this.isSearchRecordsVisible && typeof this.searchRecordsListWidth === 'number';
+            return this.isSearchRecordsVisible && this.isDesktopMode() && typeof this.searchRecordsListWidth === 'number';
         },
         availableContentWidth() {
             if (this.isSearchRecordsListHasWidth()) {
