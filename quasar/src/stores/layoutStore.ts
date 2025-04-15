@@ -4,7 +4,15 @@ export const useLayoutStore = defineStore('layout', {
     state: () => ({
         isSearchRecordsVisible: false,
         screenWidth: window.innerWidth,
-        searchRecordsListWidth: 300
+        searchRecordsListWidth: 300,
+        isMouseInSearchBar: false,
+        isMouseInAiSearchToggle: false,
+        isSuggestVisible: false,
+        isAiSuggestVisible: false,
+        isAiChatVisible: false,
+        isSearchOptionsBarVisible: true,
+        activeTab: 'videos',
+
     }),
     actions: {
         isSearchRecordsListHasWidth() {
@@ -63,6 +71,27 @@ export const useLayoutStore = defineStore('layout', {
             return {
                 maxWidth: `${Math.min(this.availableContentWidth(), 1280)}px`,
             }
-        }
+        },
+        setIsMouseInSearchBar(newIsMouseInSearchBar: boolean) {
+            this.isMouseInSearchBar = newIsMouseInSearchBar;
+        },
+        setIsMouseInAiSearchToggle(newIsMouseInAiSearchToggle: boolean) {
+            this.isMouseInAiSearchToggle = newIsMouseInAiSearchToggle;
+        },
+        setIsSuggestVisible(newVisibility: boolean) {
+            this.isSuggestVisible = newVisibility;
+        },
+        setIsAiSuggestVisible(newVisibility: boolean) {
+            this.isAiSuggestVisible = newVisibility;
+        },
+        setIsAiChatVisible(newVisibility: boolean) {
+            this.isAiChatVisible = newVisibility;
+        },
+        toggleSearchOptionsBarVisibility() {
+            this.isSearchOptionsBarVisible = !this.isSearchOptionsBarVisible;
+        },
+        setActiveTab(newActiveTab: string) {
+            this.activeTab = newActiveTab;
+        },
     },
 });

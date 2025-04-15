@@ -1,12 +1,14 @@
 import { api } from 'boot/axios';
 import { Router } from 'vue-router';
-import { useSearchStore } from '../stores/searchStore';
-import { debounce } from '../utils/time';
+import { useSearchStore } from 'src/stores/searchStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
+import { debounce } from 'src/utils/time';
 
 let suggestAbortController = new AbortController();
 let searchAbortController = new AbortController();
 const SUGGEST_DEBOUNCE_INTERVAL = 150; // milliseconds
 const searchStore = useSearchStore();
+const layoutStore = useLayoutStore();
 
 export const suggestRequest = async (newVal: string, suggestAbortController: AbortController) => {
     if (newVal) {
@@ -37,8 +39,8 @@ export const suggest = async (newVal: string, showSuggestions = true, setSearchS
         searchStore.setQuery(newVal);
     }
 
-    if (showSuggestions && !searchStore.isSuggestVisible) {
-        searchStore.setIsSuggestVisible(true);
+    if (showSuggestions && !layoutStore.isSuggestVisible) {
+        layoutStore.setIsSuggestVisible(true);
     }
 
     suggestAbortController.abort();
@@ -56,7 +58,6 @@ export const suggest = async (newVal: string, showSuggestions = true, setSearchS
 };
 
 export const randomSuggest = async () => {
-    const searchStore = useSearchStore();
     try {
         console.log('> Getting random suggestions ...');
         const randomSuggestResponse = await api.post('/random', {
@@ -83,8 +84,7 @@ export const submitQuery = async ({
     setSearchStoreQuery?: boolean,
     isReplaceKeywords?: boolean
 }) => {
-    const searchStore = useSearchStore();
-    searchStore.setIsSuggestVisible(false);
+    layoutStore.setIsSuggestVisible(false);
     if (queryValue) {
         if (setSearchStoreQuery) {
             searchStore.setQuery(queryValue);

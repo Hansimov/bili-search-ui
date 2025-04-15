@@ -14,16 +14,16 @@
 
 <script>
 import { ref } from 'vue';
-import { useSearchStore } from '../stores/searchStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
 
 export default {
   setup() {
-    const searchStore = useSearchStore();
+    const layoutStore = useLayoutStore();
     const updateTab = (newActiveTab) => {
-      searchStore.setActiveTab(newActiveTab);
+      layoutStore.setActiveTab(newActiveTab);
     };
     return {
-      activeTab: ref(searchStore.activeTab || 'videos'),
+      activeTab: ref(layoutStore.activeTab || 'videos'),
       updateTab,
     };
   },

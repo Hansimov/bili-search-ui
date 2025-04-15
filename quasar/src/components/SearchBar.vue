@@ -59,7 +59,8 @@
 <script>
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { useSearchStore } from '../stores/searchStore';
+import { useSearchStore } from 'src/stores/searchStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
 import SearchInput from './SearchInput.vue';
 import SearchOptionsBar from './SearchOptionsBar.vue';
 import SuggestAuthorsList from './SuggestAuthorsList.vue';
@@ -84,9 +85,10 @@ export default {
   },
   setup() {
     const searchStore = useSearchStore();
+    const layoutStore = useLayoutStore();
     const isQueryEmpty = computed(() => searchStore.isQueryEmpty);
     const isEnableAiSearch = computed(() => searchStore.isEnableAiSearch);
-    const isSuggestVisible = computed(() => searchStore.isSuggestVisible);
+    const isSuggestVisible = computed(() => layoutStore.isSuggestVisible);
     const isSuggestionsListVisible = computed(
       () => searchStore.isSuggestionsListVisible
     );
@@ -96,14 +98,14 @@ export default {
     const isSuggestAuthorsListVisible = computed(
       () => searchStore.isSuggestAuthorsListVisible
     );
-    const isAiChatVisible = computed(() => searchStore.isAiChatVisible);
+    const isAiChatVisible = computed(() => layoutStore.isAiChatVisible);
     const $route = useRoute();
     const isIndexRoute = computed(() => $route.path === '/');
     const mouseEnter = () => {
-      searchStore.setIsMouseInSearchBar(true);
+      layoutStore.setIsMouseInSearchBar(true);
     };
     const mouseLeave = () => {
-      searchStore.setIsMouseInSearchBar(false);
+      layoutStore.setIsMouseInSearchBar(false);
     };
     return {
       mouseEnter,

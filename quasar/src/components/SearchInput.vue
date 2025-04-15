@@ -24,28 +24,30 @@
 <script>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useSearchStore } from '../stores/searchStore';
-import { suggest, randomSuggest, submitQuery } from '../functions/search';
+import { useSearchStore } from 'src/stores/searchStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
+import { suggest, randomSuggest, submitQuery } from 'src/functions/search';
 
 export default {
   setup() {
     const searchStore = useSearchStore();
+    const layoutStore = useLayoutStore();
     const route = useRoute();
     const router = useRouter();
     const query = ref(searchStore.query || route.query.q || '');
 
     const handleBlur = () => {
-      if (!searchStore.isMouseInSearchBar) {
-        searchStore.setIsSuggestVisible(false);
+      if (!layoutStore.isMouseInSearchBar) {
+        layoutStore.setIsSuggestVisible(false);
       }
     };
 
     const handleFocus = async () => {
       if (
-        !searchStore.isSuggestVisible &&
-        !searchStore.isMouseInAiSearchToggle
+        !layoutStore.isSuggestVisible &&
+        !layoutStore.isMouseInAiSearchToggle
       ) {
-        searchStore.setIsSuggestVisible(true);
+        layoutStore.setIsSuggestVisible(true);
       }
       if (!query.value) {
         randomSuggest();
@@ -57,8 +59,8 @@ export default {
     };
 
     const handleGlobalClick = () => {
-      if (!searchStore.isMouseInSearchBar) {
-        searchStore.setIsSuggestVisible(false);
+      if (!layoutStore.isMouseInSearchBar) {
+        layoutStore.setIsSuggestVisible(false);
       }
     };
 

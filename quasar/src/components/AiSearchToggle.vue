@@ -28,11 +28,13 @@
 
 <script>
 import { computed } from 'vue';
-import { useSearchStore } from '../stores/searchStore';
+import { useSearchStore } from 'src/stores/searchStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
 
 export default {
   setup() {
     const searchStore = useSearchStore();
+    const layoutStore = useLayoutStore();
     const isEnableAiSearch = computed({
       get: () => searchStore.isEnableAiSearch,
       set: (val) => {
@@ -40,10 +42,10 @@ export default {
       },
     });
     const mouseEnter = () => {
-      searchStore.setIsMouseInAiSearchToggle(true);
+      layoutStore.setIsMouseInAiSearchToggle(true);
     };
     const mouseLeave = () => {
-      searchStore.setIsMouseInAiSearchToggle(false);
+      layoutStore.setIsMouseInAiSearchToggle(false);
     };
     return {
       isEnableAiSearch,

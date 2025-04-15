@@ -25,32 +25,34 @@
 <script>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
-import { useSearchStore } from '../stores/searchStore';
-import { useAiChatStore } from '../stores/aiChatStore';
-import { aiSuggest, submitAiQuery } from '../functions/ai';
+import { useSearchStore } from 'src/stores/searchStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
+import { useAiChatStore } from 'src/stores/aiChatStore';
+import { aiSuggest, submitAiQuery } from 'src/functions/ai';
 
 export default {
   setup() {
     const searchStore = useSearchStore();
+    const layoutStore = useLayoutStore();
     const aiChatStore = useAiChatStore();
     const aiQuery = ref(searchStore.aiQuery || '');
     const router = useRouter();
 
     const handleFocus = async () => {
       if (
-        !searchStore.isAiChatVisible &&
-        !searchStore.isMouseInAiSearchToggle
+        !layoutStore.isAiChatVisible &&
+        !layoutStore.isMouseInAiSearchToggle
       ) {
-        searchStore.setIsAiChatVisible(true);
+        layoutStore.setIsAiChatVisible(true);
       }
     };
 
     const handleGlobalClick = () => {
       if (
-        !searchStore.isMouseInSearchBar &&
+        !layoutStore.isMouseInSearchBar &&
         !aiChatStore.aiChatMessages.length
       ) {
-        searchStore.setIsAiChatVisible(false);
+        layoutStore.setIsAiChatVisible(false);
       }
     };
 

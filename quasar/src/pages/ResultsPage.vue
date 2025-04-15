@@ -22,7 +22,7 @@
 
 <script>
 import { computed } from 'vue';
-import { useSearchStore } from 'src/stores/searchStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
 import ResultsList from 'src/components/ResultsList.vue';
 
 export default {
@@ -30,9 +30,9 @@ export default {
     ResultsList,
   },
   setup() {
-    const searchStore = useSearchStore();
+    const layoutStore = useLayoutStore();
     return {
-      activeTab: computed(() => searchStore.activeTab || 'videos'),
+      activeTab: computed(() => layoutStore.activeTab || 'videos'),
     };
   },
 };

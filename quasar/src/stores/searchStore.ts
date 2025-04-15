@@ -123,8 +123,6 @@ interface ResultsSortMethod {
 interface SearchState {
     query: string;
     aiQuery: string;
-    isMouseInSearchBar: boolean;
-    isMouseInAiSearchToggle: boolean;
     suggestQuery: string;
     suggestResultCache: SuggestResultCache;
     aiSuggestResultCache: AiSuggestResultCache;
@@ -132,13 +130,8 @@ interface SearchState {
     suggestions: DictList;
     relatedAuthorsList: RelatedAuthorsList;
     aiSuggestions: DictList;
-    isSuggestVisible: boolean;
-    isAiSuggestVisible: boolean;
-    isAiChatVisible: boolean;
     searchResultDict: SearchResultResponse;
     isEnableAiSearch: boolean;
-    isSearchOptionsBarVisible: boolean;
-    activeTab: string;
     resultsSortMethod: ResultsSortMethod;
 }
 
@@ -157,11 +150,6 @@ export const useSearchStore = defineStore('search', {
     state: (): SearchState => ({
         query: '',
         aiQuery: '',
-        isMouseInSearchBar: false,
-        isMouseInAiSearchToggle: false,
-        isSuggestVisible: false,
-        isAiSuggestVisible: false,
-        isAiChatVisible: false,
         suggestQuery: '',
         suggestResultCache: {} as SuggestResultCache,
         aiSuggestResultCache: {} as AiSuggestResultCache,
@@ -179,8 +167,6 @@ export const useSearchStore = defineStore('search', {
             rewrite_info: {} as RewriteInfo
         },
         isEnableAiSearch: JSON.parse(localStorage.getItem('isEnableAiSearch') || 'true'),
-        isSearchOptionsBarVisible: true,
-        activeTab: 'videos',
         resultsSortMethod: {
             field: 'score', order: 'desc', label: '综合排序', icon: 'fa-solid fa-check'
         }
@@ -236,21 +222,6 @@ export const useSearchStore = defineStore('search', {
         setAiSuggestions(newAiSuggestions: DictList) {
             this.aiSuggestions = newAiSuggestions;
         },
-        setIsSuggestVisible(newVisibility: boolean) {
-            this.isSuggestVisible = newVisibility;
-        },
-        setIsAiSuggestVisible(newVisibility: boolean) {
-            this.isAiSuggestVisible = newVisibility;
-        },
-        setIsAiChatVisible(newVisibility: boolean) {
-            this.isAiChatVisible = newVisibility;
-        },
-        setIsMouseInSearchBar(newIsMouseInSearchBar: boolean) {
-            this.isMouseInSearchBar = newIsMouseInSearchBar;
-        },
-        setIsMouseInAiSearchToggle(newIsMouseInAiSearchToggle: boolean) {
-            this.isMouseInAiSearchToggle = newIsMouseInAiSearchToggle;
-        },
         setQuery(newQuery: string) {
             this.query = newQuery;
         },
@@ -264,12 +235,6 @@ export const useSearchStore = defineStore('search', {
         setIsEnableAiSearch(newIsEnableAiSearch: boolean) {
             this.isEnableAiSearch = newIsEnableAiSearch;
             localStorage.setItem('isEnableAiSearch', JSON.stringify(newIsEnableAiSearch));
-        },
-        toggleSearchOptionsBarVisibility() {
-            this.isSearchOptionsBarVisible = !this.isSearchOptionsBarVisible;
-        },
-        setActiveTab(newActiveTab: string) {
-            this.activeTab = newActiveTab;
         },
         setResultsSortMethod(newResultsSortMethod: ResultsSortMethod) {
             this.resultsSortMethod = newResultsSortMethod;

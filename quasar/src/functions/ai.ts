@@ -1,9 +1,11 @@
-import { useSearchStore } from '../stores/searchStore';
-import { useAiChatStore } from '../stores/aiChatStore';
+import { useSearchStore } from 'src/stores/searchStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
+import { useAiChatStore } from 'src/stores/aiChatStore';
 import { Router } from 'vue-router';
 import { sendMessageToWebsocket } from './websocket';
 
 const searchStore = useSearchStore();
+const layoutStore = useLayoutStore();
 const aiChatStore = useAiChatStore();
 
 let aiSuggestAbortController = new AbortController();
@@ -14,8 +16,8 @@ export const aiSuggest = async (newVal: string, showAiSuggestions = true, setSea
         searchStore.setAiQuery(newVal);
     }
 
-    if (showAiSuggestions && !searchStore.isAiSuggestVisible) {
-        searchStore.setIsAiSuggestVisible(true);
+    if (showAiSuggestions && !layoutStore.isAiSuggestVisible) {
+        layoutStore.setIsAiSuggestVisible(true);
     }
 
     aiSuggestAbortController.abort();
@@ -49,8 +51,8 @@ export const aiSuggest = async (newVal: string, showAiSuggestions = true, setSea
 };
 
 export const submitAiQuery = async (aiQueryValue: string, router: Router, isFromURL = false, setSearchStoreAiQuery = true) => {
-    searchStore.setIsAiSuggestVisible(false);
-    searchStore.setIsAiChatVisible(true);
+    layoutStore.setIsAiSuggestVisible(false);
+    layoutStore.setIsAiChatVisible(true);
     aiChatStore.addMessage('user', aiQueryValue);
     aiChatStore.addMessage('assistant', '');
     if (aiQueryValue) {
