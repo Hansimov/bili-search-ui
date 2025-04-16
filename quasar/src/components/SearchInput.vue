@@ -26,7 +26,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
-import { suggest, randomSuggest, submitQuery } from 'src/functions/search';
+import { suggest, randomSuggest, explore } from 'src/functions/search';
 
 export default {
   setup() {
@@ -75,7 +75,7 @@ export default {
     });
 
     const submitQueryInInput = async (isFromURL = false) => {
-      await submitQuery({
+      await explore({
         queryValue: query.value,
         router: router,
         isFromURL: isFromURL,
