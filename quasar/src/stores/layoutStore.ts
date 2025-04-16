@@ -12,7 +12,6 @@ export const useLayoutStore = defineStore('layout', {
         isAiChatVisible: false,
         isSearchOptionsBarVisible: true,
         activeTab: 'videos',
-
     }),
     actions: {
         isDesktopMode() {

@@ -76,13 +76,11 @@ export const submitQuery = async ({
     router,
     isFromURL = false,
     setSearchStoreQuery = true,
-    // isReplaceKeywords = true
 }: {
     queryValue: string,
     router: Router,
     isFromURL?: boolean,
     setSearchStoreQuery?: boolean,
-    isReplaceKeywords?: boolean
 }) => {
     layoutStore.setIsSuggestVisible(false);
     if (queryValue) {

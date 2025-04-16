@@ -74,7 +74,6 @@ export default {
         router: router,
         isFromURL: false,
         setSearchStoreQuery: true,
-        // isReplaceKeywords: false,
       });
     };
     const searchRewritedQuery = (rewriteString) => {

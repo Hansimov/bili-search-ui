@@ -50,6 +50,7 @@ body.body--dark .search-bar-row {
   background: transparent;
   display: flex;
   justify-content: center;
+  overflow-x: hidden;
 }
 .ai-results-list,
 .graph-results-list {
