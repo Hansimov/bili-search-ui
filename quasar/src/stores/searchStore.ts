@@ -1,17 +1,5 @@
 import { defineStore } from 'pinia';
 
-// interface QueryInfoV1 {
-//     query: string;
-//     keywords: string[];
-//     keywords_body: string[];
-//     keywords_date: string[];
-//     filters: string[];
-//     filters_stat: string[];
-//     filters_date: string[];
-//     filters_uid: string[];
-//     filters_user: string[];
-// }
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Dict = Record<string, any>;
 type DictList = Dict[];
@@ -28,30 +16,15 @@ interface RelatedAuthor {
     count: number;
     highlighted?: boolean;
 }
-
 interface RelatedAuthors {
     [authorName: string]: RelatedAuthor;
 }
-
 interface RelatedAuthorsListItem {
     authorName: string;
     authorInfo: RelatedAuthor;
 }
-
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface RelatedAuthorsList extends Array<RelatedAuthorsListItem> { }
-
-// interface SuggestInfoV1 {
-//     qword_hword_count: {
-//         [qword: string]: {
-//             [hword: string]: number;
-//         }
-//     };
-//     hword_qword_count: {
-//         [hwords_str: string]: number;
-//     };
-//     related_authors: RelatedAuthors
-// }
 
 interface SuggestInfo {
     qword_hword_count: {
@@ -66,20 +39,11 @@ interface SuggestInfo {
     related_authors: RelatedAuthors
 }
 
-// interface RewriteInfoV1 {
-//     list: string[];
-//     tuples: [string, number][];
-//     dict: { [key: string]: string };
-//     query: string;
-//     rewrited: boolean;
-// }
-
 interface RewriteInfo {
     rewrited: boolean;
     is_original_in_rewrites: boolean;
     rewrited_word_exprs: string[];
 }
-
 
 interface SuggestResultResponse {
     detail_level: number;
@@ -120,21 +84,6 @@ interface ResultsSortMethod {
     icon: string;
 }
 
-interface SearchState {
-    query: string;
-    aiQuery: string;
-    suggestQuery: string;
-    suggestResultCache: SuggestResultCache;
-    aiSuggestResultCache: AiSuggestResultCache;
-    rewrite_info: RewriteInfo;
-    suggestions: DictList;
-    relatedAuthorsList: RelatedAuthorsList;
-    aiSuggestions: DictList;
-    searchResultDict: SearchResultResponse;
-    isEnableAiSearch: boolean;
-    resultsSortMethod: ResultsSortMethod;
-}
-
 export const sortAuthors = (a: RelatedAuthorsListItem, b: RelatedAuthorsListItem) => {
     const highlightedA = a.authorInfo.highlighted || false;
     const highlightedB = b.authorInfo.highlighted || false;
@@ -147,25 +96,17 @@ export const sortAuthors = (a: RelatedAuthorsListItem, b: RelatedAuthorsListItem
 };
 
 export const useSearchStore = defineStore('search', {
-    state: (): SearchState => ({
+    state: () => ({
         query: '',
         aiQuery: '',
         suggestQuery: '',
         suggestResultCache: {} as SuggestResultCache,
         aiSuggestResultCache: {} as AiSuggestResultCache,
-        suggestions: [],
+        suggestions: [] as DictList,
         rewrite_info: {} as RewriteInfo,
         relatedAuthorsList: [] as RelatedAuthorsList,
-        aiSuggestions: [],
-        searchResultDict: {
-            detail_level: 0,
-            hits: [],
-            return_hits: 0,
-            total_hits: 0,
-            suggest_info: {} as SuggestInfo,
-            query_info: {} as QueryInfo,
-            rewrite_info: {} as RewriteInfo
-        },
+        aiSuggestions: [] as DictList,
+        searchResultDict: {} as SearchResultResponse,
         isEnableAiSearch: JSON.parse(localStorage.getItem('isEnableAiSearch') || 'true'),
         resultsSortMethod: {
             field: 'score', order: 'desc', label: '综合排序', icon: 'fa-solid fa-check'

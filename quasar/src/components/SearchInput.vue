@@ -26,7 +26,8 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
-import { suggest, randomSuggest, explore } from 'src/functions/search';
+import { suggest, randomSuggest } from 'src/functions/search';
+import { explore } from 'src/functions/explore';
 
 export default {
   setup() {
