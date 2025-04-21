@@ -21,7 +21,14 @@ module.exports = configure(function (/* ctx */) {
     boot: ['axios'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
-    css: ['app.css', 'color.css'],
+    css: [
+      // vue-flow styles
+      '~@vue-flow/core/dist/style.css',
+      '~@vue-flow/core/dist/theme-default.css',
+      '~@vue-flow/controls/dist/style.css',
+      // user-defined global styles
+      'app.css', 'color.css',
+    ],
 
     // https://github.com/quasarframework/quasar/tree/dev/extras
     extras: [
