@@ -116,4 +116,44 @@ export function defaultResultsSortMethod(): ResultsSortMethod {
     }
 }
 
+export interface ExploreStepResult {
+    step: number;
+    name: string;
+    input: Dict;
+    output: Dict;
+    comment: string;
+}
+
+export function defaultExploreStepResult(): ExploreStepResult {
+    return {
+        step: 0,
+        name: '',
+        input: {},
+        output: {
+            detail_level: 0,
+            return_hits: 0,
+            total_hits: 0,
+            hits: [] as DictList,
+            suggest_info: {
+                qword_hword_count: {},
+                hword_count_qword: {},
+                group_replaces_count: [],
+                related_authors: {} as RelatedAuthors,
+            } as SuggestInfo,
+            query_info: {
+                query: '',
+                words_expr: '',
+                keywords_body: [] as StringList,
+                keywords_date: [] as StringList,
+            } as QueryInfo,
+            rewrite_info: {
+                rewrited: false,
+                is_original_in_rewrites: false,
+                rewrited_word_exprs: [] as StringList,
+            } as RewriteInfo,
+        },
+        comment: '',
+    }
+}
+
 export { };

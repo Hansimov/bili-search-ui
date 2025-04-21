@@ -1,13 +1,13 @@
 <template>
   <div class="row results-list-info-top justify-between">
     <div class="results-stats">
-      <span>精度：{{ searchResultDict.detail_level }}</span>
+      <span>精度：{{ currentResultDict.detail_level }}</span>
       <span v-show="isReturnResultsLessThanTotal()"
-        >，匹配：{{ searchResultDict.total_hits }}</span
+        >，匹配：{{ currentResultDict.total_hits }}</span
       >
       <span
         >，{{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}：{{
-          searchResultDict.return_hits
+          currentResultDict.return_hits
         }}</span
       >
     </div>
@@ -61,6 +61,7 @@
 <script>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useSearchStore } from '../stores/searchStore';
+import { useExploreStore } from '../stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import ResultItem from './ResultItem.vue';
 import ResultsPagination from './ResultsPagination.vue';
@@ -72,8 +73,11 @@ export default {
   },
   setup() {
     const searchStore = useSearchStore();
+    const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
-    const searchResultDict = computed(() => searchStore.searchResultDict);
+    const currentResultDict = computed(
+      () => exploreStore.currentStepResultDict.output
+    );
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
     const resultsSortMethods = ref([
       {
@@ -117,24 +121,24 @@ export default {
     const currentPage = ref(1);
     const itemsPerPage = ref(20);
     const totalPages = computed(() =>
-      Math.ceil(searchResultDict.value.hits.length / itemsPerPage.value)
+      Math.ceil(currentResultDict.value.hits.length / itemsPerPage.value)
     );
     const paginatedResults = computed(() => {
       const start = (currentPage.value - 1) * itemsPerPage.value;
       const end = start + itemsPerPage.value;
-      return searchResultDict.value.hits.slice(start, end);
+      return currentResultDict.value.hits.slice(start, end);
     });
 
     function isReturnResultsLessThanTotal() {
       return (
-        searchResultDict.value.return_hits < searchResultDict.value.total_hits
+        currentResultDict.value.return_hits < currentResultDict.value.total_hits
       );
     }
 
     function sortResults(method) {
       searchStore.setResultsSortMethod(method);
       resultsSortMethod.value = method;
-      searchResultDict.value.hits.sort((a, b) => {
+      currentResultDict.value.hits.sort((a, b) => {
         const valueA = method.field.split('.').reduce((o, i) => o[i], a);
         const valueB = method.field.split('.').reduce((o, i) => o[i], b);
         if (method.order === 'asc') {
@@ -146,7 +150,7 @@ export default {
       currentPage.value = 1;
     }
 
-    watch(searchResultDict, () => {
+    watch(currentResultDict, () => {
       sortResults(resultsSortMethod.value);
       currentPage.value = 1;
     });
@@ -169,7 +173,7 @@ export default {
     });
 
     return {
-      searchResultDict,
+      currentResultDict,
       resultsSortMethods,
       resultsSortMethod,
       sortResults,

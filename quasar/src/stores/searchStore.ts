@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia';
-
 import {
     type DictList,
     RewriteInfo,
@@ -14,9 +13,6 @@ import {
     ResultsSortMethod,
     defaultResultsSortMethod,
 } from 'src/stores/resultStore';
-
-
-
 
 export const sortAuthors = (a: RelatedAuthorsListItem, b: RelatedAuthorsListItem) => {
     const highlightedA = a.authorInfo.highlighted || false;

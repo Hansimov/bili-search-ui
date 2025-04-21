@@ -1,23 +1,19 @@
 import { defineStore } from 'pinia';
+import { ExploreStepResult, defaultExploreStepResult } from 'src/stores/resultStore';
 
-import { Dict } from 'src/stores/resultStore';
-
-interface StepResult {
-    step: number;
-    name: string;
-    input: Dict;
-    output: Dict;
-    comment: string;
-}
 
 export const useExploreStore = defineStore('explore', {
     state: () => ({
+        currentStepResultDict: defaultExploreStepResult(),
     }),
     getters: {
     },
     actions: {
-        pushNewStepResult(stepResult: StepResult) {
+        pushNewStepResult(stepResult: ExploreStepResult) {
             console.log('pushNewStepResult:', stepResult);
+            if (stepResult.name === 'most_relevant_search') {
+                this.currentStepResultDict = stepResult;
+            }
         }
     }
 }
