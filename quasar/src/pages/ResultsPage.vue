@@ -8,7 +8,11 @@
         transition-next="fade"
         transition-duration="0"
       >
-        <q-tab-panel name="videos"><ResultsList /> </q-tab-panel>
+        <q-tab-panel name="videos">
+          <ExploreProgressPanel />
+          <ResultsList v-if="shouldShowResultsList" />
+          <JsonViewer v-else :data="currentStepOutput" class="json-viewer" />
+        </q-tab-panel>
         <q-tab-panel name="ai">
           <div class="q-gutter-xs ai-results-list"></div>
         </q-tab-panel>
@@ -23,16 +27,34 @@
 <script>
 import { computed } from 'vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { useExploreStore } from 'src/stores/exploreStore';
+import JsonViewer from 'src/components/JsonViewer.vue';
 import ResultsList from 'src/components/ResultsList.vue';
+import ExploreProgressPanel from 'src/components/ExploreProgressPanel.vue';
 
 export default {
   components: {
+    JsonViewer,
     ResultsList,
+    ExploreProgressPanel,
   },
   setup() {
     const layoutStore = useLayoutStore();
+    const exploreStore = useExploreStore();
+    const currentStepName = computed(
+      () => exploreStore.currentStepResultDict?.name || ''
+    );
+    const currentStepOutput = computed(
+      () => exploreStore.currentStepResultDict?.output || {}
+    );
+    const shouldShowResultsList = computed(
+      () => currentStepName.value === 'most_relevant_search'
+    );
     return {
       activeTab: computed(() => layoutStore.activeTab || 'videos'),
+      currentStepName,
+      currentStepOutput,
+      shouldShowResultsList,
     };
   },
 };
