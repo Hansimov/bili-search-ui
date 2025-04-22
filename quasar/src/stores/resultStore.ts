@@ -119,8 +119,11 @@ export function defaultResultsSortMethod(): ResultsSortMethod {
 export interface ExploreStepResult {
     step: number;
     name: string;
+    name_zh: string;
+    status: string;
     input: Dict;
     output: Dict;
+    output_type: string;
     comment: string;
 }
 
@@ -128,7 +131,10 @@ export function defaultExploreStepResult(): ExploreStepResult {
     return {
         step: 0,
         name: '',
+        name_zh: '',
+        status: '',
         input: {},
+        output_type: '',
         output: {
             detail_level: 0,
             return_hits: 0,
