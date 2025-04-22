@@ -9,9 +9,7 @@
         transition-duration="0"
       >
         <q-tab-panel name="videos">
-          <ExploreProgressPanel />
           <ResultsList v-if="shouldShowResultsList" />
-          <JsonViewer v-else :data="currentStepOutput" class="json-viewer" />
         </q-tab-panel>
         <q-tab-panel name="ai">
           <div class="q-gutter-xs ai-results-list"></div>
@@ -28,15 +26,11 @@
 import { computed } from 'vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useExploreStore } from 'src/stores/exploreStore';
-import JsonViewer from 'src/components/JsonViewer.vue';
 import ResultsList from 'src/components/ResultsList.vue';
-import ExploreProgressPanel from 'src/components/ExploreProgressPanel.vue';
 
 export default {
   components: {
-    JsonViewer,
     ResultsList,
-    ExploreProgressPanel,
   },
   setup() {
     const layoutStore = useLayoutStore();

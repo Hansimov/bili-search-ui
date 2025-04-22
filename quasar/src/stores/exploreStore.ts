@@ -123,9 +123,7 @@ export const useExploreStore = defineStore('explore', {
             }
             console.log('update FlowNode:', nodeIdx);
         },
-        pushNewStepResult(stepResult: ExploreStepResult) {
-            console.log('pushNewStepResult:', stepResult);
-            this.stepResults.push(stepResult);
+        pushFlowNode(stepResult: ExploreStepResult) {
             if (stepResult.output_type === 'nodes') {
                 console.log(stepResult.output.nodes);
                 stepResult.output.nodes.forEach((node: any, idx: number) => {
@@ -137,6 +135,11 @@ export const useExploreStore = defineStore('explore', {
                     { stepResult: stepResult }
                 );
             }
+        },
+        pushNewStepResult(stepResult: ExploreStepResult) {
+            console.log('pushNewStepResult:', stepResult);
+            this.stepResults.push(stepResult);
+            // this.pushFlowNode(stepResult);
         },
     }
 }

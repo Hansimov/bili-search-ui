@@ -23,9 +23,9 @@ module.exports = configure(function (/* ctx */) {
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: [
       // vue-flow styles
-      '~@vue-flow/core/dist/style.css',
-      '~@vue-flow/core/dist/theme-default.css',
-      '~@vue-flow/controls/dist/style.css',
+      // '~@vue-flow/core/dist/style.css',
+      // '~@vue-flow/core/dist/theme-default.css',
+      // '~@vue-flow/controls/dist/style.css',
       // user-defined global styles
       'app.css', 'color.css',
     ],
