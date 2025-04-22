@@ -1,7 +1,7 @@
 <template>
   <VueFlow
-    v-model:nodes="nodes"
-    v-model:edges="edges"
+    v-model:nodes="placedNodes"
+    v-model:edges="placedEdges"
     fit-view-on-init
     :nodes-draggable="false"
     :pan-on-drag="false"
@@ -16,9 +16,23 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { VueFlow, Position } from '@vue-flow/core';
+import { ref, watchEffect } from 'vue';
+import { VueFlow, Position, useVueFlow } from '@vue-flow/core';
 import dagre from '@dagrejs/dagre';
+import { useExploreStore } from 'src/stores/exploreStore';
+
+const exploreStore = useExploreStore();
+const { onInit, fitView } = useVueFlow();
+
+const fitViewParams = {
+  padding: 0.1,
+  includeHiddenNodes: false,
+  // duration: 500,
+};
+
+onInit(() => {
+  fitView(fitViewParams);
+});
 
 function calcNodeTextWidthHeight({ text, scale = 1 }) {
   const canvas = document.createElement('canvas');
@@ -26,7 +40,6 @@ function calcNodeTextWidthHeight({ text, scale = 1 }) {
   const metrics = context.measureText(text);
   const width = metrics.width * scale;
   const height = metrics.fontBoundingBoxAscent * scale;
-  console.log('text', text, 'width', width, 'height', height);
   return { width, height };
 }
 
@@ -73,32 +86,21 @@ function calcDagreLayout({
   return { nodes: placedNodes, edges };
 }
 
-const initialNodes = ref([
-  { id: '1', label: '输入', type: 'input' },
-  { id: '2', label: '聚合' },
-  { id: '3', label: '关联搜索' },
-  { id: '4', label: '相关性排序' },
-  { id: '5', label: '结果', type: 'output' },
-]);
+const placedNodes = ref([]);
+const placedEdges = ref([]);
 
-const initialEdges = ref([
-  { id: 'e1-2', source: '1', target: '2', animated: true },
-  { id: 'e2-3', source: '2', target: '3' },
-  { id: 'e3-4', source: '3', target: '4', animated: true },
-  { id: 'e4-5', source: '4', target: '5', animated: true },
-]);
-
-const nodes = ref([]);
-const edges = ref([]);
-
-onMounted(() => {
-  const { nodes: placedNodes, edges: placedEdges } = calcDagreLayout({
-    nodes: initialNodes.value,
-    edges: initialEdges.value,
+watchEffect(() => {
+  const rawNodes = exploreStore.nodes.map((n) => ({ ...n }));
+  const rawEdges = exploreStore.edges.map((e) => ({ ...e }));
+  const { nodes: layoutedNodes, edges: layoutedEdges } = calcDagreLayout({
+    nodes: rawNodes,
+    edges: rawEdges,
     direction: 'LR',
+    nodeWidthSep: 30,
   });
-  nodes.value = placedNodes;
-  edges.value = placedEdges;
+  placedNodes.value = layoutedNodes;
+  placedEdges.value = layoutedEdges;
+  fitView(fitViewParams);
 });
 </script>
 
@@ -106,7 +108,7 @@ onMounted(() => {
 .vue-flow__nodes,
 .flow-container {
   height: 50px;
-  /* width: 100%; */
+  width: 100%;
   background-color: transparent;
 }
 .vue-flow__node,
