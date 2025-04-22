@@ -76,7 +76,7 @@ export default {
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
     const currentResultDict = computed(
-      () => exploreStore.currentStepResultDict.output
+      () => exploreStore.currentStepResult.output
     );
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
     const resultsSortMethods = ref([

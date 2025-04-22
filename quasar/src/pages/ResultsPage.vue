@@ -41,18 +41,19 @@ export default {
   setup() {
     const layoutStore = useLayoutStore();
     const exploreStore = useExploreStore();
-    const currentStepName = computed(
-      () => exploreStore.currentStepResultDict?.name || ''
+    const currentStepOutputType = computed(
+      () => exploreStore.currentStepResult?.output_type || ''
     );
     const currentStepOutput = computed(
-      () => exploreStore.currentStepResultDict?.output || {}
+      () => exploreStore.currentStepResult?.output || {}
     );
     const shouldShowResultsList = computed(
-      () => currentStepName.value === 'most_relevant_search'
+      () =>
+        currentStepOutputType.value === 'hits' && currentStepOutput.value.hits
     );
     return {
       activeTab: computed(() => layoutStore.activeTab || 'videos'),
-      currentStepName,
+      currentStepOutputType,
       currentStepOutput,
       shouldShowResultsList,
     };
