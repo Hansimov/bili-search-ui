@@ -137,7 +137,7 @@ export const useExploreStore = defineStore('explore', {
             }
         },
         pushNewStepResult(stepResult: ExploreStepResult) {
-            console.log('pushNewStepResult:', stepResult);
+            // console.log('pushNewStepResult:', stepResult);
             this.stepResults.push(stepResult);
             // this.pushFlowNode(stepResult);
         },

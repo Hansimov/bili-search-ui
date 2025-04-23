@@ -9,7 +9,7 @@
         transition-duration="0"
       >
         <q-tab-panel name="videos">
-          <ResultsList v-if="shouldShowResultsList" />
+          <ResultsList />
         </q-tab-panel>
         <q-tab-panel name="ai">
           <div class="q-gutter-xs ai-results-list"></div>
@@ -25,7 +25,6 @@
 <script>
 import { computed } from 'vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
-import { useExploreStore } from 'src/stores/exploreStore';
 import ResultsList from 'src/components/ResultsList.vue';
 
 export default {
@@ -34,22 +33,8 @@ export default {
   },
   setup() {
     const layoutStore = useLayoutStore();
-    const exploreStore = useExploreStore();
-    const currentStepOutputType = computed(
-      () => exploreStore.currentStepResult?.output_type || ''
-    );
-    const currentStepOutput = computed(
-      () => exploreStore.currentStepResult?.output || {}
-    );
-    const shouldShowResultsList = computed(
-      () =>
-        currentStepOutputType.value === 'hits' && currentStepOutput.value.hits
-    );
     return {
       activeTab: computed(() => layoutStore.activeTab || 'videos'),
-      currentStepOutputType,
-      currentStepOutput,
-      shouldShowResultsList,
     };
   },
 };

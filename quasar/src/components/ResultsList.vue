@@ -1,15 +1,17 @@
 <template>
   <div class="row results-list-info-top justify-between">
-    <div class="results-stats">
-      <span>精度：{{ currentResultDict.detail_level }}</span>
-      <span v-show="isReturnResultsLessThanTotal()"
-        >，匹配：{{ currentResultDict.total_hits }}</span
-      >
-      <span
-        >，{{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}：{{
-          currentResultDict.return_hits
-        }}</span
-      >
+    <div class="results-stats" v-if="isShowResultsList">
+      <span v-show="isReturnResultsLessThanTotal()">
+        匹配：{{ totalHits }}
+      </span>
+      <span>
+        ，{{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}：{{
+          returnHits
+        }}
+      </span>
+    </div>
+    <div class="results-stats" v-else>
+      <span> {{ currentStepName }} ...</span>
     </div>
     <div class="results-paginate-top" v-if="!isCollapsePaginate">
       <ResultsPagination
@@ -75,9 +77,30 @@ export default {
     const searchStore = useSearchStore();
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
-    const currentResultDict = computed(
-      () => exploreStore.currentStepResult.output
+
+    const currentStepOutputType = computed(
+      () => exploreStore.currentStepResult?.output_type || ''
     );
+    const currentResultDict = computed(
+      () => exploreStore.currentStepResult?.output || {}
+    );
+    const currentStepName = computed(() => {
+      return exploreStore.currentStepResult?.name_zh || '';
+    });
+    const hits = computed(() => {
+      return currentResultDict.value.hits || [];
+    });
+    const returnHits = computed(() => {
+      return currentResultDict.value.return_hits || 0;
+    });
+    const totalHits = computed(() => {
+      return currentResultDict.value.total_hits || 0;
+    });
+
+    const isShowResultsList = computed(
+      () => currentStepOutputType.value === 'hits' && hits.value.length > 0
+    );
+
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
     const resultsSortMethods = ref([
       {
@@ -121,24 +144,22 @@ export default {
     const currentPage = ref(1);
     const itemsPerPage = ref(20);
     const totalPages = computed(() =>
-      Math.ceil(currentResultDict.value.hits.length / itemsPerPage.value)
+      Math.ceil(hits.value.length / itemsPerPage.value)
     );
     const paginatedResults = computed(() => {
       const start = (currentPage.value - 1) * itemsPerPage.value;
       const end = start + itemsPerPage.value;
-      return currentResultDict.value.hits.slice(start, end);
+      return hits.value.slice(start, end);
     });
 
     function isReturnResultsLessThanTotal() {
-      return (
-        currentResultDict.value.return_hits < currentResultDict.value.total_hits
-      );
+      return returnHits.value < totalHits.value;
     }
 
     function sortResults(method) {
       searchStore.setResultsSortMethod(method);
       resultsSortMethod.value = method;
-      currentResultDict.value.hits.sort((a, b) => {
+      hits.value.sort((a, b) => {
         const valueA = method.field.split('.').reduce((o, i) => o[i], a);
         const valueB = method.field.split('.').reduce((o, i) => o[i], b);
         if (method.order === 'asc') {
@@ -173,7 +194,11 @@ export default {
     });
 
     return {
+      isShowResultsList,
       currentResultDict,
+      currentStepName,
+      returnHits,
+      totalHits,
       resultsSortMethods,
       resultsSortMethod,
       sortResults,
