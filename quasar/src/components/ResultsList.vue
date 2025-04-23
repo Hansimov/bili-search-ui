@@ -11,7 +11,7 @@
       </span>
     </div>
     <div class="results-stats" v-else>
-      <span> {{ currentStepName }} ...</span>
+      <span> {{ currentStepName }} {{ currentStepStatus }}</span>
     </div>
     <div class="results-paginate-top" v-if="!isCollapsePaginate">
       <ResultsPagination
@@ -62,9 +62,10 @@
 
 <script>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useSearchStore } from '../stores/searchStore';
-import { useExploreStore } from '../stores/exploreStore';
+import { useSearchStore } from 'src/stores/searchStore';
+import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { resultsSortMethods } from 'src/stores/resultStore';
 import ResultItem from './ResultItem.vue';
 import ResultsPagination from './ResultsPagination.vue';
 
@@ -87,6 +88,20 @@ export default {
     const currentStepName = computed(() => {
       return exploreStore.currentStepResult?.name_zh || '';
     });
+    const currentStepStatus = computed(() => {
+      const status = exploreStore.currentStepResult?.status;
+      if (status === 'running') {
+        return '⏳ (运行中)';
+      } else if (status === 'success') {
+        return '✔️ (成功)';
+      } else if (status === 'failed') {
+        return '❌ (错误)';
+      } else if (currentResultDict.value.timed_out) {
+        return '🕑 (超时)';
+      } else {
+        return '';
+      }
+    });
     const hits = computed(() => {
       return currentResultDict.value.hits || [];
     });
@@ -102,44 +117,6 @@ export default {
     );
 
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
-    const resultsSortMethods = ref([
-      {
-        field: 'score',
-        order: 'desc',
-        label: '综合排序',
-        icon: 'fa-solid fa-check',
-      },
-      {
-        field: 'pubdate',
-        order: 'desc',
-        label: '最新发布',
-        icon: 'fa-regular fa-clock',
-      },
-      {
-        field: 'stat.view',
-        order: 'desc',
-        label: '最高播放',
-        icon: 'fa-regular fa-play-circle',
-      },
-      {
-        field: 'stat.danmaku',
-        order: 'desc',
-        label: '最多弹幕',
-        icon: 'fa-solid fa-align-left',
-      },
-      {
-        field: 'stat.favorite',
-        order: 'desc',
-        label: '最多收藏',
-        icon: 'fa-solid fa-star',
-      },
-      {
-        field: 'title',
-        order: 'asc',
-        label: '标题文本',
-        icon: 'fa-solid fa-sort-alpha-asc',
-      },
-    ]);
 
     const currentPage = ref(1);
     const itemsPerPage = ref(20);
@@ -197,6 +174,7 @@ export default {
       isShowResultsList,
       currentResultDict,
       currentStepName,
+      currentStepStatus,
       returnHits,
       totalHits,
       resultsSortMethods,

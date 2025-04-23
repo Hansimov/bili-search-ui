@@ -107,6 +107,51 @@ export interface ResultsSortMethod {
     icon: string;
 }
 
+export const resultsSortMethods: ResultsSortMethod[] = [
+    {
+        field: 'score',
+        order: 'desc',
+        label: '综合排序',
+        icon: 'fa-solid fa-check',
+    },
+    {
+        field: 'sort_score',
+        order: 'desc',
+        label: '最高热度',
+        icon: 'fa-solid fa-fire',
+    },
+    {
+        field: 'pubdate',
+        order: 'desc',
+        label: '最新发布',
+        icon: 'fa-regular fa-clock',
+    },
+    {
+        field: 'stat.view',
+        order: 'desc',
+        label: '最高播放',
+        icon: 'fa-regular fa-play-circle',
+    },
+    {
+        field: 'stat.danmaku',
+        order: 'desc',
+        label: '最多弹幕',
+        icon: 'fa-solid fa-align-left',
+    },
+    {
+        field: 'stat.favorite',
+        order: 'desc',
+        label: '最多收藏',
+        icon: 'fa-solid fa-star',
+    },
+    {
+        field: 'title',
+        order: 'asc',
+        label: '标题文本',
+        icon: 'fa-solid fa-sort-alpha-asc',
+    },
+]
+
 export function defaultResultsSortMethod(): ResultsSortMethod {
     return {
         field: 'score',
