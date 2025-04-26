@@ -118,7 +118,7 @@ export const resultsSortMethods: ResultsSortMethod[] = [
         field: 'sort_score',
         order: 'desc',
         label: '最高热度',
-        icon: 'fa-solid fa-fire',
+        icon: 'fa-solid fa-line-chart',
     },
     {
         field: 'pubdate',

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ExploreStepResult, defaultExploreStepResult } from 'src/stores/resultStore';
+import { DictList, ExploreStepResult, defaultExploreStepResult } from 'src/stores/resultStore';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -49,6 +49,7 @@ export const useExploreStore = defineStore('explore', {
         stepResults: [] as ExploreStepResult[],
         nodes: [] as FlowNode[],
         edges: [] as FlowEdge[],
+        latestHitsResult: {} as ExploreStepResult,
     }),
     getters: {
         currentNodeIdx(): number {
@@ -60,7 +61,7 @@ export const useExploreStore = defineStore('explore', {
             } else {
                 return undefined;
             }
-        }
+        },
     },
     actions: {
         createNode({ type = 'default', label = '' }: { type?: string; label?: string }): number {
@@ -136,9 +137,18 @@ export const useExploreStore = defineStore('explore', {
                 );
             }
         },
+        isHitsValidArray(hits: DictList): boolean {
+            return Array.isArray(hits) && hits.length > 0;
+        },
+        updateLatestHitsResult(stepResult: ExploreStepResult) {
+            if (this.isHitsValidArray(stepResult.output.hits)) {
+                this.latestHitsResult = stepResult;
+            }
+        },
         pushNewStepResult(stepResult: ExploreStepResult) {
             // console.log('pushNewStepResult:', stepResult);
             this.stepResults.push(stepResult);
+            this.updateLatestHitsResult(stepResult);
             // this.pushFlowNode(stepResult);
         },
     }

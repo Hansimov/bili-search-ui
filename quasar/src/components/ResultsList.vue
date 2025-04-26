@@ -2,12 +2,10 @@
   <div class="row results-list-info-top justify-between">
     <div class="results-stats" v-if="isShowResultsList">
       <span v-show="isReturnResultsLessThanTotal()">
-        匹配：{{ totalHits }}
+        匹配：{{ totalHits }}，
       </span>
       <span>
-        ，{{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}：{{
-          returnHits
-        }}
+        {{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}：{{ returnHits }}
       </span>
     </div>
     <div class="results-stats" v-else>
@@ -79,9 +77,9 @@ export default {
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
 
-    const currentStepOutputType = computed(
-      () => exploreStore.currentStepResult?.output_type || ''
-    );
+    // const currentStepOutputType = computed(
+    //   () => exploreStore.currentStepResult?.output_type || ''
+    // );
     const currentResultDict = computed(
       () => exploreStore.currentStepResult?.output || {}
     );
@@ -103,18 +101,17 @@ export default {
       }
     });
     const hits = computed(() => {
-      return currentResultDict.value.hits || [];
+      return exploreStore.latestHitsResult.output?.hits || [];
     });
     const returnHits = computed(() => {
-      return currentResultDict.value.return_hits || 0;
+      return exploreStore.latestHitsResult.output?.return_hits || 0;
     });
     const totalHits = computed(() => {
-      return currentResultDict.value.total_hits || 0;
+      return exploreStore.latestHitsResult.output?.total_hits || 0;
     });
-
-    const isShowResultsList = computed(
-      () => currentStepOutputType.value === 'hits' && hits.value.length > 0
-    );
+    const isShowResultsList = computed(() => {
+      return exploreStore.isHitsValidArray(hits.value);
+    });
 
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
 
@@ -148,7 +145,7 @@ export default {
       currentPage.value = 1;
     }
 
-    watch(currentResultDict, () => {
+    watch(hits, () => {
       sortResults(resultsSortMethod.value);
       currentPage.value = 1;
     });
