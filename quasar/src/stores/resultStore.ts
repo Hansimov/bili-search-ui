@@ -207,4 +207,12 @@ export function defaultExploreStepResult(): ExploreStepResult {
     }
 }
 
+export function isNonEmptyArray(array: DictList): boolean {
+    return Array.isArray(array) && array.length > 0;
+}
+
+export function isNonEmptyDict(dict: Dict): boolean {
+    return dict && Object.keys(dict).length > 0;
+}
+
 export { };

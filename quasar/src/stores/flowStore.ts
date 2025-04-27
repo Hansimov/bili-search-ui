@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { DictList, ExploreStepResult, defaultExploreStepResult } from 'src/stores/resultStore';
+import { ExploreStepResult, defaultExploreStepResult } from 'src/stores/resultStore';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

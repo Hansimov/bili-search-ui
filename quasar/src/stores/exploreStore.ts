@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia';
-import { DictList, ExploreStepResult } from 'src/stores/resultStore';
+import { ExploreStepResult, isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
 
 export const useExploreStore = defineStore('explore', {
     state: () => ({
         stepResults: [] as ExploreStepResult[],
         latestHitsResult: {} as ExploreStepResult,
+        latestAuthorsResult: {} as ExploreStepResult,
     }),
     getters: {
         currentStepResult(): ExploreStepResult | undefined {
@@ -16,18 +17,21 @@ export const useExploreStore = defineStore('explore', {
         },
     },
     actions: {
-        isHitsValidArray(hits: DictList): boolean {
-            return Array.isArray(hits) && hits.length > 0;
-        },
         updateLatestHitsResult(stepResult: ExploreStepResult) {
-            if (this.isHitsValidArray(stepResult.output.hits)) {
+            if (isNonEmptyArray(stepResult.output.hits)) {
                 this.latestHitsResult = stepResult;
+            }
+        },
+        updateLatestAuthorsResult(stepResult: ExploreStepResult) {
+            if (isNonEmptyDict(stepResult.output.authors)) {
+                this.latestAuthorsResult = stepResult;
             }
         },
         pushNewStepResult(stepResult: ExploreStepResult) {
             // console.log('pushNewStepResult:', stepResult);
             this.stepResults.push(stepResult);
             this.updateLatestHitsResult(stepResult);
+            this.updateLatestAuthorsResult(stepResult);
             // this.pushFlowNode(stepResult);
         },
     }
