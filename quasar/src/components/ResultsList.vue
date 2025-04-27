@@ -63,7 +63,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
-import { resultsSortMethods } from 'src/stores/resultStore';
+import { resultsSortMethods, isNonEmptyArray } from 'src/stores/resultStore';
 import ResultItem from './ResultItem.vue';
 import ResultsPagination from './ResultsPagination.vue';
 
@@ -110,7 +110,7 @@ export default {
       return exploreStore.latestHitsResult.output?.total_hits || 0;
     });
     const isShowResultsList = computed(() => {
-      return exploreStore.isHitsValidArray(hits.value);
+      return isNonEmptyArray(hits.value);
     });
 
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
