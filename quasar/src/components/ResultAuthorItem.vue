@@ -1,5 +1,5 @@
 <template>
-  <q-item class="result-author-item q-pr-xs">
+  <q-item class="result-author-item q-pl-xs q-pb-none q-pt-xs">
     <q-item-section avatar side>
       <q-avatar class="result-author-avatar" @click="onAuthorClick">
         <img :src="authorAvatarUrl" referrerpolicy="no-referrer" />
@@ -53,6 +53,7 @@ export default {
 .result-author-item {
   cursor: pointer;
   transition: transform 0.2s ease-out, filter 0.2s ease-out;
+  transform-origin: left center;
 }
 .result-author-item:hover {
   transform: scale(1.1);
