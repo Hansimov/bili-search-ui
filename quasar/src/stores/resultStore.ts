@@ -109,16 +109,16 @@ export interface ResultsSortMethod {
 
 export const resultsSortMethods: ResultsSortMethod[] = [
     {
-        field: 'score',
-        order: 'desc',
-        label: '综合排序',
-        icon: 'fa-solid fa-check',
-    },
-    {
         field: 'sort_score',
         order: 'desc',
-        label: '最高热度',
+        label: '综合排序',
         icon: 'fa-solid fa-line-chart',
+    },
+    {
+        field: 'score',
+        order: 'desc',
+        label: '最高相关',
+        icon: 'fa-solid fa-text-height',
     },
     {
         field: 'pubdate',
@@ -153,12 +153,7 @@ export const resultsSortMethods: ResultsSortMethod[] = [
 ]
 
 export function defaultResultsSortMethod(): ResultsSortMethod {
-    return {
-        field: 'score',
-        order: 'desc',
-        label: '综合排序',
-        icon: 'fa-solid fa-check',
-    }
+    return resultsSortMethods[0];
 }
 
 export interface ExploreStepResult {

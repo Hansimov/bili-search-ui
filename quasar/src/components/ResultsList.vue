@@ -45,9 +45,11 @@
     </q-btn>
   </div>
   <div :class="dynamicResultsListClass" :style="dynamicResultsListStyle">
-    <div v-for="(result, index) in paginatedResults" :key="index">
-      <ResultItem :result="result" />
-    </div>
+    <ResultItem
+      v-for="(result, index) in paginatedResults"
+      :key="index"
+      :result="result"
+    />
   </div>
   <div class="flex flex-center q-pt-xs results-paginate-bottom">
     <ResultsPagination
@@ -154,10 +156,16 @@ export default {
       return layoutStore.isCollapsePaginate();
     });
     const dynamicResultsListClass = computed(() => {
-      return layoutStore.dynamicResultsListClass();
+      if (layoutStore.isSmallScreen()) {
+        return 'results-list q-gutter-none';
+      } else {
+        return 'results-list q-gutter-xs';
+      }
     });
     const dynamicResultsListStyle = computed(() => {
-      return layoutStore.dynamicResultsListStyle();
+      return {
+        maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
+      };
     });
 
     onMounted(() => {
