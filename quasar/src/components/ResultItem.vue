@@ -116,7 +116,7 @@ export default {
   max-width: var(--result-item-width);
 }
 .result-item-cover {
-  max-width: 240px;
+  max-width: var(--result-item-width);
   max-height: 140px;
 }
 @media (max-width: 520px) {

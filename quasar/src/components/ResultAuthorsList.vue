@@ -1,7 +1,11 @@
 <template>
   <details open class="result-authors-details q-pl-xs">
     <summary>相关作者</summary>
-    <q-list class="result-authors-list" v-if="isShowAuthorsList">
+    <q-list
+      class="result-authors-list"
+      :style="dynamicResultAuthorsListStyle"
+      v-if="isShowAuthorsList"
+    >
       <ResultAuthorItem
         v-for="(authorItem, index) in authors"
         :key="index"
@@ -14,6 +18,7 @@
 <script>
 import { computed, watch } from 'vue';
 import { useExploreStore } from 'src/stores/exploreStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
 import { isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
 import ResultAuthorItem from './ResultAuthorItem.vue';
 
@@ -23,6 +28,8 @@ export default {
   },
   setup() {
     const exploreStore = useExploreStore();
+    const layoutStore = useLayoutStore();
+
     const authors = computed(() => {
       const authorsDict = exploreStore.latestAuthorsResult.output?.authors;
       return isNonEmptyDict(authorsDict) ? Object.values(authorsDict) : [];
@@ -43,12 +50,18 @@ export default {
         }
       });
     }
+    const dynamicResultAuthorsListStyle = computed(() => {
+      return {
+        maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
+      };
+    });
     watch(authors, () => {
       sortAuthors();
     });
     return {
       authors,
       isShowAuthorsList,
+      dynamicResultAuthorsListStyle,
     };
   },
 };
@@ -57,11 +70,14 @@ export default {
 <style lang="scss" scoped>
 .result-authors-list {
   display: grid;
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(var(--result-item-width), 1fr)
-  );
-  overflow: hidden;
+  grid-template-columns: repeat(auto-fill, var(--result-item-width));
+  overflow-y: scroll;
+  overflow-x: hidden;
+  max-height: 110px;
+  &::-webkit-scrollbar {
+    width: 8px;
+    background: transparent;
+  }
 }
 .result-authors-list > * {
   overflow: hidden;

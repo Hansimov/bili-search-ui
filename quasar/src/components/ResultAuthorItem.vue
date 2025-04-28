@@ -51,6 +51,7 @@ export default {
 
 <style scoped>
 .result-author-item {
+  max-width: var(--result-item-width);
   cursor: pointer;
   transition: transform 0.2s ease-out, filter 0.2s ease-out;
   transform-origin: left center;

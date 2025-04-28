@@ -220,10 +220,7 @@ export default {
 }
 .results-list {
   display: grid;
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(var(--result-item-width), 1fr)
-  );
+  grid-template-columns: repeat(auto-fill, var(--result-item-width));
   /* Note: max-width is now dynamically applied via inline styles */
   max-height: calc(100vh - 230px);
   overflow-y: scroll;
