@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia';
-import { ExploreStepResult, isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
+import { Dict, DictList, ExploreStepResult, isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
 
 export const useExploreStore = defineStore('explore', {
     state: () => ({
         stepResults: [] as ExploreStepResult[],
         latestHitsResult: {} as ExploreStepResult,
         latestAuthorsResult: {} as ExploreStepResult,
+        authorFilters: [] as DictList,
     }),
     getters: {
         currentStepResult(): ExploreStepResult | undefined {
@@ -26,6 +27,19 @@ export const useExploreStore = defineStore('explore', {
             if (isNonEmptyDict(stepResult.output.authors)) {
                 this.latestAuthorsResult = stepResult;
             }
+        },
+        setAuthorFilters(authorFilters: DictList) {
+            this.authorFilters = authorFilters;
+            console.log('setAuthorFilters:', this.authorFilters);
+        },
+        removeAuthorFilter(authorFilter: Dict) {
+            const index = this.authorFilters.findIndex((filter) => filter.mid === authorFilter.mid);
+            if (index !== -1) {
+                this.authorFilters.splice(index, 1);
+            }
+        },
+        clearAuthorFilters() {
+            this.authorFilters = [];
         },
         pushNewStepResult(stepResult: ExploreStepResult) {
             // console.log('pushNewStepResult:', stepResult);

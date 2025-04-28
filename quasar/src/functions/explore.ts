@@ -31,6 +31,7 @@ export const explore = async ({
     setSearchStoreQuery?: boolean,
 }) => {
     layoutStore.setIsSuggestVisible(false);
+    exploreStore.clearAuthorFilters();
     if (!queryValue) {
         return;
     }
