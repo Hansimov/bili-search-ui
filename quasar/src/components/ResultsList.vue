@@ -225,7 +225,7 @@ export default {
     minmax(var(--result-item-width), 1fr)
   );
   /* Note: max-width is now dynamically applied via inline styles */
-  max-height: calc(100vh - 200px);
+  max-height: calc(100vh - 230px);
   overflow-y: scroll;
   overflow-x: hidden;
   &::-webkit-scrollbar {

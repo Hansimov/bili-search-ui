@@ -104,7 +104,7 @@ export default {
     humanReadableNumber,
     secondsToDuration,
     getRegionName() {
-      return this.result.tid;
+      return this.result.region_parent_name || this.result.region_name || '';
     },
   },
 };
