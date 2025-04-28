@@ -15,10 +15,9 @@
 
 <script lang="ts">
 import defaultAvatarUrl from 'src/assets/noface.jpg@96w_96h.avif';
-import { useRouter } from 'vue-router';
-import { explore } from 'src/functions/explore';
 import type { Dict } from 'src/stores/resultStore';
 import type { PropType } from 'vue';
+import { useExploreStore } from 'src/stores/exploreStore';
 
 export default {
   props: {
@@ -33,14 +32,15 @@ export default {
     },
   },
   setup(props) {
-    const router = useRouter();
+    const exploreStore = useExploreStore();
     const onAuthorClick = () => {
-      const queryValue = `u="${props.authorItem.name}"`;
-      explore({
-        queryValue: queryValue,
-        router: router,
-        isFromURL: false,
-      });
+      exploreStore.setAuthorFilters([
+        {
+          mid: props.authorItem.mid,
+          name: props.authorItem.name,
+          type: 'author',
+        },
+      ]);
     };
     return {
       onAuthorClick,

@@ -1,4 +1,5 @@
 <template>
+  <ResultAuthorFilters v-show="isHasAuthorFilter" />
   <div class="row results-list-info-top justify-between">
     <div class="results-stats" v-if="isShowResultsStats">
       <span v-show="isReturnResultsLessThanTotal()">
@@ -68,11 +69,13 @@ import { useLayoutStore } from 'src/stores/layoutStore';
 import { resultsSortMethods, isNonEmptyArray } from 'src/stores/resultStore';
 import ResultItem from './ResultItem.vue';
 import ResultsPagination from './ResultsPagination.vue';
+import ResultAuthorFilters from './ResultAuthorFilters.vue';
 
 export default {
   components: {
     ResultItem,
     ResultsPagination,
+    ResultAuthorFilters,
   },
   setup() {
     const searchStore = useSearchStore();
@@ -107,8 +110,26 @@ export default {
         return '';
       }
     });
-    const hits = computed(() => {
+
+    const allHits = computed(() => {
       return exploreStore.latestHitsResult.output?.hits || [];
+    });
+    const authorFilters = computed(() => {
+      return exploreStore.authorFilters;
+    });
+    const isHasAuthorFilter = computed(() => {
+      return isNonEmptyArray(authorFilters.value);
+    });
+    const hits = computed(() => {
+      if (isHasAuthorFilter.value) {
+        return allHits.value.filter((hit) => {
+          return authorFilters.value.some((authorFilter) => {
+            return hit.owner.mid === authorFilter.mid;
+          });
+        });
+      } else {
+        return allHits.value;
+      }
     });
     const isShowResultsStats = computed(() => {
       return (
@@ -152,7 +173,6 @@ export default {
       });
       currentPage.value = 1;
     }
-
     watch(hits, () => {
       sortResults(resultsSortMethod.value);
       currentPage.value = 1;
@@ -198,6 +218,7 @@ export default {
       dynamicResultsListClass,
       dynamicResultsListStyle,
       isReturnResultsLessThanTotal,
+      isHasAuthorFilter,
     };
   },
 };
