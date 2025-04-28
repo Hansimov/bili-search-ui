@@ -1,6 +1,6 @@
 <template>
   <div class="row results-list-info-top justify-between">
-    <div class="results-stats" v-if="isShowResultsList">
+    <div class="results-stats" v-if="isShowResultsStats">
       <span v-show="isReturnResultsLessThanTotal()">
         匹配：{{ totalHits }}，
       </span>
@@ -9,7 +9,7 @@
       </span>
     </div>
     <div class="results-stats" v-else>
-      <span> {{ currentStepName }} {{ currentStepStatus }}</span>
+      <span> {{ currentStepName }} {{ currentStepMark }}</span>
     </div>
     <div class="results-paginate-top" v-if="!isCollapsePaginate">
       <ResultsPagination
@@ -79,9 +79,6 @@ export default {
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
 
-    // const currentStepOutputType = computed(
-    //   () => exploreStore.currentStepResult?.output_type || ''
-    // );
     const currentResultDict = computed(
       () => exploreStore.currentStepResult?.output || {}
     );
@@ -89,15 +86,23 @@ export default {
       return exploreStore.currentStepResult?.name_zh || '';
     });
     const currentStepStatus = computed(() => {
-      const status = exploreStore.currentStepResult?.status;
+      return exploreStore.currentStepResult?.status || '';
+    });
+    const currentStepTimedOut = computed(() => {
+      return exploreStore.currentStepResult?.output?.timed_out || false;
+    });
+    const currentStepMark = computed(() => {
+      const status = currentStepStatus.value;
       if (status === 'running') {
         return '⏳ (运行中)';
-      } else if (status === 'success') {
-        return '✔️ (成功)';
+      } else if (status === 'finished') {
+        if (currentStepTimedOut.value) {
+          return '🕑 (超时)';
+        } else {
+          return '✔️ (成功)';
+        }
       } else if (status === 'failed') {
         return '❌ (错误)';
-      } else if (currentResultDict.value.timed_out) {
-        return '🕑 (超时)';
       } else {
         return '';
       }
@@ -105,17 +110,21 @@ export default {
     const hits = computed(() => {
       return exploreStore.latestHitsResult.output?.hits || [];
     });
+    const isShowResultsStats = computed(() => {
+      return (
+        currentStepStatus.value === 'finished' && isNonEmptyArray(hits.value)
+      );
+    });
+
     const returnHits = computed(() => {
       return exploreStore.latestHitsResult.output?.return_hits || 0;
     });
     const totalHits = computed(() => {
       return exploreStore.latestHitsResult.output?.total_hits || 0;
     });
-    const isShowResultsList = computed(() => {
-      return isNonEmptyArray(hits.value);
-    });
-
-    const resultsSortMethod = ref(searchStore.resultsSortMethod);
+    function isReturnResultsLessThanTotal() {
+      return returnHits.value < totalHits.value;
+    }
 
     const currentPage = ref(1);
     const itemsPerPage = ref(20);
@@ -128,10 +137,7 @@ export default {
       return hits.value.slice(start, end);
     });
 
-    function isReturnResultsLessThanTotal() {
-      return returnHits.value < totalHits.value;
-    }
-
+    const resultsSortMethod = ref(searchStore.resultsSortMethod);
     function sortResults(method) {
       searchStore.setResultsSortMethod(method);
       resultsSortMethod.value = method;
@@ -176,10 +182,10 @@ export default {
     });
 
     return {
-      isShowResultsList,
+      isShowResultsStats,
       currentResultDict,
       currentStepName,
-      currentStepStatus,
+      currentStepMark,
       returnHits,
       totalHits,
       resultsSortMethods,

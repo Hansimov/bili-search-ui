@@ -4,6 +4,7 @@
       <router-link :to="`/video/${result.bvid}`" target="_blank">
         <q-img
           :src="result.pic + coverPicSuffix"
+          :title="result.title + '\n' + result.tags"
           referrerpolicy="no-referrer"
           class="rounded-borders result-item-cover"
           no-transition
@@ -36,7 +37,11 @@
         :href="`https://www.bilibili.com/video/${result.bvid}`"
         target="_blank"
       >
-        <div class="result-title" v-html="highlightedTitle()"></div>
+        <div
+          class="result-title"
+          v-html="highlightedTitle()"
+          :title="result.title + '\n' + result.tags"
+        ></div>
       </a>
     </q-card-section>
     <q-item class="q-px-xs q-pt-none q-pb-xs result-bottom">
