@@ -1,12 +1,16 @@
 <template>
-  <q-item class="result-author-item q-pl-xs q-pb-none q-pt-xs">
+  <q-item
+    class="result-author-item q-pl-xs q-pb-none q-pt-xs"
+    @click="onAuthorClick"
+    clickable
+  >
     <q-item-section avatar side>
-      <q-avatar class="result-author-avatar" @click="onAuthorClick">
+      <q-avatar class="result-author-avatar">
         <img :src="authorAvatarUrl" referrerpolicy="no-referrer" />
       </q-avatar>
     </q-item-section>
     <q-item-section>
-      <div class="result-author-name" @click="onAuthorClick">
+      <div class="result-author-name">
         {{ authorItem.name }}
       </div>
     </q-item-section>
@@ -49,7 +53,10 @@ export default {
 };
 </script>
 
-<style scoped>
+<style>
+.q-focus-helper {
+  visibility: hidden;
+}
 .result-author-item {
   max-width: var(--result-item-width);
   cursor: pointer;

@@ -8,6 +8,7 @@
       <span>
         {{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}：{{ returnHits }}
       </span>
+      <span v-show="isHasAuthorFilter">，筛选：{{ hits.length }} </span>
     </div>
     <div class="results-stats" v-else>
       <span> {{ currentStepName }} {{ currentStepMark }}</span>
@@ -206,6 +207,7 @@ export default {
       currentResultDict,
       currentStepName,
       currentStepMark,
+      hits,
       returnHits,
       totalHits,
       resultsSortMethods,
