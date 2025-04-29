@@ -3,27 +3,22 @@
     <span>
       <span>
         <q-icon name="o_filter_alt" size="xs" class="q-ma-none" />
-        只看作者：
+        只看作者 :
       </span>
-      <span v-for="authorFilter in authorFilters" :key="authorFilter.mid">
-        <q-chip
-          outline
-          dense
-          removable
-          class="result-author-filter-chip"
-          @remove="removeAuthorFilter(authorFilter)"
-        >
-          {{ authorFilter.name }}
-        </q-chip>
-        &nbsp;
-        <q-chip
-          clickable
-          dense
-          class="result-author-filter-chip"
-          @click="searchAuthor(authorFilter)"
-        >
-          查看Ta的全部视频
-        </q-chip>
+      <span class="result-author-filter-chip">
+        <span v-for="authorFilter in authorFilters" :key="authorFilter.mid">
+          <q-chip
+            outline
+            dense
+            removable
+            @remove="removeAuthorFilter(authorFilter)"
+          >
+            {{ authorFilter.name }}
+          </q-chip>
+          <q-chip clickable dense @click="searchAuthor(authorFilter)">
+            查看Ta的全部视频
+          </q-chip>
+        </span>
       </span>
     </span>
   </div>
@@ -50,14 +45,14 @@ function searchAuthor(authorFilter: Dict) {
   explore({
     queryValue: `u="${authorFilter.name}"`,
     router: router,
-    isFromURL: false,
+    isFromURL: true,
   });
 }
 </script>
 
 <style scoped>
 .result-author-filter-chip {
-  vertical-align: 0px;
+  vertical-align: 1px;
   margin: 0px;
 }
 .result-author-filters {
