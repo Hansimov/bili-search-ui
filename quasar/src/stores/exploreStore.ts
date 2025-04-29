@@ -30,7 +30,6 @@ export const useExploreStore = defineStore('explore', {
         },
         setAuthorFilters(authorFilters: DictList) {
             this.authorFilters = authorFilters;
-            console.log('setAuthorFilters:', this.authorFilters);
         },
         removeAuthorFilter(authorFilter: Dict) {
             const index = this.authorFilters.findIndex((filter) => filter.mid === authorFilter.mid);

@@ -2,13 +2,13 @@
   <ResultAuthorFilters v-show="isHasAuthorFilter" />
   <div class="row results-list-info-top justify-between">
     <div class="results-stats" v-if="isShowResultsStats">
-      <span v-show="isReturnResultsLessThanTotal()">
+      <span v-show="isReturnResultsLessThanTotal">
         匹配：{{ totalHits }}，
       </span>
       <span>
-        {{ isReturnResultsLessThanTotal() ? '返回' : '匹配' }}：{{ returnHits }}
+        {{ isReturnResultsLessThanTotal ? '返回' : '匹配' }}：{{ returnHits }}
       </span>
-      <span v-show="isHasAuthorFilter">，筛选：{{ hits.length }} </span>
+      <span v-show="isHasAuthorFilter">，筛选：{{ sortedHits.length }} </span>
     </div>
     <div class="results-stats" v-else>
       <span> {{ currentStepName }} {{ currentStepMark }}</span>
@@ -63,7 +63,7 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
@@ -83,18 +83,19 @@ export default {
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
 
+    // step result vars
     const currentResultDict = computed(
       () => exploreStore.currentStepResult?.output || {}
     );
-    const currentStepName = computed(() => {
-      return exploreStore.currentStepResult?.name_zh || '';
-    });
-    const currentStepStatus = computed(() => {
-      return exploreStore.currentStepResult?.status || '';
-    });
-    const currentStepTimedOut = computed(() => {
-      return exploreStore.currentStepResult?.output?.timed_out || false;
-    });
+    const currentStepName = computed(
+      () => exploreStore.currentStepResult?.name_zh || ''
+    );
+    const currentStepStatus = computed(
+      () => exploreStore.currentStepResult?.status || ''
+    );
+    const currentStepTimedOut = computed(
+      () => exploreStore.currentStepResult?.output?.timed_out || false
+    );
     const currentStepMark = computed(() => {
       const status = currentStepStatus.value;
       if (status === 'running') {
@@ -112,58 +113,55 @@ export default {
       }
     });
 
-    const allHits = computed(() => {
-      return exploreStore.latestHitsResult.output?.hits || [];
-    });
-    const authorFilters = computed(() => {
-      return exploreStore.authorFilters;
-    });
-    const isHasAuthorFilter = computed(() => {
-      return isNonEmptyArray(authorFilters.value);
-    });
-    const hits = computed(() => {
+    // all hits
+    const allHits = computed(
+      () => exploreStore.latestHitsResult.output?.hits || []
+    );
+
+    // hits stats
+    const isShowResultsStats = computed(
+      () =>
+        currentStepStatus.value === 'finished' && isNonEmptyArray(allHits.value)
+    );
+    const returnHits = computed(
+      () => exploreStore.latestHitsResult.output?.return_hits || 0
+    );
+    const totalHits = computed(
+      () => exploreStore.latestHitsResult.output?.total_hits || 0
+    );
+    const isReturnResultsLessThanTotal = computed(
+      () => returnHits.value < totalHits.value
+    );
+
+    // filter hits
+    const authorFilters = computed(() => exploreStore.authorFilters);
+    const isHasAuthorFilter = computed(() =>
+      isNonEmptyArray(authorFilters.value)
+    );
+    const filteredHits = computed(() => {
       if (isHasAuthorFilter.value) {
-        return allHits.value.filter((hit) => {
-          return authorFilters.value.some((authorFilter) => {
-            return hit.owner.mid === authorFilter.mid;
-          });
-        });
+        return allHits.value.filter((hit) =>
+          authorFilters.value.some(
+            (authorFilter) => hit.owner.mid === authorFilter.mid
+          )
+        );
       } else {
         return allHits.value;
       }
     });
-    const isShowResultsStats = computed(() => {
-      return (
-        currentStepStatus.value === 'finished' && isNonEmptyArray(hits.value)
-      );
-    });
 
-    const returnHits = computed(() => {
-      return exploreStore.latestHitsResult.output?.return_hits || 0;
-    });
-    const totalHits = computed(() => {
-      return exploreStore.latestHitsResult.output?.total_hits || 0;
-    });
-    function isReturnResultsLessThanTotal() {
-      return returnHits.value < totalHits.value;
-    }
-
+    // sort hits
     const currentPage = ref(1);
     const itemsPerPage = ref(20);
-    const totalPages = computed(() =>
-      Math.ceil(hits.value.length / itemsPerPage.value)
-    );
-    const paginatedResults = computed(() => {
-      const start = (currentPage.value - 1) * itemsPerPage.value;
-      const end = start + itemsPerPage.value;
-      return hits.value.slice(start, end);
-    });
-
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
     function sortResults(method) {
       searchStore.setResultsSortMethod(method);
       resultsSortMethod.value = method;
-      hits.value.sort((a, b) => {
+      currentPage.value = 1;
+    }
+    const sortedHits = computed(() => {
+      const method = resultsSortMethod.value;
+      return [...filteredHits.value].sort((a, b) => {
         const valueA = method.field.split('.').reduce((o, i) => o[i], a);
         const valueB = method.field.split('.').reduce((o, i) => o[i], b);
         if (method.order === 'asc') {
@@ -172,28 +170,28 @@ export default {
           return valueA < valueB ? 1 : -1;
         }
       });
-      currentPage.value = 1;
-    }
-    watch(hits, () => {
-      sortResults(resultsSortMethod.value);
-      currentPage.value = 1;
     });
 
-    const isCollapsePaginate = computed(() => {
-      return layoutStore.isCollapsePaginate();
+    // pagination
+    const totalPages = computed(() =>
+      Math.ceil(sortedHits.value.length / itemsPerPage.value)
+    );
+    const paginatedResults = computed(() => {
+      const start = (currentPage.value - 1) * itemsPerPage.value;
+      const end = start + itemsPerPage.value;
+      return sortedHits.value.slice(start, end);
     });
-    const dynamicResultsListClass = computed(() => {
-      if (layoutStore.isSmallScreen()) {
-        return 'results-list q-gutter-none';
-      } else {
-        return 'results-list q-gutter-xs';
-      }
-    });
-    const dynamicResultsListStyle = computed(() => {
-      return {
-        maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
-      };
-    });
+    const isCollapsePaginate = computed(() => layoutStore.isCollapsePaginate());
+
+    // layout
+    const dynamicResultsListClass = computed(() =>
+      layoutStore.isSmallScreen()
+        ? 'results-list q-gutter-none'
+        : 'results-list q-gutter-xs'
+    );
+    const dynamicResultsListStyle = computed(() => ({
+      maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
+    }));
 
     onMounted(() => {
       layoutStore.addWindowResizeListener();
@@ -207,12 +205,12 @@ export default {
       currentResultDict,
       currentStepName,
       currentStepMark,
-      hits,
       returnHits,
       totalHits,
       resultsSortMethods,
       resultsSortMethod,
       sortResults,
+      sortedHits,
       currentPage,
       totalPages,
       paginatedResults,
