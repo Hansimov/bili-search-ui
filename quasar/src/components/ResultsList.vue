@@ -46,7 +46,11 @@
       </q-menu>
     </q-btn>
   </div>
-  <div :class="dynamicResultsListClass" :style="dynamicResultsListStyle">
+  <div
+    ref="resultsList"
+    :class="dynamicResultsListClass"
+    :style="dynamicResultsListStyle"
+  >
     <ResultItem
       v-for="(result, index) in paginatedResults"
       :key="index"
@@ -63,7 +67,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
@@ -151,8 +155,13 @@ export default {
     });
 
     // sort hits
-    const currentPage = ref(1);
-    const itemsPerPage = ref(20);
+    const currentPage = computed({
+      get: () => layoutStore.currentPage,
+      set: (page) => {
+        layoutStore.setCurrentPage(page);
+      },
+    });
+    const itemsPerPage = computed(() => layoutStore.itemsPerPage);
     const resultsSortMethod = ref(searchStore.resultsSortMethod);
     function sortResults(method) {
       searchStore.setResultsSortMethod(method);
@@ -192,6 +201,15 @@ export default {
     const dynamicResultsListStyle = computed(() => ({
       maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
     }));
+    const resultsList = ref(null);
+    watch(
+      [() => layoutStore.currentPage, () => resultsSortMethod.value.field],
+      async () => {
+        if (resultsList.value) {
+          resultsList.value.scrollTop = 0;
+        }
+      }
+    );
 
     onMounted(() => {
       layoutStore.addWindowResizeListener();
@@ -219,6 +237,7 @@ export default {
       dynamicResultsListStyle,
       isReturnResultsLessThanTotal,
       isHasAuthorFilter,
+      resultsList,
     };
   },
 };

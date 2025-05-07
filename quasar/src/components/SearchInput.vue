@@ -81,6 +81,7 @@ export default {
         router: router,
         isFromURL: isFromURL,
       });
+      layoutStore.setCurrentPage(1);
     };
 
     if (query.value) {

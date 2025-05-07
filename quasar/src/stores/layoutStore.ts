@@ -12,6 +12,8 @@ export const useLayoutStore = defineStore('layout', {
         isAiChatVisible: false,
         isSearchOptionsBarVisible: true,
         activeTab: 'videos',
+        currentPage: 1 as number,
+        itemsPerPage: 20 as number,
     }),
     actions: {
         isDesktopMode() {
@@ -85,6 +87,12 @@ export const useLayoutStore = defineStore('layout', {
         },
         setActiveTab(newActiveTab: string) {
             this.activeTab = newActiveTab;
+        },
+        setCurrentPage(newPage: number) {
+            this.currentPage = newPage;
+        },
+        setItemsPerPage(newItemsPerPage: number) {
+            this.itemsPerPage = newItemsPerPage;
         },
     },
 });
