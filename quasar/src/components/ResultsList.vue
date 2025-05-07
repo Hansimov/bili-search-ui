@@ -47,7 +47,7 @@
     </q-btn>
   </div>
   <div
-    ref="resultsList"
+    ref="resultsListDiv"
     :class="dynamicResultsListClass"
     :style="dynamicResultsListStyle"
   >
@@ -201,15 +201,12 @@ export default {
     const dynamicResultsListStyle = computed(() => ({
       maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
     }));
-    const resultsList = ref(null);
-    watch(
-      [() => layoutStore.currentPage, () => resultsSortMethod.value.field],
-      async () => {
-        if (resultsList.value) {
-          resultsList.value.scrollTop = 0;
-        }
+    const resultsListDiv = ref(null);
+    watch([() => paginatedResults.value], async () => {
+      if (resultsListDiv.value) {
+        resultsListDiv.value.scrollTop = 0;
       }
-    );
+    });
 
     onMounted(() => {
       layoutStore.addWindowResizeListener();
@@ -237,7 +234,7 @@ export default {
       dynamicResultsListStyle,
       isReturnResultsLessThanTotal,
       isHasAuthorFilter,
-      resultsList,
+      resultsListDiv,
     };
   },
 };
