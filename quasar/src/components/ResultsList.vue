@@ -9,6 +9,7 @@
         {{ isReturnResultsLessThanTotal ? '返回' : '匹配' }}：{{ returnHits }}
       </span>
       <span v-show="isHasAuthorFilter">，筛选：{{ sortedHits.length }} </span>
+      <ExploreSessionSwitch v-show="isExploreSessionVisible" />
     </div>
     <div class="results-stats" v-else>
       <span> {{ currentStepName }} {{ currentStepMark }}</span>
@@ -75,12 +76,14 @@ import { resultsSortMethods, isNonEmptyArray } from 'src/stores/resultStore';
 import ResultItem from './ResultItem.vue';
 import ResultsPagination from './ResultsPagination.vue';
 import ResultAuthorFilters from './ResultAuthorFilters.vue';
+import ExploreSessionSwitch from './ExploreSessionSwitch.vue';
 
 export default {
   components: {
     ResultItem,
     ResultsPagination,
     ResultAuthorFilters,
+    ExploreSessionSwitch,
   },
   setup() {
     const searchStore = useSearchStore();
@@ -207,6 +210,9 @@ export default {
         resultsListDiv.value.scrollTop = 0;
       }
     });
+    const isExploreSessionVisible = computed(() =>
+      exploreStore.isSessionSwitchVisible()
+    );
 
     onMounted(() => {
       layoutStore.addWindowResizeListener();
@@ -235,6 +241,7 @@ export default {
       isReturnResultsLessThanTotal,
       isHasAuthorFilter,
       resultsListDiv,
+      isExploreSessionVisible,
     };
   },
 };
