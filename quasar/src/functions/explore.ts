@@ -103,6 +103,7 @@ export const explore = async ({
                 break;
             }
         }
+        exploreStore.saveExploreSession();
     } catch (error) {
         console.error('[ERROR]: ', error);
     } finally {

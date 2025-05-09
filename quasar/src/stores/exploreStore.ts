@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { Dict, DictList, ExploreStepResult, isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
+import { Dict, DictList, ExploreStepResult, ExploreSession, isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
 
 export const useExploreStore = defineStore('explore', {
     state: () => ({
@@ -7,6 +7,8 @@ export const useExploreStore = defineStore('explore', {
         latestHitsResult: {} as ExploreStepResult,
         latestAuthorsResult: {} as ExploreStepResult,
         authorFilters: [] as DictList,
+        exploreSessions: [] as ExploreSession[],
+        currentSessionIdx: -1,
     }),
     getters: {
         currentStepResult(): ExploreStepResult | undefined {
@@ -39,6 +41,50 @@ export const useExploreStore = defineStore('explore', {
         },
         clearAuthorFilters() {
             this.authorFilters = [];
+        },
+        saveExploreSession() {
+            // ensure not keeping "future" sessions if user branches off
+            if (this.currentSessionIdx < this.exploreSessions.length - 1) {
+                this.exploreSessions.splice(this.currentSessionIdx + 1);
+            }
+            this.exploreSessions.push({
+                stepResults: [...this.stepResults],
+                latestHitsResult: this.latestHitsResult,
+                latestAuthorsResult: this.latestAuthorsResult,
+                authorFilters: [...this.authorFilters],
+            });
+            this.currentSessionIdx = this.exploreSessions.length - 1;
+        },
+        restoreSession() {
+            const session = this.exploreSessions[this.currentSessionIdx];
+            this.stepResults = [...session.stepResults];
+            this.latestHitsResult = session.latestHitsResult;
+            this.latestAuthorsResult = session.latestAuthorsResult;
+            this.authorFilters = [...session.authorFilters];
+        },
+        clearSession() {
+            const session = this.exploreSessions[this.currentSessionIdx];
+            this.exploreSessions = [session];
+            this.currentSessionIdx = 0;
+        },
+        isSessionHasPrev() {
+            return this.currentSessionIdx > 0;
+        },
+        isSessionHasNext() {
+            return this.currentSessionIdx < this.exploreSessions.length - 1;
+        },
+        isSessionSwitchVisible() {
+            return this.exploreSessions.length > 1;
+        },
+        toPrevSession() {
+            if (!this.isSessionHasPrev()) return;
+            this.currentSessionIdx--;
+            this.restoreSession();
+        },
+        toNextSession() {
+            if (!this.isSessionHasNext()) return;
+            this.currentSessionIdx++;
+            this.restoreSession();
         },
         pushNewStepResult(stepResult: ExploreStepResult) {
             // console.log('pushNewStepResult:', stepResult);

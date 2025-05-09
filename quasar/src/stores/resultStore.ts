@@ -202,6 +202,22 @@ export function defaultExploreStepResult(): ExploreStepResult {
     }
 }
 
+export interface ExploreSession {
+    stepResults: ExploreStepResult[];
+    latestHitsResult: ExploreStepResult;
+    latestAuthorsResult: ExploreStepResult;
+    authorFilters: DictList;
+}
+
+export function defaultExploreSession(): ExploreSession {
+    return {
+        stepResults: [],
+        latestHitsResult: defaultExploreStepResult(),
+        latestAuthorsResult: defaultExploreStepResult(),
+        authorFilters: [],
+    }
+}
+
 export function isNonEmptyArray(array: DictList): boolean {
     return Array.isArray(array) && array.length > 0;
 }
