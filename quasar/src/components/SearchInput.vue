@@ -22,7 +22,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
@@ -35,7 +35,10 @@ export default {
     const layoutStore = useLayoutStore();
     const route = useRoute();
     const router = useRouter();
-    const query = ref(queryStore.query || route.query.q || '');
+    const query = computed({
+      get: () => queryStore.query || route.query.q || '',
+      set: (value) => queryStore.setQuery(value),
+    });
 
     const handleBlur = () => {
       if (!layoutStore.isMouseInSearchBar) {
@@ -80,6 +83,7 @@ export default {
         queryValue: query.value,
         router: router,
         isFromURL: isFromURL,
+        setQuery: true,
       });
       layoutStore.setCurrentPage(1);
     };

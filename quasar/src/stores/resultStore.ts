@@ -203,6 +203,7 @@ export function defaultExploreStepResult(): ExploreStepResult {
 }
 
 export interface ExploreSession {
+    query: string;
     stepResults: ExploreStepResult[];
     latestHitsResult: ExploreStepResult;
     latestAuthorsResult: ExploreStepResult;
@@ -211,6 +212,7 @@ export interface ExploreSession {
 
 export function defaultExploreSession(): ExploreSession {
     return {
+        query: '',
         stepResults: [],
         latestHitsResult: defaultExploreStepResult(),
         latestAuthorsResult: defaultExploreStepResult(),

@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia';
 import { Dict, DictList, ExploreStepResult, ExploreSession, isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
+import { useQueryStore } from './queryStore';
+const queryStore = useQueryStore();
+
 
 export const useExploreStore = defineStore('explore', {
     state: () => ({
@@ -48,6 +51,7 @@ export const useExploreStore = defineStore('explore', {
                 this.exploreSessions.splice(this.currentSessionIdx + 1);
             }
             this.exploreSessions.push({
+                query: queryStore.query,
                 stepResults: [...this.stepResults],
                 latestHitsResult: this.latestHitsResult,
                 latestAuthorsResult: this.latestAuthorsResult,
@@ -57,6 +61,7 @@ export const useExploreStore = defineStore('explore', {
         },
         restoreSession() {
             const session = this.exploreSessions[this.currentSessionIdx];
+            queryStore.setQuery(session.query);
             this.stepResults = [...session.stepResults];
             this.latestHitsResult = session.latestHitsResult;
             this.latestAuthorsResult = session.latestAuthorsResult;
