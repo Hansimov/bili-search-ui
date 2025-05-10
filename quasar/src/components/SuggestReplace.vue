@@ -24,7 +24,6 @@
 
 <script>
 import { computed } from 'vue';
-import { useRouter } from 'vue-router';
 import { useQueryStore } from '../stores/queryStore';
 import { useSearchStore } from '../stores/searchStore';
 import { submitQuery } from 'src/functions/search';
@@ -39,7 +38,6 @@ export default {
   setup() {
     const queryStore = useQueryStore();
     const searchStore = useSearchStore();
-    const router = useRouter();
     const query = computed(() => queryStore.query);
     const suggestResultCache = computed(() => searchStore.suggestResultCache);
     const keywords = computed(
@@ -73,9 +71,8 @@ export default {
     const searchOriginalQuery = () => {
       submitQuery({
         queryValue: query.value,
-        router: router,
-        isFromURL: false,
         setQuery: true,
+        setRoute: true,
       });
     };
     const searchRewritedQuery = (rewriteString) => {
@@ -83,10 +80,8 @@ export default {
       const rewriteQueryValue = `${rewriteString} ${filtersString}`.trim();
       submitQuery({
         queryValue: rewriteQueryValue,
-        router: router,
-        isFromURL: false,
         setQuery: true,
-        // isReplaceKeywords: false,
+        setRoute: true,
       });
     };
 

@@ -26,7 +26,6 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { useRouter } from 'vue-router';
 import type { Dict } from 'src/stores/resultStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { explore } from 'src/functions/explore';
@@ -35,7 +34,6 @@ const exploreStore = useExploreStore();
 const authorFilters = computed(() => {
   return exploreStore.authorFilters;
 });
-const router = useRouter();
 
 function removeAuthorFilter(authorFilter: Dict) {
   exploreStore.removeAuthorFilter(authorFilter);
@@ -44,8 +42,8 @@ function removeAuthorFilter(authorFilter: Dict) {
 function searchAuthor(authorFilter: Dict) {
   explore({
     queryValue: `u="${authorFilter.name}"`,
-    router: router,
-    isFromURL: true,
+    setQuery: true,
+    setRoute: true,
   });
 }
 </script>

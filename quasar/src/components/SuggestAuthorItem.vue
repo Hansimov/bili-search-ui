@@ -15,7 +15,6 @@
 
 <script>
 import defaultAvatarUrl from '../assets/noface.jpg@96w_96h.avif';
-import { useRouter } from 'vue-router';
 import { submitQuery } from 'src/functions/search';
 
 export default {
@@ -35,14 +34,12 @@ export default {
     },
   },
   setup(props) {
-    const router = useRouter();
     const onAuthorClick = () => {
       const queryValue = `u=${props.authorName}`;
       submitQuery({
         queryValue: queryValue,
-        router: router,
-        isFromURL: false,
         setQuery: true,
+        setRoute: true,
       });
     };
     return {

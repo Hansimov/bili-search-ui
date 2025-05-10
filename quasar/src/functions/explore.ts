@@ -1,5 +1,4 @@
 import { api } from 'boot/axios';
-import { Router } from 'vue-router';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
@@ -24,12 +23,11 @@ const extractMessagesFromBuffer = (buffer: string): { messages: string[], remain
 };
 
 export const explore = async ({
-    queryValue, router, isFromURL = false, setQuery = true,
+    queryValue, setQuery = true, setRoute = false,
 }: {
     queryValue: string,
-    router: Router,
-    isFromURL?: boolean,
     setQuery?: boolean,
+    setRoute?: boolean,
 }) => {
     layoutStore.setIsSuggestVisible(false);
     exploreStore.clearAuthorFilters();
@@ -37,13 +35,7 @@ export const explore = async ({
         return;
     }
     if (setQuery) {
-        queryStore.setQuery(queryValue);
-    }
-    if (!isFromURL) {
-        const newRoute = `/search?q=${encodeURIComponent(queryValue)}`;
-        if (router.currentRoute.value.path !== newRoute) {
-            await router.replace(newRoute);
-        }
+        queryStore.setQuery({ newQuery: queryValue, setRoute: setRoute });
     }
     try {
         exploreAbortController.abort();

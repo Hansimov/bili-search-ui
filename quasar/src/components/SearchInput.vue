@@ -9,7 +9,7 @@
       v-model="query"
       @focus="handleFocus"
       @blur="handleBlur"
-      @keyup.enter="submitQueryInInput(false)"
+      @keyup.enter="submitQueryInInput(true)"
       @update:model-value="handleInputComplete"
     >
       <template v-slot:prepend>
@@ -23,7 +23,7 @@
 
 <script>
 import { computed, onMounted, onBeforeUnmount } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { suggest, randomSuggest } from 'src/functions/search';
@@ -34,10 +34,12 @@ export default {
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
     const route = useRoute();
-    const router = useRouter();
     const query = computed({
       get: () => queryStore.query || route.query.q || '',
-      set: (value) => queryStore.setQuery(value),
+      set: (value) =>
+        queryStore.setQuery({
+          newQuery: value,
+        }),
     });
 
     const handleBlur = () => {
@@ -78,18 +80,18 @@ export default {
       document.removeEventListener('click', handleGlobalClick);
     });
 
-    const submitQueryInInput = async (isFromURL = false) => {
+    const submitQueryInInput = async (setRoute = false) => {
       await explore({
         queryValue: query.value,
-        router: router,
-        isFromURL: isFromURL,
         setQuery: true,
+        setRoute: setRoute,
       });
       layoutStore.setCurrentPage(1);
     };
 
+    // this is triggered when open url (route) with `search?q=...`
     if (query.value) {
-      submitQueryInInput(query.value);
+      submitQueryInInput(false);
     }
 
     const searchInputPlaceholder = computed(() => {

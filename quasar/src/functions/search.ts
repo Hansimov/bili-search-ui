@@ -1,5 +1,4 @@
 import { api } from 'boot/axios';
-import { Router } from 'vue-router';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
@@ -38,7 +37,7 @@ export const suggestRequest = async (newVal: string, suggestAbortController: Abo
 
 export const suggest = async (newVal: string, showSuggestions = true, setQuery = true): Promise<void> => {
     if (setQuery) {
-        queryStore.setQuery(newVal);
+        queryStore.setQuery({ newQuery: newVal });
     }
 
     if (showSuggestions && !layoutStore.isSuggestVisible) {
@@ -75,25 +74,17 @@ export const randomSuggest = async () => {
 
 export const submitQuery = async ({
     queryValue,
-    router,
-    isFromURL = false,
     setQuery = true,
+    setRoute = true
 }: {
     queryValue: string,
-    router: Router,
-    isFromURL?: boolean,
     setQuery?: boolean,
+    setRoute?: boolean,
 }) => {
     layoutStore.setIsSuggestVisible(false);
     if (queryValue) {
         if (setQuery) {
-            queryStore.setQuery(queryValue);
-        }
-        if (!isFromURL) {
-            const newRoute = `/search?q=${encodeURIComponent(queryValue)}`;
-            if (router.currentRoute.value.path !== newRoute) {
-                await router.push(newRoute);
-            }
+            queryStore.setQuery({ newQuery: queryValue, setRoute: setRoute });
         }
         try {
             console.log('> Getting search results ...');
