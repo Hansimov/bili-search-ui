@@ -93,9 +93,6 @@ export const useSearchStore = defineStore('search', {
         setAiSuggestions(newAiSuggestions: DictList) {
             this.aiSuggestions = newAiSuggestions;
         },
-        setQuery(newQuery: string) {
-            queryStore.setQuery(newQuery);
-        },
         setAiQuery(newAiQuery: string) {
             this.aiQuery = newAiQuery;
         },

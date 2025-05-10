@@ -1,5 +1,6 @@
 import { api } from 'boot/axios';
 import { Router } from 'vue-router';
+import { useQueryStore } from 'src/stores/queryStore';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { debounce } from 'src/utils/time';
@@ -7,6 +8,7 @@ import { debounce } from 'src/utils/time';
 let suggestAbortController = new AbortController();
 let searchAbortController = new AbortController();
 const SUGGEST_DEBOUNCE_INTERVAL = 150; // milliseconds
+const queryStore = useQueryStore();
 const searchStore = useSearchStore();
 const layoutStore = useLayoutStore();
 
@@ -34,9 +36,9 @@ export const suggestRequest = async (newVal: string, suggestAbortController: Abo
     }
 };
 
-export const suggest = async (newVal: string, showSuggestions = true, setSearchStoreQuery = true): Promise<void> => {
-    if (setSearchStoreQuery) {
-        searchStore.setQuery(newVal);
+export const suggest = async (newVal: string, showSuggestions = true, setQuery = true): Promise<void> => {
+    if (setQuery) {
+        queryStore.setQuery(newVal);
     }
 
     if (showSuggestions && !layoutStore.isSuggestVisible) {
@@ -75,17 +77,17 @@ export const submitQuery = async ({
     queryValue,
     router,
     isFromURL = false,
-    setSearchStoreQuery = true,
+    setQuery = true,
 }: {
     queryValue: string,
     router: Router,
     isFromURL?: boolean,
-    setSearchStoreQuery?: boolean,
+    setQuery?: boolean,
 }) => {
     layoutStore.setIsSuggestVisible(false);
     if (queryValue) {
-        if (setSearchStoreQuery) {
-            searchStore.setQuery(queryValue);
+        if (setQuery) {
+            queryStore.setQuery(queryValue);
         }
         if (!isFromURL) {
             const newRoute = `/search?q=${encodeURIComponent(queryValue)}`;
@@ -100,7 +102,7 @@ export const submitQuery = async ({
 
             // let cachedSuggest = searchStore.suggestResultCache[queryValue];
             // if (!cachedSuggest) {
-            //     await suggest(queryValue, false, setSearchStoreQuery);
+            //     await suggest(queryValue, false, setQuery);
             //     cachedSuggest = searchStore.suggestResultCache[queryValue];
             // }
 

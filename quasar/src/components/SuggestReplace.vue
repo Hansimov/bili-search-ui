@@ -75,7 +75,7 @@ export default {
         queryValue: query.value,
         router: router,
         isFromURL: false,
-        setSearchStoreQuery: true,
+        setQuery: true,
       });
     };
     const searchRewritedQuery = (rewriteString) => {
@@ -85,7 +85,7 @@ export default {
         queryValue: rewriteQueryValue,
         router: router,
         isFromURL: false,
-        setSearchStoreQuery: true,
+        setQuery: true,
         // isReplaceKeywords: false,
       });
     };

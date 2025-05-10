@@ -24,19 +24,19 @@ const extractMessagesFromBuffer = (buffer: string): { messages: string[], remain
 };
 
 export const explore = async ({
-    queryValue, router, isFromURL = false, setSearchStoreQuery = true,
+    queryValue, router, isFromURL = false, setQuery = true,
 }: {
     queryValue: string,
     router: Router,
     isFromURL?: boolean,
-    setSearchStoreQuery?: boolean,
+    setQuery?: boolean,
 }) => {
     layoutStore.setIsSuggestVisible(false);
     exploreStore.clearAuthorFilters();
     if (!queryValue) {
         return;
     }
-    if (setSearchStoreQuery) {
+    if (setQuery) {
         queryStore.setQuery(queryValue);
     }
     if (!isFromURL) {

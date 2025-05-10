@@ -42,7 +42,7 @@ export default {
         queryValue: queryValue,
         router: router,
         isFromURL: false,
-        setSearchStoreQuery: false,
+        setQuery: true,
       });
     };
     return {
