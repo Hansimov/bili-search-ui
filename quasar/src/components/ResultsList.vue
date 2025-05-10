@@ -1,7 +1,7 @@
 <template>
-  <ResultAuthorFilters v-show="isHasAuthorFilter" />
   <div class="row results-list-info-top justify-between">
     <div class="results-stats" v-if="isShowResultsStats">
+      <ExploreSessionSwitch v-show="isExploreSessionVisible" />
       <span v-show="isReturnResultsLessThanTotal">
         匹配：{{ totalHits }}，
       </span>
@@ -9,7 +9,6 @@
         {{ isReturnResultsLessThanTotal ? '返回' : '匹配' }}：{{ returnHits }}
       </span>
       <span v-show="isHasAuthorFilter">，筛选：{{ sortedHits.length }} </span>
-      <ExploreSessionSwitch v-show="isExploreSessionVisible" />
     </div>
     <div class="results-stats" v-else>
       <span> {{ currentStepName }} {{ currentStepMark }}</span>
@@ -47,6 +46,8 @@
       </q-menu>
     </q-btn>
   </div>
+  <ResultAuthorsList />
+  <ResultAuthorFilters v-show="isHasAuthorFilter" />
   <div
     ref="resultsListDiv"
     :class="dynamicResultsListClass"
@@ -73,8 +74,10 @@ import { useSearchStore } from 'src/stores/searchStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { resultsSortMethods, isNonEmptyArray } from 'src/stores/resultStore';
+
 import ResultItem from './ResultItem.vue';
 import ResultsPagination from './ResultsPagination.vue';
+import ResultAuthorsList from 'src/components/ResultAuthorsList.vue';
 import ResultAuthorFilters from './ResultAuthorFilters.vue';
 import ExploreSessionSwitch from './ExploreSessionSwitch.vue';
 
@@ -82,6 +85,7 @@ export default {
   components: {
     ResultItem,
     ResultsPagination,
+    ResultAuthorsList,
     ResultAuthorFilters,
     ExploreSessionSwitch,
   },
@@ -250,7 +254,7 @@ export default {
 <style lang="scss" scoped>
 .results-stats,
 .results-paginate-top {
-  padding: 7px 5px 14px 6px;
+  padding: 7px 5px 7px 6px;
   z-index: 1000;
 }
 .results-paginate-top {
@@ -264,7 +268,7 @@ export default {
 .q-btn {
   padding: 6px 5px 6px 6px;
   min-height: 28px;
-  height: 28px;
+  height: 36px;
   font-size: 14px;
   margin: 0px;
 }

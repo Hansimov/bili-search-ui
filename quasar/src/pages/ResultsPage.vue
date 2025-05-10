@@ -9,7 +9,6 @@
         transition-duration="0"
       >
         <q-tab-panel name="videos">
-          <ResultAuthorsList />
           <ResultsList />
         </q-tab-panel>
         <q-tab-panel name="ai">
@@ -27,12 +26,10 @@
 import { computed } from 'vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import ResultsList from 'src/components/ResultsList.vue';
-import ResultAuthorsList from 'src/components/ResultAuthorsList.vue';
 
 export default {
   components: {
     ResultsList,
-    ResultAuthorsList,
   },
   setup() {
     const layoutStore = useLayoutStore();
