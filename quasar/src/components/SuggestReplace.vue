@@ -25,6 +25,7 @@
 <script>
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useQueryStore } from '../stores/queryStore';
 import { useSearchStore } from '../stores/searchStore';
 import { submitQuery } from 'src/functions/search';
 import SuggestReplaceRewriteItem from './SuggestReplaceRewriteItem.vue';
@@ -36,9 +37,10 @@ export default {
     SuggestReplaceOriginalItem,
   },
   setup() {
+    const queryStore = useQueryStore();
     const searchStore = useSearchStore();
     const router = useRouter();
-    const query = computed(() => searchStore.query);
+    const query = computed(() => queryStore.query);
     const suggestResultCache = computed(() => searchStore.suggestResultCache);
     const keywords = computed(
       () =>

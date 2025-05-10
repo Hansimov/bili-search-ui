@@ -1,13 +1,14 @@
 import { api } from 'boot/axios';
 import { Router } from 'vue-router';
-import { useSearchStore } from 'src/stores/searchStore';
+import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 
-let exploreAbortController = new AbortController();
-const searchStore = useSearchStore();
+const queryStore = useQueryStore();
 const exploreStore = useExploreStore();
 const layoutStore = useLayoutStore();
+
+let exploreAbortController = new AbortController();
 
 const extractMessagesFromBuffer = (buffer: string): { messages: string[], remainBuffer: string } => {
     const sep = '\n\r';
@@ -36,7 +37,7 @@ export const explore = async ({
         return;
     }
     if (setSearchStoreQuery) {
-        searchStore.setQuery(queryValue);
+        queryStore.setQuery(queryValue);
     }
     if (!isFromURL) {
         const newRoute = `/search?q=${encodeURIComponent(queryValue)}`;

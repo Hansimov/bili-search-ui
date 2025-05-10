@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import { defineStore, storeToRefs } from 'pinia'
 import {
     type DictList,
     RewriteInfo,
@@ -13,6 +13,10 @@ import {
     ResultsSortMethod,
     defaultResultsSortMethod,
 } from 'src/stores/resultStore';
+import { useQueryStore } from './queryStore';
+
+const queryStore = useQueryStore();
+const { query } = storeToRefs(queryStore);
 
 export const sortAuthors = (a: RelatedAuthorsListItem, b: RelatedAuthorsListItem) => {
     const highlightedA = a.authorInfo.highlighted || false;
@@ -27,7 +31,6 @@ export const sortAuthors = (a: RelatedAuthorsListItem, b: RelatedAuthorsListItem
 
 export const useSearchStore = defineStore('search', {
     state: () => ({
-        query: '',
         aiQuery: '',
         suggestQuery: '',
         suggestResultCache: {} as SuggestResultCache,
@@ -40,10 +43,10 @@ export const useSearchStore = defineStore('search', {
     }),
     getters: {
         isQueryEmpty(): boolean {
-            return !this.query || this.query.trim() === '';
+            return !query.value || query.value.trim() === '';
         },
         rewrite_info(): RewriteInfo {
-            return this.suggestResultCache[this.query]?.rewrite_info || {
+            return this.suggestResultCache[queryStore.query]?.rewrite_info || {
                 rewrited: false,
                 is_original_in_rewrites: false,
                 rewrited_word_exprs: [],
@@ -53,10 +56,10 @@ export const useSearchStore = defineStore('search', {
             return this.suggestions.length > 0;
         },
         isSuggestReplaceVisible(): boolean {
-            return (!!this.query && this.query.trim() !== '');
+            return (!!query.value && query.value.trim() !== '');
         },
         relatedAuthorsList(): RelatedAuthorsList {
-            const relatedAuthors = this.suggestResultCache[this.query]?.suggest_info?.related_authors;
+            const relatedAuthors = this.suggestResultCache[query.value]?.suggest_info?.related_authors;
             if (!relatedAuthors) {
                 return [];
             }
@@ -69,7 +72,7 @@ export const useSearchStore = defineStore('search', {
             return authorsList.sort(sortAuthors);
         },
         isSuggestAuthorsListVisible(): boolean {
-            return this.query.trim() !== '' && this.relatedAuthorsList.length > 0;
+            return query.value.trim() !== '' && this.relatedAuthorsList.length > 0;
         },
     },
     actions: {
@@ -91,7 +94,7 @@ export const useSearchStore = defineStore('search', {
             this.aiSuggestions = newAiSuggestions;
         },
         setQuery(newQuery: string) {
-            this.query = newQuery;
+            queryStore.setQuery(newQuery);
         },
         setAiQuery(newAiQuery: string) {
             this.aiQuery = newAiQuery;

@@ -24,18 +24,18 @@
 <script>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useSearchStore } from 'src/stores/searchStore';
+import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { suggest, randomSuggest } from 'src/functions/search';
 import { explore } from 'src/functions/explore';
 
 export default {
   setup() {
-    const searchStore = useSearchStore();
+    const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
     const route = useRoute();
     const router = useRouter();
-    const query = ref(searchStore.query || route.query.q || '');
+    const query = ref(queryStore.query || route.query.q || '');
 
     const handleBlur = () => {
       if (!layoutStore.isMouseInSearchBar) {
