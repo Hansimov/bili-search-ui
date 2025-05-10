@@ -1,17 +1,17 @@
 <template>
-  <details open class="result-authors-details q-pl-xs">
+  <details
+    open
+    class="result-authors-details q-pl-xs"
+    :style="dynamicResultAuthorsDetailsStyle"
+  >
     <summary>相关作者</summary>
-    <q-list
-      class="result-authors-list"
-      :style="dynamicResultAuthorsListStyle"
-      v-if="isShowAuthorsList"
-    >
+    <div class="result-authors-list" v-if="isShowAuthorsList">
       <ResultAuthorItem
         v-for="(authorItem, index) in authors"
         :key="index"
         :authorItem="authorItem"
       />
-    </q-list>
+    </div>
   </details>
 </template>
 
@@ -50,7 +50,7 @@ export default {
         }
       });
     }
-    const dynamicResultAuthorsListStyle = computed(() => {
+    const dynamicResultAuthorsDetailsStyle = computed(() => {
       return {
         maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
       };
@@ -61,7 +61,7 @@ export default {
     return {
       authors,
       isShowAuthorsList,
-      dynamicResultAuthorsListStyle,
+      dynamicResultAuthorsDetailsStyle,
     };
   },
 };
@@ -70,12 +70,12 @@ export default {
 <style lang="scss" scoped>
 .result-authors-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, var(--result-item-width));
-  overflow-y: scroll;
+  grid-template-columns: repeat(auto-fill, calc(var(--result-item-width)));
+  overflow-y: overlay;
   overflow-x: hidden;
   max-height: 110px;
   &::-webkit-scrollbar {
-    width: 8px;
+    width: 0px;
     background: transparent;
   }
 }
@@ -89,7 +89,7 @@ export default {
   }
 }
 .result-authors-details {
-  padding-top: 10px;
+  padding-bottom: 6px;
 }
 details {
   cursor: pointer;

@@ -54,6 +54,6 @@ function searchAuthor(authorFilter: Dict) {
   margin: 0px;
 }
 .result-author-filters {
-  padding: 2px 0px 0px 4px;
+  padding: 2px 0px 6px 4px;
 }
 </style>

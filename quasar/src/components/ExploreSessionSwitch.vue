@@ -1,16 +1,15 @@
 <template>
-  <span class="explore-session-switch q-pl-lg">
+  <span class="explore-session-switch q-pr-md">
     <q-btn
       dense
       icon="fa-solid fa-rotate-left"
-      class="q-pr-md"
+      class="q-pr-sm"
       :disable="!exploreStore.isSessionHasPrev()"
       @click="exploreStore.toPrevSession()"
     />
     <q-btn
       dense
       icon="fa-solid fa-rotate-right"
-      class="q-pr-md"
       :disable="!exploreStore.isSessionHasNext()"
       @click="exploreStore.toNextSession()"
     />
@@ -18,6 +17,7 @@
       dense
       icon="fa-solid fa-trash-can"
       @click="exploreStore.clearSession()"
+      v-if="false"
     >
     </q-btn>
   </span>
