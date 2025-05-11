@@ -35,7 +35,7 @@ export default {
     const layoutStore = useLayoutStore();
     const route = useRoute();
     const query = computed({
-      get: () => queryStore.query || route.query.q || '',
+      get: () => queryStore.query || '',
       set: (value) =>
         queryStore.setQuery({
           newQuery: value,
@@ -90,7 +90,10 @@ export default {
     };
 
     // this is triggered when open url (route) with `search?q=...`
-    if (query.value) {
+    if (route.query.q) {
+      queryStore.setQuery({
+        newQuery: route.query.q,
+      });
       submitQueryInInput(false);
     }
 

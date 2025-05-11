@@ -71,7 +71,7 @@ export default {
 .result-authors-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, calc(var(--result-item-width)));
-  overflow-y: overlay;
+  overflow-y: scroll;
   overflow-x: hidden;
   max-height: 110px;
   &::-webkit-scrollbar {
