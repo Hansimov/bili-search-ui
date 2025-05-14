@@ -1,18 +1,24 @@
 <template>
   <div class="row results-list-info-top justify-between">
-    <div class="results-stats" v-if="isShowResultsStats">
+    <span class="results-stats">
       <ExploreSessionSwitch v-show="isExploreSessionVisible" />
-      <span v-show="isReturnResultsLessThanTotal">
-        匹配：{{ totalHits }}，
+      <span class="results-stats-text">
+        <span v-if="isShowResultsStats">
+          <span v-show="isReturnResultsLessThanTotal">
+            匹配：{{ totalHits }}，
+          </span>
+          <span>
+            {{ isReturnResultsLessThanTotal ? '返回' : '匹配' }}：{{
+              returnHits
+            }}
+          </span>
+          <span v-show="isHasAuthorFilter"
+            >，筛选：{{ sortedHits.length }}
+          </span>
+        </span>
+        <span v-else> {{ currentStepName }} {{ currentStepMark }}</span>
       </span>
-      <span>
-        {{ isReturnResultsLessThanTotal ? '返回' : '匹配' }}：{{ returnHits }}
-      </span>
-      <span v-show="isHasAuthorFilter">，筛选：{{ sortedHits.length }} </span>
-    </div>
-    <div class="results-stats" v-else>
-      <span> {{ currentStepName }} {{ currentStepMark }}</span>
-    </div>
+    </span>
     <div class="results-paginate-top" v-if="!isCollapsePaginate">
       <ResultsPagination
         :currentPage="currentPage"
@@ -251,6 +257,13 @@ export default {
 .results-paginate-top {
   padding: 7px 5px 7px 6px;
   z-index: 1000;
+  padding-left: 0px;
+}
+.results-stats-text {
+  padding-left: 4px;
+}
+.results-sort {
+  align-self: center;
 }
 .results-paginate-top {
   position: absolute;

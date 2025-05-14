@@ -90,6 +90,7 @@ export default {
 }
 .result-authors-details {
   padding-bottom: 6px;
+  padding-left: 0px;
 }
 details {
   cursor: pointer;
