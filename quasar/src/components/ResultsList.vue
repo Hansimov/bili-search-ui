@@ -104,19 +104,14 @@ export default {
     const currentStepStatus = computed(
       () => exploreStore.currentStepResult?.status || ''
     );
-    const currentStepTimedOut = computed(
-      () => exploreStore.currentStepResult?.output?.timed_out || false
-    );
     const currentStepMark = computed(() => {
       const status = currentStepStatus.value;
       if (status === 'running') {
         return '⏳ (运行中)';
       } else if (status === 'finished') {
-        if (currentStepTimedOut.value) {
-          return '🕑 (超时)';
-        } else {
-          return '✔️ (成功)';
-        }
+        return '✔️ (成功)';
+      } else if (status === 'timedout') {
+        return '🕑 (超时)';
       } else if (status === 'failed') {
         return '❌ (错误)';
       } else {
