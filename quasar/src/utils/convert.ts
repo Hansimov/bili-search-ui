@@ -18,19 +18,30 @@ const localeOptions: Intl.DateTimeFormatOptions = {
     hour12: false
 }
 
-export function intToIso(num: number): string {
-    // return new Date(num * 1000).toISOString();
+export function intToIso(num: number, local = true): string {
     try {
-        return new Date(num * 1000).toLocaleString(localeArgs, localeOptions);
+        if (local) {
+            return new Date(num * 1000).toLocaleString(localeArgs, localeOptions);
+        } else {
+            return new Date(num * 1000).toISOString();
+        }
     } catch (e) {
         return '1970-01-01 00:00:00';
     }
 }
 
 export function secondsToDuration(seconds: number): string {
-    // https://stackoverflow.com/questions/1322732/convert-seconds-to-hh-mm-ss-with-javascript
-    const start_idx = seconds < 3600 ? 14 : 11;
-    return intToIso(seconds).substring(start_idx, 19);
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    const hh = hours.toString().padStart(2, '0');
+    const mm = minutes.toString().padStart(2, '0');
+    const ss = secs.toString().padStart(2, '0');
+    if (hours > 0) {
+        return `${hh}:${mm}:${ss}`;
+    } else {
+        return `${mm}:${ss}`;
+    }
 }
 
 export function tsToYmd(ts: number): string {
