@@ -1,7 +1,10 @@
 <template>
   <q-card flat class="result-item q-pt-none q-pb-sm">
     <q-card-section class="q-px-xs q-pt-none q-pb-xs">
-      <router-link :to="`/video/${result.bvid}`" target="_blank">
+      <a
+        :href="`https://www.bilibili.com/video/${result.bvid}`"
+        target="_blank"
+      >
         <q-img
           :src="result.pic + coverPicSuffix"
           :title="result.title + '\n' + result.tags"
@@ -30,7 +33,7 @@
             {{ secondsToDuration(result?.duration) }}
           </span>
         </q-img>
-      </router-link>
+      </a>
     </q-card-section>
     <q-card-section class="q-px-xs q-pt-none q-pb-xs">
       <a
