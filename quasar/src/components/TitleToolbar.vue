@@ -6,6 +6,7 @@
       <q-toolbar-title>blbl.top</q-toolbar-title>
     </router-link>
     <q-space />
+    <login-button />
     <dark-switch />
   </q-toolbar>
 </template>
@@ -13,6 +14,7 @@
 <script setup lang="ts">
 import DarkSwitch from 'components/DarkSwitch.vue';
 import SearchRecordsListSwitch from 'components/SearchRecordsListSwitch.vue';
+import LoginButton from 'components/LoginButton.vue';
 </script>
 
 <style lang="scss">
