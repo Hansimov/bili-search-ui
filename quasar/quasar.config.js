@@ -18,7 +18,7 @@ module.exports = configure(function (/* ctx */) {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['axios'],
+    boot: ['axios', 'vue-qrcode'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: [
@@ -104,6 +104,18 @@ module.exports = configure(function (/* ctx */) {
           ws: true,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/ws/, ''),
+          },
+          // proxy login requests to the passport server
+        '/bili-passport': {
+          target: 'https://passport.bilibili.com',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/bili-passport/, ''),
+          headers: {
+            'Referer': 'https://passport.bilibili.com',
+            'Origin': 'https://passport.bilibili.com',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
         },
       },
       port: 21002,
