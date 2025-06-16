@@ -4,6 +4,8 @@
     :icon="buttonIcon"
     :label="buttonLabel"
     @click="handleButtonClick"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
     class="login-button"
   >
     <q-avatar
@@ -11,8 +13,68 @@
       size="24px"
       class="q-mr-xs"
     >
-      <img :src="accountStore.userAvatar" :alt="accountStore.userName" />
+      <img
+        :src="accountStore.userAvatar"
+        :alt="accountStore.userName"
+        referrerpolicy="no-referrer"
+      />
     </q-avatar>
+
+    <!-- 用户菜单  -->
+    <q-menu
+      v-if="accountStore.isLoggedIn"
+      v-model="showUserMenu"
+      anchor="bottom right"
+      self="top right"
+      @mouseenter="handleMenuMouseEnter"
+      @mouseleave="handleMenuMouseLeave"
+    >
+      <q-list class="text-right">
+        <q-item>
+          <q-item-section>
+            <q-item-label class="text-right">{{
+              accountStore.userName
+            }}</q-item-label>
+            <q-item-label caption class="text-right"
+              >UID: {{ accountStore.userId }}</q-item-label
+            >
+          </q-item-section>
+        </q-item>
+
+        <q-item>
+          <q-item-section>
+            <q-item-label class="text-right">粉丝</q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-item-label class="text-weight-medium">{{
+              accountStore.userCard?.fans || 0
+            }}</q-item-label>
+          </q-item-section>
+        </q-item>
+
+        <q-item>
+          <q-item-section>
+            <q-item-label class="text-right">关注</q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-item-label class="text-weight-medium">{{
+              accountStore.userCard?.attention || 0
+            }}</q-item-label>
+          </q-item-section>
+        </q-item>
+
+        <q-separator />
+
+        <q-item clickable v-close-popup @click="handleLogout">
+          <q-item-section>
+            <q-item-label class="text-right">退出登录</q-item-label>
+          </q-item-section>
+          <q-item-section avatar side>
+            <q-icon name="logout" />
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </q-menu>
   </q-btn>
 
   <q-dialog v-model="showLoginDialog">
@@ -64,34 +126,6 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
-
-  <!-- 用户菜单 -->
-  <q-menu v-if="accountStore.isLoggedIn" touch-position context-menu>
-    <q-list style="min-width: 200px">
-      <q-item>
-        <q-item-section avatar>
-          <q-avatar size="40px">
-            <img :src="accountStore.userAvatar" :alt="accountStore.userName" />
-          </q-avatar>
-        </q-item-section>
-        <q-item-section>
-          <q-item-label>{{ accountStore.userName }}</q-item-label>
-          <q-item-label caption>UID: {{ accountStore.userId }}</q-item-label>
-        </q-item-section>
-      </q-item>
-
-      <q-separator />
-
-      <q-item clickable v-close-popup @click="handleLogout">
-        <q-item-section avatar>
-          <q-icon name="logout" />
-        </q-item-section>
-        <q-item-section>
-          <q-item-label>退出登录</q-item-label>
-        </q-item-section>
-      </q-item>
-    </q-list>
-  </q-menu>
 </template>
 
 <script setup lang="ts">
@@ -103,6 +137,8 @@ const authStore = useAuthStore();
 const accountStore = useAccountStore();
 
 const showLoginDialog = ref(false);
+const showUserMenu = ref(false);
+let menuTimer: NodeJS.Timeout | null = null;
 
 const buttonIcon = computed(() => {
   if (accountStore.isLoggedIn) {
@@ -113,7 +149,7 @@ const buttonIcon = computed(() => {
 
 const buttonLabel = computed(() => {
   if (accountStore.isLoggedIn) {
-    return accountStore.userName || '已登录';
+    return ''; // 已登录时不显示 label
   }
   return '登录';
 });
@@ -132,7 +168,36 @@ const handleButtonClick = () => {
   if (!accountStore.isLoggedIn) {
     showLoginDialog.value = true;
   }
-  // 已登录状态下，菜单会通过 context-menu 自动显示
+  // 已登录状态下，点击不做任何操作，菜单通过鼠标悬浮控制
+};
+
+const handleMouseEnter = () => {
+  if (accountStore.isLoggedIn) {
+    if (menuTimer) {
+      clearTimeout(menuTimer);
+      menuTimer = null;
+    }
+    showUserMenu.value = true;
+  }
+};
+
+const handleMouseLeave = () => {
+  if (accountStore.isLoggedIn) {
+    menuTimer = setTimeout(() => {
+      showUserMenu.value = false;
+    }, 200); // 200ms 延迟，避免鼠标移动到菜单时闪烁
+  }
+};
+
+const handleMenuMouseEnter = () => {
+  if (menuTimer) {
+    clearTimeout(menuTimer);
+    menuTimer = null;
+  }
+};
+
+const handleMenuMouseLeave = () => {
+  showUserMenu.value = false;
 };
 
 const handleLogout = () => {
@@ -178,6 +243,9 @@ watch(showLoginDialog, async (newValue) => {
 // 组件卸载时清理定时器
 onUnmounted(() => {
   authStore.cleanup();
+  if (menuTimer) {
+    clearTimeout(menuTimer);
+  }
 });
 </script>
 
