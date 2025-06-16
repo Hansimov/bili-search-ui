@@ -12,6 +12,12 @@
         </q-item>
       </q-list>
     </q-scroll-area>
+
+    <!-- DarkSwitch 放在左下角 -->
+    <div class="dark-switch-container">
+      <DarkSwitch />
+    </div>
+
     <div
       v-touch-pan.preserveCursor.prevent.mouse.horizontal="resizeDrawer"
       class="q-drawer__resizer"
@@ -24,6 +30,7 @@ import { computed } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { TouchPanValue } from 'quasar';
+import DarkSwitch from 'components/DarkSwitch.vue';
 
 const searchStore = useSearchStore();
 const layoutStore = useLayoutStore();
@@ -43,6 +50,13 @@ const resizeDrawer: TouchPanValue = (evt) => {
 </script>
 
 <style scoped>
+.dark-switch-container {
+  position: absolute;
+  bottom: 2px;
+  left: 0px;
+  z-index: 10;
+}
+
 .q-drawer__resizer {
   position: absolute;
   top: 0;
