@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { useAccountStore } from './accountStore'
 
 export interface QRResponse {
     code: number;
@@ -22,19 +23,6 @@ export interface PollResponse {
     };
 }
 
-export interface LoginState {
-    isLoggedIn: boolean;
-    userInfo: UserInfo | null;
-    refreshToken: string | null;
-}
-
-export interface UserInfo {
-    uid: number;
-    username: string;
-    avatar: string;
-    // 根据实际需要添加更多字段
-}
-
 export interface QRCodeState {
     loading: boolean;
     qrCodeUrl: string;
@@ -45,69 +33,57 @@ export interface QRCodeState {
     isExpired: boolean;
 }
 
-export function defaultQRCodeState(): QRCodeState {
-    return {
-        loading: false,
-        qrCodeUrl: '',
-        qrCodeKey: '',
-        error: '',
-        statusMessage: '等待扫码...',
-        remainingTime: 180,
-        isExpired: false,
-    };
+export interface AuthTimers {
+    pollTimer: ReturnType<typeof setInterval> | null;
+    countdownTimer: ReturnType<typeof setInterval> | null;
 }
 
-export function defaultLoginState(): LoginState {
-    return {
-        isLoggedIn: false,
-        userInfo: null,
-        refreshToken: localStorage.getItem('bili_refresh_token'),
-    };
-}
+const QR_CODE_EXPIRY_TIME = 180; // 3 minutes
+const POLL_INTERVAL = 2000; // 2 seconds
 
 export const useAuthStore = defineStore('auth', {
-    state: () => ({
-        loginState: defaultLoginState(),
-        qrCodeState: defaultQRCodeState(),
-        pollTimer: null as ReturnType<typeof setInterval> | null,
-        countdownTimer: null as ReturnType<typeof setInterval> | null,
+    state: (): { qrCodeState: QRCodeState; timers: AuthTimers } => ({
+        qrCodeState: {
+            loading: false,
+            qrCodeUrl: '',
+            qrCodeKey: '',
+            error: '',
+            statusMessage: '等待扫码...',
+            remainingTime: QR_CODE_EXPIRY_TIME,
+            isExpired: false,
+        },
+        timers: {
+            pollTimer: null,
+            countdownTimer: null,
+        },
     }),
 
     getters: {
-        isLoggedIn(): boolean {
-            return this.loginState.isLoggedIn;
-        },
-        userInfo(): UserInfo | null {
-            return this.loginState.userInfo;
-        },
         isQRCodeValid(): boolean {
             return !this.qrCodeState.isExpired && this.qrCodeState.remainingTime > 0;
         },
         canShowQRCode(): boolean {
-            return !this.qrCodeState.loading && !!this.qrCodeState.qrCodeUrl && this.isQRCodeValid;
+            return !this.qrCodeState.loading &&
+                !!this.qrCodeState.qrCodeUrl &&
+                this.isQRCodeValid;
+        },
+        isLoading(): boolean {
+            return this.qrCodeState.loading;
         },
     },
 
     actions: {
         // QR Code 生成
-        async generateQrCode() {
+        async generateQrCode(): Promise<boolean> {
+            this.resetQRCodeState();
             this.qrCodeState.loading = true;
-            this.qrCodeState.error = '';
-            this.qrCodeState.remainingTime = 180;
-            this.qrCodeState.statusMessage = '等待扫码...';
-            this.qrCodeState.isExpired = false;
 
             try {
-                const response = await fetch(
-                    '/bili-passport/x/passport-login/web/qrcode/generate',
-                    {
-                        method: 'GET',
-                        credentials: 'include',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                    }
-                );
+                const response = await fetch('/bili-passport/x/passport-login/web/qrcode/generate', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                });
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -118,22 +94,29 @@ export const useAuthStore = defineStore('auth', {
                 if (data.code === 0 && data.data) {
                     this.qrCodeState.qrCodeUrl = data.data.url;
                     this.qrCodeState.qrCodeKey = data.data.qrcode_key;
+                    this.qrCodeState.error = '';
+
                     this.startPolling();
                     this.startCountdown();
+                    return true;
                 } else {
                     this.qrCodeState.error = data.message || '生成二维码失败';
+                    return false;
                 }
-            } catch (err) {
-                this.qrCodeState.error = '网络请求失败，请检查网络连接或尝试刷新';
-                console.error('Generate QR code error:', err);
+            } catch (error) {
+                this.qrCodeState.error = '网络请求失败，请检查网络连接';
+                console.error('Generate QR code error:', error);
+                return false;
             } finally {
                 this.qrCodeState.loading = false;
             }
         },
 
         // 轮询登录状态
-        async pollLoginStatus() {
-            if (!this.qrCodeState.qrCodeKey) return;
+        async pollLoginStatus(): Promise<void> {
+            if (!this.qrCodeState.qrCodeKey || this.qrCodeState.isExpired) {
+                return;
+            }
 
             try {
                 const response = await fetch(
@@ -141,9 +124,7 @@ export const useAuthStore = defineStore('auth', {
                     {
                         method: 'GET',
                         credentials: 'include',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                     }
                 );
 
@@ -155,32 +136,33 @@ export const useAuthStore = defineStore('auth', {
                 const data: PollResponse = await response.json();
 
                 if (data.code === 0 && data.data) {
-                    this.handlePollResponse(data.data);
+                    await this.handlePollResponse(data.data);
                 } else {
                     console.error('Poll response error:', data);
                 }
-            } catch (err) {
-                console.error('Poll login status error:', err);
+            } catch (error) {
+                console.error('Poll login status error:', error);
             }
         },
 
         // 处理轮询响应
-        handlePollResponse(pollData: PollResponse['data']) {
+        async handlePollResponse(pollData: PollResponse['data']): Promise<void> {
+            console.log('Poll response received:', pollData);
             switch (pollData.code) {
-                case 0:
+                case 0: // 登录成功
                     this.qrCodeState.statusMessage = '登录成功！';
                     this.clearTimers();
-                    this.handleLoginSuccess(pollData);
+                    await this.handleLoginSuccess(pollData);
                     break;
-                case 86038:
+                case 86038: // 二维码已失效
                     this.qrCodeState.statusMessage = '二维码已失效，请刷新重试';
                     this.qrCodeState.isExpired = true;
                     this.clearTimers();
                     break;
-                case 86090:
+                case 86090: // 已扫码，等待确认
                     this.qrCodeState.statusMessage = '已扫码，请在手机上确认登录';
                     break;
-                case 86101:
+                case 86101: // 等待扫码
                     this.qrCodeState.statusMessage = '等待扫码...';
                     break;
                 default:
@@ -188,38 +170,42 @@ export const useAuthStore = defineStore('auth', {
             }
         },
 
-        // 处理登录成功
-        handleLoginSuccess(loginData: PollResponse['data']) {
-            console.log('Login successful:', loginData);
-
-            if (loginData.refresh_token) {
-                this.loginState.refreshToken = loginData.refresh_token;
-                localStorage.setItem('bili_refresh_token', loginData.refresh_token);
+        // 处理登录成功 - 委托给 accountStore
+        async handleLoginSuccess(loginData: PollResponse['data']): Promise<void> {
+            if (!loginData.url || !loginData.refresh_token) {
+                console.error('Login success but missing required data');
+                this.qrCodeState.error = '登录数据不完整';
+                return;
             }
 
-            this.loginState.isLoggedIn = true;
-            // 这里可以根据需要获取用户信息
-            // this.fetchUserInfo();
+            try {
+                const accountStore = useAccountStore();
+                const success = await accountStore.establishSession(
+                    loginData.url,
+                    loginData.refresh_token
+                );
+                if (!success) {
+                    this.qrCodeState.error = '登录处理失败，请重试';
+                }
+            } catch (error) {
+                console.error('Error handling login success:', error);
+                this.qrCodeState.error = '登录处理异常';
+            }
         },
 
-        // 退出登录
-        logout() {
-            this.loginState.isLoggedIn = false;
-            this.loginState.userInfo = null;
-            this.loginState.refreshToken = null;
-            localStorage.removeItem('bili_refresh_token');
-        },
-
-        // 开始轮询
-        startPolling() {
+        // 定时器管理
+        startPolling(): void {
             this.clearTimers();
+            // 立即执行一次
             this.pollLoginStatus();
-            this.pollTimer = setInterval(() => this.pollLoginStatus(), 2000);
+            // 然后开始定时轮询
+            this.timers.pollTimer = setInterval(() => {
+                this.pollLoginStatus();
+            }, POLL_INTERVAL);
         },
 
-        // 开始倒计时
-        startCountdown() {
-            this.countdownTimer = setInterval(() => {
+        startCountdown(): void {
+            this.timers.countdownTimer = setInterval(() => {
                 this.qrCodeState.remainingTime--;
                 if (this.qrCodeState.remainingTime <= 0) {
                     this.qrCodeState.statusMessage = '二维码已过期，请刷新重试';
@@ -229,37 +215,39 @@ export const useAuthStore = defineStore('auth', {
             }, 1000);
         },
 
-        // 清除定时器
-        clearTimers() {
-            if (this.pollTimer) {
-                clearInterval(this.pollTimer);
-                this.pollTimer = null;
+        clearTimers(): void {
+            if (this.timers.pollTimer) {
+                clearInterval(this.timers.pollTimer);
+                this.timers.pollTimer = null;
             }
-            if (this.countdownTimer) {
-                clearInterval(this.countdownTimer);
-                this.countdownTimer = null;
+            if (this.timers.countdownTimer) {
+                clearInterval(this.timers.countdownTimer);
+                this.timers.countdownTimer = null;
             }
         },
 
-        // 重置二维码状态
-        resetQRCodeState() {
+        // 状态管理
+        resetQRCodeState(): void {
             this.clearTimers();
-            this.qrCodeState = defaultQRCodeState();
+            this.qrCodeState = {
+                loading: false,
+                qrCodeUrl: '',
+                qrCodeKey: '',
+                error: '',
+                statusMessage: '等待扫码...',
+                remainingTime: QR_CODE_EXPIRY_TIME,
+                isExpired: false,
+            };
         },
 
-        // 设置错误信息
-        setError(error: string) {
+        setError(error: string): void {
             this.qrCodeState.error = error;
         },
 
-        // 初始化认证状态（应用启动时调用）
-        initAuth() {
-            const token = localStorage.getItem('bili_refresh_token');
-            if (token) {
-                this.loginState.refreshToken = token;
-                // 这里可以验证 token 有效性或获取用户信息
-                // this.validateToken();
-            }
+        // 清理资源
+        cleanup(): void {
+            this.clearTimers();
+            this.resetQRCodeState();
         },
     },
 });

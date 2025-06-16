@@ -98,14 +98,14 @@ module.exports = configure(function (/* ctx */) {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ''),
         },
-        // proxy all websocket requests to the websocket server
+        // proxy all websocket requests to websocket server
         '/ws': {
           target: 'ws://localhost:21003/ws',
           ws: true,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/ws/, ''),
-          },
-          // proxy login requests to the passport server
+        },
+        // proxy login requests to passport server
         '/bili-passport': {
           target: 'https://passport.bilibili.com',
           changeOrigin: true,
@@ -117,6 +117,21 @@ module.exports = configure(function (/* ctx */) {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
           }
         },
+        // proxy api requests to bili api server
+        '/bili-api': {
+          target: 'https://api.bilibili.com',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/bili-api/, ''),
+          headers: {
+            'Referer': 'https://www.bilibili.com',
+            'Origin': 'https://www.bilibili.com',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          },
+          cookieDomainRewrite: false,
+          preserveHeaderKeyCase: true,
+        },
+
       },
       port: 21002,
       hmr: {

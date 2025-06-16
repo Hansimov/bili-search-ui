@@ -1,10 +1,19 @@
 <template>
   <q-btn
     flat
-    :icon="isLoggedIn ? 'account_circle' : 'login'"
-    :label="isLoggedIn ? userInfo?.username || '已登录' : '登录'"
+    :icon="buttonIcon"
+    :label="buttonLabel"
     @click="handleButtonClick"
-  />
+    class="login-button"
+  >
+    <q-avatar
+      v-if="accountStore.isLoggedIn && accountStore.userAvatar"
+      size="24px"
+      class="q-mr-xs"
+    >
+      <img :src="accountStore.userAvatar" :alt="accountStore.userName" />
+    </q-avatar>
+  </q-btn>
 
   <q-dialog v-model="showLoginDialog">
     <q-card class="q-card-qrcode shadow-transition">
@@ -13,33 +22,33 @@
       </q-card-section>
 
       <q-card-section class="q-pt-none text-center">
-        <div v-if="qrCodeState.loading" class="q-pa-md">
+        <div v-if="authStore.isLoading" class="q-pa-md">
           <q-spinner size="40px" />
           <div class="q-mt-md">生成二维码中...</div>
         </div>
 
-        <div v-else-if="canShowQRCode" class="q-pa-md">
+        <div v-else-if="authStore.canShowQRCode" class="q-pa-md">
           <div class="qr-container q-mb-md">
             <vue-qrcode
-              :value="qrCodeState.qrCodeUrl"
+              :value="authStore.qrCodeState.qrCodeUrl"
               tag="canvas"
               :options="qrCodeOptions"
               @ready="onQRReady"
             />
           </div>
           <div class="text-subtitle2 q-mb-md">
-            {{ qrCodeState.statusMessage }}
+            {{ authStore.qrCodeState.statusMessage }}
           </div>
           <div class="text-grey q-mb-sm">
             请使用哔哩哔哩手机客户端扫描二维码
           </div>
           <div class="text-grey">
-            二维码将在 {{ qrCodeState.remainingTime }} 秒后过期
+            二维码将在 {{ authStore.qrCodeState.remainingTime }} 秒后过期
           </div>
         </div>
 
-        <div v-if="qrCodeState.error" class="text-negative q-pa-md">
-          {{ qrCodeState.error }}
+        <div v-if="authStore.qrCodeState.error" class="text-negative q-pa-md">
+          {{ authStore.qrCodeState.error }}
         </div>
       </q-card-section>
 
@@ -50,23 +59,64 @@
           label="刷新"
           color="primary"
           @click="refreshQRCode"
-          v-if="!qrCodeState.loading"
+          v-if="!authStore.isLoading"
         />
       </q-card-actions>
     </q-card>
   </q-dialog>
+
+  <!-- 用户菜单 -->
+  <q-menu v-if="accountStore.isLoggedIn" touch-position context-menu>
+    <q-list style="min-width: 200px">
+      <q-item>
+        <q-item-section avatar>
+          <q-avatar size="40px">
+            <img :src="accountStore.userAvatar" :alt="accountStore.userName" />
+          </q-avatar>
+        </q-item-section>
+        <q-item-section>
+          <q-item-label>{{ accountStore.userName }}</q-item-label>
+          <q-item-label caption>UID: {{ accountStore.userId }}</q-item-label>
+        </q-item-section>
+      </q-item>
+
+      <q-separator />
+
+      <q-item clickable v-close-popup @click="handleLogout">
+        <q-item-section avatar>
+          <q-icon name="logout" />
+        </q-item-section>
+        <q-item-section>
+          <q-item-label>退出登录</q-item-label>
+        </q-item-section>
+      </q-item>
+    </q-list>
+  </q-menu>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue';
-import { storeToRefs } from 'pinia';
 import { useAuthStore } from 'src/stores/authStore';
+import { useAccountStore } from 'src/stores/accountStore';
 
 const authStore = useAuthStore();
-const { qrCodeState } = storeToRefs(authStore);
-const { isLoggedIn, userInfo, canShowQRCode } = storeToRefs(authStore);
+const accountStore = useAccountStore();
 
 const showLoginDialog = ref(false);
+
+const buttonIcon = computed(() => {
+  if (accountStore.isLoggedIn) {
+    return accountStore.userAvatar ? '' : 'account_circle';
+  }
+  return 'login';
+});
+
+const buttonLabel = computed(() => {
+  if (accountStore.isLoggedIn) {
+    return accountStore.userName || '已登录';
+  }
+  return '登录';
+});
 
 const qrCodeOptions = computed(() => ({
   width: 200,
@@ -79,18 +129,14 @@ const qrCodeOptions = computed(() => ({
 }));
 
 const handleButtonClick = () => {
-  if (isLoggedIn.value) {
-    // 已登录状态下可以显示用户菜单或其他操作
-    handleUserMenu();
-  } else {
-    // 未登录状态下显示登录对话框
+  if (!accountStore.isLoggedIn) {
     showLoginDialog.value = true;
   }
+  // 已登录状态下，菜单会通过 context-menu 自动显示
 };
 
-const handleUserMenu = () => {
-  // 这里可以实现用户菜单逻辑
-  console.log('Show user menu');
+const handleLogout = () => {
+  accountStore.clearSession();
 };
 
 const onQRReady = (canvas: HTMLCanvasElement) => {
@@ -101,32 +147,37 @@ const closeDialog = () => {
   showLoginDialog.value = false;
 };
 
-const refreshQRCode = () => {
-  authStore.generateQrCode();
+const refreshQRCode = async () => {
+  await authStore.generateQrCode();
 };
 
 // 监听登录状态变化
-watch(isLoggedIn, (newValue) => {
-  if (newValue) {
-    // 登录成功后关闭对话框
-    setTimeout(() => {
-      showLoginDialog.value = false;
-    }, 1500);
+watch(
+  () => accountStore.isLoggedIn,
+  (newValue) => {
+    if (newValue) {
+      // 登录成功后延迟关闭对话框，让用户看到成功状态
+      setTimeout(() => {
+        showLoginDialog.value = false;
+      }, 1500);
+    }
   }
-});
+);
 
 // 监听对话框显示状态
-watch(showLoginDialog, (newValue) => {
+watch(showLoginDialog, async (newValue) => {
   if (newValue) {
-    authStore.generateQrCode();
+    // 显示对话框时生成二维码
+    await authStore.generateQrCode();
   } else {
-    authStore.resetQRCodeState();
+    // 关闭对话框时清理资源
+    authStore.cleanup();
   }
 });
 
 // 组件卸载时清理定时器
 onUnmounted(() => {
-  authStore.clearTimers();
+  authStore.cleanup();
 });
 </script>
 
@@ -150,5 +201,13 @@ onUnmounted(() => {
 .body--dark .qr-container {
   background-color: #1e1e1e;
   border-color: #333;
+}
+
+.login-button {
+  padding: 8px 12px;
+}
+
+.login-button .q-avatar {
+  margin-right: 4px;
 }
 </style>
