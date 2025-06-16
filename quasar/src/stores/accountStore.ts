@@ -60,7 +60,6 @@ export interface UserSpaceInfo {
 
 export interface AccountState {
     isLoggedIn: boolean;
-    cookies: CookieInfo | null;
     userCard: UserCardInfo | null;
     userSpace: UserSpaceInfo | null;
     refreshToken: string | null;
@@ -68,14 +67,116 @@ export interface AccountState {
 
 const STORAGE_KEYS = {
     REFRESH_TOKEN: 'bili_refresh_token',
-    COOKIES: 'bili_cookies',
     USER_INFO: 'bili_user_info',
 } as const;
+
+// Cookie 操作工具函数
+const CookieUtils = {
+    // 设置 cookie
+    setCookie(name: string, value: string, days = 365, domain = '', path = '/') {
+        const expires = new Date();
+        expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+
+        let cookieString = `${name}=${encodeURIComponent(value)}; expires=${expires.toUTCString()}; path=${path}`;
+
+        if (domain) {
+            cookieString += `; domain=${domain}`;
+        }
+
+        // 设置 SameSite 和 Secure 属性以提高安全性
+        cookieString += '; SameSite=Lax';
+        if (location.protocol === 'https:') {
+            cookieString += '; Secure';
+        }
+
+        document.cookie = cookieString;
+        console.log(`Cookie set: ${name}=${value.substring(0, 20)}...`);
+    },
+
+    // 获取 cookie
+    getCookie(name: string): string | null {
+        const nameEQ = name + '=';
+        const ca = document.cookie.split(';');
+
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') {
+                c = c.substring(1, c.length);
+            }
+            if (c.indexOf(nameEQ) === 0) {
+                return decodeURIComponent(c.substring(nameEQ.length, c.length));
+            }
+        }
+        return null;
+    },
+
+    // 删除 cookie
+    deleteCookie(name: string, domain = '', path = '/') {
+        let cookieString = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}`;
+
+        if (domain) {
+            cookieString += `; domain=${domain}`;
+        }
+
+        document.cookie = cookieString;
+        console.log(`Cookie deleted: ${name}`);
+    },
+
+    // 获取所有 bili 相关的 cookies
+    getBiliCookies(): CookieInfo | null {
+        const cookies = {
+            DedeUserID: this.getCookie('DedeUserID') || '',
+            DedeUserID__ckMd5: this.getCookie('DedeUserID__ckMd5') || '',
+            Expires: this.getCookie('Expires') || '',
+            SESSDATA: this.getCookie('SESSDATA') || '',
+            bili_jct: this.getCookie('bili_jct') || '',
+        };
+
+        // 检查必要的 cookie 是否存在
+        if (!cookies.DedeUserID || !cookies.SESSDATA) {
+            return null;
+        }
+
+        return cookies;
+    },
+
+    // 设置所有 bili 相关的 cookies
+    setBiliCookies(cookies: CookieInfo) {
+        // 计算过期时间
+        let days = 365; // 默认一年
+        if (cookies.Expires) {
+            try {
+                const expiresDate = new Date(parseInt(cookies.Expires) * 1000);
+                const now = new Date();
+                days = Math.max(1, Math.ceil((expiresDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+            } catch (error) {
+                console.warn('Failed to parse expires date, using default:', error);
+            }
+        }
+
+        // 设置每个 cookie
+        Object.entries(cookies).forEach(([key, value]) => {
+            if (value) {
+                this.setCookie(key, value, days);
+            }
+        });
+    },
+
+    // 清除所有 bili 相关的 cookies
+    clearBiliCookies() {
+        const cookieNames = ['DedeUserID', 'DedeUserID__ckMd5', 'Expires', 'SESSDATA', 'bili_jct'];
+        cookieNames.forEach(name => {
+            this.deleteCookie(name);
+            // 尝试删除可能的域名变体
+            this.deleteCookie(name, '.bilibili.com');
+            this.deleteCookie(name, 'bilibili.com');
+        });
+    }
+};
 
 export const useAccountStore = defineStore('account', {
     state: (): AccountState => ({
         isLoggedIn: false,
-        cookies: null,
         userCard: null,
         userSpace: null,
         refreshToken: null,
@@ -92,7 +193,9 @@ export const useAccountStore = defineStore('account', {
             return this.userCard?.mid || '';
         },
         hasValidSession(): boolean {
-            return !!this.cookies?.SESSDATA && !!this.cookies?.DedeUserID;
+            // 直接调用 CookieUtils，而不是 this.getCurrentCookies()
+            const cookies = CookieUtils.getBiliCookies();
+            return !!(cookies?.SESSDATA && cookies?.DedeUserID);
         },
         canMakeAuthenticatedRequests(): boolean {
             return this.hasValidSession;
@@ -100,6 +203,11 @@ export const useAccountStore = defineStore('account', {
     },
 
     actions: {
+        // 获取当前的 cookies（从浏览器读取）
+        getCurrentCookies(): CookieInfo | null {
+            return CookieUtils.getBiliCookies();
+        },
+
         // Cookie 管理
         parseCookiesFromUrl(url: string): CookieInfo | null {
             try {
@@ -133,20 +241,24 @@ export const useAccountStore = defineStore('account', {
         },
 
         setCookies(cookies: CookieInfo) {
-            this.cookies = cookies;
-            // 持久化存储，但不设置到浏览器
-            this.saveCookiesToStorage(cookies);
-            console.log('Cookies saved to store:', cookies);
+            // 将 cookies 设置到浏览器
+            CookieUtils.setBiliCookies(cookies);
+            console.log('Cookies saved to browser:', {
+                DedeUserID: cookies.DedeUserID,
+                hasSessionData: !!cookies.SESSDATA,
+            });
         },
 
         clearCookies() {
-            this.cookies = null;
-            localStorage.removeItem(STORAGE_KEYS.COOKIES);
+            CookieUtils.clearBiliCookies();
+            console.log('Browser cookies cleared');
         },
 
         // 创建带认证信息的请求头
         getAuthHeaders(): HeadersInit {
-            if (!this.cookies) {
+            const cookies = this.getCurrentCookies();
+
+            if (!cookies) {
                 return {
                     'Accept': 'application/json, text/plain, */*',
                     'Content-Type': 'application/json',
@@ -156,9 +268,10 @@ export const useAccountStore = defineStore('account', {
 
             // 构建完整的Cookie字符串
             const cookieString = [
-                `SESSDATA=${decodeURIComponent(this.cookies.SESSDATA)}`,
-                // `DedeUserID=${this.cookies.DedeUserID}`,
-            ].join('; ');
+                `SESSDATA=${cookies.SESSDATA}`,
+                `DedeUserID=${cookies.DedeUserID}`,
+                cookies.bili_jct ? `bili_jct=${cookies.bili_jct}` : '',
+            ].filter(Boolean).join('; ');
 
             const headers: HeadersInit = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
@@ -186,7 +299,8 @@ export const useAccountStore = defineStore('account', {
                 }
 
                 // 回退到公开用户信息
-                const targetMid = mid || this.cookies?.DedeUserID;
+                const cookies = this.getCurrentCookies();
+                const targetMid = mid || cookies?.DedeUserID;
                 console.log('Fetching user card for mid:', targetMid);
 
                 if (targetMid) {
@@ -208,21 +322,21 @@ export const useAccountStore = defineStore('account', {
         async fetchMyInfo(): Promise<boolean> {
             try {
                 console.log('Fetching my info with auth headers');
+                const cookies = this.getCurrentCookies();
                 console.log('Current cookies state:', {
-                    hasSessionData: !!this.cookies?.SESSDATA,
-                    hasDedeUserID: !!this.cookies?.DedeUserID,
-                    sessionDataLength: this.cookies?.SESSDATA?.length || 0
+                    hasSessionData: !!cookies?.SESSDATA,
+                    hasDedeUserID: !!cookies?.DedeUserID,
+                    sessionDataLength: cookies?.SESSDATA?.length || 0
                 });
 
                 const headers = this.getAuthHeaders();
                 const response = await fetch('/bili-api/x/space/myinfo', {
                     method: 'GET',
                     headers: headers,
-                    credentials: 'include', // 确保包含credentials
+                    credentials: 'include',
                 });
 
                 console.log('MyInfo response status:', response.status);
-                console.log('MyInfo response headers:', response.headers);
 
                 if (!response.ok) {
                     console.error('MyInfo request failed with status:', response.status);
@@ -417,6 +531,37 @@ export const useAccountStore = defineStore('account', {
             }
         },
 
+        // 检查现有的 cookies 并尝试自动登录
+        async tryAutoLogin(): Promise<boolean> {
+            console.log('Attempting auto-login from existing cookies...');
+
+            const cookies = this.getCurrentCookies();
+            if (!cookies) {
+                console.log('No valid cookies found for auto-login');
+                return false;
+            }
+
+            console.log('Found existing cookies, attempting to fetch user info...');
+
+            try {
+                const userInfoSuccess = await this.fetchUserInfo();
+                if (userInfoSuccess) {
+                    this.isLoggedIn = true;
+                    console.log('Auto-login successful');
+                    return true;
+                } else {
+                    console.log('Auto-login failed: could not fetch user info');
+                    // cookies 可能已过期，清理它们
+                    this.clearCookies();
+                    return false;
+                }
+            } catch (error) {
+                console.error('Auto-login error:', error);
+                this.clearCookies();
+                return false;
+            }
+        },
+
         // Token 管理
         setRefreshToken(token: string) {
             this.refreshToken = token;
@@ -428,11 +573,7 @@ export const useAccountStore = defineStore('account', {
             localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
         },
 
-        // 持久化存储
-        saveCookiesToStorage(cookies: CookieInfo) {
-            localStorage.setItem(STORAGE_KEYS.COOKIES, JSON.stringify(cookies));
-        },
-
+        // 持久化存储（仅存储用户信息，不存储 cookies）
         saveUserInfoToStorage() {
             if (this.userCard) {
                 const userInfo = {
@@ -452,26 +593,19 @@ export const useAccountStore = defineStore('account', {
                     this.refreshToken = refreshToken;
                 }
 
-                // 加载 cookies
-                const cookiesStr = localStorage.getItem(STORAGE_KEYS.COOKIES);
-                if (cookiesStr) {
-                    this.cookies = JSON.parse(cookiesStr);
-                }
-
-                // 加载用户信息
+                // 加载用户信息（但不设置 isLoggedIn，因为需要验证 cookies）
                 const userInfoStr = localStorage.getItem(STORAGE_KEYS.USER_INFO);
                 if (userInfoStr) {
                     const userInfo = JSON.parse(userInfoStr);
                     this.userCard = userInfo.userCard;
                     this.userSpace = userInfo.userSpace;
-                    this.isLoggedIn = userInfo.isLoggedIn && this.hasValidSession;
+                    // 注意：isLoggedIn 状态将在 tryAutoLogin 中设置
                 }
 
                 console.log('Loaded from storage:', {
                     hasRefreshToken: !!this.refreshToken,
-                    hasValidSession: this.hasValidSession,
-                    isLoggedIn: this.isLoggedIn,
-                    userName: this.userName,
+                    hasUserCard: !!this.userCard,
+                    userName: this.userCard?.name,
                 });
             } catch (error) {
                 console.error('Failed to load from storage:', error);
@@ -481,26 +615,29 @@ export const useAccountStore = defineStore('account', {
 
         clearStoredData() {
             localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-            localStorage.removeItem(STORAGE_KEYS.COOKIES);
             localStorage.removeItem(STORAGE_KEYS.USER_INFO);
         },
 
         // 初始化
         async initialize(): Promise<void> {
             console.log('Initializing account store...');
+
             // 从本地存储加载数据
             this.loadFromStorage();
 
-            // 如果有会话数据，验证其有效性
-            if (this.isLoggedIn && this.hasValidSession) {
-                console.log('Found existing session, validating...');
-                const isValid = await this.validateSession();
-                if (!isValid) {
-                    console.log('Session validation failed');
-                }
-            } else {
-                console.log('No valid session found');
+            // 尝试从现有 cookies 自动登录
+            const autoLoginSuccess = await this.tryAutoLogin();
+
+            if (!autoLoginSuccess) {
+                console.log('Auto-login failed or no cookies found');
                 this.isLoggedIn = false;
+                // 清理可能不一致的用户信息
+                if (this.userCard) {
+                    console.log('Clearing stored user info due to invalid session');
+                    this.userCard = null;
+                    this.userSpace = null;
+                    this.clearStoredData();
+                }
             }
         },
     },
