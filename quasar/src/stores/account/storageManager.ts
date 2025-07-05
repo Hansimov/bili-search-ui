@@ -1,4 +1,4 @@
-import { StoredUserInfo, UserCardInfo, UserSpaceInfo } from './types';
+import { StoredUserInfo, SpaceMyInfo, MidCard } from './types';
 
 const STORAGE_KEYS = {
     REFRESH_TOKEN: 'bili_refresh_token',
@@ -20,10 +20,14 @@ export class StorageManager {
     }
 
     // 用户信息管理
-    static saveUserInfo(userCard: UserCardInfo, userSpace: UserSpaceInfo | null, isLoggedIn: boolean) {
+    static saveUserInfo(
+        spaceMyInfo: SpaceMyInfo | null,
+        midCard: MidCard | null,
+        isLoggedIn: boolean
+    ) {
         const userInfo: StoredUserInfo = {
-            userCard,
-            userSpace,
+            spaceMyInfo,
+            midCard,
             isLoggedIn,
         };
         localStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userInfo));

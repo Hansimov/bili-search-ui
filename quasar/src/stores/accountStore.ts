@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { AccountState, CookieInfo, UserCardInfo, UserSpaceInfo } from './account/types';
+import { AccountState, CookieInfo, SpaceMyInfo, MidCard } from './account/types';
 import { CookieManager } from './account/cookieManager';
 import { BiliApiClient } from './account/apiClient';
 import { StorageManager } from './account/storageManager';
@@ -9,25 +9,45 @@ export * from './account/types';
 export const useAccountStore = defineStore('account', {
     state: (): AccountState => ({
         isLoggedIn: false,
-        userCard: null,
-        userSpace: null,
+        spaceMyInfo: null,
+        midCard: null,
         refreshToken: null,
     }),
 
     getters: {
         userName(): string {
-            return this.userCard?.name || '';
+            return this.spaceMyInfo?.name || this.midCard?.card?.name || '';
         },
+
         userAvatar(): string {
-            return this.userCard?.face || '';
+            return this.spaceMyInfo?.face || this.midCard?.card?.face || '';
         },
+
         userId(): string {
-            return this.userCard?.mid || '';
+            return this.spaceMyInfo?.mid?.toString() || this.midCard?.card?.mid || '';
         },
+
+        userFans(): number {
+            return this.midCard?.card?.fans || 0;
+        },
+
+        userAttention(): number {
+            return this.midCard?.card?.attention || 0;
+        },
+
+        userCoins(): number {
+            return this.spaceMyInfo?.coins || 0;
+        },
+
+        userSpace(): { s_img: string; l_img: string } | null {
+            return this.midCard?.space || null;
+        },
+
         hasValidSession(): boolean {
             const cookies = CookieManager.getBiliCookies();
             return !!(cookies?.SESSDATA && cookies?.DedeUserID);
         },
+
         canMakeAuthenticatedRequests(): boolean {
             return this.hasValidSession;
         },
@@ -61,40 +81,50 @@ export const useAccountStore = defineStore('account', {
             return CookieManager.getAuthHeaders();
         },
 
-        // 用户信息管理
+        // 用户信息管理 - 并行获取两种用户信息
         async fetchUserInfo(mid?: string): Promise<boolean> {
             try {
                 console.log('fetchUserInfo called with mid:', mid, 'hasValidSession:', this.hasValidSession);
 
-                // 如果有有效的 session，优先尝试获取当前用户信息
+                let spaceMyInfoSuccess = false;
+                let midCardSuccess = false;
+
+                // 如果有有效的 session，获取当前用户信息
                 if (this.hasValidSession) {
-                    console.log('Attempting to fetch current user info via myinfo API');
-                    const result = await BiliApiClient.fetchMyInfo();
-                    if (result) {
-                        this.setUserInfo(result.userCard, result.userSpace);
-                        this.saveUserInfoToStorage();
-                        console.log('Successfully fetched current user info');
-                        return true;
+                    console.log('Attempting to fetch SpaceMyInfo API');
+                    const spaceMyInfo = await BiliApiClient.fetchSpaceMyInfo();
+                    if (spaceMyInfo) {
+                        this.spaceMyInfo = spaceMyInfo;
+                        spaceMyInfoSuccess = true;
+                        console.log('Successfully fetched SpaceMyInfo');
+                    } else {
+                        console.log('Failed to fetch SpaceMyInfo');
                     }
-                    console.log('Failed to fetch myinfo, falling back to user card');
                 }
 
-                // 回退到公开用户信息
+                // 获取用户卡片信息
                 const cookies = this.getCurrentCookies();
-                const targetMid = mid || cookies?.DedeUserID;
-                console.log('Fetching user card for mid:', targetMid);
+                const targetMid = mid || cookies?.DedeUserID || this.spaceMyInfo?.mid?.toString();
+                console.log('Fetching MidCard for mid:', targetMid);
 
                 if (targetMid) {
-                    const result = await BiliApiClient.fetchUserCard(targetMid, this.hasValidSession);
-                    if (result) {
-                        this.setUserInfo(result.userCard, result.userSpace);
-                        this.saveUserInfoToStorage();
-                        console.log('Successfully fetched user card');
-                        return true;
+                    const midCard = await BiliApiClient.fetchMidCard(targetMid, this.hasValidSession);
+                    if (midCard) {
+                        this.midCard = midCard;
+                        midCardSuccess = true;
+                        console.log('Successfully fetched MidCard');
+                    } else {
+                        console.log('Failed to fetch MidCard');
                     }
                 }
 
-                console.log('No mid available for fetching user info');
+                // 保存到本地存储
+                if (spaceMyInfoSuccess || midCardSuccess) {
+                    this.saveUserInfoToStorage();
+                    return true;
+                }
+
+                console.log('No user info fetched successfully');
                 return false;
             } catch (error) {
                 console.error('Failed to fetch user info:', error);
@@ -103,9 +133,9 @@ export const useAccountStore = defineStore('account', {
         },
 
         // 设置用户信息
-        setUserInfo(userCard: UserCardInfo, userSpace: UserSpaceInfo | null) {
-            this.userCard = userCard;
-            this.userSpace = userSpace;
+        setUserInfo(spaceMyInfo: SpaceMyInfo | null, midCard: MidCard | null) {
+            this.spaceMyInfo = spaceMyInfo;
+            this.midCard = midCard;
         },
 
         // 会话管理
@@ -149,8 +179,8 @@ export const useAccountStore = defineStore('account', {
         clearSession() {
             console.log('Clearing session');
             this.isLoggedIn = false;
-            this.userCard = null;
-            this.userSpace = null;
+            this.spaceMyInfo = null;
+            this.midCard = null;
             this.refreshToken = null;
             this.clearCookies();
             StorageManager.clearAll();
@@ -163,13 +193,13 @@ export const useAccountStore = defineStore('account', {
             }
 
             try {
-                const result = await BiliApiClient.fetchMyInfo();
-                if (!result) {
+                const spaceMyInfo = await BiliApiClient.fetchSpaceMyInfo();
+                if (!spaceMyInfo) {
                     console.log('Session validation failed, clearing session');
                     this.clearSession();
                     return false;
                 }
-                this.setUserInfo(result.userCard, result.userSpace);
+                this.spaceMyInfo = spaceMyInfo;
                 this.saveUserInfoToStorage();
                 return true;
             } catch (error) {
@@ -199,7 +229,6 @@ export const useAccountStore = defineStore('account', {
                     return true;
                 } else {
                     console.log('Auto-login failed: could not fetch user info');
-                    // cookies 可能已过期，清理它们
                     this.clearCookies();
                     return false;
                 }
@@ -218,9 +247,11 @@ export const useAccountStore = defineStore('account', {
 
         // 持久化存储
         saveUserInfoToStorage() {
-            if (this.userCard) {
-                StorageManager.saveUserInfo(this.userCard, this.userSpace, this.isLoggedIn);
-            }
+            StorageManager.saveUserInfo(
+                this.spaceMyInfo,
+                this.midCard,
+                this.isLoggedIn
+            );
         },
 
         loadFromStorage() {
@@ -232,17 +263,17 @@ export const useAccountStore = defineStore('account', {
                     this.refreshToken = data.refreshToken;
                 }
 
-                // 加载用户信息（但不设置 isLoggedIn，因为需要验证 cookies）
+                // 加载用户信息
                 if (data.userInfo) {
-                    this.userCard = data.userInfo.userCard;
-                    this.userSpace = data.userInfo.userSpace;
-                    // 注意：isLoggedIn 状态将在 tryAutoLogin 中设置
+                    this.spaceMyInfo = data.userInfo.spaceMyInfo;
+                    this.midCard = data.userInfo.midCard;
                 }
 
                 console.log('Loaded from storage:', {
                     hasRefreshToken: !!this.refreshToken,
-                    hasUserCard: !!this.userCard,
-                    userName: this.userCard?.name,
+                    hasSpaceMyInfo: !!this.spaceMyInfo,
+                    hasMidCard: !!this.midCard,
+                    userName: this.userName,
                 });
             } catch (error) {
                 console.error('Failed to load from storage:', error);
@@ -264,10 +295,10 @@ export const useAccountStore = defineStore('account', {
                 console.log('Auto-login failed or no cookies found');
                 this.isLoggedIn = false;
                 // 清理可能不一致的用户信息
-                if (this.userCard) {
+                if (this.spaceMyInfo || this.midCard) {
                     console.log('Clearing stored user info due to invalid session');
-                    this.userCard = null;
-                    this.userSpace = null;
+                    this.spaceMyInfo = null;
+                    this.midCard = null;
                     StorageManager.clearAll();
                 }
             }

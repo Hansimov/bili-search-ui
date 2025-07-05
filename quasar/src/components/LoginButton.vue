@@ -47,7 +47,7 @@
           </q-item-section>
           <q-item-section side>
             <q-item-label class="text-weight-medium">{{
-              accountStore.userCard?.fans || 0
+              accountStore.userFans
             }}</q-item-label>
           </q-item-section>
         </q-item>
@@ -58,11 +58,21 @@
           </q-item-section>
           <q-item-section side>
             <q-item-label class="text-weight-medium">{{
-              accountStore.userCard?.attention || 0
+              accountStore.userAttention
             }}</q-item-label>
           </q-item-section>
         </q-item>
 
+        <q-item>
+          <q-item-section>
+            <q-item-label class="text-right">硬币</q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-item-label class="text-weight-medium">{{
+              accountStore.userCoins
+            }}</q-item-label>
+          </q-item-section>
+        </q-item>
         <q-separator />
 
         <q-item clickable v-close-popup @click="handleLogout">
