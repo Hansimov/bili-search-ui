@@ -23,8 +23,8 @@ export const useAccountStore = defineStore('account', {
             return this.spaceMyInfo?.face || this.midCard?.card?.face || '';
         },
 
-        userId(): string {
-            return this.spaceMyInfo?.mid?.toString() || this.midCard?.card?.mid || '';
+        userMid(): number {
+            return this.spaceMyInfo?.mid || 0;
         },
 
         userFans(): number {
@@ -36,7 +36,11 @@ export const useAccountStore = defineStore('account', {
         },
 
         userCoins(): number {
-            return this.spaceMyInfo?.coins || 0;
+            return Math.floor(this.spaceMyInfo?.coins || 0);
+        },
+
+        userArchiveCount(): number {
+            return this.midCard?.archive_count || 0;
         },
 
         userSpace(): { s_img: string; l_img: string } | null {

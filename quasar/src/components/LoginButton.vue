@@ -20,7 +20,7 @@
       />
     </q-avatar>
 
-    <!-- 用户菜单  -->
+    <!-- 用户下拉菜单  -->
     <q-menu
       v-if="accountStore.isLoggedIn"
       v-model="showUserMenu"
@@ -29,58 +29,50 @@
       @mouseenter="handleMenuMouseEnter"
       @mouseleave="handleMenuMouseLeave"
     >
-      <q-list class="text-right">
+      <q-list>
+        <!-- 昵称 & UID -->
         <q-item>
           <q-item-section>
             <q-item-label class="text-right">{{
               accountStore.userName
             }}</q-item-label>
             <q-item-label caption class="text-right"
-              >UID: {{ accountStore.userId }}</q-item-label
+              >UID: {{ accountStore.userMid }}</q-item-label
             >
           </q-item-section>
         </q-item>
 
-        <q-item>
-          <q-item-section>
-            <q-item-label class="text-right">粉丝</q-item-label>
+        <!-- 数据项 -->
+        <q-item
+          v-for="(item, idx) in statsItems"
+          :key="idx"
+          class="user-menu-list-item"
+          dense
+        >
+          <q-item-section class="user-menu-list-label">
+            <q-item-label class="text-right">{{ item.label }}</q-item-label>
           </q-item-section>
-          <q-item-section side>
-            <q-item-label class="text-weight-medium">{{
-              accountStore.userFans
-            }}</q-item-label>
-          </q-item-section>
-        </q-item>
-
-        <q-item>
-          <q-item-section>
-            <q-item-label class="text-right">关注</q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            <q-item-label class="text-weight-medium">{{
-              accountStore.userAttention
-            }}</q-item-label>
+          <q-item-section side class="user-menu-list-value">
+            <q-item-label class="text-weight-medium">
+              {{ item.value }}
+            </q-item-label>
           </q-item-section>
         </q-item>
 
-        <q-item>
-          <q-item-section>
-            <q-item-label class="text-right">硬币</q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            <q-item-label class="text-weight-medium">{{
-              accountStore.userCoins
-            }}</q-item-label>
-          </q-item-section>
-        </q-item>
         <q-separator />
 
-        <q-item clickable v-close-popup @click="handleLogout">
-          <q-item-section>
+        <!-- 操作项 -->
+        <q-item
+          clickable
+          v-close-popup
+          @click="handleLogout"
+          class="user-menu-list-item"
+        >
+          <q-item-section class="user-menu-list-label">
             <q-item-label class="text-right">退出登录</q-item-label>
           </q-item-section>
-          <q-item-section avatar side>
-            <q-icon name="logout" />
+          <q-item-section side class="user-menu-list-value">
+            <q-icon size="xs" name="logout" />
           </q-item-section>
         </q-item>
       </q-list>
@@ -164,6 +156,13 @@ const buttonLabel = computed(() => {
   return '登录';
 });
 
+const statsItems = computed(() => [
+  { label: '关注', value: accountStore.userAttention },
+  { label: '粉丝', value: accountStore.userFans },
+  { label: '硬币', value: accountStore.userCoins },
+  { label: '投稿', value: accountStore.userArchiveCount },
+]);
+
 const qrCodeOptions = computed(() => ({
   width: 200,
   margin: 2,
@@ -207,7 +206,7 @@ const handleMenuMouseEnter = () => {
 };
 
 const handleMenuMouseLeave = () => {
-  showUserMenu.value = false;
+  // showUserMenu.value = true;
 };
 
 const handleLogout = () => {
@@ -287,5 +286,23 @@ onUnmounted(() => {
 
 .login-button .q-avatar {
   margin-right: 4px;
+}
+
+.user-menu-list-item {
+  display: flex;
+  align-items: center;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  min-height: 32px;
+}
+
+.user-menu-list-label,
+.user-menu-list-value {
+  flex: 1;
+  text-align: right;
+}
+
+.user-menu-list-label {
+  min-width: 60px;
 }
 </style>
