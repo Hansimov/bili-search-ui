@@ -61,6 +61,25 @@
 
         <q-separator />
 
+        <!-- 更新关注列表 -->
+        <q-item
+          clickable
+          v-close-popup
+          @click="handleUpdateFollowings"
+          class="user-menu-list-item"
+          :disable="isUpdatingFollowings"
+        >
+          <q-item-section class="user-menu-list-label">
+            <q-item-label class="text-right">
+              {{ isUpdatingFollowings ? '同步中...' : '同步关注' }}
+            </q-item-label>
+          </q-item-section>
+          <q-item-section side class="user-menu-list-value">
+            <q-spinner v-if="isUpdatingFollowings" size="xs" color="primary" />
+            <q-icon v-else size="xs" name="refresh" />
+          </q-item-section>
+        </q-item>
+
         <!-- 操作项 -->
         <q-item
           clickable
@@ -134,12 +153,14 @@
 import { ref, computed, watch, onUnmounted } from 'vue';
 import { useAuthStore } from 'src/stores/authStore';
 import { useAccountStore } from 'src/stores/accountStore';
+import { Notify } from 'quasar';
 
 const authStore = useAuthStore();
 const accountStore = useAccountStore();
 
 const showLoginDialog = ref(false);
 const showUserMenu = ref(false);
+const isUpdatingFollowings = ref(false);
 let menuTimer: NodeJS.Timeout | null = null;
 
 const buttonIcon = computed(() => {
@@ -157,7 +178,10 @@ const buttonLabel = computed(() => {
 });
 
 const statsItems = computed(() => [
-  { label: '关注', value: accountStore.userAttention },
+  {
+    label: '关注',
+    value: accountStore.followingCount || accountStore.userAttention,
+  },
   { label: '粉丝', value: accountStore.userFans },
   { label: '硬币', value: accountStore.userCoins },
   { label: '投稿', value: accountStore.userArchiveCount },
@@ -207,6 +231,49 @@ const handleMenuMouseEnter = () => {
 
 const handleMenuMouseLeave = () => {
   // showUserMenu.value = true;
+};
+
+const handleUpdateFollowings = async () => {
+  if (isUpdatingFollowings.value) {
+    return;
+  }
+
+  isUpdatingFollowings.value = true;
+
+  try {
+    console.log('Manually triggering relation followings update...');
+    const success = await accountStore.fetchRelationFollowings(false); // 强制刷新
+
+    if (success) {
+      Notify.create({
+        type: 'positive',
+        message: `关注列表同步成功，共 ${accountStore.followingCount} 个关注`,
+        position: 'top-right',
+        timeout: 1500,
+      });
+      console.log(
+        `Successfully updated followings: ${accountStore.followingCount} users`
+      );
+    } else {
+      Notify.create({
+        type: 'negative',
+        message: '关注列表同步失败，请重试',
+        position: 'top-right',
+        timeout: 1500,
+      });
+      console.log('Failed to update followings');
+    }
+  } catch (error) {
+    console.error('Error updating followings:', error);
+    Notify.create({
+      type: 'negative',
+      message: '关注列表同步失败，请重试',
+      position: 'top-right',
+      timeout: 1500,
+    });
+  } finally {
+    isUpdatingFollowings.value = false;
+  }
 };
 
 const handleLogout = () => {
