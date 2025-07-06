@@ -1,16 +1,20 @@
 import { defineStore } from 'pinia';
 import { AccountState, CookieInfo, SpaceMyInfo, MidCard, RelationFollowingUserInfoList } from './account/types';
 import { CookieManager, BiliApiClient, StorageManager } from './account';
+import { Notify } from 'quasar';
 
 export * from './account/types';
 
 export const useAccountStore = defineStore('account', {
-    state: (): AccountState => ({
+    state: (): AccountState & {
+        isUpdatingFollowings: boolean;
+    } => ({
         isLoggedIn: false,
         spaceMyInfo: null,
         midCard: null,
         refreshToken: null,
         relationFollowings: null,
+        isUpdatingFollowings: false,
     }),
 
     getters: {
@@ -123,6 +127,53 @@ export const useAccountStore = defineStore('account', {
             }
         },
 
+        // 手动更新关注列表
+        async handleUpdateFollowings(): Promise<boolean> {
+            if (this.isUpdatingFollowings) {
+                return false;
+            }
+
+            this.isUpdatingFollowings = true;
+
+            try {
+                console.log('Manually triggering relation followings update...');
+                const success = await this.fetchRelationFollowings(false);
+
+                if (success) {
+                    console.log(
+                        `Successfully updated followings: ${this.followingCount} users`
+                    );
+                    Notify.create({
+                        type: 'positive',
+                        message: `关注列表同步成功，共 ${this.followingCount} 个关注`,
+                        position: 'top-right',
+                        timeout: 1500,
+                    });
+                    return true;
+                } else {
+                    console.log('Failed to update followings');
+                    Notify.create({
+                        type: 'negative',
+                        message: '关注列表同步失败，请重试',
+                        position: 'top-right',
+                        timeout: 1500,
+                    });
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error updating followings:', error);
+                Notify.create({
+                    type: 'negative',
+                    message: '关注列表同步失败，请重试',
+                    position: 'top-right',
+                    timeout: 1500,
+                });
+                return false;
+            } finally {
+                this.isUpdatingFollowings = false;
+            }
+        },
+
         // 强制刷新关注列表
         async refreshRelationFollowings(): Promise<boolean> {
             return await this.fetchRelationFollowings(true);
@@ -137,6 +188,18 @@ export const useAccountStore = defineStore('account', {
             const oneHour = 60 * 60 * 1000; // 1小时
 
             return (now - lastUpdated) > oneHour;
+        },
+
+        // 退出登录
+        handleLogout() {
+            console.log('Logging out user');
+            this.clearSession();
+            Notify.create({
+                type: 'info',
+                message: '已退出登录',
+                position: 'top-right',
+                timeout: 1500,
+            });
         },
 
         // 用户信息管理 - 并行获取两种用户信息
@@ -216,9 +279,26 @@ export const useAccountStore = defineStore('account', {
                 if (userInfoSuccess) {
                     this.isLoggedIn = true;
                     console.log('Session established successfully');
+
+                    // 显示登录成功通知
+                    Notify.create({
+                        type: 'positive',
+                        message: `登录成功！欢迎回来，${this.userName}`,
+                        position: 'top-right',
+                        timeout: 1500,
+                    });
+
                     return true;
                 } else {
                     console.error('Failed to fetch user info after setting cookies');
+
+                    Notify.create({
+                        type: 'negative',
+                        message: '登录失败，请重试',
+                        position: 'top-right',
+                        timeout: 1500,
+                    });
+
                     this.clearSession();
                     return false;
                 }
@@ -235,7 +315,8 @@ export const useAccountStore = defineStore('account', {
             this.spaceMyInfo = null;
             this.midCard = null;
             this.refreshToken = null;
-            this.relationFollowings = null;
+            // this.relationFollowings = null;
+            this.isUpdatingFollowings = false;
             this.clearCookies();
             StorageManager.clearAll();
         },

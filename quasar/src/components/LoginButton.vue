@@ -65,17 +65,21 @@
         <q-item
           clickable
           v-close-popup
-          @click="handleUpdateFollowings"
+          @click="accountStore.handleUpdateFollowings"
           class="user-menu-list-item"
-          :disable="isUpdatingFollowings"
+          :disable="accountStore.isUpdatingFollowings"
         >
           <q-item-section class="user-menu-list-label">
             <q-item-label class="text-right">
-              {{ isUpdatingFollowings ? '同步中...' : '同步关注' }}
+              {{ accountStore.isUpdatingFollowings ? '同步中...' : '同步关注' }}
             </q-item-label>
           </q-item-section>
           <q-item-section side class="user-menu-list-value">
-            <q-spinner v-if="isUpdatingFollowings" size="xs" color="primary" />
+            <q-spinner
+              v-if="accountStore.isUpdatingFollowings"
+              size="xs"
+              color="primary"
+            />
             <q-icon v-else size="xs" name="refresh" />
           </q-item-section>
         </q-item>
@@ -84,7 +88,7 @@
         <q-item
           clickable
           v-close-popup
-          @click="handleLogout"
+          @click="showLogoutDialog = true"
           class="user-menu-list-item"
         >
           <q-item-section class="user-menu-list-label">
@@ -98,6 +102,7 @@
     </q-menu>
   </q-btn>
 
+  <!-- 登录对话框 -->
   <q-dialog v-model="showLoginDialog">
     <q-card class="q-card-qrcode shadow-transition">
       <q-card-section>
@@ -147,20 +152,43 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
+
+  <!-- 退出登录确认对话框 -->
+  <q-dialog v-model="showLogoutDialog">
+    <q-card class="q-card-logout">
+      <q-card-section>
+        <div class="text-h6">退出登录</div>
+      </q-card-section>
+
+      <q-card-section class="q-pt-none">
+        <div class="text-body1">确定要退出登录吗？</div>
+        <div class="text-caption text-grey q-mt-sm">退出后需要重新扫码登录</div>
+      </q-card-section>
+
+      <q-card-actions align="right">
+        <q-btn
+          flat
+          label="取消"
+          color="grey"
+          @click="showLogoutDialog = false"
+        />
+        <q-btn flat label="确认退出" color="negative" @click="confirmLogout" />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue';
 import { useAuthStore } from 'src/stores/authStore';
 import { useAccountStore } from 'src/stores/accountStore';
-import { Notify } from 'quasar';
 
 const authStore = useAuthStore();
 const accountStore = useAccountStore();
 
 const showLoginDialog = ref(false);
 const showUserMenu = ref(false);
-const isUpdatingFollowings = ref(false);
+const showLogoutDialog = ref(false);
 let menuTimer: NodeJS.Timeout | null = null;
 
 const buttonIcon = computed(() => {
@@ -233,51 +261,9 @@ const handleMenuMouseLeave = () => {
   // showUserMenu.value = true;
 };
 
-const handleUpdateFollowings = async () => {
-  if (isUpdatingFollowings.value) {
-    return;
-  }
-
-  isUpdatingFollowings.value = true;
-
-  try {
-    console.log('Manually triggering relation followings update...');
-    const success = await accountStore.fetchRelationFollowings(false); // 强制刷新
-
-    if (success) {
-      Notify.create({
-        type: 'positive',
-        message: `关注列表同步成功，共 ${accountStore.followingCount} 个关注`,
-        position: 'top-right',
-        timeout: 1500,
-      });
-      console.log(
-        `Successfully updated followings: ${accountStore.followingCount} users`
-      );
-    } else {
-      Notify.create({
-        type: 'negative',
-        message: '关注列表同步失败，请重试',
-        position: 'top-right',
-        timeout: 1500,
-      });
-      console.log('Failed to update followings');
-    }
-  } catch (error) {
-    console.error('Error updating followings:', error);
-    Notify.create({
-      type: 'negative',
-      message: '关注列表同步失败，请重试',
-      position: 'top-right',
-      timeout: 1500,
-    });
-  } finally {
-    isUpdatingFollowings.value = false;
-  }
-};
-
-const handleLogout = () => {
-  accountStore.clearSession();
+const confirmLogout = () => {
+  showLogoutDialog.value = false;
+  accountStore.handleLogout();
 };
 
 const onQRReady = (canvas: HTMLCanvasElement) => {
@@ -328,6 +314,11 @@ onUnmounted(() => {
 <style scoped>
 .q-card-qrcode {
   min-width: 350px;
+  max-width: 400px;
+}
+
+.q-card-logout {
+  min-width: 300px;
   max-width: 400px;
 }
 
