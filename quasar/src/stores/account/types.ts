@@ -262,11 +262,74 @@ export interface MidCard {
     };
 }
 
+export interface RelationFollowingUserInfo {
+    mid: number;
+    attribute: number;
+    mtime: number;
+    tag: string | null;
+    special: number;
+    contract_info: Record<string, unknown>;
+    uname: string;
+    face: string;
+    sign: string;
+    face_nft: number;
+    official_verify: {
+        type: number;
+        desc: string;
+    };
+    vip: {
+        vipType: number;
+        vipDueDate: number;
+        dueRemark: string;
+        accessStatus: number;
+        vipStatus: number;
+        vipStatusWarn: string;
+        themeType: number;
+        label: {
+            path: string;
+            text: string;
+            label_theme: string;
+            text_color: string;
+            bg_style: number;
+            bg_color: string;
+            border_color: string;
+        };
+        avatar_subscript: number;
+        nickname_color: string;
+        avatar_subscript_url: string;
+    };
+    name_render: Record<string, unknown>;
+    nft_icon: string;
+    rec_reason: string;
+    track_id: string;
+    follow_time: string;
+}
+
+// 关注列表响应数据结构
+export interface RelationFollowingResponse {
+    code: number;
+    message: string;
+    ttl: number;
+    data: {
+        list: RelationFollowingUserInfo[];
+        re_version: number;
+        total: number;
+    };
+}
+
+// 关注列表数据结构
+export interface RelationFollowingUserInfoList {
+    users: RelationFollowingUserInfo[];
+    total: number;
+    lastUpdated: number; // 时间戳
+}
+
 export interface AccountState {
     isLoggedIn: boolean;
     spaceMyInfo: SpaceMyInfo | null;
     midCard: MidCard | null;
     refreshToken: string | null;
+    relationFollowings: RelationFollowingUserInfoList | null;
 }
 
 export interface StoredUserInfo {

@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia';
-import { AccountState, CookieInfo, SpaceMyInfo, MidCard } from './account/types';
-import { CookieManager } from './account/cookieManager';
-import { BiliApiClient } from './account/apiClient';
-import { StorageManager } from './account/storageManager';
+import { AccountState, CookieInfo, SpaceMyInfo, MidCard, RelationFollowingUserInfoList } from './account/types';
+import { CookieManager, BiliApiClient, StorageManager } from './account';
 
 export * from './account/types';
 
@@ -12,6 +10,7 @@ export const useAccountStore = defineStore('account', {
         spaceMyInfo: null,
         midCard: null,
         refreshToken: null,
+        relationFollowings: null,
     }),
 
     getters: {
@@ -49,11 +48,19 @@ export const useAccountStore = defineStore('account', {
 
         hasValidSession(): boolean {
             const cookies = CookieManager.getBiliCookies();
-            return !!(cookies?.SESSDATA && cookies?.DedeUserID);
+            return !!(cookies && cookies.SESSDATA && cookies.DedeUserID);
         },
 
         canMakeAuthenticatedRequests(): boolean {
-            return this.hasValidSession;
+            return this.hasValidSession && this.isLoggedIn;
+        },
+
+        followingCount(): number {
+            return this.relationFollowings?.total || 0;
+        },
+
+        followingUsers(): RelationFollowingUserInfoList['users'] {
+            return this.relationFollowings?.users || [];
         },
     },
 
@@ -69,20 +76,67 @@ export const useAccountStore = defineStore('account', {
 
         setCookies(cookies: CookieInfo) {
             CookieManager.setBiliCookies(cookies);
-            console.log('Cookies saved to browser:', {
-                DedeUserID: cookies.DedeUserID,
-                hasSessionData: !!cookies.SESSDATA,
-            });
         },
 
         clearCookies() {
             CookieManager.clearBiliCookies();
-            console.log('Browser cookies cleared');
         },
 
         // 创建带认证信息的请求头
         getAuthHeaders(): HeadersInit {
             return CookieManager.getAuthHeaders();
+        },
+
+        // 获取关注列表（智能更新）
+        async fetchRelationFollowings(forceRefresh = false): Promise<boolean> {
+            if (!this.hasValidSession || !this.userMid) {
+                console.log('Cannot fetch relation followings: no valid session or user mid');
+                return false;
+            }
+
+            try {
+                console.log('Fetching relation followings for user mid:', this.userMid, 'forceRefresh:', forceRefresh);
+
+                // 如果强制刷新，不传递现有数据
+                const existingData = forceRefresh ? null : this.relationFollowings;
+                const users = await BiliApiClient.fetchRelationFollowings(
+                    this.userMid.toString(),
+                    existingData
+                );
+
+                if (users) {
+                    this.relationFollowings = {
+                        users,
+                        total: users.length,
+                        lastUpdated: Date.now(),
+                    };
+                    this.saveRelationFollowingsToStorage();
+                    console.log(`Successfully updated relation followings: ${users.length} users`);
+                    return true;
+                } else {
+                    console.log('Failed to fetch relation followings');
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error fetching relation followings:', error);
+                return false;
+            }
+        },
+
+        // 强制刷新关注列表
+        async refreshRelationFollowings(): Promise<boolean> {
+            return await this.fetchRelationFollowings(true);
+        },
+
+        // 检查关注列表是否需要更新
+        shouldUpdateRelationFollowings(): boolean {
+            if (!this.relationFollowings) return true;
+
+            const lastUpdated = this.relationFollowings.lastUpdated;
+            const now = Date.now();
+            const oneHour = 60 * 60 * 1000; // 1小时
+
+            return (now - lastUpdated) > oneHour;
         },
 
         // 用户信息管理 - 并行获取两种用户信息
@@ -145,9 +199,9 @@ export const useAccountStore = defineStore('account', {
         // 会话管理
         async establishSession(url: string, refreshToken: string): Promise<boolean> {
             try {
-                console.log('Establishing session with URL:', url.substring(0, 100) + '...');
+                console.log('Establishing session...');
 
-                // 解析和设置 cookies
+                // 解析并设置 cookies
                 const cookies = this.parseCookiesFromUrl(url);
                 if (!cookies) {
                     console.error('Failed to parse cookies from URL');
@@ -157,24 +211,19 @@ export const useAccountStore = defineStore('account', {
                 this.setCookies(cookies);
                 this.setRefreshToken(refreshToken);
 
-                console.log('Cookies and token set, fetching user info...');
-
                 // 获取用户信息
                 const userInfoSuccess = await this.fetchUserInfo();
-                console.log('User info fetch result:', userInfoSuccess);
-
                 if (userInfoSuccess) {
                     this.isLoggedIn = true;
                     console.log('Session established successfully');
                     return true;
+                } else {
+                    console.error('Failed to fetch user info after setting cookies');
+                    this.clearSession();
+                    return false;
                 }
-
-                // 用户信息获取失败，清理会话
-                console.error('Failed to fetch user info, clearing session');
-                this.clearSession();
-                return false;
             } catch (error) {
-                console.error('Failed to establish session:', error);
+                console.error('Error establishing session:', error);
                 this.clearSession();
                 return false;
             }
@@ -186,28 +235,31 @@ export const useAccountStore = defineStore('account', {
             this.spaceMyInfo = null;
             this.midCard = null;
             this.refreshToken = null;
+            this.relationFollowings = null;
             this.clearCookies();
             StorageManager.clearAll();
         },
 
         async validateSession(): Promise<boolean> {
             if (!this.hasValidSession) {
-                console.log('No valid session to validate');
+                console.log('No valid session found');
                 return false;
             }
 
             try {
-                const spaceMyInfo = await BiliApiClient.fetchSpaceMyInfo();
-                if (!spaceMyInfo) {
-                    console.log('Session validation failed, clearing session');
+                // 尝试获取用户信息来验证 session
+                const isValid = await this.fetchUserInfo();
+                if (isValid) {
+                    this.isLoggedIn = true;
+                    console.log('Session validation successful');
+                    return true;
+                } else {
+                    console.log('Session validation failed');
                     this.clearSession();
                     return false;
                 }
-                this.spaceMyInfo = spaceMyInfo;
-                this.saveUserInfoToStorage();
-                return true;
             } catch (error) {
-                console.error('Session validation error:', error);
+                console.error('Error validating session:', error);
                 this.clearSession();
                 return false;
             }
@@ -219,20 +271,20 @@ export const useAccountStore = defineStore('account', {
 
             const cookies = this.getCurrentCookies();
             if (!cookies) {
-                console.log('No valid cookies found for auto-login');
+                console.log('No existing cookies found');
                 return false;
             }
 
             console.log('Found existing cookies, attempting to fetch user info...');
 
             try {
-                const userInfoSuccess = await this.fetchUserInfo();
-                if (userInfoSuccess) {
+                const success = await this.fetchUserInfo();
+                if (success) {
                     this.isLoggedIn = true;
                     console.log('Auto-login successful');
                     return true;
                 } else {
-                    console.log('Auto-login failed: could not fetch user info');
+                    console.log('Auto-login failed - invalid cookies');
                     this.clearCookies();
                     return false;
                 }
@@ -258,6 +310,12 @@ export const useAccountStore = defineStore('account', {
             );
         },
 
+        saveRelationFollowingsToStorage() {
+            if (this.relationFollowings) {
+                StorageManager.saveRelationFollowings(this.relationFollowings);
+            }
+        },
+
         loadFromStorage() {
             try {
                 const data = StorageManager.loadAll();
@@ -271,12 +329,21 @@ export const useAccountStore = defineStore('account', {
                 if (data.userInfo) {
                     this.spaceMyInfo = data.userInfo.spaceMyInfo;
                     this.midCard = data.userInfo.midCard;
+                    this.isLoggedIn = data.userInfo.isLoggedIn;
+                }
+
+                // 加载关注列表
+                if (data.relationFollowings) {
+                    this.relationFollowings = data.relationFollowings;
                 }
 
                 console.log('Loaded from storage:', {
                     hasRefreshToken: !!this.refreshToken,
                     hasSpaceMyInfo: !!this.spaceMyInfo,
                     hasMidCard: !!this.midCard,
+                    isLoggedIn: this.isLoggedIn,
+                    hasRelationFollowings: !!this.relationFollowings,
+                    followingCount: this.followingCount,
                     userName: this.userName,
                 });
             } catch (error) {
@@ -289,23 +356,25 @@ export const useAccountStore = defineStore('account', {
         async initialize(): Promise<void> {
             console.log('Initializing account store...');
 
-            // 从本地存储加载数据
+            // 加载本地存储的数据
             this.loadFromStorage();
 
-            // 尝试从现有 cookies 自动登录
-            const autoLoginSuccess = await this.tryAutoLogin();
+            // 如果有登录状态，尝试验证 session
+            if (this.isLoggedIn) {
+                console.log('Found existing login state, validating session...');
+                const isValid = await this.validateSession();
 
-            if (!autoLoginSuccess) {
-                console.log('Auto-login failed or no cookies found');
-                this.isLoggedIn = false;
-                // 清理可能不一致的用户信息
-                if (this.spaceMyInfo || this.midCard) {
-                    console.log('Clearing stored user info due to invalid session');
-                    this.spaceMyInfo = null;
-                    this.midCard = null;
-                    StorageManager.clearAll();
+                if (!isValid) {
+                    console.log('Session validation failed, clearing state');
+                    this.clearSession();
                 }
+            } else {
+                // 尝试自动登录
+                console.log('No login state found, attempting auto-login...');
+                await this.tryAutoLogin();
             }
+
+            console.log('Account store initialization completed');
         },
     },
 });
