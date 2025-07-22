@@ -6,7 +6,7 @@ export interface CookieInfo {
     bili_jct: string;
 }
 
-// space/myinfo API 响应数据结构
+// API space/myinfo 响应
 export interface SpaceMyInfo {
     mid: number;
     name: string;
@@ -150,7 +150,7 @@ export interface SpaceMyInfo {
     follower: number;
 }
 
-// web-interface/card API 响应数据结构
+// API web-interface/card 响应
 export interface MidCard {
     card: {
         mid: string;
@@ -262,6 +262,7 @@ export interface MidCard {
     };
 }
 
+// 关注用户信息
 export interface RelationFollowingUserInfo {
     mid: number;
     attribute: number;
@@ -305,7 +306,7 @@ export interface RelationFollowingUserInfo {
     follow_time: string;
 }
 
-// 关注列表响应数据结构
+// 关注用户列表响应
 export interface RelationFollowingResponse {
     code: number;
     message: string;
@@ -317,21 +318,34 @@ export interface RelationFollowingResponse {
     };
 }
 
-// 关注列表数据结构
+// 关注列表
 export interface RelationFollowingUserInfoList {
     users: RelationFollowingUserInfo[];
     total: number;
     lastUpdated: number; // 时间戳
 }
 
+// 存储的关注用户信息
+type ExcludedStorageFields = 'vip';
+export type StoredRelationFollowingUserInfo = Omit<RelationFollowingUserInfo, ExcludedStorageFields>;
+
+// 存储的关注用户列表
+export interface StoredRelationFollowingUserInfoList {
+    users: StoredRelationFollowingUserInfo[];
+    total: number;
+    lastUpdated: number;
+}
+
+// 账户状态
 export interface AccountState {
     isLoggedIn: boolean;
     spaceMyInfo: SpaceMyInfo | null;
     midCard: MidCard | null;
     refreshToken: string | null;
-    relationFollowings: RelationFollowingUserInfoList | null;
+    relationFollowings: StoredRelationFollowingUserInfoList | null;
 }
 
+// 存储的用户信息
 export interface StoredUserInfo {
     spaceMyInfo: SpaceMyInfo | null;
     midCard: MidCard | null;

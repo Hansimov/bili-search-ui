@@ -1,4 +1,12 @@
-import { StoredUserInfo, SpaceMyInfo, MidCard, RelationFollowingUserInfoList } from './types';
+import {
+    StoredUserInfo,
+    SpaceMyInfo,
+    MidCard,
+    RelationFollowingUserInfoList,
+    StoredRelationFollowingUserInfoList,
+    RelationFollowingUserInfo,
+    StoredRelationFollowingUserInfo
+} from './types';
 
 const STORAGE_KEYS = {
     REFRESH_TOKEN: 'bili_refresh_token',
@@ -51,17 +59,32 @@ export class StorageManager {
         localStorage.removeItem(STORAGE_KEYS.USER_INFO);
     }
 
-    static saveRelationFollowings(relationFollowings: RelationFollowingUserInfoList) {
-        localStorage.setItem(STORAGE_KEYS.RELATION_FOLLOWINGS, JSON.stringify(relationFollowings));
+    // 关注列表管理
+    private static toStorageFormat(user: RelationFollowingUserInfo): StoredRelationFollowingUserInfo {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { vip: _vip, ...storedUser } = user;
+        return storedUser;
     }
 
-    static loadRelationFollowings(): RelationFollowingUserInfoList | null {
+    static saveRelationFollowings(relationFollowings: RelationFollowingUserInfoList) {
+        try {
+            const storedData: StoredRelationFollowingUserInfoList = {
+                users: relationFollowings.users.map(this.toStorageFormat),
+                total: relationFollowings.total,
+                lastUpdated: relationFollowings.lastUpdated,
+            };
+            localStorage.setItem(STORAGE_KEYS.RELATION_FOLLOWINGS, JSON.stringify(storedData));
+        } catch (error) {
+            console.error('Failed to save relation followings to storage:', error);
+        }
+    }
+
+    static loadRelationFollowings(): StoredRelationFollowingUserInfoList | null {
         try {
             const data = localStorage.getItem(STORAGE_KEYS.RELATION_FOLLOWINGS);
-            if (data) {
-                return JSON.parse(data);
-            }
-            return null;
+            if (!data) return null;
+
+            return JSON.parse(data) as StoredRelationFollowingUserInfoList;
         } catch (error) {
             console.error('Failed to load relation followings from storage:', error);
             return null;
@@ -83,7 +106,7 @@ export class StorageManager {
     static loadAll(): {
         refreshToken: string | null;
         userInfo: StoredUserInfo | null;
-        relationFollowings: RelationFollowingUserInfoList | null;
+        relationFollowings: StoredRelationFollowingUserInfoList | null;
     } {
         return {
             refreshToken: this.getRefreshToken(),

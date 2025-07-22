@@ -208,7 +208,7 @@ const buttonLabel = computed(() => {
 const statsItems = computed(() => [
   {
     label: '关注',
-    value: accountStore.followingCount || accountStore.userAttention,
+    value: accountStore.userAttention || accountStore.followingCount,
   },
   { label: '粉丝', value: accountStore.userFans },
   { label: '硬币', value: accountStore.userCoins },
