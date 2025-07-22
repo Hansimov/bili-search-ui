@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
     StoredUserInfo,
     SpaceMyInfo,
@@ -15,7 +17,41 @@ const STORAGE_KEYS = {
 } as const;
 
 export class StorageManager {
-    // Token 管理
+    // RelationFollowings: format conversion utils
+    static convertToStorageFormat(users: RelationFollowingUserInfo[]): StoredRelationFollowingUserInfo[] {
+        return users.map(user => {
+            const { vip, ...storedUser } = user;
+            return storedUser;
+        });
+    }
+
+    static createStoredRelationFollowings(
+        users: RelationFollowingUserInfo[],
+        total?: number
+    ): StoredRelationFollowingUserInfoList {
+        return {
+            users: this.convertToStorageFormat(users),
+            total: total ?? users.length,
+            lastUpdated: Date.now(),
+        };
+    }
+
+    static convertToApiFormat(storedUsers: StoredRelationFollowingUserInfo[]): RelationFollowingUserInfo[] {
+        return storedUsers.map(user => ({
+            ...user,
+            vip: {} as any, // 临时补全字段
+        }));
+    }
+
+    static convertStoredToApiList(stored: StoredRelationFollowingUserInfoList): RelationFollowingUserInfoList {
+        return {
+            users: this.convertToApiFormat(stored.users),
+            total: stored.total,
+            lastUpdated: stored.lastUpdated,
+        };
+    }
+
+    // RefreshToken: save, get, clear
     static setRefreshToken(token: string) {
         localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
     }
@@ -28,7 +64,7 @@ export class StorageManager {
         localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
     }
 
-    // 用户信息管理
+    // UserInfo: save, load, clear
     static saveUserInfo(
         spaceMyInfo: SpaceMyInfo | null,
         midCard: MidCard | null,
@@ -59,21 +95,10 @@ export class StorageManager {
         localStorage.removeItem(STORAGE_KEYS.USER_INFO);
     }
 
-    // 关注列表管理
-    private static toStorageFormat(user: RelationFollowingUserInfo): StoredRelationFollowingUserInfo {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { vip: _vip, ...storedUser } = user;
-        return storedUser;
-    }
-
-    static saveRelationFollowings(relationFollowings: RelationFollowingUserInfoList) {
+    // RelationFollowings: save, load, clear
+    static saveRelationFollowings(relationFollowings: StoredRelationFollowingUserInfoList) {
         try {
-            const storedData: StoredRelationFollowingUserInfoList = {
-                users: relationFollowings.users.map(this.toStorageFormat),
-                total: relationFollowings.total,
-                lastUpdated: relationFollowings.lastUpdated,
-            };
-            localStorage.setItem(STORAGE_KEYS.RELATION_FOLLOWINGS, JSON.stringify(storedData));
+            localStorage.setItem(STORAGE_KEYS.RELATION_FOLLOWINGS, JSON.stringify(relationFollowings));
         } catch (error) {
             console.error('Failed to save relation followings to storage:', error);
         }
@@ -95,7 +120,7 @@ export class StorageManager {
         localStorage.removeItem(STORAGE_KEYS.RELATION_FOLLOWINGS);
     }
 
-    // 清理所有存储数据
+    // All: clear, load
     static clearAll() {
         this.clearRefreshToken();
         this.clearUserInfo();

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { AccountState, CookieInfo, SpaceMyInfo, MidCard, RelationFollowingUserInfoList, StoredRelationFollowingUserInfoList } from './account/types';
+import { AccountState, CookieInfo, SpaceMyInfo, MidCard, StoredRelationFollowingUserInfoList } from './account/types';
 import { CookieManager, BiliApiClient, StorageManager } from './account';
 import { Notify } from 'quasar';
 
@@ -101,16 +101,9 @@ export const useAccountStore = defineStore('account', {
             try {
                 console.log('Fetching relation followings for user mid:', this.userMid, 'forceRefresh:', forceRefresh);
 
-                // 虚拟补全去除的字段，以适配类型要求
-                const existingData = forceRefresh || !this.relationFollowings ? null : {
-                    users: this.relationFollowings.users.map(user => ({
-                        ...user,
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        vip: {} as any
-                    })),
-                    total: this.relationFollowings.total,
-                    lastUpdated: this.relationFollowings.lastUpdated,
-                } as RelationFollowingUserInfoList;
+                // 构造完整格式的现有数据传递给 API
+                const existingData = forceRefresh || !this.relationFollowings ? null :
+                    StorageManager.convertStoredToApiList(this.relationFollowings);
 
                 const users = await BiliApiClient.fetchRelationFollowings(
                     this.userMid.toString(),
@@ -118,16 +111,8 @@ export const useAccountStore = defineStore('account', {
                 );
 
                 if (users) {
-                    // 转换为存储格式并保存到 state
-                    this.relationFollowings = {
-                        users: users.map(user => {
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            const { vip, ...storedUser } = user;
-                            return storedUser;
-                        }),
-                        total: users.length,
-                        lastUpdated: Date.now(),
-                    };
+                    // 转换为存储格式
+                    this.relationFollowings = StorageManager.createStoredRelationFollowings(users);
                     this.saveRelationFollowingsToStorage();
                     console.log(`Successfully updated relation followings: ${users.length} users`);
                     return true;
@@ -407,16 +392,7 @@ export const useAccountStore = defineStore('account', {
 
         saveRelationFollowingsToStorage() {
             if (this.relationFollowings) {
-                const fullFormatData: RelationFollowingUserInfoList = {
-                    users: this.relationFollowings.users.map(user => ({
-                        ...user,
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        vip: {} as any // 虚拟补全去除字段以满足类型要求
-                    })),
-                    total: this.relationFollowings.total,
-                    lastUpdated: this.relationFollowings.lastUpdated,
-                };
-                StorageManager.saveRelationFollowings(fullFormatData);
+                StorageManager.saveRelationFollowings(this.relationFollowings);
             }
         },
 
