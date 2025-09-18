@@ -1,41 +1,51 @@
-# Bili Search UI (bili-search-ui)
+# Bili Search UI
 
-A UI for Bili Search
+A UI for Bili Search Project.
 
-## Install the dependencies
+## 安装依赖
 ```bash
-yarn
-# or
 npm install
 ```
 
-### Start the app in development mode (hot-code reloading, error reporting, etc.)
+## 构建
 ```bash
-quasar dev
+npm run build
 ```
 
+## 运行
 
-### Lint the files
-```bash
-yarn lint
-# or
-npm run lint
+### 命令行参数
+
+```sh
+-fp (--frontend-port):  前端 UI   端口 (默认: 21002)
+-bp (--backend-port):   后端 API  端口 (默认: 21001)  
+-wp (--websocket-port): 通信 WbSk 端口 (默认: 21003)
 ```
 
-
-### Format the files
+### 开发模式 (dev)
 ```bash
-yarn format
-# or
-npm run format
+# 默认端口 (前端:21002, 后端:21001, WebSocket:21003)
+npm run dev
+
+# 自定义端口
+npm run dev -- -fp 21012 -bp 21011 -wp 21013
+node qrun.js dev -fp 21012 -bp 21011 -wp 21013
 ```
 
-
-
-### Build the app for production
+### 生产模式 (serve)
 ```bash
-quasar build
+# 默认端口
+npm run serve -- ./dist/spa --proxy proxy.mjs --history
+
+# 自定义端口
+npm run serve -- ./dist/spa --proxy proxy.mjs --history -fp 21012 -bp 21011
+node qrun.js serve ./dist/spa --proxy proxy.mjs --history -fp 21012 -bp 21011
 ```
 
-### Customize the configuration
-See [Configuring quasar.config.js](https://v2.quasar.dev/quasar-cli-vite/quasar-config-js).
+### 环境变量
+
+也可以通过环境变量来设置端口。不过命令行参数会覆盖环境变量。
+
+```bash
+FRONTEND_PORT=21012 BACKEND_PORT=21011 WEBSOCKET_PORT=21013 npm run dev
+```

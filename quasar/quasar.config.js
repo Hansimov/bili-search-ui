@@ -10,6 +10,11 @@
 
 const { configure } = require('quasar/wrappers');
 
+// 从环境变量或默认值获取端口配置
+const BACKEND_PORT = process.env.BACKEND_PORT || 21001;
+const FRONTEND_PORT = process.env.FRONTEND_PORT || 21002;
+const WEBSOCKET_PORT = process.env.WEBSOCKET_PORT || 21003;
+
 module.exports = configure(function (/* ctx */) {
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
@@ -94,13 +99,13 @@ module.exports = configure(function (/* ctx */) {
         // https://quasar.dev/quasar-cli-vite/api-proxying
         // proxy all requests starting with /api to jsonplaceholder
         '/api': {
-          target: 'http://localhost:21001',
+          target: `http://localhost:${BACKEND_PORT}`,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ''),
         },
         // proxy all websocket requests to websocket server
         '/ws': {
-          target: 'ws://localhost:21003/ws',
+          target: `ws://localhost:${WEBSOCKET_PORT}/ws`,
           ws: true,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/ws/, ''),
@@ -133,9 +138,9 @@ module.exports = configure(function (/* ctx */) {
         },
 
       },
-      port: 21002,
+      port: parseInt(FRONTEND_PORT),
       hmr: {
-        clientPort: 21002,
+        clientPort: parseInt(FRONTEND_PORT),
       },
     },
 
@@ -156,7 +161,7 @@ module.exports = configure(function (/* ctx */) {
       // directives: [],
 
       // Quasar plugins
-      plugins: ['Notify' ],
+      plugins: ['Notify'],
     },
 
     // animations: 'all', // --- includes all animations
