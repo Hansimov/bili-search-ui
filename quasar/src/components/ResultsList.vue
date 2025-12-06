@@ -23,7 +23,7 @@
       <ResultsPagination
         :currentPage="currentPage"
         :totalPages="totalPages"
-        @update:currentPage="currentPage = $event"
+        @update:currentPage="handlePageChange"
       />
     </div>
     <q-btn
@@ -58,10 +58,11 @@
     ref="resultsListDiv"
     :class="dynamicResultsListClass"
     :style="dynamicResultsListStyle"
+    @scroll="handleScroll"
   >
     <ResultItem
-      v-for="(result, index) in paginatedResults"
-      :key="index"
+      v-for="(result, index) in loadedResults"
+      :key="result.bvid || index"
       :result="result"
     />
   </div>
@@ -69,7 +70,7 @@
     <ResultsPagination
       :currentPage="currentPage"
       :totalPages="totalPages"
-      @update:currentPage="currentPage = $event"
+      @update:currentPage="handlePageChange"
     />
   </div>
 </template>
@@ -193,12 +194,36 @@ export default {
     const totalPages = computed(() =>
       Math.ceil(sortedHits.value.length / itemsPerPage.value)
     );
-    const paginatedResults = computed(() => {
-      const start = (currentPage.value - 1) * itemsPerPage.value;
-      const end = start + itemsPerPage.value;
-      return sortedHits.value.slice(start, end);
-    });
     const isCollapsePaginate = computed(() => layoutStore.isCollapsePaginate());
+
+    // Loaded pages set
+    const loadedPages = computed(() => layoutStore.loadedPages);
+
+    // Results to display based on loaded pages (may be non-contiguous)
+    const loadedResults = computed(() => {
+      const sortedPageNumbers = Array.from(loadedPages.value).sort(
+        (a, b) => a - b
+      );
+      const results = [];
+
+      sortedPageNumbers.forEach((pageNum) => {
+        const startIndex = (pageNum - 1) * itemsPerPage.value;
+        const endIndex = startIndex + itemsPerPage.value;
+        results.push(...sortedHits.value.slice(startIndex, endIndex));
+      });
+
+      return results;
+    });
+
+    // Get the index of first item of a page in the loaded results
+    const getPageIndexInLoadedResults = (pageNum) => {
+      const sortedPageNumbers = Array.from(loadedPages.value).sort(
+        (a, b) => a - b
+      );
+      const pageIndex = sortedPageNumbers.indexOf(pageNum);
+      if (pageIndex === -1) return -1;
+      return pageIndex * itemsPerPage.value;
+    };
 
     // layout
     const dynamicResultsListClass = computed(() =>
@@ -216,11 +241,154 @@ export default {
       };
     });
     const resultsListDiv = ref(null);
-    watch([() => paginatedResults.value], async () => {
+    const resultItemRefs = ref({});
+    const isUpdatingFromScroll = ref(false);
+    const isUpdatingFromPage = ref(false);
+
+    // Handle scroll to update current page and load more
+    const handleScroll = () => {
+      if (!resultsListDiv.value) {
+        return;
+      }
+
+      const element = resultsListDiv.value;
+      const scrollTop = element.scrollTop;
+      const scrollHeight = element.scrollHeight;
+      const clientHeight = element.clientHeight;
+
+      // Calculate current page based on scroll position in loaded results
+      const scrollPercentage =
+        scrollHeight > clientHeight
+          ? scrollTop / (scrollHeight - clientHeight)
+          : 0;
+      const loadedItems = loadedResults.value.length;
+      const estimatedIndex = Math.floor(scrollPercentage * loadedItems);
+      const itemPage = Math.floor(estimatedIndex / itemsPerPage.value);
+
+      // Convert to actual page number
+      const sortedPageNumbers = Array.from(loadedPages.value).sort(
+        (a, b) => a - b
+      );
+      const currentViewPage =
+        sortedPageNumbers[itemPage] || sortedPageNumbers[0];
+
+      if (
+        currentViewPage !== currentPage.value &&
+        loadedPages.value.has(currentViewPage)
+      ) {
+        if (!isUpdatingFromPage.value) {
+          isUpdatingFromScroll.value = true;
+          layoutStore.setCurrentPage(currentViewPage);
+          setTimeout(() => {
+            isUpdatingFromScroll.value = false;
+          }, 100);
+        }
+      }
+
+      // Find position of current view page in the sorted array
+      const currentViewIndex = sortedPageNumbers.indexOf(currentViewPage);
+
+      // Load more when scrolling near bottom (80%)
+      if (scrollTop + clientHeight >= scrollHeight * 0.8) {
+        // Check if next page (currentViewPage + 1) is already loaded
+        const nextPage = currentViewPage + 1;
+        if (
+          nextPage <= totalPages.value &&
+          !isUpdatingFromPage.value &&
+          !loadedPages.value.has(nextPage)
+        ) {
+          layoutStore.addLoadedPages([nextPage]);
+        }
+      }
+
+      // Load more when scrolling near top of current page block
+      // Check if we're in the first 30% of the current page's content in the DOM
+      const pageStartInDOM = currentViewIndex * itemsPerPage.value;
+      const itemHeight = scrollHeight / loadedItems;
+      const pageStartScrollPos = pageStartInDOM * itemHeight;
+      const distanceFromPageStart = scrollTop - pageStartScrollPos;
+
+      if (
+        distanceFromPageStart < clientHeight * 0.5 &&
+        distanceFromPageStart >= 0
+      ) {
+        // We're near the top of the current view page, load the previous page if missing
+        const prevPage = currentViewPage - 1;
+        if (
+          prevPage >= 1 &&
+          !isUpdatingFromPage.value &&
+          !loadedPages.value.has(prevPage)
+        ) {
+          // Store current scroll position info
+          const oldScrollHeight = scrollHeight;
+          layoutStore.addLoadedPages([prevPage]);
+
+          // Adjust scroll position to maintain visual position
+          setTimeout(() => {
+            if (resultsListDiv.value) {
+              const newScrollHeight = resultsListDiv.value.scrollHeight;
+              const heightDiff = newScrollHeight - oldScrollHeight;
+              resultsListDiv.value.scrollTop = scrollTop + heightDiff;
+            }
+          }, 50);
+        }
+      }
+    };
+
+    // Handle page change: load target page and adjacent pages
+    const handlePageChange = (newPage) => {
+      if (isUpdatingFromScroll.value) {
+        return;
+      }
+
+      isUpdatingFromPage.value = true;
+      layoutStore.setCurrentPage(newPage);
+
+      // Calculate pages to load (target - 1, target, target + 1)
+      const pagesToLoad = [];
+      for (
+        let p = Math.max(1, newPage - 1);
+        p <= Math.min(totalPages.value, newPage + 1);
+        p++
+      ) {
+        if (!loadedPages.value.has(p)) {
+          pagesToLoad.push(p);
+        }
+      }
+
+      // Add new pages if needed
+      if (pagesToLoad.length > 0) {
+        layoutStore.addLoadedPages(pagesToLoad);
+      }
+
+      // Scroll to target page after DOM updates
+      setTimeout(() => {
+        const relativeIndex = getPageIndexInLoadedResults(newPage);
+        if (relativeIndex >= 0) {
+          const targetElement = resultsListDiv.value?.children[relativeIndex];
+
+          if (targetElement) {
+            targetElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start',
+            });
+          }
+        }
+
+        setTimeout(() => {
+          isUpdatingFromPage.value = false;
+        }, 500);
+      }, 50);
+    };
+
+    // Reset to first page when results change
+    watch([() => sortedHits.value], () => {
+      layoutStore.resetLoadedPages();
       if (resultsListDiv.value) {
         resultsListDiv.value.scrollTop = 0;
       }
     });
+
     const isExploreSessionVisible = computed(() =>
       exploreStore.isSessionSwitchVisible()
     );
@@ -245,14 +413,17 @@ export default {
       sortedHits,
       currentPage,
       totalPages,
-      paginatedResults,
+      loadedResults,
       isCollapsePaginate,
       dynamicResultsListClass,
       dynamicResultsListStyle,
       isReturnResultsLessThanTotal,
       isHasAuthorFilter,
       resultsListDiv,
+      resultItemRefs,
       isExploreSessionVisible,
+      handleScroll,
+      handlePageChange,
     };
   },
 };

@@ -15,6 +15,7 @@ export const useLayoutStore = defineStore('layout', {
         currentPage: 1 as number,
         itemsPerPage: 20 as number,
         authorsListHeight: 0 as number,
+        loadedPages: new Set([1]) as Set<number>,
     }),
     actions: {
         isDesktopMode() {
@@ -97,6 +98,13 @@ export const useLayoutStore = defineStore('layout', {
         },
         setAuthorsListHeight(newHeight: number) {
             this.authorsListHeight = newHeight;
+        },
+        addLoadedPages(pages: number[]) {
+            pages.forEach(page => this.loadedPages.add(page));
+        },
+        resetLoadedPages() {
+            this.loadedPages = new Set([1]);
+            this.currentPage = 1;
         },
     },
 });
