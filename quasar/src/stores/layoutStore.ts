@@ -14,6 +14,7 @@ export const useLayoutStore = defineStore('layout', {
         activeTab: 'videos',
         currentPage: 1 as number,
         itemsPerPage: 20 as number,
+        authorsListHeight: 0 as number,
     }),
     actions: {
         isDesktopMode() {
@@ -93,6 +94,9 @@ export const useLayoutStore = defineStore('layout', {
         },
         setItemsPerPage(newItemsPerPage: number) {
             this.itemsPerPage = newItemsPerPage;
+        },
+        setAuthorsListHeight(newHeight: number) {
+            this.authorsListHeight = newHeight;
         },
     },
 });

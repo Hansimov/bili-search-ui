@@ -1,5 +1,6 @@
 <template>
   <details
+    ref="detailsElement"
     open
     class="result-authors-details q-pl-xs"
     :style="dynamicResultAuthorsDetailsStyle"
@@ -16,7 +17,7 @@
 </template>
 
 <script>
-import { computed, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
@@ -29,6 +30,8 @@ export default {
   setup() {
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
+    const detailsElement = ref(null);
+    let resizeObserver = null;
 
     const authors = computed(() => {
       const authorsDict = exploreStore.latestAuthorsResult.output?.authors;
@@ -38,7 +41,7 @@ export default {
       return isNonEmptyArray(authors.value);
     });
     function sortAuthors() {
-      const sort_field = 'total_sort_score';
+      const sort_field = 'sum_rank_score';
       const sort_order = 'desc';
       authors.value.sort((a, b) => {
         const valueA = a[sort_field];
@@ -55,10 +58,31 @@ export default {
         maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
       };
     });
-    watch(authors, () => {
-      sortAuthors();
+
+    sortAuthors();
+
+    onMounted(() => {
+      if (detailsElement.value) {
+        resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const height = entry.target.offsetHeight;
+            layoutStore.setAuthorsListHeight(height);
+          }
+        });
+        resizeObserver.observe(detailsElement.value);
+      }
     });
+
+    onUnmounted(() => {
+      if (resizeObserver && detailsElement.value) {
+        resizeObserver.unobserve(detailsElement.value);
+        resizeObserver.disconnect();
+      }
+      layoutStore.setAuthorsListHeight(0);
+    });
+
     return {
+      detailsElement,
       authors,
       isShowAuthorsList,
       dynamicResultAuthorsDetailsStyle,

@@ -109,7 +109,7 @@ export interface ResultsSortMethod {
 
 export const resultsSortMethods: ResultsSortMethod[] = [
     {
-        field: 'sort_score',
+        field: 'rank_score',
         order: 'desc',
         label: '综合排序',
         icon: 'fa-solid fa-line-chart',

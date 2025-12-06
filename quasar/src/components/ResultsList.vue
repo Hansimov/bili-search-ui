@@ -206,9 +206,15 @@ export default {
         ? 'results-list q-gutter-none'
         : 'results-list q-gutter-xs'
     );
-    const dynamicResultsListStyle = computed(() => ({
-      maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
-    }));
+    const dynamicResultsListStyle = computed(() => {
+      const authorsListHeight = layoutStore.authorsListHeight || 0;
+      // auto modify maxHeight at authors-list collapsed or expanded
+      const adjustedHeight = 195 + authorsListHeight;
+      return {
+        maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
+        maxHeight: `calc(100vh - ${adjustedHeight}px)`,
+      };
+    });
     const resultsListDiv = ref(null);
     watch([() => paginatedResults.value], async () => {
       if (resultsListDiv.value) {
@@ -283,8 +289,7 @@ export default {
 .results-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--result-item-width));
-  /* Note: max-width is now dynamically applied via inline styles */
-  max-height: calc(100vh - 230px);
+  /* Note: max-width and max-height are now dynamically applied via inline styles */
   overflow-y: scroll;
   overflow-x: hidden;
   &::-webkit-scrollbar {
