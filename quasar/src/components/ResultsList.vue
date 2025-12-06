@@ -258,20 +258,31 @@ function useInfiniteScroll(
     const scrollHeight = element.scrollHeight;
     const clientHeight = element.clientHeight;
 
-    // Calculate current page based on scroll position
-    const scrollPercentage =
-      scrollHeight > clientHeight
-        ? scrollTop / (scrollHeight - clientHeight)
-        : 0;
+    // Calculate which item is currently at the top of the viewport
     const loadedItems = loadedResults.value.length;
-    const estimatedIndex = Math.floor(scrollPercentage * loadedItems);
-    const itemPage = Math.floor(estimatedIndex / itemsPerPage.value);
+    if (loadedItems === 0) return;
 
-    // Convert to actual page number
+    const itemHeight = scrollHeight / loadedItems;
+    const topItemIndex = Math.floor(scrollTop / itemHeight);
+    const bottomItemIndex = Math.floor((scrollTop + clientHeight) / itemHeight);
+
+    // Use the middle of viewport to determine current page
+    const middleItemIndex = Math.floor((topItemIndex + bottomItemIndex) / 2);
+    const clampedIndex = Math.max(
+      0,
+      Math.min(middleItemIndex, loadedItems - 1)
+    );
+
+    // Convert item index to page number
     const sortedPageNumbers = Array.from(loadedPages.value).sort(
       (a, b) => a - b
     );
-    const currentViewPage = sortedPageNumbers[itemPage] || sortedPageNumbers[0];
+    const itemPage = Math.floor(clampedIndex / itemsPerPage.value);
+    const clampedItemPage = Math.max(
+      0,
+      Math.min(itemPage, sortedPageNumbers.length - 1)
+    );
+    const currentViewPage = sortedPageNumbers[clampedItemPage];
 
     // Update current page based on scroll position
     if (
@@ -289,8 +300,12 @@ function useInfiniteScroll(
 
     const currentViewIndex = sortedPageNumbers.indexOf(currentViewPage);
 
-    // Load more when scrolling near bottom (80%)
-    if (scrollTop + clientHeight >= scrollHeight * 0.8) {
+    // Load more when scrolling near bottom of current page block
+    const pageEndInDOM = (currentViewIndex + 1) * itemsPerPage.value;
+    const pageEndScrollPos = pageEndInDOM * itemHeight;
+    const distanceFromPageEnd = pageEndScrollPos - (scrollTop + clientHeight);
+
+    if (distanceFromPageEnd < clientHeight * 0.5 && distanceFromPageEnd >= 0) {
       const nextPage = currentViewPage + 1;
       if (
         nextPage <= totalPages.value &&
@@ -303,7 +318,6 @@ function useInfiniteScroll(
 
     // Load more when scrolling near top of current page block
     const pageStartInDOM = currentViewIndex * itemsPerPage.value;
-    const itemHeight = scrollHeight / loadedItems;
     const pageStartScrollPos = pageStartInDOM * itemHeight;
     const distanceFromPageStart = scrollTop - pageStartScrollPos;
 
