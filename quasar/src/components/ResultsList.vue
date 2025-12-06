@@ -88,6 +88,314 @@ import ResultAuthorsList from 'src/components/ResultAuthorsList.vue';
 import ResultAuthorFilters from './ResultAuthorFilters.vue';
 import ExploreSessionSwitch from './ExploreSessionSwitch.vue';
 
+// Composable: Step result status
+function useStepResultStatus(exploreStore) {
+  const currentResultDict = computed(
+    () => exploreStore.currentStepResult?.output || {}
+  );
+  const currentStepName = computed(
+    () => exploreStore.currentStepResult?.name_zh || ''
+  );
+  const currentStepStatus = computed(
+    () => exploreStore.currentStepResult?.status || ''
+  );
+  const currentStepMark = computed(() => {
+    const status = currentStepStatus.value;
+    if (status === 'running') return '⏳ (运行中)';
+    if (status === 'finished') return '✔️ (成功)';
+    if (status === 'timedout') return '🕑 (超时)';
+    if (status === 'failed') return '❌ (错误)';
+    return '';
+  });
+
+  return {
+    currentResultDict,
+    currentStepName,
+    currentStepStatus,
+    currentStepMark,
+  };
+}
+
+// Composable: Hits filtering and statistics
+function useHitsData(exploreStore) {
+  const allHits = computed(
+    () => exploreStore.latestHitsResult.output?.hits || []
+  );
+
+  const returnHits = computed(
+    () => exploreStore.latestHitsResult.output?.return_hits || 0
+  );
+  const totalHits = computed(
+    () => exploreStore.latestHitsResult.output?.total_hits || 0
+  );
+  const isReturnResultsLessThanTotal = computed(
+    () => returnHits.value < totalHits.value
+  );
+
+  const authorFilters = computed(() => exploreStore.authorFilters);
+  const isHasAuthorFilter = computed(() =>
+    isNonEmptyArray(authorFilters.value)
+  );
+
+  const filteredHits = computed(() => {
+    if (isHasAuthorFilter.value) {
+      return allHits.value.filter((hit) =>
+        authorFilters.value.some(
+          (authorFilter) => hit.owner.mid === authorFilter.mid
+        )
+      );
+    }
+    return allHits.value;
+  });
+
+  return {
+    allHits,
+    returnHits,
+    totalHits,
+    isReturnResultsLessThanTotal,
+    authorFilters,
+    isHasAuthorFilter,
+    filteredHits,
+  };
+}
+
+// Composable: Sorting logic
+function useSorting(searchStore, layoutStore, filteredHits) {
+  const currentPage = computed({
+    get: () => layoutStore.currentPage,
+    set: (page) => layoutStore.setCurrentPage(page),
+  });
+
+  const resultsSortMethod = ref(searchStore.resultsSortMethod);
+
+  function sortResults(method) {
+    searchStore.setResultsSortMethod(method);
+    resultsSortMethod.value = method;
+    currentPage.value = 1;
+  }
+
+  const sortedHits = computed(() => {
+    const method = resultsSortMethod.value;
+    return [...filteredHits.value].sort((a, b) => {
+      const valueA = method.field.split('.').reduce((o, i) => o[i], a);
+      const valueB = method.field.split('.').reduce((o, i) => o[i], b);
+      if (method.order === 'asc') {
+        return valueA > valueB ? 1 : -1;
+      } else {
+        return valueA < valueB ? 1 : -1;
+      }
+    });
+  });
+
+  return {
+    currentPage,
+    resultsSortMethod,
+    sortResults,
+    sortedHits,
+  };
+}
+
+// Composable: Pagination and loaded pages management
+function usePagination(layoutStore, sortedHits) {
+  const itemsPerPage = computed(() => layoutStore.itemsPerPage);
+  const loadedPages = computed(() => layoutStore.loadedPages);
+
+  const totalPages = computed(() =>
+    Math.ceil(sortedHits.value.length / itemsPerPage.value)
+  );
+
+  const loadedResults = computed(() => {
+    const sortedPageNumbers = Array.from(loadedPages.value).sort(
+      (a, b) => a - b
+    );
+    const results = [];
+
+    sortedPageNumbers.forEach((pageNum) => {
+      const startIndex = (pageNum - 1) * itemsPerPage.value;
+      const endIndex = startIndex + itemsPerPage.value;
+      results.push(...sortedHits.value.slice(startIndex, endIndex));
+    });
+
+    return results;
+  });
+
+  const getPageIndexInLoadedResults = (pageNum) => {
+    const sortedPageNumbers = Array.from(loadedPages.value).sort(
+      (a, b) => a - b
+    );
+    const pageIndex = sortedPageNumbers.indexOf(pageNum);
+    if (pageIndex === -1) return -1;
+    return pageIndex * itemsPerPage.value;
+  };
+
+  return {
+    itemsPerPage,
+    loadedPages,
+    totalPages,
+    loadedResults,
+    getPageIndexInLoadedResults,
+  };
+}
+
+// Composable: Scroll handling for infinite loading
+function useInfiniteScroll(
+  layoutStore,
+  resultsListDiv,
+  loadedPages,
+  loadedResults,
+  itemsPerPage,
+  totalPages,
+  currentPage,
+  isUpdatingFromPage
+) {
+  const isUpdatingFromScroll = ref(false);
+
+  const handleScroll = () => {
+    if (!resultsListDiv.value) return;
+
+    const element = resultsListDiv.value;
+    const scrollTop = element.scrollTop;
+    const scrollHeight = element.scrollHeight;
+    const clientHeight = element.clientHeight;
+
+    // Calculate current page based on scroll position
+    const scrollPercentage =
+      scrollHeight > clientHeight
+        ? scrollTop / (scrollHeight - clientHeight)
+        : 0;
+    const loadedItems = loadedResults.value.length;
+    const estimatedIndex = Math.floor(scrollPercentage * loadedItems);
+    const itemPage = Math.floor(estimatedIndex / itemsPerPage.value);
+
+    // Convert to actual page number
+    const sortedPageNumbers = Array.from(loadedPages.value).sort(
+      (a, b) => a - b
+    );
+    const currentViewPage = sortedPageNumbers[itemPage] || sortedPageNumbers[0];
+
+    // Update current page based on scroll position
+    if (
+      currentViewPage !== currentPage.value &&
+      loadedPages.value.has(currentViewPage)
+    ) {
+      if (!isUpdatingFromPage.value) {
+        isUpdatingFromScroll.value = true;
+        layoutStore.setCurrentPage(currentViewPage);
+        setTimeout(() => {
+          isUpdatingFromScroll.value = false;
+        }, 100);
+      }
+    }
+
+    const currentViewIndex = sortedPageNumbers.indexOf(currentViewPage);
+
+    // Load more when scrolling near bottom (80%)
+    if (scrollTop + clientHeight >= scrollHeight * 0.8) {
+      const nextPage = currentViewPage + 1;
+      if (
+        nextPage <= totalPages.value &&
+        !isUpdatingFromPage.value &&
+        !loadedPages.value.has(nextPage)
+      ) {
+        layoutStore.addLoadedPages([nextPage]);
+      }
+    }
+
+    // Load more when scrolling near top of current page block
+    const pageStartInDOM = currentViewIndex * itemsPerPage.value;
+    const itemHeight = scrollHeight / loadedItems;
+    const pageStartScrollPos = pageStartInDOM * itemHeight;
+    const distanceFromPageStart = scrollTop - pageStartScrollPos;
+
+    if (
+      distanceFromPageStart < clientHeight * 0.5 &&
+      distanceFromPageStart >= 0
+    ) {
+      const prevPage = currentViewPage - 1;
+      if (
+        prevPage >= 1 &&
+        !isUpdatingFromPage.value &&
+        !loadedPages.value.has(prevPage)
+      ) {
+        const oldScrollHeight = scrollHeight;
+        layoutStore.addLoadedPages([prevPage]);
+
+        setTimeout(() => {
+          if (resultsListDiv.value) {
+            const newScrollHeight = resultsListDiv.value.scrollHeight;
+            const heightDiff = newScrollHeight - oldScrollHeight;
+            resultsListDiv.value.scrollTop = scrollTop + heightDiff;
+          }
+        }, 50);
+      }
+    }
+  };
+
+  return {
+    isUpdatingFromScroll,
+    handleScroll,
+  };
+}
+
+// Composable: Page change handling
+function usePageChange(
+  layoutStore,
+  resultsListDiv,
+  loadedPages,
+  totalPages,
+  isUpdatingFromScroll,
+  getPageIndexInLoadedResults
+) {
+  const isUpdatingFromPage = ref(false);
+
+  const handlePageChange = (newPage) => {
+    if (isUpdatingFromScroll.value) return;
+
+    isUpdatingFromPage.value = true;
+    layoutStore.setCurrentPage(newPage);
+
+    // Calculate pages to load (target - 1, target, target + 1)
+    const pagesToLoad = [];
+    for (
+      let p = Math.max(1, newPage - 1);
+      p <= Math.min(totalPages.value, newPage + 1);
+      p++
+    ) {
+      if (!loadedPages.value.has(p)) {
+        pagesToLoad.push(p);
+      }
+    }
+
+    // Add new pages if needed
+    if (pagesToLoad.length > 0) {
+      layoutStore.addLoadedPages(pagesToLoad);
+    }
+
+    // Scroll to target page after DOM updates
+    setTimeout(() => {
+      const relativeIndex = getPageIndexInLoadedResults(newPage);
+      if (relativeIndex >= 0) {
+        const targetElement = resultsListDiv.value?.children[relativeIndex];
+        if (targetElement) {
+          targetElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        }
+      }
+
+      setTimeout(() => {
+        isUpdatingFromPage.value = false;
+      }, 500);
+    }, 50);
+  };
+
+  return {
+    isUpdatingFromPage,
+    handlePageChange,
+  };
+}
+
 export default {
   components: {
     ResultItem,
@@ -101,329 +409,115 @@ export default {
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
 
-    // step result vars
-    const currentResultDict = computed(
-      () => exploreStore.currentStepResult?.output || {}
-    );
-    const currentStepName = computed(
-      () => exploreStore.currentStepResult?.name_zh || ''
-    );
-    const currentStepStatus = computed(
-      () => exploreStore.currentStepResult?.status || ''
-    );
-    const currentStepMark = computed(() => {
-      const status = currentStepStatus.value;
-      if (status === 'running') {
-        return '⏳ (运行中)';
-      } else if (status === 'finished') {
-        return '✔️ (成功)';
-      } else if (status === 'timedout') {
-        return '🕑 (超时)';
-      } else if (status === 'failed') {
-        return '❌ (错误)';
-      } else {
-        return '';
-      }
-    });
+    // Use composables
+    const stepStatus = useStepResultStatus(exploreStore);
+    const hitsData = useHitsData(exploreStore);
+    const sorting = useSorting(searchStore, layoutStore, hitsData.filteredHits);
+    const pagination = usePagination(layoutStore, sorting.sortedHits);
 
-    // all hits
-    const allHits = computed(
-      () => exploreStore.latestHitsResult.output?.hits || []
+    // DOM refs
+    const resultsListDiv = ref(null);
+    const resultItemRefs = ref({});
+
+    // Page change handling
+    const pageChange = usePageChange(
+      layoutStore,
+      resultsListDiv,
+      pagination.loadedPages,
+      pagination.totalPages,
+      ref(false), // will be replaced by scroll's isUpdatingFromScroll
+      pagination.getPageIndexInLoadedResults
     );
 
-    // hits stats
+    // Infinite scroll handling
+    const scroll = useInfiniteScroll(
+      layoutStore,
+      resultsListDiv,
+      pagination.loadedPages,
+      pagination.loadedResults,
+      pagination.itemsPerPage,
+      pagination.totalPages,
+      sorting.currentPage,
+      pageChange.isUpdatingFromPage
+    );
+
+    // Update the isUpdatingFromScroll ref in pageChange
+    pageChange.isUpdatingFromPage = pageChange.isUpdatingFromPage;
+
+    // Computed properties
     const isShowResultsStats = computed(
       () =>
-        currentStepStatus.value === 'finished' && isNonEmptyArray(allHits.value)
-    );
-    const returnHits = computed(
-      () => exploreStore.latestHitsResult.output?.return_hits || 0
-    );
-    const totalHits = computed(
-      () => exploreStore.latestHitsResult.output?.total_hits || 0
-    );
-    const isReturnResultsLessThanTotal = computed(
-      () => returnHits.value < totalHits.value
+        stepStatus.currentStepStatus.value === 'finished' &&
+        isNonEmptyArray(hitsData.allHits.value)
     );
 
-    // filter hits
-    const authorFilters = computed(() => exploreStore.authorFilters);
-    const isHasAuthorFilter = computed(() =>
-      isNonEmptyArray(authorFilters.value)
-    );
-    const filteredHits = computed(() => {
-      if (isHasAuthorFilter.value) {
-        return allHits.value.filter((hit) =>
-          authorFilters.value.some(
-            (authorFilter) => hit.owner.mid === authorFilter.mid
-          )
-        );
-      } else {
-        return allHits.value;
-      }
-    });
-
-    // sort hits
-    const currentPage = computed({
-      get: () => layoutStore.currentPage,
-      set: (page) => {
-        layoutStore.setCurrentPage(page);
-      },
-    });
-    const itemsPerPage = computed(() => layoutStore.itemsPerPage);
-    const resultsSortMethod = ref(searchStore.resultsSortMethod);
-    function sortResults(method) {
-      searchStore.setResultsSortMethod(method);
-      resultsSortMethod.value = method;
-      currentPage.value = 1;
-    }
-    const sortedHits = computed(() => {
-      const method = resultsSortMethod.value;
-      return [...filteredHits.value].sort((a, b) => {
-        const valueA = method.field.split('.').reduce((o, i) => o[i], a);
-        const valueB = method.field.split('.').reduce((o, i) => o[i], b);
-        if (method.order === 'asc') {
-          return valueA > valueB ? 1 : -1;
-        } else {
-          return valueA < valueB ? 1 : -1;
-        }
-      });
-    });
-
-    // pagination
-    const totalPages = computed(() =>
-      Math.ceil(sortedHits.value.length / itemsPerPage.value)
-    );
     const isCollapsePaginate = computed(() => layoutStore.isCollapsePaginate());
 
-    // Loaded pages set
-    const loadedPages = computed(() => layoutStore.loadedPages);
-
-    // Results to display based on loaded pages (may be non-contiguous)
-    const loadedResults = computed(() => {
-      const sortedPageNumbers = Array.from(loadedPages.value).sort(
-        (a, b) => a - b
-      );
-      const results = [];
-
-      sortedPageNumbers.forEach((pageNum) => {
-        const startIndex = (pageNum - 1) * itemsPerPage.value;
-        const endIndex = startIndex + itemsPerPage.value;
-        results.push(...sortedHits.value.slice(startIndex, endIndex));
-      });
-
-      return results;
-    });
-
-    // Get the index of first item of a page in the loaded results
-    const getPageIndexInLoadedResults = (pageNum) => {
-      const sortedPageNumbers = Array.from(loadedPages.value).sort(
-        (a, b) => a - b
-      );
-      const pageIndex = sortedPageNumbers.indexOf(pageNum);
-      if (pageIndex === -1) return -1;
-      return pageIndex * itemsPerPage.value;
-    };
-
-    // layout
     const dynamicResultsListClass = computed(() =>
       layoutStore.isSmallScreen()
         ? 'results-list q-gutter-none'
         : 'results-list q-gutter-xs'
     );
+
     const dynamicResultsListStyle = computed(() => {
       const authorsListHeight = layoutStore.authorsListHeight || 0;
-      // auto modify maxHeight at authors-list collapsed or expanded
       const adjustedHeight = 195 + authorsListHeight;
       return {
         maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
         maxHeight: `calc(100vh - ${adjustedHeight}px)`,
       };
     });
-    const resultsListDiv = ref(null);
-    const resultItemRefs = ref({});
-    const isUpdatingFromScroll = ref(false);
-    const isUpdatingFromPage = ref(false);
 
-    // Handle scroll to update current page and load more
-    const handleScroll = () => {
-      if (!resultsListDiv.value) {
-        return;
-      }
+    const isExploreSessionVisible = computed(() =>
+      exploreStore.isSessionSwitchVisible()
+    );
 
-      const element = resultsListDiv.value;
-      const scrollTop = element.scrollTop;
-      const scrollHeight = element.scrollHeight;
-      const clientHeight = element.clientHeight;
-
-      // Calculate current page based on scroll position in loaded results
-      const scrollPercentage =
-        scrollHeight > clientHeight
-          ? scrollTop / (scrollHeight - clientHeight)
-          : 0;
-      const loadedItems = loadedResults.value.length;
-      const estimatedIndex = Math.floor(scrollPercentage * loadedItems);
-      const itemPage = Math.floor(estimatedIndex / itemsPerPage.value);
-
-      // Convert to actual page number
-      const sortedPageNumbers = Array.from(loadedPages.value).sort(
-        (a, b) => a - b
-      );
-      const currentViewPage =
-        sortedPageNumbers[itemPage] || sortedPageNumbers[0];
-
-      if (
-        currentViewPage !== currentPage.value &&
-        loadedPages.value.has(currentViewPage)
-      ) {
-        if (!isUpdatingFromPage.value) {
-          isUpdatingFromScroll.value = true;
-          layoutStore.setCurrentPage(currentViewPage);
-          setTimeout(() => {
-            isUpdatingFromScroll.value = false;
-          }, 100);
-        }
-      }
-
-      // Find position of current view page in the sorted array
-      const currentViewIndex = sortedPageNumbers.indexOf(currentViewPage);
-
-      // Load more when scrolling near bottom (80%)
-      if (scrollTop + clientHeight >= scrollHeight * 0.8) {
-        // Check if next page (currentViewPage + 1) is already loaded
-        const nextPage = currentViewPage + 1;
-        if (
-          nextPage <= totalPages.value &&
-          !isUpdatingFromPage.value &&
-          !loadedPages.value.has(nextPage)
-        ) {
-          layoutStore.addLoadedPages([nextPage]);
-        }
-      }
-
-      // Load more when scrolling near top of current page block
-      // Check if we're in the first 30% of the current page's content in the DOM
-      const pageStartInDOM = currentViewIndex * itemsPerPage.value;
-      const itemHeight = scrollHeight / loadedItems;
-      const pageStartScrollPos = pageStartInDOM * itemHeight;
-      const distanceFromPageStart = scrollTop - pageStartScrollPos;
-
-      if (
-        distanceFromPageStart < clientHeight * 0.5 &&
-        distanceFromPageStart >= 0
-      ) {
-        // We're near the top of the current view page, load the previous page if missing
-        const prevPage = currentViewPage - 1;
-        if (
-          prevPage >= 1 &&
-          !isUpdatingFromPage.value &&
-          !loadedPages.value.has(prevPage)
-        ) {
-          // Store current scroll position info
-          const oldScrollHeight = scrollHeight;
-          layoutStore.addLoadedPages([prevPage]);
-
-          // Adjust scroll position to maintain visual position
-          setTimeout(() => {
-            if (resultsListDiv.value) {
-              const newScrollHeight = resultsListDiv.value.scrollHeight;
-              const heightDiff = newScrollHeight - oldScrollHeight;
-              resultsListDiv.value.scrollTop = scrollTop + heightDiff;
-            }
-          }, 50);
-        }
-      }
-    };
-
-    // Handle page change: load target page and adjacent pages
-    const handlePageChange = (newPage) => {
-      if (isUpdatingFromScroll.value) {
-        return;
-      }
-
-      isUpdatingFromPage.value = true;
-      layoutStore.setCurrentPage(newPage);
-
-      // Calculate pages to load (target - 1, target, target + 1)
-      const pagesToLoad = [];
-      for (
-        let p = Math.max(1, newPage - 1);
-        p <= Math.min(totalPages.value, newPage + 1);
-        p++
-      ) {
-        if (!loadedPages.value.has(p)) {
-          pagesToLoad.push(p);
-        }
-      }
-
-      // Add new pages if needed
-      if (pagesToLoad.length > 0) {
-        layoutStore.addLoadedPages(pagesToLoad);
-      }
-
-      // Scroll to target page after DOM updates
-      setTimeout(() => {
-        const relativeIndex = getPageIndexInLoadedResults(newPage);
-        if (relativeIndex >= 0) {
-          const targetElement = resultsListDiv.value?.children[relativeIndex];
-
-          if (targetElement) {
-            targetElement.scrollIntoView({
-              behavior: 'smooth',
-              block: 'start',
-            });
-          }
-        }
-
-        setTimeout(() => {
-          isUpdatingFromPage.value = false;
-        }, 500);
-      }, 50);
-    };
-
-    // Reset to first page when results change
-    watch([() => sortedHits.value], () => {
+    // Watch for results changes
+    watch([() => sorting.sortedHits.value], () => {
       layoutStore.resetLoadedPages();
       if (resultsListDiv.value) {
         resultsListDiv.value.scrollTop = 0;
       }
     });
 
-    const isExploreSessionVisible = computed(() =>
-      exploreStore.isSessionSwitchVisible()
-    );
-
+    // Lifecycle hooks
     onMounted(() => {
       layoutStore.addWindowResizeListener();
     });
+
     onUnmounted(() => {
       layoutStore.removeWindowResizeListener();
     });
 
     return {
-      isShowResultsStats,
-      currentResultDict,
-      currentStepName,
-      currentStepMark,
-      returnHits,
-      totalHits,
+      // Step status
+      ...stepStatus,
+      // Hits data
+      returnHits: hitsData.returnHits,
+      totalHits: hitsData.totalHits,
+      isReturnResultsLessThanTotal: hitsData.isReturnResultsLessThanTotal,
+      isHasAuthorFilter: hitsData.isHasAuthorFilter,
+      // Sorting
       resultsSortMethods,
-      resultsSortMethod,
-      sortResults,
-      sortedHits,
-      currentPage,
-      totalPages,
-      loadedResults,
+      resultsSortMethod: sorting.resultsSortMethod,
+      sortResults: sorting.sortResults,
+      sortedHits: sorting.sortedHits,
+      currentPage: sorting.currentPage,
+      // Pagination
+      totalPages: pagination.totalPages,
+      loadedResults: pagination.loadedResults,
+      // UI
+      isShowResultsStats,
       isCollapsePaginate,
       dynamicResultsListClass,
       dynamicResultsListStyle,
-      isReturnResultsLessThanTotal,
-      isHasAuthorFilter,
+      isExploreSessionVisible,
+      // DOM refs
       resultsListDiv,
       resultItemRefs,
-      isExploreSessionVisible,
-      handleScroll,
-      handlePageChange,
+      // Handlers
+      handleScroll: scroll.handleScroll,
+      handlePageChange: pageChange.handlePageChange,
     };
   },
 };
