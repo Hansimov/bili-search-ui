@@ -1,9 +1,17 @@
 <template>
-  <div class="row results-list-info-top justify-between">
+  <div
+    class="row results-list-info-top justify-between"
+    v-show="hasResults || isExploreLoading"
+  >
     <span class="results-stats">
       <ExploreSessionSwitch v-show="isExploreSessionVisible" />
       <span class="results-stats-text">
-        <span v-if="isShowResultsStats">
+        <span v-if="isExploreLoading" class="loading-indicator">
+          <q-spinner-dots size="16px" class="q-mr-xs" />
+          <span>搜索中</span>
+          <span class="loading-dots"></span>
+        </span>
+        <span v-else-if="isShowResultsStats">
           <span v-show="isReturnResultsLessThanTotal">
             匹配：{{ totalHits }}，
           </span>
@@ -19,7 +27,7 @@
         <span v-else> {{ currentStepName }} {{ currentStepMark }}</span>
       </span>
     </span>
-    <div class="results-paginate-top" v-if="!isCollapsePaginate">
+    <div class="results-paginate-top" v-if="!isCollapsePaginate && hasResults">
       <ResultsPagination
         :currentPage="currentPage"
         :totalPages="totalPages"
@@ -27,6 +35,7 @@
       />
     </div>
     <q-btn
+      v-show="hasResults"
       class="results-sort"
       flat
       :icon-right="resultsSortMethod.icon"
@@ -486,6 +495,9 @@ export default {
       exploreStore.isSessionSwitchVisible()
     );
 
+    const hasResults = computed(() => exploreStore.hasResults);
+    const isExploreLoading = computed(() => exploreStore.isExploreLoading);
+
     // Watch for results changes
     watch([() => sorting.sortedHits.value], () => {
       layoutStore.resetLoadedPages();
@@ -526,6 +538,8 @@ export default {
       dynamicResultsListClass,
       dynamicResultsListStyle,
       isExploreSessionVisible,
+      hasResults,
+      isExploreLoading,
       // DOM refs
       resultsListDiv,
       resultItemRefs,
@@ -546,6 +560,31 @@ export default {
 }
 .results-stats-text {
   padding-left: 4px;
+}
+.loading-indicator {
+  display: inline-flex;
+  align-items: center;
+}
+.loading-dots::after {
+  content: '';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+@keyframes dots {
+  0% {
+    content: '';
+  }
+  25% {
+    content: '.';
+  }
+  50% {
+    content: '..';
+  }
+  75% {
+    content: '...';
+  }
+  100% {
+    content: '';
+  }
 }
 .results-sort {
   align-self: center;

@@ -1,12 +1,13 @@
 <template>
   <details
+    v-if="isShowAuthorsList"
     ref="detailsElement"
     open
     class="result-authors-details q-pl-xs"
     :style="dynamicResultAuthorsDetailsStyle"
   >
     <summary>相关作者</summary>
-    <div class="result-authors-list" v-if="isShowAuthorsList">
+    <div class="result-authors-list">
       <ResultAuthorItem
         v-for="(authorItem, index) in authors"
         :key="index"
@@ -17,7 +18,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
@@ -61,7 +62,12 @@ export default {
 
     sortAuthors();
 
-    onMounted(() => {
+    // Setup ResizeObserver helper
+    const setupResizeObserver = () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+      }
       if (detailsElement.value) {
         resizeObserver = new ResizeObserver((entries) => {
           for (const entry of entries) {
@@ -70,13 +76,27 @@ export default {
           }
         });
         resizeObserver.observe(detailsElement.value);
+        // Trigger initial height calculation
+        layoutStore.setAuthorsListHeight(detailsElement.value.offsetHeight);
+      } else {
+        layoutStore.setAuthorsListHeight(0);
       }
-    });
+    };
+
+    // Watch for changes in isShowAuthorsList and detailsElement
+    watch(
+      [isShowAuthorsList, detailsElement],
+      () => {
+        // Use nextTick-like delay to ensure DOM is updated
+        setTimeout(setupResizeObserver, 0);
+      },
+      { immediate: true }
+    );
 
     onUnmounted(() => {
-      if (resizeObserver && detailsElement.value) {
-        resizeObserver.unobserve(detailsElement.value);
+      if (resizeObserver) {
         resizeObserver.disconnect();
+        resizeObserver = null;
       }
       layoutStore.setAuthorsListHeight(0);
     });

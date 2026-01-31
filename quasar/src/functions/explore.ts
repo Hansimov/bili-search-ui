@@ -31,7 +31,7 @@ export const explore = async ({
         const signal = exploreAbortController.signal;
 
         console.log(`> Explore: [${queryValue}]`);
-        exploreStore.clearStepResults();
+        exploreStore.setExploreLoading(true);
 
         const response = await api.post<ExploreResponse>(
             '/explore',
@@ -60,6 +60,7 @@ export const explore = async ({
             console.error('[ERROR]: ', error);
         }
     } finally {
+        exploreStore.setExploreLoading(false);
         console.log('[FINAL]');
     }
 };

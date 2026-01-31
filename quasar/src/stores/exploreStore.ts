@@ -12,6 +12,7 @@ export const useExploreStore = defineStore('explore', {
         authorFilters: [] as DictList,
         exploreSessions: [] as ExploreSession[],
         currentSessionIdx: -1,
+        isExploreLoading: false,
     }),
     getters: {
         currentStepResult(): ExploreStepResult | undefined {
@@ -20,6 +21,9 @@ export const useExploreStore = defineStore('explore', {
             } else {
                 return undefined;
             }
+        },
+        hasResults(): boolean {
+            return isNonEmptyArray(this.latestHitsResult?.output?.hits);
         },
     },
     actions: {
@@ -114,6 +118,9 @@ export const useExploreStore = defineStore('explore', {
             this.stepResults = [];
             this.latestHitsResult = {} as ExploreStepResult;
             this.latestAuthorsResult = {} as ExploreStepResult;
+        },
+        setExploreLoading(loading: boolean) {
+            this.isExploreLoading = loading;
         },
     }
 }
