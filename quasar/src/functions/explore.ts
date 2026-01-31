@@ -2,25 +2,13 @@ import { api } from 'boot/axios';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import type { ExploreResponse } from 'src/stores/resultStore';
 
 const queryStore = useQueryStore();
 const exploreStore = useExploreStore();
 const layoutStore = useLayoutStore();
 
 let exploreAbortController = new AbortController();
-
-const extractMessagesFromBuffer = (buffer: string): { messages: string[], remainBuffer: string } => {
-    const sep = '\n\r';
-    const parts = buffer.split(sep);
-    let remainBuffer = '';
-    if (!buffer.endsWith(sep)) {
-        // last part is incomplete if buffer not ends with sep
-        remainBuffer = parts.pop() || '';
-    }
-    // extract non-empty messages
-    const messages = parts.map(message => message.trim()).filter(message => message !== '');
-    return { messages, remainBuffer };
-};
 
 export const explore = async ({
     queryValue, setQuery = true, setRoute = false,
@@ -41,64 +29,36 @@ export const explore = async ({
         exploreAbortController.abort();
         exploreAbortController = new AbortController();
         const signal = exploreAbortController.signal;
-        const response = await fetch(`${api.defaults.baseURL}/explore`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'text/event-stream',
-            },
-            body: JSON.stringify({ query: queryValue }),
-            signal: signal
-        });
-        if (!response.ok) {
-            console.error(`[HTTP_ERROR]: <${response.status}>`);
+
+        console.log(`> Explore: [${queryValue}]`);
+        exploreStore.clearStepResults();
+
+        const response = await api.post<ExploreResponse>(
+            '/explore',
+            { query: queryValue },
+            { signal: signal }
+        );
+
+        if (signal.aborted) {
+            console.warn('[ABORTED_BY_USER]');
             return;
         }
-        if (!response.body) {
-            console.error('[RESPONSE_EMPTY]');
-            return;
+
+        const exploreResult = response.data;
+        console.log('[EXPLORE_RESULT]:', exploreResult);
+
+        if (exploreResult.data && Array.isArray(exploreResult.data)) {
+            exploreStore.setStepResults(exploreResult.data);
+            console.log(`+ Got ${exploreResult.data.length} step results.`);
+        } else {
+            console.warn('[EMPTY_DATA]: No step results in response');
         }
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let buffer = '';
-        // exploreStore.clearFlowNodes();
-        while (true) {
-            if (signal.aborted) {
-                await reader.cancel('[ABORTED_BY_USER]');
-                console.warn('[ABORTED_BY_USER]');
-                break;
-            }
-            const { done, value } = await reader.read();
-            if (done) {
-                console.log('[FINISHED]');
-                break;
-            }
-            buffer += decoder.decode(value, { stream: true });
-            const { messages, remainBuffer } = extractMessagesFromBuffer(buffer);
-            buffer = remainBuffer;
-            messages.forEach(message => {
-                if (signal.aborted) return;
-                if (message.startsWith('data:')) {
-                    const dataString = message.substring(5).trim();
-                    try {
-                        const dataDict = JSON.parse(dataString);
-                        exploreStore.pushNewStepResult(dataDict);
-                        console.log('[DATA]:', dataDict);
-                    } catch (e) {
-                        console.error('[JSON_PARSE_ERROR]:', dataString, e);
-                    }
-                } else {
-                    console.warn('[NON_DATA_MESSAGE]:', message);
-                }
-            });
-            if (signal.aborted) {
-                await reader.cancel('[ABORTED_BY_USER]');
-                break;
-            }
-        }
+
         exploreStore.saveExploreSession();
     } catch (error) {
-        console.error('[ERROR]: ', error);
+        if (error instanceof Error && error.name !== 'CanceledError') {
+            console.error('[ERROR]: ', error);
+        }
     } finally {
         console.log('[FINAL]');
     }

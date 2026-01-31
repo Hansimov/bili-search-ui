@@ -98,6 +98,23 @@ export const useExploreStore = defineStore('explore', {
             this.updateLatestAuthorsResult(stepResult);
             // this.pushFlowNode(stepResult);
         },
+        setStepResults(stepResults: ExploreStepResult[]) {
+            // Clear previous results and set new batch of step results
+            this.stepResults = [];
+            this.latestHitsResult = {} as ExploreStepResult;
+            this.latestAuthorsResult = {} as ExploreStepResult;
+            // Process each step result in order
+            for (const stepResult of stepResults) {
+                this.stepResults.push(stepResult);
+                this.updateLatestHitsResult(stepResult);
+                this.updateLatestAuthorsResult(stepResult);
+            }
+        },
+        clearStepResults() {
+            this.stepResults = [];
+            this.latestHitsResult = {} as ExploreStepResult;
+            this.latestAuthorsResult = {} as ExploreStepResult;
+        },
     }
 }
 );

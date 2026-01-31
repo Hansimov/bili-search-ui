@@ -210,6 +210,12 @@ export interface ExploreSession {
     authorFilters: DictList;
 }
 
+export interface ExploreResponse {
+    query: string;
+    status: string;
+    data: ExploreStepResult[];
+}
+
 export function defaultExploreSession(): ExploreSession {
     return {
         query: '',
