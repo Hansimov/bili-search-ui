@@ -558,12 +558,19 @@ export default {
   z-index: 1000;
   padding-left: 0px;
 }
+.results-stats {
+  display: flex;
+  align-items: center;
+}
 .results-stats-text {
   padding-left: 4px;
+  display: flex;
+  align-items: center;
 }
 .loading-indicator {
   display: inline-flex;
   align-items: center;
+  line-height: 1;
 }
 .loading-dots::after {
   content: '';
