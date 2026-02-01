@@ -8,7 +8,8 @@
       <span class="results-stats-text">
         <span v-if="isExploreLoading" class="loading-indicator">
           <q-spinner-dots size="16px" class="q-mr-xs" />
-          <span>搜索中</span>
+          <span>正在搜索：</span>
+          <span class="loading-query">{{ currentQuery }}</span>
           <span class="loading-dots"></span>
         </span>
         <span v-else-if="isShowResultsStats">
@@ -89,6 +90,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { useQueryStore } from 'src/stores/queryStore';
 import { resultsSortMethods, isNonEmptyArray } from 'src/stores/resultStore';
 
 import ResultItem from './ResultItem.vue';
@@ -431,6 +433,10 @@ export default {
     const searchStore = useSearchStore();
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
+    const queryStore = useQueryStore();
+
+    // Current query for loading display
+    const currentQuery = computed(() => queryStore.query || '');
 
     // Use composables
     const stepStatus = useStepResultStatus(exploreStore);
@@ -540,6 +546,7 @@ export default {
       isExploreSessionVisible,
       hasResults,
       isExploreLoading,
+      currentQuery,
       // DOM refs
       resultsListDiv,
       resultItemRefs,
@@ -571,6 +578,14 @@ export default {
   display: inline-flex;
   align-items: center;
   line-height: 1;
+}
+.loading-query {
+  opacity: 0.75;
+  font-style: bold;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .loading-dots::after {
   content: '';

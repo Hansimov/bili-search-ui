@@ -22,10 +22,11 @@
 </template>
 
 <script>
-import { computed, onMounted, onBeforeUnmount } from 'vue';
+import { computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { useExploreStore } from 'src/stores/exploreStore';
 import { suggest, randomSuggest } from 'src/functions/search';
 import { explore } from 'src/functions/explore';
 
@@ -33,6 +34,7 @@ export default {
   setup() {
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
+    const exploreStore = useExploreStore();
     const route = useRoute();
     const query = computed({
       get: () => queryStore.query || '',
@@ -90,12 +92,28 @@ export default {
     };
 
     // this is triggered when open url (route) with `search?q=...`
-    if (route.query.q) {
-      queryStore.setQuery({
-        newQuery: route.query.q,
-      });
-      submitQueryInInput(false);
-    }
+    // Use watch instead of immediate check to avoid duplicate calls
+    watch(
+      () => route.query.q,
+      (newQuery, oldQuery) => {
+        if (newQuery && newQuery !== oldQuery) {
+          // Only trigger if query changed and we're not already loading
+          const currentQuery = queryStore.query;
+          if (newQuery !== currentQuery || !exploreStore.isExploreLoading) {
+            queryStore.setQuery({
+              newQuery: String(newQuery),
+            });
+            if (
+              !exploreStore.hasResults ||
+              exploreStore.isExploreLoading === false
+            ) {
+              submitQueryInInput(false);
+            }
+          }
+        }
+      },
+      { immediate: true }
+    );
 
     const searchInputPlaceholder = computed(() => {
       const now = new Date();

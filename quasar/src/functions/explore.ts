@@ -4,10 +4,6 @@ import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import type { ExploreResponse } from 'src/stores/resultStore';
 
-const queryStore = useQueryStore();
-const exploreStore = useExploreStore();
-const layoutStore = useLayoutStore();
-
 let exploreAbortController = new AbortController();
 
 export const explore = async ({
@@ -17,11 +13,20 @@ export const explore = async ({
     setQuery?: boolean,
     setRoute?: boolean,
 }) => {
+    // Get store instances inside function to ensure they are always fresh
+    const queryStore = useQueryStore();
+    const exploreStore = useExploreStore();
+    const layoutStore = useLayoutStore();
+
     layoutStore.setIsSuggestVisible(false);
     exploreStore.clearAuthorFilters();
     if (!queryValue) {
         return;
     }
+
+    // Set loading state BEFORE route change to ensure UI shows loading
+    exploreStore.setExploreLoading(true);
+
     if (setQuery) {
         queryStore.setQuery({ newQuery: queryValue, setRoute: setRoute });
     }
@@ -31,7 +36,6 @@ export const explore = async ({
         const signal = exploreAbortController.signal;
 
         console.log(`> Explore: [${queryValue}]`);
-        exploreStore.setExploreLoading(true);
 
         const response = await api.post<ExploreResponse>(
             '/explore',
