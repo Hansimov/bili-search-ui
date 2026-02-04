@@ -24,8 +24,9 @@ export const explore = async ({
         return;
     }
 
-    // Set loading state BEFORE route change to ensure UI shows loading
+    // Set loading state and submitted query BEFORE route change to ensure UI shows correct query
     exploreStore.setExploreLoading(true);
+    exploreStore.setSubmittedQuery(queryValue);
 
     if (setQuery) {
         queryStore.setQuery({ newQuery: queryValue, setRoute: setRoute });

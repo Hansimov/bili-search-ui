@@ -9,7 +9,7 @@
         <span v-if="isExploreLoading" class="loading-indicator">
           <q-spinner-dots size="16px" class="q-mr-xs" />
           <span>正在搜索：</span>
-          <span class="loading-query">{{ currentQuery }}</span>
+          <span class="loading-query">{{ submittedQuery }}</span>
           <span class="loading-dots"></span>
         </span>
         <span v-else-if="isShowResultsStats">
@@ -90,7 +90,6 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
-import { useQueryStore } from 'src/stores/queryStore';
 import { resultsSortMethods, isNonEmptyArray } from 'src/stores/resultStore';
 
 import ResultItem from './ResultItem.vue';
@@ -433,10 +432,9 @@ export default {
     const searchStore = useSearchStore();
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
-    const queryStore = useQueryStore();
 
-    // Current query for loading display
-    const currentQuery = computed(() => queryStore.query || '');
+    // Submitted query for loading display (not the live input value)
+    const submittedQuery = computed(() => exploreStore.submittedQuery || '');
 
     // Use composables
     const stepStatus = useStepResultStatus(exploreStore);
@@ -546,7 +544,7 @@ export default {
       isExploreSessionVisible,
       hasResults,
       isExploreLoading,
-      currentQuery,
+      submittedQuery,
       // DOM refs
       resultsListDiv,
       resultItemRefs,

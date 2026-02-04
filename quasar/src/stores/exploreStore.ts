@@ -13,6 +13,8 @@ export const useExploreStore = defineStore('explore', {
         exploreSessions: [] as ExploreSession[],
         currentSessionIdx: -1,
         isExploreLoading: false,
+        submittedQuery: '' as string,
+        isRestoringSession: false,
     }),
     getters: {
         currentStepResult(): ExploreStepResult | undefined {
@@ -64,12 +66,18 @@ export const useExploreStore = defineStore('explore', {
             this.currentSessionIdx = this.exploreSessions.length - 1;
         },
         restoreSession() {
+            this.isRestoringSession = true;
             const session = this.exploreSessions[this.currentSessionIdx];
             queryStore.setQuery({ newQuery: session.query, setRoute: true });
             this.stepResults = [...session.stepResults];
             this.latestHitsResult = session.latestHitsResult;
             this.latestAuthorsResult = session.latestAuthorsResult;
             this.authorFilters = [...session.authorFilters];
+            this.submittedQuery = session.query;
+            // Reset the flag after a short delay to allow route watcher to see it
+            setTimeout(() => {
+                this.isRestoringSession = false;
+            }, 100);
         },
         clearSession() {
             const session = this.exploreSessions[this.currentSessionIdx];
@@ -121,6 +129,12 @@ export const useExploreStore = defineStore('explore', {
         },
         setExploreLoading(loading: boolean) {
             this.isExploreLoading = loading;
+        },
+        setSubmittedQuery(query: string) {
+            this.submittedQuery = query;
+        },
+        setRestoringSession(restoring: boolean) {
+            this.isRestoringSession = restoring;
         },
     }
 }

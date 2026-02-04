@@ -97,6 +97,10 @@ export default {
       () => route.query.q,
       (newQuery, oldQuery) => {
         if (newQuery && newQuery !== oldQuery) {
+          // Skip if we're restoring a session (navigation from session switch)
+          if (exploreStore.isRestoringSession) {
+            return;
+          }
           // Only trigger if query changed and we're not already loading
           const currentQuery = queryStore.query;
           if (newQuery !== currentQuery || !exploreStore.isExploreLoading) {
