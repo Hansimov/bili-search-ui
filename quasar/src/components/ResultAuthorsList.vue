@@ -21,7 +21,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
-import { isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
+import { isNonEmptyArray } from 'src/stores/resultStore';
 import ResultAuthorItem from './ResultAuthorItem.vue';
 
 export default {
@@ -35,32 +35,21 @@ export default {
     let resizeObserver = null;
 
     const authors = computed(() => {
-      const authorsDict = exploreStore.latestAuthorsResult.output?.authors;
-      return isNonEmptyDict(authorsDict) ? Object.values(authorsDict) : [];
+      // Backend now returns authors as a LIST (not dict) to preserve order
+      // The list is already sorted by first_appear_order from backend
+      const authorsList = exploreStore.latestAuthorsResult.output?.authors;
+      return isNonEmptyArray(authorsList) ? authorsList : [];
     });
     const isShowAuthorsList = computed(() => {
       return isNonEmptyArray(authors.value);
     });
-    function sortAuthors() {
-      const sort_field = 'sum_rank_score';
-      const sort_order = 'desc';
-      authors.value.sort((a, b) => {
-        const valueA = a[sort_field];
-        const valueB = b[sort_field];
-        if (sort_order === 'asc') {
-          return valueA > valueB ? 1 : -1;
-        } else {
-          return valueA < valueB ? 1 : -1;
-        }
-      });
-    }
+
+    // The backend sorts by first_appear_order to match video list order
     const dynamicResultAuthorsDetailsStyle = computed(() => {
       return {
         maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
       };
     });
-
-    sortAuthors();
 
     // Setup ResizeObserver helper
     const setupResizeObserver = () => {
