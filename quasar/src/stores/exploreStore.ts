@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 import { Dict, DictList, ExploreStepResult, ExploreSession, isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
 import { useQueryStore } from './queryStore';
-const queryStore = useQueryStore();
 
 
 export const useExploreStore = defineStore('explore', {
@@ -52,6 +51,7 @@ export const useExploreStore = defineStore('explore', {
             this.authorFilters = [];
         },
         saveExploreSession() {
+            const queryStore = useQueryStore();
             // ensure not keeping "future" sessions if user branches off
             if (this.currentSessionIdx < this.exploreSessions.length - 1) {
                 this.exploreSessions.splice(this.currentSessionIdx + 1);
@@ -66,6 +66,7 @@ export const useExploreStore = defineStore('explore', {
             this.currentSessionIdx = this.exploreSessions.length - 1;
         },
         restoreSession() {
+            const queryStore = useQueryStore();
             this.isRestoringSession = true;
             const session = this.exploreSessions[this.currentSessionIdx];
             queryStore.setQuery({ newQuery: session.query, setRoute: true });

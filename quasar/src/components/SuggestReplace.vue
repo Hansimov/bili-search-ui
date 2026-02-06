@@ -26,7 +26,7 @@
 import { computed } from 'vue';
 import { useQueryStore } from '../stores/queryStore';
 import { useSearchStore } from '../stores/searchStore';
-import { submitQuery } from 'src/functions/search';
+import { explore } from 'src/functions/explore';
 import SuggestReplaceRewriteItem from './SuggestReplaceRewriteItem.vue';
 import SuggestReplaceOriginalItem from './SuggestReplaceOriginalItem.vue';
 
@@ -69,7 +69,7 @@ export default {
     );
 
     const searchOriginalQuery = () => {
-      submitQuery({
+      explore({
         queryValue: query.value,
         setQuery: true,
         setRoute: true,
@@ -78,7 +78,7 @@ export default {
     const searchRewritedQuery = (rewriteString) => {
       const filtersString = (filters.value || []).join(' ');
       const rewriteQueryValue = `${rewriteString} ${filtersString}`.trim();
-      submitQuery({
+      explore({
         queryValue: rewriteQueryValue,
         setQuery: true,
         setRoute: true,

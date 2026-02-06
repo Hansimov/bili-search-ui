@@ -1,5 +1,4 @@
 import { useAiChatStore } from '../stores/aiChatStore';
-const aiChatStore = useAiChatStore();
 
 const getWsUrl = () => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -11,6 +10,7 @@ const getWsUrl = () => {
 const WS_URL = getWsUrl();
 
 export const initWebSocket = (): WebSocket => {
+    const aiChatStore = useAiChatStore();
     const ws = new WebSocket(WS_URL);
     aiChatStore.setWebsocket(ws);
 
@@ -48,6 +48,7 @@ export const initWebSocket = (): WebSocket => {
 }
 
 export const sendMessageToWebsocket = (message: string) => {
+    const aiChatStore = useAiChatStore();
     let ws: WebSocket;
 
     if (aiChatStore.ws && aiChatStore.ws.readyState === WebSocket.OPEN) {

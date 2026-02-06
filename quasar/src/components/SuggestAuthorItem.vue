@@ -15,7 +15,7 @@
 
 <script>
 import defaultAvatarUrl from '../assets/noface.jpg@96w_96h.avif';
-import { submitQuery } from 'src/functions/search';
+import { explore } from 'src/functions/explore';
 
 export default {
   props: {
@@ -36,7 +36,7 @@ export default {
   setup(props) {
     const onAuthorClick = () => {
       const queryValue = `u=${props.authorName}`;
-      submitQuery({
+      explore({
         queryValue: queryValue,
         setQuery: true,
         setRoute: true,

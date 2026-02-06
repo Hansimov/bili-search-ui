@@ -1,4 +1,4 @@
-import { defineStore, storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import {
     type DictList,
     RewriteInfo,
@@ -15,8 +15,6 @@ import {
 } from 'src/stores/resultStore';
 import { useQueryStore } from './queryStore';
 
-const queryStore = useQueryStore();
-const { query } = storeToRefs(queryStore);
 
 export const sortAuthors = (a: RelatedAuthorsListItem, b: RelatedAuthorsListItem) => {
     const highlightedA = a.authorInfo.highlighted || false;
@@ -43,9 +41,11 @@ export const useSearchStore = defineStore('search', {
     }),
     getters: {
         isQueryEmpty(): boolean {
-            return !query.value || query.value.trim() === '';
+            const queryStore = useQueryStore();
+            return !queryStore.query || queryStore.query.trim() === '';
         },
         rewrite_info(): RewriteInfo {
+            const queryStore = useQueryStore();
             return this.suggestResultCache[queryStore.query]?.rewrite_info || {
                 rewrited: false,
                 is_original_in_rewrites: false,
@@ -56,10 +56,12 @@ export const useSearchStore = defineStore('search', {
             return this.suggestions.length > 0;
         },
         isSuggestReplaceVisible(): boolean {
-            return (!!query.value && query.value.trim() !== '');
+            const queryStore = useQueryStore();
+            return (!!queryStore.query && queryStore.query.trim() !== '');
         },
         relatedAuthorsList(): RelatedAuthorsList {
-            const relatedAuthors = this.suggestResultCache[query.value]?.suggest_info?.related_authors;
+            const queryStore = useQueryStore();
+            const relatedAuthors = this.suggestResultCache[queryStore.query]?.suggest_info?.related_authors;
             if (!relatedAuthors) {
                 return [];
             }
@@ -72,7 +74,8 @@ export const useSearchStore = defineStore('search', {
             return authorsList.sort(sortAuthors);
         },
         isSuggestAuthorsListVisible(): boolean {
-            return query.value.trim() !== '' && this.relatedAuthorsList.length > 0;
+            const queryStore = useQueryStore();
+            return queryStore.query.trim() !== '' && this.relatedAuthorsList.length > 0;
         },
     },
     actions: {

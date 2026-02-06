@@ -1,9 +1,8 @@
 <template>
-  <q-layout view="hHh lpR fFf">
+  <q-layout view="hHh lpr fFf">
     <q-header>
       <TitleToolbar />
     </q-header>
-    <SearchRecordsList />
     <q-page-container>
       <q-page class="row items-start justify-evenly q-pa-none">
         <router-view />
@@ -18,8 +17,6 @@
 <script setup lang="ts">
 import TitleToolbar from 'components/TitleToolbar.vue';
 import SearchBar from 'src/components/SearchBar.vue';
-// import ResultsTypesTab from 'src/components/ResultsTypesTab.vue';
-import SearchRecordsList from 'src/components/SearchRecordsList.vue';
 defineOptions({
   name: 'ResultsLayout',
 });

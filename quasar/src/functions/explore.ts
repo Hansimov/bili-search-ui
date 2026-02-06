@@ -2,6 +2,7 @@ import { api } from 'boot/axios';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import type { ExploreResponse } from 'src/stores/resultStore';
 
 let exploreAbortController = new AbortController();
@@ -17,6 +18,7 @@ export const explore = async ({
     const queryStore = useQueryStore();
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
+    const searchHistoryStore = useSearchHistoryStore();
 
     layoutStore.setIsSuggestVisible(false);
     exploreStore.clearAuthorFilters();
@@ -55,8 +57,16 @@ export const explore = async ({
         if (exploreResult.data && Array.isArray(exploreResult.data)) {
             exploreStore.setStepResults(exploreResult.data);
             console.log(`+ Got ${exploreResult.data.length} step results.`);
+
+            // 记录搜索历史
+            const totalHits = exploreResult.data.reduce(
+                (sum, step) => sum + (Array.isArray(step.output?.hits) ? step.output.hits.length : 0), 0
+            );
+            searchHistoryStore.addRecord(queryValue, totalHits).catch(console.error);
         } else {
             console.warn('[EMPTY_DATA]: No step results in response');
+            // 即使无结果也记录搜索历史
+            searchHistoryStore.addRecord(queryValue, 0).catch(console.error);
         }
 
         exploreStore.saveExploreSession();

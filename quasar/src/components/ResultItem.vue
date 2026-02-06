@@ -6,7 +6,7 @@
         target="_blank"
       >
         <q-img
-          :src="result.pic + coverPicSuffix"
+          :src="coverSrc"
           :title="result.title + '\n' + result.tags"
           referrerpolicy="no-referrer"
           class="rounded-borders result-item-cover"
@@ -71,6 +71,7 @@ import {
   secondsToDuration,
   tsToYmd,
 } from 'src/utils/convert';
+import { useCachedImage } from 'src/composables/useCachedImage';
 
 export default {
   props: {
@@ -78,6 +79,13 @@ export default {
       type: Object,
       required: true,
     },
+  },
+  setup(props) {
+    const coverPicSuffix = constants.coverPicSuffix;
+    const { cachedSrc: coverSrc } = useCachedImage(
+      () => props.result.pic + coverPicSuffix
+    );
+    return { coverSrc };
   },
   data() {
     return {

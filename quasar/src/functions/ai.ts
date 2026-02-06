@@ -4,14 +4,13 @@ import { useAiChatStore } from 'src/stores/aiChatStore';
 import { Router } from 'vue-router';
 import { sendMessageToWebsocket } from './websocket';
 
-const searchStore = useSearchStore();
-const layoutStore = useLayoutStore();
-const aiChatStore = useAiChatStore();
-
 let aiSuggestAbortController = new AbortController();
 const AI_SUGGEST_DEBOUNCE_INTERVAL = 150; // milliseconds
 
 export const aiSuggest = async (newVal: string, showAiSuggestions = true, setSearchStoreAiQuery = true): Promise<void> => {
+    const searchStore = useSearchStore();
+    const layoutStore = useLayoutStore();
+
     if (setSearchStoreAiQuery) {
         searchStore.setAiQuery(newVal);
     }
@@ -51,6 +50,10 @@ export const aiSuggest = async (newVal: string, showAiSuggestions = true, setSea
 };
 
 export const submitAiQuery = async (aiQueryValue: string, router: Router, isFromURL = false, setSearchStoreAiQuery = true) => {
+    const searchStore = useSearchStore();
+    const layoutStore = useLayoutStore();
+    const aiChatStore = useAiChatStore();
+
     layoutStore.setIsAiSuggestVisible(false);
     layoutStore.setIsAiChatVisible(true);
     aiChatStore.addMessage('user', aiQueryValue);
@@ -82,6 +85,7 @@ export const submitAiQuery = async (aiQueryValue: string, router: Router, isFrom
 };
 
 export const terminateGeneration = () => {
+    const aiChatStore = useAiChatStore();
     const ws = aiChatStore.ws;
     if (ws && ws.readyState === WebSocket.OPEN) {
         const terminateMessage = JSON.stringify({ type: 'terminate', info: [] });

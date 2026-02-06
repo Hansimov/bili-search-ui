@@ -5,14 +5,11 @@ import { useLayoutStore } from 'src/stores/layoutStore';
 import { debounce } from 'src/utils/time';
 
 let suggestAbortController = new AbortController();
-let searchAbortController = new AbortController();
 const SUGGEST_DEBOUNCE_INTERVAL = 150; // milliseconds
-const queryStore = useQueryStore();
-const searchStore = useSearchStore();
-const layoutStore = useLayoutStore();
 
 export const suggestRequest = async (newVal: string, suggestAbortController: AbortController) => {
     if (newVal) {
+        const searchStore = useSearchStore();
         try {
             console.log(`> Query: [${newVal}]`);
             const response = await api.post(
@@ -36,6 +33,10 @@ export const suggestRequest = async (newVal: string, suggestAbortController: Abo
 };
 
 export const suggest = async (newVal: string, showSuggestions = true, setQuery = true): Promise<void> => {
+    const queryStore = useQueryStore();
+    const searchStore = useSearchStore();
+    const layoutStore = useLayoutStore();
+
     if (setQuery) {
         queryStore.setQuery({ newQuery: newVal });
     }
@@ -59,6 +60,7 @@ export const suggest = async (newVal: string, showSuggestions = true, setQuery =
 };
 
 export const randomSuggest = async () => {
+    const searchStore = useSearchStore();
     try {
         console.log('> Getting random suggestions ...');
         const randomSuggestResponse = await api.post('/random', {
@@ -69,55 +71,5 @@ export const randomSuggest = async () => {
         console.log(`+ Got ${searchStore.suggestions.length} random suggestions.`);
     } catch (error) {
         console.error(error);
-    }
-};
-
-export const submitQuery = async ({
-    queryValue,
-    setQuery = true,
-    setRoute = true
-}: {
-    queryValue: string,
-    setQuery?: boolean,
-    setRoute?: boolean,
-}) => {
-    layoutStore.setIsSuggestVisible(false);
-    if (queryValue) {
-        if (setQuery) {
-            queryStore.setQuery({ newQuery: queryValue, setRoute: setRoute });
-        }
-        try {
-            console.log('> Getting search results ...');
-            searchAbortController.abort();
-            searchAbortController = new AbortController();
-
-            // let cachedSuggest = searchStore.suggestResultCache[queryValue];
-            // if (!cachedSuggest) {
-            //     await suggest(queryValue, false, setQuery);
-            //     cachedSuggest = searchStore.suggestResultCache[queryValue];
-            // }
-
-            // let suggestInfo = {};
-            // if (isReplaceKeywords && cachedSuggest && Object.keys(cachedSuggest).length > 0) {
-            //     suggestInfo = cachedSuggest?.suggest_info || {};
-            // }
-
-            const response = await api.post(
-                '/search',
-                {
-                    query: queryValue,
-                    // suggest_info: suggestInfo,
-                    limit: 200,
-                },
-                { signal: searchAbortController.signal }
-            );
-
-            if (!searchAbortController.signal.aborted) {
-                searchStore.setSearchResult(response.data);
-                console.log(`+ Got ${searchStore.searchResultDict.hits.length} search results.`);
-            }
-        } catch (error) {
-            console.error(error);
-        }
     }
 };
