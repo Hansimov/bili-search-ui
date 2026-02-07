@@ -3,9 +3,65 @@ import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
-import type { ExploreResponse } from 'src/stores/resultStore';
+import { cacheService, STORE_NAMES, EXPLORE_CACHE_TTL } from 'src/services/cacheService';
+import type { ExploreResponse, ExploreStepResult } from 'src/stores/resultStore';
 
 let exploreAbortController = new AbortController();
+
+/** 缓存搜索结果到 IndexedDB */
+const cacheExploreResults = async (query: string, stepResults: ExploreStepResult[]): Promise<void> => {
+    try {
+        const plainResults = JSON.parse(JSON.stringify(stepResults));
+        await cacheService.set(
+            STORE_NAMES.DATA,
+            `explore:${query}`,
+            plainResults,
+            { ttl: EXPLORE_CACHE_TTL, namespace: 'explore-results' }
+        );
+        console.log(`[ExploreCache] Cached results for: ${query}`);
+    } catch (error) {
+        console.error('[ExploreCache] Failed to cache results:', error);
+    }
+};
+
+/** 从缓存恢复搜索结果，跳过网络请求 */
+export const restoreExploreFromCache = async (queryValue: string): Promise<boolean> => {
+    const queryStore = useQueryStore();
+    const exploreStore = useExploreStore();
+    const layoutStore = useLayoutStore();
+
+    if (!queryValue) return false;
+
+    try {
+        const cached = await cacheService.get<ExploreStepResult[]>(
+            STORE_NAMES.DATA,
+            `explore:${queryValue}`
+        );
+
+        if (cached && Array.isArray(cached) && cached.length > 0) {
+            console.log(`[ExploreCache] Restoring cached results for: ${queryValue}`);
+
+            layoutStore.setIsSuggestVisible(false);
+            exploreStore.clearAuthorFilters();
+            exploreStore.setSubmittedQuery(queryValue);
+            exploreStore.setRestoringSession(true);
+
+            queryStore.setQuery({ newQuery: queryValue, setRoute: true });
+            exploreStore.setStepResults(cached);
+            exploreStore.saveExploreSession();
+
+            setTimeout(() => {
+                exploreStore.setRestoringSession(false);
+            }, 100);
+
+            return true;
+        }
+    } catch (error) {
+        console.error('[ExploreCache] Failed to restore from cache:', error);
+    }
+
+    return false;
+};
 
 export const explore = async ({
     queryValue, setQuery = true, setRoute = false,
@@ -57,6 +113,9 @@ export const explore = async ({
         if (exploreResult.data && Array.isArray(exploreResult.data)) {
             exploreStore.setStepResults(exploreResult.data);
             console.log(`+ Got ${exploreResult.data.length} step results.`);
+
+            // 缓存搜索结果到 IndexedDB
+            cacheExploreResults(queryValue, exploreResult.data).catch(console.error);
 
             // 记录搜索历史
             const totalHits = exploreResult.data.reduce(

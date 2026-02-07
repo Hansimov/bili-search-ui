@@ -1,42 +1,52 @@
 <template>
-  <q-toolbar>
-    <!-- 移动端：汉堡菜单按钮（桌面端侧边栏已处理） -->
-    <q-btn
-      v-if="!isDesktop"
-      flat
-      round
-      dense
-      icon="menu"
-      @click="toggleMobileMenu"
-    />
+  <q-toolbar class="title-toolbar">
     <q-space />
-    <router-link to="/">
-      <q-toolbar-title>blbl.top</q-toolbar-title>
-    </router-link>
+
+    <!-- 居中显示当前搜索查询 -->
+    <span
+      v-if="submittedQuery"
+      class="toolbar-query-label"
+      :title="submittedQuery"
+    >
+      {{ submittedQuery }}
+    </span>
+
     <q-space />
-    <!-- 移动端：保留快捷登录入口 -->
-    <login-button v-if="!isDesktop" />
   </q-toolbar>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useLayoutStore } from 'src/stores/layoutStore';
-import LoginButton from 'components/LoginButton.vue';
+import { useExploreStore } from 'src/stores/exploreStore';
 
-const layoutStore = useLayoutStore();
-const isDesktop = computed(() => layoutStore.isDesktopMode());
+const exploreStore = useExploreStore();
 
-const toggleMobileMenu = () => {
-  layoutStore.toggleMobileSidebar();
-};
+const submittedQuery = computed(() => exploreStore.submittedQuery);
 </script>
 
+<style lang="scss" scoped>
+.title-toolbar {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.toolbar-query-label {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.85;
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+</style>
+
 <style lang="scss">
-.q-toolbar .q-focus-helper {
+.title-toolbar .q-focus-helper {
   visibility: hidden;
 }
-.q-toolbar a {
+.title-toolbar a {
   text-decoration: none;
   color: inherit;
 }

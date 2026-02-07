@@ -54,6 +54,8 @@ const DEFAULT_TTL = 24 * 60 * 60 * 1000;
 export const IMAGE_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 /** 搜索历史 TTL: 30 天 */
 export const HISTORY_CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
+/** 搜索结果缓存 TTL: 7 天 */
+export const EXPLORE_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 /** 最大图片缓存条目数 */
 const MAX_IMAGE_ENTRIES = 2000;
 /** 最大数据缓存条目数 */

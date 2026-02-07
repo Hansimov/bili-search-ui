@@ -5,7 +5,11 @@
   </transition>
 
   <!-- 侧边栏 -->
-  <aside class="app-sidebar" :class="sidebarClasses">
+  <aside
+    class="app-sidebar"
+    :class="sidebarClasses"
+    @click="handleSidebarClick"
+  >
     <!-- Logo / 收起按钮 -->
     <div class="sidebar-header">
       <router-link
@@ -14,14 +18,13 @@
         class="sidebar-logo"
         @click="onNavigate"
       >
-        <q-icon name="fa-solid fa-tv" size="20px" class="sidebar-logo-icon" />
         <span class="sidebar-logo-text">blbl.top</span>
       </router-link>
       <q-btn
         flat
         round
         dense
-        :icon="sidebarExpanded ? 'menu_open' : 'menu'"
+        icon="menu"
         size="sm"
         class="sidebar-toggle-btn"
         @click="handleToggle"
@@ -39,14 +42,12 @@
     <!-- 导航项 -->
     <div class="sidebar-nav">
       <!-- 新搜索 -->
-      <q-btn
-        flat
-        no-caps
+      <div
         class="sidebar-nav-item"
         :class="{ 'nav-item-collapsed': !sidebarExpanded }"
         @click="navigateToSearch"
       >
-        <q-icon name="edit" size="20px" />
+        <q-icon name="edit" size="22px" class="sidebar-nav-icon" />
         <transition name="fade">
           <span v-if="sidebarExpanded" class="nav-label">新搜索</span>
         </transition>
@@ -57,12 +58,10 @@
         >
           新搜索
         </q-tooltip>
-      </q-btn>
+      </div>
 
       <!-- 搜索历史 -->
-      <q-btn
-        flat
-        no-caps
+      <div
         class="sidebar-nav-item"
         :class="{
           'nav-item-collapsed': !sidebarExpanded,
@@ -70,7 +69,7 @@
         }"
         @click="toggleHistory"
       >
-        <q-icon name="history" size="20px" />
+        <q-icon name="history" size="22px" class="sidebar-nav-icon" />
         <transition name="fade">
           <span v-if="sidebarExpanded" class="nav-label">搜索历史</span>
         </transition>
@@ -81,7 +80,7 @@
         >
           搜索历史
         </q-tooltip>
-      </q-btn>
+      </div>
     </div>
 
     <!-- 搜索历史列表（仅展开模式） -->
@@ -94,7 +93,7 @@
             flat
             round
             dense
-            icon="delete_sweep"
+            icon="delete"
             size="xs"
             class="history-clear-btn"
             @click="confirmClearHistory"
@@ -196,7 +195,7 @@
       >
         <q-icon
           :name="isDark ? 'bedtime' : 'wb_sunny'"
-          size="20px"
+          size="22px"
           class="sidebar-item-icon"
         />
         <transition name="fade">
@@ -220,7 +219,7 @@
         @click="handleUserClick"
       >
         <template v-if="accountStore.isLoggedIn && accountStore.userAvatar">
-          <q-avatar size="28px" class="sidebar-avatar">
+          <q-avatar size="22px" class="sidebar-avatar">
             <img
               :src="accountStore.userAvatar"
               :alt="accountStore.userName"
@@ -305,7 +304,7 @@
         <template v-else>
           <q-icon
             name="account_circle"
-            size="28px"
+            size="22px"
             class="sidebar-login-icon"
           />
           <transition name="fade">
@@ -429,7 +428,7 @@ import { useLayoutStore } from 'src/stores/layoutStore';
 import { useAccountStore } from 'src/stores/accountStore';
 import { useAuthStore } from 'src/stores/authStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
-import { explore } from 'src/functions/explore';
+import { explore, restoreExploreFromCache } from 'src/functions/explore';
 
 const router = useRouter();
 const layoutStore = useLayoutStore();
@@ -508,8 +507,13 @@ const onNavigate = () => {
   if (!isDesktop.value) layoutStore.closeMobileSidebar();
 };
 
-const searchFromHistory = (query: string) => {
-  explore({ queryValue: query, setQuery: true, setRoute: true });
+const searchFromHistory = async (query: string) => {
+  // 尝试从缓存恢复搜索结果，避免重复的网络请求
+  const restored = await restoreExploreFromCache(query);
+  if (!restored) {
+    // 缓存未命中，执行新的搜索
+    await explore({ queryValue: query, setQuery: true, setRoute: true });
+  }
   if (!isDesktop.value) layoutStore.closeMobileSidebar();
 };
 
@@ -519,6 +523,20 @@ const handleToggle = () => {
     layoutStore.toggleSidebar();
   } else {
     layoutStore.toggleMobileSidebar();
+  }
+};
+
+// 点击收起状态的侧边栏空白区域展开
+const handleSidebarClick = (event: MouseEvent) => {
+  if (!sidebarExpanded.value && isDesktop.value) {
+    // 确保不是点击按钮等交互元素（由它们自己处理）
+    const target = event.target as HTMLElement;
+    const isInteractive = target.closest(
+      'button, a, .q-btn, .sidebar-toggle-btn, .sidebar-nav-item, .sidebar-bottom-item'
+    );
+    if (!isInteractive) {
+      layoutStore.toggleSidebar();
+    }
   }
 };
 
@@ -638,6 +656,9 @@ onUnmounted(() => {
 .app-sidebar.sidebar-desktop {
   width: 50px;
 }
+.app-sidebar.sidebar-desktop.sidebar-collapsed {
+  cursor: pointer;
+}
 .app-sidebar.sidebar-desktop.sidebar-expanded {
   width: 260px;
 }
@@ -664,7 +685,7 @@ body.body--dark .app-sidebar {
 .sidebar-header {
   display: flex;
   align-items: center;
-  padding: 12px 10px;
+  padding: 12px 8px;
   min-height: 48px;
 }
 
@@ -717,36 +738,31 @@ body.body--dark .sidebar-logo-text {
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  padding: 4px 8px;
+  padding: 4px 6px;
   gap: 2px;
 }
 
 .sidebar-nav-item {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 8px 8px;
   border-radius: 8px;
-  width: 100%;
+  cursor: pointer;
   min-height: 36px;
   font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
 }
 
-/* 按钮文字靠左对齐（覆盖 Quasar 默认居中） */
-.sidebar-nav-item :deep(.q-btn__content) {
-  justify-content: flex-start;
+.sidebar-nav-icon {
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
 .sidebar-nav-item.nav-item-collapsed {
   justify-content: center;
   padding: 8px;
-}
-
-.sidebar-nav-item.nav-item-collapsed :deep(.q-btn__content) {
-  justify-content: center;
 }
 
 body.body--light .sidebar-nav-item:hover {
@@ -879,7 +895,7 @@ body.body--dark .pinned-btn {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  padding: 8px;
+  padding: 8px 6px;
   gap: 2px;
   border-top: 1px solid transparent;
   margin-top: auto;
@@ -896,7 +912,7 @@ body.body--dark .sidebar-bottom {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 8px 8px;
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
@@ -922,7 +938,7 @@ body.body--dark .sidebar-bottom-item:hover {
 }
 
 .sidebar-bottom-label {
-  font-size: 13px;
+  font-size: 14px;
   opacity: 0.7;
   white-space: nowrap;
 }
@@ -937,7 +953,7 @@ body.body--dark .sidebar-bottom-item:hover {
 }
 
 .sidebar-user-name {
-  font-size: 13px;
+  font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
