@@ -2,7 +2,7 @@
  * SearchHistoryStore - 搜索历史记录管理
  *
  * 功能：
- * - 记录每次搜索查询（去重，更新时间戳）
+ * - 记录每次搜索查询（允许重复，每次搜索都会创建新记录）
  * - 持久化存储到 IndexedDB
  * - 支持固定（置顶）记录
  * - 按时间倒序排列，固定记录优先
@@ -14,16 +14,21 @@ import { cacheService, STORE_NAMES, HISTORY_CACHE_TTL } from 'src/services/cache
 
 /** 搜索历史记录条目 */
 export interface SearchHistoryItem {
+    /** 唯一标识符 */
+    id: string;
     /** 搜索关键词 */
     query: string;
-    /** 最后搜索时间戳 (ms) */
+    /** 搜索时间戳 (ms) */
     timestamp: number;
-    /** 搜索次数 */
-    count: number;
     /** 是否置顶 */
     pinned: boolean;
     /** 搜索结果数量（可选） */
     resultCount?: number;
+}
+
+/** 生成唯一 ID */
+function generateId(): string {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 /** 最大历史记录数 */
@@ -75,7 +80,12 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
                 const entries = await cacheService.getAll<SearchHistoryItem>(STORE_NAMES.HISTORY);
                 this.items = entries
                     .map((entry) => entry.value)
-                    .filter((item) => item && item.query);
+                    .filter((item) => item && item.query)
+                    .map((item) => ({
+                        ...item,
+                        // 兼容旧数据：如果没有 id 则根据 query+timestamp 生成
+                        id: item.id || `${item.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+                    }));
                 this.isLoaded = true;
                 console.log(`[SearchHistory] Loaded ${this.items.length} history items`);
             } catch (error) {
@@ -87,43 +97,25 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
 
         /**
          * 添加搜索记录
-         * 如果查询已存在，更新时间戳和计数
+         * 每次搜索都会创建新记录，允许重复 query
          */
         async addRecord(query: string, resultCount?: number): Promise<void> {
             if (!query || query.trim() === '') return;
 
             const trimmedQuery = query.trim();
-            const existingIndex = this.items.findIndex(
-                (item) => item.query === trimmedQuery
-            );
-
             const now = Date.now();
-            let item: SearchHistoryItem;
+            const item: SearchHistoryItem = {
+                id: generateId(),
+                query: trimmedQuery,
+                timestamp: now,
+                pinned: false,
+                resultCount,
+            };
+            this.items.push(item);
 
-            if (existingIndex >= 0) {
-                // 更新已有记录
-                item = {
-                    ...this.items[existingIndex],
-                    timestamp: now,
-                    count: this.items[existingIndex].count + 1,
-                    resultCount: resultCount ?? this.items[existingIndex].resultCount,
-                };
-                this.items[existingIndex] = item;
-            } else {
-                // 添加新记录
-                item = {
-                    query: trimmedQuery,
-                    timestamp: now,
-                    count: 1,
-                    pinned: false,
-                    resultCount,
-                };
-                this.items.push(item);
-
-                // 超出上限时移除最旧的非置顶记录
-                if (this.items.length > MAX_HISTORY_ITEMS) {
-                    this.trimHistory();
-                }
+            // 超出上限时移除最旧的非置顶记录
+            if (this.items.length > MAX_HISTORY_ITEMS) {
+                this.trimHistory();
             }
 
             // 持久化到 IndexedDB
@@ -133,8 +125,8 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
         /**
          * 切换记录的置顶状态
          */
-        async togglePin(query: string): Promise<void> {
-            const item = this.items.find((item) => item.query === query);
+        async togglePin(id: string): Promise<void> {
+            const item = this.items.find((item) => item.id === id);
             if (!item) return;
 
             item.pinned = !item.pinned;
@@ -144,11 +136,12 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
         /**
          * 删除单条记录
          */
-        async removeRecord(query: string): Promise<void> {
-            const index = this.items.findIndex((item) => item.query === query);
+        async removeRecord(id: string): Promise<void> {
+            const index = this.items.findIndex((item) => item.id === id);
             if (index >= 0) {
+                const item = this.items[index];
                 this.items.splice(index, 1);
-                await cacheService.delete(STORE_NAMES.HISTORY, `history:${query}`);
+                await cacheService.delete(STORE_NAMES.HISTORY, `history:${item.id}`);
             }
         },
 
@@ -164,15 +157,15 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
          * 清除非置顶的历史记录
          */
         async clearUnpinned(): Promise<void> {
-            const unpinnedQueries = this.items
+            const unpinnedIds = this.items
                 .filter((item) => !item.pinned)
-                .map((item) => item.query);
+                .map((item) => item.id);
 
             this.items = this.items.filter((item) => item.pinned);
 
             // 批量删除
-            for (const query of unpinnedQueries) {
-                await cacheService.delete(STORE_NAMES.HISTORY, `history:${query}`);
+            for (const id of unpinnedIds) {
+                await cacheService.delete(STORE_NAMES.HISTORY, `history:${id}`);
             }
         },
 
@@ -201,15 +194,15 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
             try {
                 // 创建纯对象副本，避免 Vue 响应式代理导致 IndexedDB 的 DataCloneError
                 const plainItem: SearchHistoryItem = {
+                    id: item.id,
                     query: item.query,
                     timestamp: item.timestamp,
-                    count: item.count,
                     pinned: item.pinned,
                     resultCount: item.resultCount,
                 };
                 await cacheService.set(
                     STORE_NAMES.HISTORY,
-                    `history:${item.query}`,
+                    `history:${item.id}`,
                     plainItem,
                     { ttl: HISTORY_CACHE_TTL, namespace: 'search-history' }
                 );

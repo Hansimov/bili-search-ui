@@ -1,5 +1,16 @@
 <template>
   <q-toolbar class="title-toolbar">
+    <!-- 移动端：汉堡菜单按钮 -->
+    <q-btn
+      v-if="isMobile"
+      flat
+      round
+      dense
+      icon="menu"
+      size="sm"
+      @click="toggleMobileMenu"
+    />
+
     <q-space />
 
     <!-- 居中显示当前搜索查询 -->
@@ -17,11 +28,18 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useLayoutStore } from 'src/stores/layoutStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 
+const layoutStore = useLayoutStore();
 const exploreStore = useExploreStore();
 
+const isMobile = computed(() => layoutStore.isMobileMode());
 const submittedQuery = computed(() => exploreStore.submittedQuery);
+
+const toggleMobileMenu = () => {
+  layoutStore.toggleMobileSidebar();
+};
 </script>
 
 <style lang="scss" scoped>

@@ -12,14 +12,6 @@
   >
     <!-- Logo / 收起按钮 -->
     <div class="sidebar-header">
-      <router-link
-        v-if="sidebarExpanded"
-        to="/"
-        class="sidebar-logo"
-        @click="onNavigate"
-      >
-        <span class="sidebar-logo-text">blbl.top</span>
-      </router-link>
       <q-btn
         flat
         round
@@ -37,30 +29,38 @@
           展开侧边栏
         </q-tooltip>
       </q-btn>
+      <router-link
+        v-if="sidebarExpanded"
+        to="/"
+        class="sidebar-logo"
+        @click="onNavigate"
+      >
+        <span class="sidebar-logo-text">blbl.top</span>
+      </router-link>
     </div>
 
     <!-- 导航项 -->
     <div class="sidebar-nav">
-      <!-- 新搜索 -->
+      <!-- 新建搜索 -->
       <div
         class="sidebar-nav-item"
         :class="{ 'nav-item-collapsed': !sidebarExpanded }"
         @click="navigateToSearch"
       >
-        <q-icon name="edit" size="22px" class="sidebar-nav-icon" />
+        <q-icon name="add" size="22px" class="sidebar-nav-icon" />
         <transition name="fade">
-          <span v-if="sidebarExpanded" class="nav-label">新搜索</span>
+          <span v-if="sidebarExpanded" class="nav-label">新建搜索</span>
         </transition>
         <q-tooltip
           v-if="!sidebarExpanded"
           anchor="center right"
           self="center left"
         >
-          新搜索
+          新建搜索
         </q-tooltip>
       </div>
 
-      <!-- 搜索历史 -->
+      <!-- 历史记录 -->
       <div
         class="sidebar-nav-item"
         :class="{
@@ -71,14 +71,27 @@
       >
         <q-icon name="history" size="22px" class="sidebar-nav-icon" />
         <transition name="fade">
-          <span v-if="sidebarExpanded" class="nav-label">搜索历史</span>
+          <span v-if="sidebarExpanded" class="nav-label">历史记录</span>
         </transition>
+        <q-space v-if="sidebarExpanded" />
+        <q-btn
+          v-if="sidebarExpanded && searchHistoryStore.totalCount > 0"
+          flat
+          round
+          dense
+          icon="delete"
+          size="xs"
+          class="history-clear-btn"
+          @click.stop="confirmClearHistory"
+        >
+          <q-tooltip>清除历史</q-tooltip>
+        </q-btn>
         <q-tooltip
           v-if="!sidebarExpanded"
           anchor="center right"
           self="center left"
         >
-          搜索历史
+          历史记录
         </q-tooltip>
       </div>
     </div>
@@ -86,22 +99,6 @@
     <!-- 搜索历史列表（仅展开模式） -->
     <transition name="fade">
       <div v-if="sidebarExpanded && showHistoryList" class="sidebar-history">
-        <div class="history-section-header">
-          <span class="history-section-title">搜索记录</span>
-          <q-btn
-            v-if="searchHistoryStore.totalCount > 0"
-            flat
-            round
-            dense
-            icon="delete"
-            size="xs"
-            class="history-clear-btn"
-            @click="confirmClearHistory"
-          >
-            <q-tooltip>清除历史</q-tooltip>
-          </q-btn>
-        </div>
-
         <q-scroll-area class="history-scroll-area">
           <div v-if="searchHistoryStore.totalCount === 0" class="history-empty">
             暂无搜索记录
@@ -110,7 +107,7 @@
             <!-- 置顶记录 -->
             <div
               v-for="item in searchHistoryStore.pinnedItems"
-              :key="'pin-' + item.query"
+              :key="'pin-' + item.id"
               class="history-item pinned"
               @click="searchFromHistory(item.query)"
             >
@@ -126,7 +123,7 @@
                   icon="push_pin"
                   size="xs"
                   class="history-action-btn pinned-btn"
-                  @click.stop="searchHistoryStore.togglePin(item.query)"
+                  @click.stop="searchHistoryStore.togglePin(item.id)"
                 >
                   <q-tooltip>取消置顶</q-tooltip>
                 </q-btn>
@@ -137,7 +134,7 @@
                   icon="close"
                   size="xs"
                   class="history-action-btn"
-                  @click.stop="searchHistoryStore.removeRecord(item.query)"
+                  @click.stop="searchHistoryStore.removeRecord(item.id)"
                 >
                   <q-tooltip>删除</q-tooltip>
                 </q-btn>
@@ -147,7 +144,7 @@
             <!-- 最近记录 -->
             <div
               v-for="item in searchHistoryStore.recentItems.slice(0, 30)"
-              :key="'recent-' + item.query"
+              :key="'recent-' + item.id"
               class="history-item"
               @click="searchFromHistory(item.query)"
             >
@@ -163,7 +160,7 @@
                   icon="push_pin"
                   size="xs"
                   class="history-action-btn"
-                  @click.stop="searchHistoryStore.togglePin(item.query)"
+                  @click.stop="searchHistoryStore.togglePin(item.id)"
                 >
                   <q-tooltip>置顶</q-tooltip>
                 </q-btn>
@@ -174,7 +171,7 @@
                   icon="close"
                   size="xs"
                   class="history-action-btn"
-                  @click.stop="searchHistoryStore.removeRecord(item.query)"
+                  @click.stop="searchHistoryStore.removeRecord(item.id)"
                 >
                   <q-tooltip>删除</q-tooltip>
                 </q-btn>
@@ -417,6 +414,13 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- 侧边栏右边缘拖动手柄（仅 tablet/desktop） -->
+    <div
+      v-if="hasSidebar"
+      class="sidebar-drag-handle"
+      @mousedown="onDragStart"
+    />
   </aside>
 </template>
 
@@ -453,29 +457,27 @@ const toggleDarkMode = () => {
   localStorage.setItem('isDark', JSON.stringify(isDark.value));
 };
 
-// Desktop mode
-const isDesktop = computed(() => layoutStore.isDesktopMode());
+// Responsive mode
+const hasSidebar = computed(() => layoutStore.hasSidebar());
+const isMobile = computed(() => layoutStore.isMobileMode());
 
 // Sidebar state computeds
 const sidebarExpanded = computed(() => {
-  if (!isDesktop.value) return true; // 移动端侧边栏始终为展开状态
+  if (isMobile.value) return true; // 移动端 overlay 模式始终为展开状态
   return layoutStore.isSidebarExpanded;
 });
 
 const showOverlay = computed(() => {
-  if (!isDesktop.value) {
-    return layoutStore.isMobileSidebarOpen;
-  }
-  // 窄屏桌面端展开时显示遮罩层
-  return layoutStore.isSidebarExpanded && layoutStore.screenWidth < 1400;
+  // 仅在移动端 overlay 模式下显示遮罩层
+  return isMobile.value && layoutStore.isMobileSidebarOpen;
 });
 
 const sidebarClasses = computed(() => ({
   'sidebar-expanded': sidebarExpanded.value,
   'sidebar-collapsed': !sidebarExpanded.value,
-  'sidebar-desktop': isDesktop.value,
-  'sidebar-mobile': !isDesktop.value,
-  'sidebar-mobile-open': !isDesktop.value && layoutStore.isMobileSidebarOpen,
+  'sidebar-desktop': hasSidebar.value,
+  'sidebar-mobile': isMobile.value,
+  'sidebar-mobile-open': isMobile.value && layoutStore.isMobileSidebarOpen,
 }));
 
 // User stats
@@ -500,11 +502,11 @@ const qrCodeOptions = computed(() => ({
 // Navigation
 const navigateToSearch = () => {
   router.push('/');
-  if (!isDesktop.value) layoutStore.closeMobileSidebar();
+  if (isMobile.value) layoutStore.closeMobileSidebar();
 };
 
 const onNavigate = () => {
-  if (!isDesktop.value) layoutStore.closeMobileSidebar();
+  if (isMobile.value) layoutStore.closeMobileSidebar();
 };
 
 const searchFromHistory = async (query: string) => {
@@ -514,22 +516,21 @@ const searchFromHistory = async (query: string) => {
     // 缓存未命中，执行新的搜索
     await explore({ queryValue: query, setQuery: true, setRoute: true });
   }
-  if (!isDesktop.value) layoutStore.closeMobileSidebar();
+  if (isMobile.value) layoutStore.closeMobileSidebar();
 };
 
 // Sidebar toggle
 const handleToggle = () => {
-  if (isDesktop.value) {
+  if (hasSidebar.value) {
     layoutStore.toggleSidebar();
   } else {
     layoutStore.toggleMobileSidebar();
   }
 };
 
-// 点击收起状态的侧边栏空白区域展开
+// 点击收起状态的侧边栏空白区域展开（仅 tablet/desktop）
 const handleSidebarClick = (event: MouseEvent) => {
-  if (!sidebarExpanded.value && isDesktop.value) {
-    // 确保不是点击按钮等交互元素（由它们自己处理）
+  if (!sidebarExpanded.value && hasSidebar.value) {
     const target = event.target as HTMLElement;
     const isInteractive = target.closest(
       'button, a, .q-btn, .sidebar-toggle-btn, .sidebar-nav-item, .sidebar-bottom-item'
@@ -541,11 +542,9 @@ const handleSidebarClick = (event: MouseEvent) => {
 };
 
 const closeSidebar = () => {
-  if (!isDesktop.value) {
+  // overlay 关闭仅用于移动端
+  if (isMobile.value) {
     layoutStore.closeMobileSidebar();
-  } else {
-    // 窄屏桌面端点击遮罩层收起侧边栏
-    layoutStore.toggleSidebar();
   }
 };
 
@@ -615,7 +614,50 @@ onMounted(async () => {
 
 onUnmounted(() => {
   authStore.cleanup();
+  // 清理拖动事件
+  document.removeEventListener('mousemove', onDragMove);
+  document.removeEventListener('mouseup', onDragEnd);
 });
+
+// ============ 侧边栏边缘拖动 ============
+let dragStartX = 0;
+let isDragging = false;
+const DRAG_THRESHOLD = 30; // 拖动距离阈值
+
+const onDragStart = (event: MouseEvent) => {
+  event.preventDefault();
+  dragStartX = event.clientX;
+  isDragging = true;
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup', onDragEnd);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+};
+
+const onDragMove = (event: MouseEvent) => {
+  if (!isDragging) return;
+  const deltaX = event.clientX - dragStartX;
+
+  if (Math.abs(deltaX) >= DRAG_THRESHOLD) {
+    if (deltaX < 0 && layoutStore.isSidebarExpanded) {
+      // 向左拖动 → 收起
+      layoutStore.toggleSidebar();
+      onDragEnd();
+    } else if (deltaX > 0 && !layoutStore.isSidebarExpanded) {
+      // 向右拖动 → 展开
+      layoutStore.toggleSidebar();
+      onDragEnd();
+    }
+  }
+};
+
+const onDragEnd = () => {
+  isDragging = false;
+  document.removeEventListener('mousemove', onDragMove);
+  document.removeEventListener('mouseup', onDragEnd);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+};
 </script>
 
 <style scoped>
@@ -675,6 +717,25 @@ onUnmounted(() => {
 body.body--light .app-sidebar {
   background-color: #f5f5f5;
   border-right: 1px solid #e0e0e0;
+}
+body.body--dark .app-sidebar {
+  background-color: #1a1a1a;
+  border-right: 1px solid #333;
+}
+
+/* ============ 侧边栏拖动手柄 ============ */
+.sidebar-drag-handle {
+  position: absolute;
+  right: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 10;
+  transition: background-color 0.15s ease;
+}
+.sidebar-drag-handle:hover {
+  background-color: rgba(0, 112, 240, 0.3);
 }
 body.body--dark .app-sidebar {
   background-color: #1a1a1a;
@@ -793,21 +854,6 @@ body.body--dark .nav-item-active {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
-}
-
-.history-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px 4px;
-}
-
-.history-section-title {
-  font-size: 12px;
-  font-weight: 500;
-  opacity: 0.6;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .history-clear-btn {

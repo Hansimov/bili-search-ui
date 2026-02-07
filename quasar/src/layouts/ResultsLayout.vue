@@ -1,6 +1,6 @@
 <template>
   <q-layout view="hHh lpr fFf">
-    <q-header>
+    <q-header :style="headerStyle">
       <TitleToolbar />
     </q-header>
     <q-page-container>
@@ -26,8 +26,18 @@ defineOptions({
 
 const layoutStore = useLayoutStore();
 
+const headerStyle = computed(() => {
+  if (layoutStore.hasSidebar()) {
+    return {
+      left: `${layoutStore.sidebarWidth()}px`,
+      transition: 'left 0.25s ease',
+    };
+  }
+  return {};
+});
+
 const searchBarStickyStyle = computed(() => {
-  if (layoutStore.isDesktopMode()) {
+  if (layoutStore.hasSidebar()) {
     return {
       left: `${layoutStore.sidebarWidth()}px`,
       width: `calc(100% - ${layoutStore.sidebarWidth()}px)`,

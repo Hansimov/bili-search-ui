@@ -17,7 +17,7 @@ defineOptions({
 const layoutStore = useLayoutStore();
 
 const mainContentStyle = computed(() => {
-  if (layoutStore.isDesktopMode()) {
+  if (layoutStore.hasSidebar()) {
     return {
       marginLeft: `${layoutStore.sidebarWidth()}px`,
       transition: 'margin-left 0.25s ease',

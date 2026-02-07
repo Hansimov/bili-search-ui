@@ -4,6 +4,14 @@ import { defineStore } from 'pinia';
 const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_COLLAPSED_WIDTH = 50;
 
+/**
+ * 响应式断点（3种模式）：
+ * - Mobile  (< 520px):  无侧边栏，汉堡菜单在 toolbar，侧边栏以 overlay 形式打开
+ * - Tablet  (520–1279px): 侧边栏可见（默认收起），展开推动内容，无 overlay
+ * - Desktop (>= 1280px): 侧边栏可见（默认展开），展开推动内容，无 overlay
+ */
+const MOBILE_BREAKPOINT = 520;
+
 export const useLayoutStore = defineStore('layout', {
     state: () => ({
         /** @deprecated 旧抽屉可见性，保留兼容 */
@@ -23,23 +31,32 @@ export const useLayoutStore = defineStore('layout', {
         loadedPages: new Set([1]) as Set<number>,
         /** 侧边栏是否展开 */
         isSidebarExpanded: JSON.parse(localStorage.getItem('isSidebarExpanded') || 'true') as boolean,
-        /** 移动端侧边栏是否打开 */
+        /** 移动端侧边栏是否打开（overlay 模式） */
         isMobileSidebarOpen: false,
     }),
     actions: {
-        isDesktopMode() {
-            return this.screenWidth >= 1024;
+        /** 是否为移动端模式（< 768px）：无侧边栏，汉堡菜单 */
+        isMobileMode() {
+            return this.screenWidth < MOBILE_BREAKPOINT;
         },
-        /** 获取侧边栏当前宽度 */
+        /** 是否有侧边栏（>= 768px）：tablet + desktop */
+        hasSidebar() {
+            return this.screenWidth >= MOBILE_BREAKPOINT;
+        },
+        /** @deprecated 保留兼容，等同 hasSidebar() */
+        isDesktopMode() {
+            return this.hasSidebar();
+        },
+        /** 获取侧边栏当前宽度（用于内容区域偏移） */
         sidebarWidth(): number {
+            if (this.isMobileMode()) return 0;
             return this.isSidebarExpanded ? SIDEBAR_EXPANDED_WIDTH : SIDEBAR_COLLAPSED_WIDTH;
         },
         isSearchRecordsListHasWidth() {
-            // 侧边栏始终可见，始终有宽度
-            return this.isDesktopMode();
+            return this.hasSidebar();
         },
         availableContentWidth() {
-            if (this.isDesktopMode()) {
+            if (this.hasSidebar()) {
                 return this.screenWidth - this.sidebarWidth();
             } else {
                 return this.screenWidth;
@@ -57,7 +74,7 @@ export const useLayoutStore = defineStore('layout', {
             localStorage.setItem('isSidebarExpanded', JSON.stringify(this.isSidebarExpanded));
             this.updateSearchInputMaxWidth();
         },
-        /** 切换移动端侧边栏 */
+        /** 切换移动端侧边栏（overlay 模式） */
         toggleMobileSidebar() {
             this.isMobileSidebarOpen = !this.isMobileSidebarOpen;
         },
@@ -71,7 +88,7 @@ export const useLayoutStore = defineStore('layout', {
         },
         updateSearchInputMaxWidth() {
             let searchInputMaxWidth;
-            if (this.isDesktopMode()) {
+            if (this.hasSidebar()) {
                 searchInputMaxWidth = `calc(${this.availableContentWidth()}px - 5vw)`;
             } else {
                 searchInputMaxWidth = '95vw';
