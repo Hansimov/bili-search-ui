@@ -635,7 +635,7 @@ export default {
     background: transparent;
   }
 }
-@media (max-width: 520px) {
+@media (max-width: 569px) {
   .results-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin: auto;

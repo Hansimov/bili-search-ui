@@ -20,6 +20,7 @@ const mainContentStyle = computed(() => {
   if (layoutStore.hasSidebar()) {
     return {
       marginLeft: `${layoutStore.sidebarWidth()}px`,
+      paddingLeft: '8px',
       transition: 'margin-left 0.25s ease',
     };
   }

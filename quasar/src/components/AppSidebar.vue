@@ -73,19 +73,26 @@
         <transition name="fade">
           <span v-if="sidebarExpanded" class="nav-label">历史记录</span>
         </transition>
-        <q-space v-if="sidebarExpanded" />
-        <q-btn
-          v-if="sidebarExpanded && searchHistoryStore.totalCount > 0"
-          flat
-          round
-          dense
-          icon="delete"
-          size="xs"
-          class="history-clear-btn"
-          @click.stop="confirmClearHistory"
-        >
-          <q-tooltip>清除历史</q-tooltip>
-        </q-btn>
+        <template v-if="sidebarExpanded">
+          <q-space />
+          <q-icon
+            :name="showHistoryList ? 'expand_less' : 'expand_more'"
+            size="18px"
+            class="history-toggle-icon"
+          />
+          <q-btn
+            v-if="searchHistoryStore.totalCount > 0"
+            flat
+            round
+            dense
+            icon="delete"
+            size="xs"
+            class="history-clear-btn"
+            @click.stop="confirmClearHistory"
+          >
+            <q-tooltip>清除历史</q-tooltip>
+          </q-btn>
+        </template>
         <q-tooltip
           v-if="!sidebarExpanded"
           anchor="center right"
@@ -415,11 +422,12 @@
       </q-card>
     </q-dialog>
 
-    <!-- 侧边栏右边缘拖动手柄（仅 tablet/desktop） -->
+    <!-- 侧边栏右边缘手柄：点击切换展开/收起（仅桌面端） -->
     <div
-      v-if="hasSidebar"
-      class="sidebar-drag-handle"
-      @mousedown="onDragStart"
+      v-if="hasSidebar && !isTablet"
+      class="sidebar-edge-handle"
+      :class="sidebarExpanded ? 'edge-collapse' : 'edge-expand'"
+      @click.stop="layoutStore.toggleSidebar()"
     />
   </aside>
 </template>
@@ -460,16 +468,29 @@ const toggleDarkMode = () => {
 // Responsive mode
 const hasSidebar = computed(() => layoutStore.hasSidebar());
 const isMobile = computed(() => layoutStore.isMobileMode());
+const isTablet = computed(() => layoutStore.isTabletMode());
+const isOverlayMode = computed(() => layoutStore.isSidebarOverlayMode());
 
 // Sidebar state computeds
 const sidebarExpanded = computed(() => {
-  if (isMobile.value) return true; // 移动端 overlay 模式始终为展开状态
+  if (isMobile.value) {
+    // 移动端：overlay 模式始终为展开状态（侧边栏打开时全展开）
+    return true;
+  }
+  if (isTablet.value) {
+    // 平板：常态为收起，展开仅通过 overlay
+    return layoutStore.isMobileSidebarOpen;
+  }
+  // 桌面：正常展开/收起
   return layoutStore.isSidebarExpanded;
 });
 
 const showOverlay = computed(() => {
-  // 仅在移动端 overlay 模式下显示遮罩层
-  return isMobile.value && layoutStore.isMobileSidebarOpen;
+  // mobile：overlay 打开时显示遮罩
+  if (isMobile.value) return layoutStore.isMobileSidebarOpen;
+  // tablet：展开时显示遮罩（overlay 模式）
+  if (isTablet.value) return layoutStore.isMobileSidebarOpen;
+  return false;
 });
 
 const sidebarClasses = computed(() => ({
@@ -478,6 +499,8 @@ const sidebarClasses = computed(() => ({
   'sidebar-desktop': hasSidebar.value,
   'sidebar-mobile': isMobile.value,
   'sidebar-mobile-open': isMobile.value && layoutStore.isMobileSidebarOpen,
+  // tablet overlay 展开态
+  'sidebar-tablet-overlay': isTablet.value && layoutStore.isMobileSidebarOpen,
 }));
 
 // User stats
@@ -502,11 +525,11 @@ const qrCodeOptions = computed(() => ({
 // Navigation
 const navigateToSearch = () => {
   router.push('/');
-  if (isMobile.value) layoutStore.closeMobileSidebar();
+  if (isOverlayMode.value) layoutStore.closeMobileSidebar();
 };
 
 const onNavigate = () => {
-  if (isMobile.value) layoutStore.closeMobileSidebar();
+  if (isOverlayMode.value) layoutStore.closeMobileSidebar();
 };
 
 const searchFromHistory = async (query: string) => {
@@ -516,19 +539,21 @@ const searchFromHistory = async (query: string) => {
     // 缓存未命中，执行新的搜索
     await explore({ queryValue: query, setQuery: true, setRoute: true });
   }
-  if (isMobile.value) layoutStore.closeMobileSidebar();
+  if (isOverlayMode.value) layoutStore.closeMobileSidebar();
 };
 
 // Sidebar toggle
 const handleToggle = () => {
-  if (hasSidebar.value) {
-    layoutStore.toggleSidebar();
-  } else {
+  if (isOverlayMode.value) {
+    // mobile + tablet：使用 overlay 模式
     layoutStore.toggleMobileSidebar();
+  } else {
+    // desktop：推动内容
+    layoutStore.toggleSidebar();
   }
 };
 
-// 点击收起状态的侧边栏空白区域展开（仅 tablet/desktop）
+// 点击收起状态的侧边栏空白区域展开
 const handleSidebarClick = (event: MouseEvent) => {
   if (!sidebarExpanded.value && hasSidebar.value) {
     const target = event.target as HTMLElement;
@@ -536,14 +561,14 @@ const handleSidebarClick = (event: MouseEvent) => {
       'button, a, .q-btn, .sidebar-toggle-btn, .sidebar-nav-item, .sidebar-bottom-item'
     );
     if (!isInteractive) {
-      layoutStore.toggleSidebar();
+      handleToggle();
     }
   }
 };
 
 const closeSidebar = () => {
-  // overlay 关闭仅用于移动端
-  if (isMobile.value) {
+  // overlay 关闭（移动端 + 平板展开态）
+  if (isOverlayMode.value) {
     layoutStore.closeMobileSidebar();
   }
 };
@@ -553,7 +578,8 @@ const toggleHistory = () => {
   if (sidebarExpanded.value) {
     showHistoryList.value = !showHistoryList.value;
   } else {
-    layoutStore.toggleSidebar();
+    // 展开侧边栏并显示历史
+    handleToggle();
     showHistoryList.value = true;
   }
 };
@@ -614,50 +640,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   authStore.cleanup();
-  // 清理拖动事件
-  document.removeEventListener('mousemove', onDragMove);
-  document.removeEventListener('mouseup', onDragEnd);
 });
-
-// ============ 侧边栏边缘拖动 ============
-let dragStartX = 0;
-let isDragging = false;
-const DRAG_THRESHOLD = 30; // 拖动距离阈值
-
-const onDragStart = (event: MouseEvent) => {
-  event.preventDefault();
-  dragStartX = event.clientX;
-  isDragging = true;
-  document.addEventListener('mousemove', onDragMove);
-  document.addEventListener('mouseup', onDragEnd);
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
-};
-
-const onDragMove = (event: MouseEvent) => {
-  if (!isDragging) return;
-  const deltaX = event.clientX - dragStartX;
-
-  if (Math.abs(deltaX) >= DRAG_THRESHOLD) {
-    if (deltaX < 0 && layoutStore.isSidebarExpanded) {
-      // 向左拖动 → 收起
-      layoutStore.toggleSidebar();
-      onDragEnd();
-    } else if (deltaX > 0 && !layoutStore.isSidebarExpanded) {
-      // 向右拖动 → 展开
-      layoutStore.toggleSidebar();
-      onDragEnd();
-    }
-  }
-};
-
-const onDragEnd = () => {
-  isDragging = false;
-  document.removeEventListener('mousemove', onDragMove);
-  document.removeEventListener('mouseup', onDragEnd);
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-};
 </script>
 
 <style scoped>
@@ -694,7 +677,7 @@ const onDragEnd = () => {
   overflow: hidden;
 }
 
-/* 桌面端 */
+/* 桌面端（>= 768px）：推动内容 */
 .app-sidebar.sidebar-desktop {
   width: 50px;
 }
@@ -705,7 +688,12 @@ const onDragEnd = () => {
   width: 260px;
 }
 
-/* 移动端 */
+/* 平板 overlay 展开态（570-767px）：从收起态变为展开 overlay */
+.app-sidebar.sidebar-tablet-overlay {
+  width: 260px;
+}
+
+/* 移动端（< 570px）：完全隐藏，overlay 滑入 */
 .app-sidebar.sidebar-mobile {
   width: 280px;
   transform: translateX(-100%);
@@ -723,44 +711,38 @@ body.body--dark .app-sidebar {
   border-right: 1px solid #333;
 }
 
-/* ============ 侧边栏拖动手柄 ============ */
-.sidebar-drag-handle {
+/* ============ 侧边栏边缘手柄 ============ */
+.sidebar-edge-handle {
   position: absolute;
-  right: -3px;
+  right: -6px;
   top: 0;
   bottom: 0;
-  width: 6px;
-  cursor: col-resize;
+  width: 12px;
   z-index: 10;
   transition: background-color 0.15s ease;
 }
-.sidebar-drag-handle:hover {
-  background-color: rgba(0, 112, 240, 0.3);
+.sidebar-edge-handle:hover {
+  background-color: rgba(0, 112, 240, 0.25);
 }
-body.body--dark .app-sidebar {
-  background-color: #1a1a1a;
-  border-right: 1px solid #333;
+/* 展开状态：箭头向左（收起） */
+.sidebar-edge-handle.edge-collapse {
+  cursor: w-resize;
+}
+/* 收起状态：箭头向右（展开） */
+.sidebar-edge-handle.edge-expand {
+  cursor: e-resize;
 }
 
 /* ============ 侧边栏头部 ============ */
 .sidebar-header {
   display: flex;
   align-items: center;
-  padding: 12px 8px;
-  min-height: 48px;
-}
-
-/* 展开时：logo 在左，toggle 在右 */
-.sidebar-expanded .sidebar-header {
-  justify-content: space-between;
-}
-
-/* 折叠时：toggle 居中 */
-.sidebar-collapsed .sidebar-header {
-  justify-content: center;
+  padding: 8px 6px;
+  min-height: 36px;
 }
 
 .sidebar-logo {
+  margin-left: auto;
   display: flex;
   align-items: center;
   text-decoration: none;
@@ -790,6 +772,7 @@ body.body--dark .sidebar-logo-text {
 .sidebar-toggle-btn {
   flex-shrink: 0;
   opacity: 0.7;
+  margin-left: 5px;
 }
 .sidebar-toggle-btn:hover {
   opacity: 1;
@@ -822,7 +805,6 @@ body.body--dark .sidebar-logo-text {
 }
 
 .sidebar-nav-item.nav-item-collapsed {
-  justify-content: center;
   padding: 8px;
 }
 
@@ -845,6 +827,12 @@ body.body--dark .nav-item-active {
 
 .nav-label {
   white-space: nowrap;
+}
+
+.history-toggle-icon {
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: transform 0.2s ease;
 }
 
 /* ============ 搜索历史区域 ============ */
@@ -967,7 +955,6 @@ body.body--dark .sidebar-bottom {
 }
 
 .sidebar-bottom-item.item-collapsed {
-  justify-content: center;
   padding: 8px;
 }
 

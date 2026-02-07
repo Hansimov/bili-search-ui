@@ -6,11 +6,14 @@ const SIDEBAR_COLLAPSED_WIDTH = 50;
 
 /**
  * 响应式断点（3种模式）：
- * - Mobile  (< 520px):  无侧边栏，汉堡菜单在 toolbar，侧边栏以 overlay 形式打开
- * - Tablet  (520–1279px): 侧边栏可见（默认收起），展开推动内容，无 overlay
- * - Desktop (>= 1280px): 侧边栏可见（默认展开），展开推动内容，无 overlay
+ * - Mobile  (< 570px):  无侧边栏，汉堡菜单在 toolbar，侧边栏以 overlay 形式打开
+ * - Tablet  (570–767px): 侧边栏可见（仅收起态），展开时以 overlay 形式，不推动内容
+ * - Desktop (>= 768px):  侧边栏可见，展开/收起推动内容
+ *
+ * 570 = 520（保证结果列表2列最小宽度）+ 50（收起的侧边栏宽度）
  */
-const MOBILE_BREAKPOINT = 520;
+const MOBILE_BREAKPOINT = 570;
+const DESKTOP_BREAKPOINT = 768;
 
 export const useLayoutStore = defineStore('layout', {
     state: () => ({
@@ -35,11 +38,19 @@ export const useLayoutStore = defineStore('layout', {
         isMobileSidebarOpen: false,
     }),
     actions: {
-        /** 是否为移动端模式（< 768px）：无侧边栏，汉堡菜单 */
+        /** 是否为移动端模式（< 570px）：无侧边栏，汉堡菜单 */
         isMobileMode() {
             return this.screenWidth < MOBILE_BREAKPOINT;
         },
-        /** 是否有侧边栏（>= 768px）：tablet + desktop */
+        /** 是否为平板模式（570–767px）：侧边栏收起可见，展开为 overlay */
+        isTabletMode() {
+            return this.screenWidth >= MOBILE_BREAKPOINT && this.screenWidth < DESKTOP_BREAKPOINT;
+        },
+        /** 是否为桌面模式（>= 768px）：侧边栏推动内容 */
+        isDesktopFullMode() {
+            return this.screenWidth >= DESKTOP_BREAKPOINT;
+        },
+        /** 是否有侧边栏（>= 570px）：tablet + desktop */
         hasSidebar() {
             return this.screenWidth >= MOBILE_BREAKPOINT;
         },
@@ -47,9 +58,14 @@ export const useLayoutStore = defineStore('layout', {
         isDesktopMode() {
             return this.hasSidebar();
         },
-        /** 获取侧边栏当前宽度（用于内容区域偏移） */
+        /** 侧边栏展开时是否以 overlay 方式显示（mobile + tablet） */
+        isSidebarOverlayMode() {
+            return this.screenWidth < DESKTOP_BREAKPOINT;
+        },
+        /** 获取侧边栏当前宽度（用于内容区域偏移，仅计算推动内容的宽度） */
         sidebarWidth(): number {
             if (this.isMobileMode()) return 0;
+            if (this.isTabletMode()) return SIDEBAR_COLLAPSED_WIDTH; // tablet 展开是 overlay，不推动
             return this.isSidebarExpanded ? SIDEBAR_EXPANDED_WIDTH : SIDEBAR_COLLAPSED_WIDTH;
         },
         isSearchRecordsListHasWidth() {

@@ -78,16 +78,43 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
 
             try {
                 const entries = await cacheService.getAll<SearchHistoryItem>(STORE_NAMES.HISTORY);
-                this.items = entries
-                    .map((entry) => entry.value)
-                    .filter((item) => item && item.query)
-                    .map((item) => ({
-                        ...item,
-                        // 兼容旧数据：如果没有 id 则根据 query+timestamp 生成
-                        id: item.id || `${item.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
-                    }));
+                const migratedItems: SearchHistoryItem[] = [];
+                const migrationTasks: Promise<void>[] = [];
+
+                for (const entry of entries) {
+                    const item = entry.value;
+                    if (!item || !item.query) continue;
+
+                    if (!item.id) {
+                        // 旧数据迁移：生成稳定 ID，删除旧 key，重新持久化
+                        const newId = `${item.timestamp}-${item.query.slice(0, 8)}`;
+                        const migratedItem: SearchHistoryItem = {
+                            ...item,
+                            id: newId,
+                        };
+                        migratedItems.push(migratedItem);
+                        migrationTasks.push(
+                            (async () => {
+                                // 删除旧 key（旧格式 history:${query}）
+                                await cacheService.delete(STORE_NAMES.HISTORY, entry.key).catch(console.error);
+                                // 用新 key 重新持久化
+                                await this.persistItem(migratedItem).catch(console.error);
+                            })()
+                        );
+                    } else {
+                        migratedItems.push(item);
+                    }
+                }
+
+                this.items = migratedItems;
                 this.isLoaded = true;
                 console.log(`[SearchHistory] Loaded ${this.items.length} history items`);
+
+                // 后台执行迁移
+                if (migrationTasks.length > 0) {
+                    Promise.all(migrationTasks).catch(console.error);
+                    console.log(`[SearchHistory] Migrated ${migrationTasks.length} old items`);
+                }
             } catch (error) {
                 console.error('[SearchHistory] Failed to load history:', error);
                 this.items = [];
@@ -126,11 +153,13 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
          * 切换记录的置顶状态
          */
         async togglePin(id: string): Promise<void> {
-            const item = this.items.find((item) => item.id === id);
-            if (!item) return;
+            const index = this.items.findIndex((item) => item.id === id);
+            if (index < 0) return;
 
-            item.pinned = !item.pinned;
-            await this.persistItem(item);
+            // 替换整个对象以确保触发响应式更新
+            const updated = { ...this.items[index], pinned: !this.items[index].pinned };
+            this.items.splice(index, 1, updated);
+            await this.persistItem(updated);
         },
 
         /**
