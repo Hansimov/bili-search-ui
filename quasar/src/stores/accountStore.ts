@@ -145,7 +145,7 @@ export const useAccountStore = defineStore('account', {
                     Notify.create({
                         type: 'positive',
                         message: `关注列表同步成功，共 ${this.followingCount} 个关注`,
-                        position: 'top-right',
+                        position: 'bottom-left',
                         timeout: 1500,
                     });
                     return true;
@@ -154,7 +154,7 @@ export const useAccountStore = defineStore('account', {
                     Notify.create({
                         type: 'negative',
                         message: '关注列表同步失败，请重试',
-                        position: 'top-right',
+                        position: 'bottom-left',
                         timeout: 1500,
                     });
                     return false;
@@ -164,7 +164,7 @@ export const useAccountStore = defineStore('account', {
                 Notify.create({
                     type: 'negative',
                     message: '关注列表同步失败，请重试',
-                    position: 'top-right',
+                    position: 'bottom-left',
                     timeout: 1500,
                 });
                 return false;
@@ -196,7 +196,7 @@ export const useAccountStore = defineStore('account', {
             Notify.create({
                 type: 'info',
                 message: '已退出登录',
-                position: 'top-right',
+                position: 'bottom-left',
                 timeout: 1500,
             });
         },
@@ -283,7 +283,7 @@ export const useAccountStore = defineStore('account', {
                     Notify.create({
                         type: 'positive',
                         message: `登录成功！欢迎回来，${this.userName}`,
-                        position: 'top-right',
+                        position: 'bottom-left',
                         timeout: 1500,
                     });
 
@@ -294,7 +294,7 @@ export const useAccountStore = defineStore('account', {
                     Notify.create({
                         type: 'negative',
                         message: '登录失败，请重试',
-                        position: 'top-right',
+                        position: 'bottom-left',
                         timeout: 1500,
                     });
 

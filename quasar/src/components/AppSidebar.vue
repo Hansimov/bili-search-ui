@@ -12,15 +12,8 @@
   >
     <!-- Logo / 收起按钮 -->
     <div class="sidebar-header">
-      <q-btn
-        flat
-        round
-        dense
-        icon="menu"
-        size="sm"
-        class="sidebar-toggle-btn"
-        @click="handleToggle"
-      >
+      <div class="sidebar-toggle" @click="handleToggle">
+        <q-icon name="menu" size="22px" class="sidebar-nav-icon" />
         <q-tooltip
           v-if="!sidebarExpanded"
           anchor="center right"
@@ -28,7 +21,7 @@
         >
           展开侧边栏
         </q-tooltip>
-      </q-btn>
+      </div>
       <router-link
         v-if="sidebarExpanded"
         to="/"
@@ -65,7 +58,7 @@
         class="sidebar-nav-item"
         :class="{
           'nav-item-collapsed': !sidebarExpanded,
-          'nav-item-active': showHistoryList,
+          'nav-item-active': !showHistoryList,
         }"
         @click="toggleHistory"
       >
@@ -237,7 +230,12 @@
           </transition>
 
           <!-- 已登录用户的菜单 -->
-          <q-menu v-model="showUserMenu" anchor="top right" self="bottom right">
+          <q-menu
+            v-model="showUserMenu"
+            anchor="top right"
+            self="bottom right"
+            class="sidebar-user-menu"
+          >
             <q-list>
               <q-item>
                 <q-item-section>
@@ -252,12 +250,12 @@
                 v-for="(stat, idx) in statsItems"
                 :key="idx"
                 dense
-                class="user-menu-item"
+                class="user-menu-item user-stat-item"
               >
-                <q-item-section class="text-right">
+                <q-item-section class="stat-label-section">
                   <q-item-label>{{ stat.label }}</q-item-label>
                 </q-item-section>
-                <q-item-section side>
+                <q-item-section class="stat-value-section" side>
                   <q-item-label class="text-weight-medium">
                     {{ stat.value }}
                   </q-item-label>
@@ -428,7 +426,66 @@
       class="sidebar-edge-handle"
       :class="sidebarExpanded ? 'edge-collapse' : 'edge-expand'"
       @click.stop="layoutStore.toggleSidebar()"
-    />
+    >
+      <div class="edge-handle-indicator">
+        <svg
+          v-if="sidebarExpanded"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+        >
+          <rect
+            x="9"
+            y="2"
+            width="1.5"
+            height="12"
+            rx="0.75"
+            fill="currentColor"
+          />
+          <rect
+            x="12"
+            y="2"
+            width="1.5"
+            height="12"
+            rx="0.75"
+            fill="currentColor"
+          />
+          <path
+            d="M6 4L2 8L6 12"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect
+            x="2.5"
+            y="2"
+            width="1.5"
+            height="12"
+            rx="0.75"
+            fill="currentColor"
+          />
+          <rect
+            x="5"
+            y="2"
+            width="1.5"
+            height="12"
+            rx="0.75"
+            fill="currentColor"
+          />
+          <path
+            d="M10 4L14 8L10 12"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </div>
+    </div>
   </aside>
 </template>
 
@@ -558,7 +615,7 @@ const handleSidebarClick = (event: MouseEvent) => {
   if (!sidebarExpanded.value && hasSidebar.value) {
     const target = event.target as HTMLElement;
     const isInteractive = target.closest(
-      'button, a, .q-btn, .sidebar-toggle-btn, .sidebar-nav-item, .sidebar-bottom-item'
+      'button, a, .q-btn, .sidebar-toggle, .sidebar-nav-item, .sidebar-bottom-item'
     );
     if (!isInteractive) {
       handleToggle();
@@ -682,7 +739,7 @@ onUnmounted(() => {
   width: 50px;
 }
 .app-sidebar.sidebar-desktop.sidebar-collapsed {
-  cursor: pointer;
+  cursor: e-resize;
 }
 .app-sidebar.sidebar-desktop.sidebar-expanded {
   width: 260px;
@@ -721,16 +778,36 @@ body.body--dark .app-sidebar {
   z-index: 10;
   transition: background-color 0.15s ease;
 }
-.sidebar-edge-handle:hover {
-  background-color: rgba(0, 112, 240, 0.25);
+.sidebar-edge-handle.edge-expand {
+  cursor: e-resize;
 }
-/* 展开状态：箭头向左（收起） */
 .sidebar-edge-handle.edge-collapse {
   cursor: w-resize;
 }
-/* 收起状态：箭头向右（展开） */
-.sidebar-edge-handle.edge-expand {
-  cursor: e-resize;
+.sidebar-edge-handle:hover {
+  background-color: rgba(128, 128, 128, 0.15);
+}
+.edge-handle-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  color: #888;
+}
+.sidebar-edge-handle:hover .edge-handle-indicator {
+  opacity: 1;
+}
+body.body--dark .edge-handle-indicator {
+  color: #aaa;
 }
 
 /* ============ 侧边栏头部 ============ */
@@ -769,13 +846,24 @@ body.body--dark .sidebar-logo-text {
   color: #50b0f0;
 }
 
-.sidebar-toggle-btn {
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
   flex-shrink: 0;
   opacity: 0.7;
-  margin-left: 5px;
 }
-.sidebar-toggle-btn:hover {
+.sidebar-toggle:hover {
   opacity: 1;
+}
+body.body--light .sidebar-toggle:hover {
+  background-color: #e8e8e8;
+}
+body.body--dark .sidebar-toggle:hover {
+  background-color: #2a2a2a;
 }
 
 /* ============ 导航项 ============ */
@@ -819,10 +907,10 @@ body.body--dark .sidebar-nav-item:hover {
   font-weight: 500;
 }
 body.body--light .nav-item-active {
-  background-color: #e0e0e0;
+  background-color: rgba(0, 0, 0, 0.04);
 }
 body.body--dark .nav-item-active {
-  background-color: #333;
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 .nav-label {
@@ -854,7 +942,6 @@ body.body--dark .nav-item-active {
 .history-scroll-area {
   flex: 1;
   min-height: 100px;
-  max-height: calc(100vh - 340px);
 }
 
 .history-empty {
@@ -1028,5 +1115,54 @@ body.body--dark .qr-container {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+</style>
+
+<style>
+/* ============ 用户信息弹出菜单（非scoped，q-menu 传送到 body） ============ */
+.sidebar-user-menu {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+  min-width: 160px;
+}
+.sidebar-user-menu .q-list {
+  padding: 6px;
+}
+.sidebar-user-menu .q-item {
+  border-radius: 8px;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 14px;
+}
+.sidebar-user-menu .q-separator {
+  margin: 4px 8px;
+}
+body.body--light .sidebar-user-menu {
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+}
+body.body--dark .sidebar-user-menu {
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+}
+body.body--light .sidebar-user-menu .q-item:hover {
+  background-color: #e8e8e8;
+}
+body.body--dark .sidebar-user-menu .q-item:hover {
+  background-color: #2a2a2a;
+}
+.sidebar-user-menu .user-stat-item {
+  min-height: 28px;
+}
+.sidebar-user-menu .user-stat-item .stat-label-section {
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-user-menu .user-stat-item .stat-value-section {
+  text-align: right;
+  flex: none;
+  min-width: 48px;
+  justify-content: flex-end;
 }
 </style>

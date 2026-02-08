@@ -28,13 +28,7 @@
         <span v-else> {{ currentStepName }} {{ currentStepMark }}</span>
       </span>
     </span>
-    <div class="results-paginate-top" v-if="!isCollapsePaginate && hasResults">
-      <ResultsPagination
-        :currentPage="currentPage"
-        :totalPages="totalPages"
-        @update:currentPage="handlePageChange"
-      />
-    </div>
+
     <q-btn
       v-show="hasResults"
       class="results-sort"
@@ -488,7 +482,7 @@ export default {
 
     const dynamicResultsListStyle = computed(() => {
       const authorsListHeight = layoutStore.authorsListHeight || 0;
-      const adjustedHeight = 195 + authorsListHeight;
+      const adjustedHeight = 170 + authorsListHeight;
       return {
         maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
         maxHeight: `calc(100vh - ${adjustedHeight}px)`,
@@ -557,11 +551,9 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.results-stats,
-.results-paginate-top {
-  padding: 7px 5px 7px 6px;
+.results-stats {
+  padding: 7px 5px 7px 0px;
   z-index: 1000;
-  padding-left: 0px;
 }
 .results-stats {
   display: flex;
@@ -609,11 +601,7 @@ export default {
 .results-sort {
   align-self: center;
 }
-.results-paginate-top {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-}
+
 .results-paginate-bottom {
   padding-top: 8px;
 }
