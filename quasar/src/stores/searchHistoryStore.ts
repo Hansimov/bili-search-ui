@@ -24,11 +24,56 @@ export interface SearchHistoryItem {
     pinned: boolean;
     /** 搜索结果数量（可选） */
     resultCount?: number;
+    /** 显示名称（重命名后的文本，可选） */
+    displayName?: string;
 }
 
 /** 生成唯一 ID */
 function generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** 时间分组的接口 */
+export interface HistoryGroup {
+    /** 分组标签 */
+    label: string;
+    /** 该分组下的记录 */
+    items: SearchHistoryItem[];
+}
+
+/** 获取日期对应的分组标签 */
+function getDateGroupLabel(timestamp: number): string {
+    const now = new Date();
+    const date = new Date(timestamp);
+
+    // 比较日期（忽略时间）
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffMs = today.getTime() - itemDate.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return '今天';
+    if (diffDays === 1) return '昨天';
+    if (diffDays === 2) return '2天前';
+    // 超过3天显示具体日期
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    if (date.getFullYear() === now.getFullYear()) {
+        return `${month}月${day}日`;
+    }
+    return `${date.getFullYear()}年${month}月${day}日`;
+}
+
+/** 格式化完整时间（用于tooltip） */
+export function formatFullTime(timestamp: number): string {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 /** 最大历史记录数 */
@@ -66,6 +111,33 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
         /** 历史记录总数 */
         totalCount(): number {
             return this.items.length;
+        },
+
+        /** 按时间分组的非置顶记录 */
+        groupedRecentItems(): HistoryGroup[] {
+            const groups: HistoryGroup[] = [];
+            const groupMap = new Map<string, SearchHistoryItem[]>();
+            const groupOrder: string[] = [];
+
+            for (const item of this.recentItems) {
+                const label = getDateGroupLabel(item.timestamp);
+                let arr = groupMap.get(label);
+                if (!arr) {
+                    arr = [];
+                    groupMap.set(label, arr);
+                    groupOrder.push(label);
+                }
+                arr.push(item);
+            }
+
+            for (const label of groupOrder) {
+                const items = groupMap.get(label);
+                if (items) {
+                    groups.push({ label, items });
+                }
+            }
+
+            return groups;
         },
     },
 
@@ -163,6 +235,20 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
         },
 
         /**
+         * 重命名记录（修改显示名称，不影响 query）
+         */
+        async renameRecord(id: string, newName: string): Promise<void> {
+            const trimmed = newName.trim();
+            if (!trimmed) return;
+            const index = this.items.findIndex((item) => item.id === id);
+            if (index < 0) return;
+
+            const updated = { ...this.items[index], displayName: trimmed };
+            this.items.splice(index, 1, updated);
+            await this.persistItem(updated);
+        },
+
+        /**
          * 删除单条记录
          */
         async removeRecord(id: string): Promise<void> {
@@ -228,6 +314,7 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
                     timestamp: item.timestamp,
                     pinned: item.pinned,
                     resultCount: item.resultCount,
+                    displayName: item.displayName,
                 };
                 await cacheService.set(
                     STORE_NAMES.HISTORY,

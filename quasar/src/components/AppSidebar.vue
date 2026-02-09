@@ -106,77 +106,218 @@
           <template v-else>
             <!-- 置顶记录 -->
             <div
-              v-for="item in searchHistoryStore.pinnedItems"
-              :key="'pin-' + item.id"
-              class="history-item pinned"
-              @click="searchFromHistory(item.query)"
+              v-if="searchHistoryStore.pinnedItems.length > 0"
+              class="history-group"
             >
-              <q-icon name="push_pin" size="14px" class="history-item-icon" />
-              <span class="history-item-text" :title="item.query">
-                {{ item.query }}
-              </span>
-              <div class="history-item-actions">
+              <div class="history-group-label">置顶</div>
+              <div
+                v-for="item in searchHistoryStore.pinnedItems"
+                :key="'pin-' + item.id"
+                class="history-item pinned"
+                :title="getItemTooltip(item)"
+                @click="searchFromHistory(item.query)"
+              >
+                <q-icon name="push_pin" size="14px" class="history-item-icon" />
+                <span class="history-item-text">
+                  {{ item.displayName || item.query }}
+                </span>
+                <transition name="fade">
+                  <span
+                    v-if="copiedItemId === item.id"
+                    class="copied-indicator"
+                  >
+                    链接已复制
+                  </span>
+                </transition>
                 <q-btn
                   flat
                   round
                   dense
-                  icon="push_pin"
+                  icon="more_horiz"
                   size="xs"
-                  class="history-action-btn pinned-btn"
-                  title="取消置顶"
-                  @click.stop="searchHistoryStore.togglePin(item.id)"
-                />
-                <q-btn
-                  flat
-                  round
-                  dense
-                  icon="close"
-                  size="xs"
-                  class="history-action-btn"
-                  title="删除"
-                  @click.stop="searchHistoryStore.removeRecord(item.id)"
-                />
+                  class="history-more-btn"
+                  @click.stop
+                >
+                  <q-menu
+                    anchor="bottom right"
+                    self="top right"
+                    class="history-item-menu"
+                  >
+                    <q-list dense>
+                      <q-item
+                        clickable
+                        v-close-popup
+                        @click.stop="startRename(item)"
+                      >
+                        <q-item-section side
+                          ><q-icon name="edit" size="16px"
+                        /></q-item-section>
+                        <q-item-section>重命名</q-item-section>
+                      </q-item>
+                      <q-item
+                        clickable
+                        v-close-popup
+                        @click.stop="searchHistoryStore.togglePin(item.id)"
+                      >
+                        <q-item-section side
+                          ><q-icon name="push_pin" size="16px"
+                        /></q-item-section>
+                        <q-item-section>取消置顶</q-item-section>
+                      </q-item>
+                      <q-item
+                        clickable
+                        v-close-popup
+                        @click.stop="copySearchLink(item.query, item.id)"
+                      >
+                        <q-item-section side
+                          ><q-icon name="link" size="16px"
+                        /></q-item-section>
+                        <q-item-section>复制链接</q-item-section>
+                      </q-item>
+                      <q-separator />
+                      <q-item
+                        clickable
+                        v-close-popup
+                        @click.stop="searchHistoryStore.removeRecord(item.id)"
+                      >
+                        <q-item-section side
+                          ><q-icon
+                            name="delete"
+                            size="16px"
+                            class="text-negative"
+                        /></q-item-section>
+                        <q-item-section class="text-negative"
+                          >删除</q-item-section
+                        >
+                      </q-item>
+                    </q-list>
+                  </q-menu>
+                </q-btn>
               </div>
             </div>
 
-            <!-- 最近记录 -->
+            <!-- 按时间分组的最近记录 -->
             <div
-              v-for="item in searchHistoryStore.recentItems.slice(0, 30)"
-              :key="'recent-' + item.id"
-              class="history-item"
-              @click="searchFromHistory(item.query)"
+              v-for="group in searchHistoryStore.groupedRecentItems"
+              :key="group.label"
+              class="history-group"
             >
-              <q-icon name="schedule" size="14px" class="history-item-icon" />
-              <span class="history-item-text" :title="item.query">
-                {{ item.query }}
-              </span>
-              <div class="history-item-actions">
+              <div class="history-group-label">{{ group.label }}</div>
+              <div
+                v-for="item in group.items"
+                :key="'recent-' + item.id"
+                class="history-item"
+                :title="getItemTooltip(item)"
+                @click="searchFromHistory(item.query)"
+              >
+                <q-icon name="schedule" size="14px" class="history-item-icon" />
+                <span class="history-item-text">
+                  {{ item.displayName || item.query }}
+                </span>
+                <transition name="fade">
+                  <span
+                    v-if="copiedItemId === item.id"
+                    class="copied-indicator"
+                  >
+                    链接已复制
+                  </span>
+                </transition>
                 <q-btn
                   flat
                   round
                   dense
-                  icon="push_pin"
+                  icon="more_horiz"
                   size="xs"
-                  class="history-action-btn"
-                  title="置顶"
-                  @click.stop="searchHistoryStore.togglePin(item.id)"
-                />
-                <q-btn
-                  flat
-                  round
-                  dense
-                  icon="close"
-                  size="xs"
-                  class="history-action-btn"
-                  title="删除"
-                  @click.stop="searchHistoryStore.removeRecord(item.id)"
-                />
+                  class="history-more-btn"
+                  @click.stop
+                >
+                  <q-menu
+                    anchor="bottom right"
+                    self="top right"
+                    class="history-item-menu"
+                  >
+                    <q-list dense>
+                      <q-item
+                        clickable
+                        v-close-popup
+                        @click.stop="startRename(item)"
+                      >
+                        <q-item-section side
+                          ><q-icon name="edit" size="16px"
+                        /></q-item-section>
+                        <q-item-section>重命名</q-item-section>
+                      </q-item>
+                      <q-item
+                        clickable
+                        v-close-popup
+                        @click.stop="searchHistoryStore.togglePin(item.id)"
+                      >
+                        <q-item-section side
+                          ><q-icon name="push_pin" size="16px"
+                        /></q-item-section>
+                        <q-item-section>置顶</q-item-section>
+                      </q-item>
+                      <q-item
+                        clickable
+                        v-close-popup
+                        @click.stop="copySearchLink(item.query, item.id)"
+                      >
+                        <q-item-section side
+                          ><q-icon name="link" size="16px"
+                        /></q-item-section>
+                        <q-item-section>复制链接</q-item-section>
+                      </q-item>
+                      <q-separator />
+                      <q-item
+                        clickable
+                        v-close-popup
+                        @click.stop="searchHistoryStore.removeRecord(item.id)"
+                      >
+                        <q-item-section side
+                          ><q-icon
+                            name="delete"
+                            size="16px"
+                            class="text-negative"
+                        /></q-item-section>
+                        <q-item-section class="text-negative"
+                          >删除</q-item-section
+                        >
+                      </q-item>
+                    </q-list>
+                  </q-menu>
+                </q-btn>
               </div>
             </div>
           </template>
         </q-scroll-area>
       </div>
     </transition>
+
+    <!-- 重命名对话框 -->
+    <q-dialog v-model="showRenameDialog">
+      <q-card style="min-width: 300px">
+        <q-card-section>
+          <div class="text-h6">重命名</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-input
+            v-model="renameValue"
+            dense
+            autofocus
+            @keyup.enter="confirmRename"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            label="取消"
+            color="grey"
+            @click="showRenameDialog = false"
+          />
+          <q-btn flat label="确认" color="primary" @click="confirmRename" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- 底部区域 -->
     <div class="sidebar-bottom">
@@ -488,11 +629,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Dark } from 'quasar';
+import { Dark, copyToClipboard } from 'quasar';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useAccountStore } from 'src/stores/accountStore';
 import { useAuthStore } from 'src/stores/authStore';
-import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
+import {
+  useSearchHistoryStore,
+  formatFullTime,
+} from 'src/stores/searchHistoryStore';
+import type { SearchHistoryItem } from 'src/stores/searchHistoryStore';
 import { explore, restoreExploreFromCache } from 'src/functions/explore';
 
 const router = useRouter();
@@ -507,6 +652,9 @@ const showLoginDialog = ref(false);
 const showLogoutDialog = ref(false);
 const showUserMenu = ref(false);
 const showClearHistoryDialog = ref(false);
+const showRenameDialog = ref(false);
+const renameValue = ref('');
+const renameItemId = ref('');
 
 // Dark mode
 const isDark = ref(JSON.parse(localStorage.getItem('isDark') || 'true'));
@@ -643,6 +791,51 @@ const confirmClearHistory = () => {
 const clearHistory = () => {
   searchHistoryStore.clearAll();
   showClearHistoryDialog.value = false;
+};
+
+// Tooltip helper
+const getItemTooltip = (item: SearchHistoryItem): string => {
+  const displayText = item.displayName || item.query;
+  const timeText = formatFullTime(item.timestamp);
+  if (item.displayName && item.displayName !== item.query) {
+    // 如果已重命名，显示显示名、原始查询、时间
+    return `${displayText}\n原始查询：${item.query}\n${timeText}`;
+  }
+  return `${displayText}\n${timeText}`;
+};
+
+// Rename
+const startRename = (item: SearchHistoryItem) => {
+  renameItemId.value = item.id;
+  renameValue.value = item.displayName || item.query;
+  showRenameDialog.value = true;
+};
+
+const confirmRename = async () => {
+  if (renameValue.value.trim()) {
+    await searchHistoryStore.renameRecord(
+      renameItemId.value,
+      renameValue.value
+    );
+  }
+  showRenameDialog.value = false;
+};
+
+// Copy link
+const copiedItemId = ref<string | null>(null);
+const copySearchLink = async (query: string, itemId: string) => {
+  const url = `${window.location.origin}/search?q=${encodeURIComponent(query)}`;
+  try {
+    await copyToClipboard(url);
+    copiedItemId.value = itemId;
+    setTimeout(() => {
+      if (copiedItemId.value === itemId) {
+        copiedItemId.value = null;
+      }
+    }, 1000);
+  } catch {
+    // 失败时静默处理
+  }
 };
 
 // User management
@@ -1001,32 +1194,63 @@ body.body--dark .history-item:hover {
   min-width: 0;
 }
 
-.history-item-actions {
-  display: none;
+.copied-indicator {
   flex-shrink: 0;
-  gap: 2px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+body.body--light .copied-indicator {
+  background-color: rgba(0, 0, 0, 0.06);
+  color: #333;
+}
+body.body--dark .copied-indicator {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ccc;
 }
 
-.history-item:hover .history-item-actions {
-  display: flex;
+.history-more-btn {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  width: 24px;
+  height: 24px;
 }
 
-.history-action-btn {
-  opacity: 0.5;
+.history-item:hover .history-more-btn {
+  opacity: 0.6;
 }
-.history-action-btn:hover {
+
+.history-more-btn:hover {
+  opacity: 1 !important;
+}
+
+/* 使用 :deep() 确保 scoped 样式能穿透到 q-btn 内部 */
+.history-item :deep(.history-more-btn) {
+  opacity: 0;
+}
+.history-item:hover :deep(.history-more-btn) {
+  opacity: 0.6;
+}
+.history-item :deep(.history-more-btn:hover) {
   opacity: 1;
 }
 
-.pinned-btn {
-  opacity: 0.8;
+/* 时间分组 */
+.history-group {
+  margin-bottom: 4px;
 }
 
-body.body--light .pinned-btn {
-  color: #0070f0;
-}
-body.body--dark .pinned-btn {
-  color: #50b0f0;
+.history-group-label {
+  padding: 8px 16px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  opacity: 0.45;
+  user-select: none;
 }
 
 /* ============ 底部区域 ============ */
@@ -1182,5 +1406,42 @@ body.body--dark .sidebar-user-menu .q-item:hover {
   flex: none;
   min-width: 48px;
   justify-content: flex-end;
+}
+
+/* ============ 历史记录操作菜单（非scoped，q-menu 传送到 body） ============ */
+.history-item-menu {
+  border-radius: 10px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+  min-width: 140px;
+}
+.history-item-menu .q-list {
+  padding: 4px;
+}
+.history-item-menu .q-item {
+  border-radius: 6px;
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.history-item-menu .q-item-section--side {
+  min-width: 24px;
+  padding-right: 6px;
+}
+.history-item-menu .q-separator {
+  margin: 3px 6px;
+}
+body.body--light .history-item-menu {
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+}
+body.body--dark .history-item-menu {
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+}
+body.body--light .history-item-menu .q-item:hover {
+  background-color: #e8e8e8;
+}
+body.body--dark .history-item-menu .q-item:hover {
+  background-color: #2a2a2a;
 }
 </style>
