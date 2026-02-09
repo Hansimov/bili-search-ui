@@ -13,7 +13,7 @@
     <!-- Logo / 收起按钮 -->
     <div class="sidebar-header">
       <div class="sidebar-toggle" @click="handleToggle">
-        <q-icon name="menu" size="22px" class="sidebar-nav-icon" />
+        <q-icon name="menu" size="20px" class="sidebar-nav-icon" />
         <q-tooltip
           v-if="!sidebarExpanded"
           anchor="center right"
@@ -123,10 +123,9 @@
                   icon="push_pin"
                   size="xs"
                   class="history-action-btn pinned-btn"
+                  title="取消置顶"
                   @click.stop="searchHistoryStore.togglePin(item.id)"
-                >
-                  <q-tooltip>取消置顶</q-tooltip>
-                </q-btn>
+                />
                 <q-btn
                   flat
                   round
@@ -134,10 +133,9 @@
                   icon="close"
                   size="xs"
                   class="history-action-btn"
+                  title="删除"
                   @click.stop="searchHistoryStore.removeRecord(item.id)"
-                >
-                  <q-tooltip>删除</q-tooltip>
-                </q-btn>
+                />
               </div>
             </div>
 
@@ -160,10 +158,9 @@
                   icon="push_pin"
                   size="xs"
                   class="history-action-btn"
+                  title="置顶"
                   @click.stop="searchHistoryStore.togglePin(item.id)"
-                >
-                  <q-tooltip>置顶</q-tooltip>
-                </q-btn>
+                />
                 <q-btn
                   flat
                   round
@@ -171,10 +168,9 @@
                   icon="close"
                   size="xs"
                   class="history-action-btn"
+                  title="删除"
                   @click.stop="searchHistoryStore.removeRecord(item.id)"
-                >
-                  <q-tooltip>删除</q-tooltip>
-                </q-btn>
+                />
               </div>
             </div>
           </template>
@@ -556,7 +552,6 @@ const sidebarClasses = computed(() => ({
   'sidebar-desktop': hasSidebar.value,
   'sidebar-mobile': isMobile.value,
   'sidebar-mobile-open': isMobile.value && layoutStore.isMobileSidebarOpen,
-  // tablet overlay 展开态
   'sidebar-tablet-overlay': isTablet.value && layoutStore.isMobileSidebarOpen,
 }));
 
@@ -738,8 +733,11 @@ onUnmounted(() => {
 .app-sidebar.sidebar-desktop {
   width: 50px;
 }
+/* collapsed 状态：整个侧边栏显示 chevron-right 光标 */
 .app-sidebar.sidebar-desktop.sidebar-collapsed {
-  cursor: e-resize;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M9 5l7 7-7 7' stroke='%23555' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E")
+      12 12,
+    e-resize;
 }
 .app-sidebar.sidebar-desktop.sidebar-expanded {
   width: 260px;
@@ -778,11 +776,17 @@ body.body--dark .app-sidebar {
   z-index: 10;
   transition: background-color 0.15s ease;
 }
+/* 收起状态：chevron-right 光标（类似 angle-right / ›） */
 .sidebar-edge-handle.edge-expand {
-  cursor: e-resize;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M9 5l7 7-7 7' stroke='%23555' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E")
+      12 12,
+    e-resize;
 }
+/* 展开状态：chevron-left 光标（类似 angle-left / ‹） */
 .sidebar-edge-handle.edge-collapse {
-  cursor: w-resize;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M15 5l-7 7 7 7' stroke='%23555' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E")
+      12 12,
+    w-resize;
 }
 .sidebar-edge-handle:hover {
   background-color: rgba(128, 128, 128, 0.15);
@@ -850,11 +854,13 @@ body.body--dark .sidebar-logo-text {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
   cursor: pointer;
   flex-shrink: 0;
   opacity: 0.7;
+  margin-left: 2px;
 }
 .sidebar-toggle:hover {
   opacity: 1;
@@ -944,6 +950,16 @@ body.body--dark .nav-item-active {
   min-height: 100px;
 }
 
+.sidebar-history :deep(.q-scrollarea__container) {
+  overflow-x: hidden !important;
+}
+
+/* 隐藏 q-scroll-area 的水平滚动条 */
+.sidebar-history :deep(.q-scrollarea__bar--h),
+.sidebar-history :deep(.q-scrollarea__thumb--h) {
+  display: none !important;
+}
+
 .history-empty {
   padding: 16px;
   text-align: center;
@@ -960,6 +976,7 @@ body.body--dark .nav-item-active {
   cursor: pointer;
   gap: 8px;
   min-height: 32px;
+  min-width: 0;
 }
 
 body.body--light .history-item:hover {
@@ -981,6 +998,7 @@ body.body--dark .history-item:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .history-item-actions {

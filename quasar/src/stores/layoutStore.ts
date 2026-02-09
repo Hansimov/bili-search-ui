@@ -90,6 +90,14 @@ export const useLayoutStore = defineStore('layout', {
             localStorage.setItem('isSidebarExpanded', JSON.stringify(this.isSidebarExpanded));
             this.updateSearchInputMaxWidth();
         },
+        /** 设置侧边栏展开/收起状态 */
+        setSidebarExpanded(expanded: boolean) {
+            if (this.isSidebarExpanded !== expanded) {
+                this.isSidebarExpanded = expanded;
+                localStorage.setItem('isSidebarExpanded', JSON.stringify(expanded));
+                this.updateSearchInputMaxWidth();
+            }
+        },
         /** 切换移动端侧边栏（overlay 模式） */
         toggleMobileSidebar() {
             this.isMobileSidebarOpen = !this.isMobileSidebarOpen;
