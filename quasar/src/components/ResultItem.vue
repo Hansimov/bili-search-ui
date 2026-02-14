@@ -131,6 +131,9 @@ export default {
 .result-item {
   background-color: transparent;
   max-width: var(--result-item-width);
+  /* Skip rendering off-screen items; provide intrinsic size hint for scrollbar accuracy */
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 200px;
 }
 .result-item-cover {
   max-width: var(--result-item-width);

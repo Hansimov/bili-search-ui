@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia';
 
+/** RAF id for debounced resize handler */
+let resizeRAFId: number | null = null;
+
 /** 侧边栏宽度常量 */
 const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_COLLAPSED_WIDTH = 50;
@@ -123,8 +126,12 @@ export const useLayoutStore = defineStore('layout', {
             );
         },
         updateScreenWidth() {
-            this.screenWidth = window.innerWidth;
-            this.updateSearchInputMaxWidth();
+            if (resizeRAFId !== null) cancelAnimationFrame(resizeRAFId);
+            resizeRAFId = requestAnimationFrame(() => {
+                resizeRAFId = null;
+                this.screenWidth = window.innerWidth;
+                this.updateSearchInputMaxWidth();
+            });
         },
         updateDrawerWidth(newWidth: number) {
             this.searchRecordsListWidth = newWidth;

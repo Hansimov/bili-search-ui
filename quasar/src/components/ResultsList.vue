@@ -615,9 +615,11 @@ export default {
 .results-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--result-item-width));
-  /* Note: max-width and max-height are now dynamically applied via inline styles */
+  /* max-width and max-height are applied via inline styles */
   overflow-y: scroll;
   overflow-x: hidden;
+  /* CSS containment: isolate grid layout from ancestor reflows */
+  contain: layout style;
   &::-webkit-scrollbar {
     width: 8px;
     background: transparent;

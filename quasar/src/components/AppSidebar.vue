@@ -10,552 +10,587 @@
     :class="sidebarClasses"
     @click="handleSidebarClick"
   >
-    <!-- Logo / 收起按钮 -->
-    <div class="sidebar-header">
-      <div class="sidebar-toggle" @click="handleToggle">
-        <q-icon name="menu" size="20px" class="sidebar-nav-icon" />
-        <q-tooltip
-          v-if="!sidebarExpanded"
-          anchor="center right"
-          self="center left"
-        >
-          展开侧边栏
-        </q-tooltip>
-      </div>
-      <router-link
-        v-if="sidebarExpanded"
-        to="/"
-        class="sidebar-logo"
-        @click="onNavigate"
-      >
-        <span class="sidebar-logo-text">blbl.top</span>
-      </router-link>
-    </div>
-
-    <!-- 导航项 -->
-    <div class="sidebar-nav">
-      <!-- 新建搜索 -->
-      <div
-        class="sidebar-nav-item"
-        :class="{ 'nav-item-collapsed': !sidebarExpanded }"
-        @click="navigateToSearch"
-      >
-        <q-icon name="add" size="22px" class="sidebar-nav-icon" />
-        <transition name="fade">
-          <span v-if="sidebarExpanded" class="nav-label">新建搜索</span>
-        </transition>
-        <q-tooltip
-          v-if="!sidebarExpanded"
-          anchor="center right"
-          self="center left"
-        >
-          新建搜索
-        </q-tooltip>
-      </div>
-
-      <!-- 历史记录 -->
-      <div
-        class="sidebar-nav-item"
-        :class="{
-          'nav-item-collapsed': !sidebarExpanded,
-          'nav-item-active': !showHistoryList,
-        }"
-        @click="toggleHistory"
-      >
-        <q-icon name="history" size="22px" class="sidebar-nav-icon" />
-        <transition name="fade">
-          <span v-if="sidebarExpanded" class="nav-label">历史记录</span>
-        </transition>
-        <template v-if="sidebarExpanded">
-          <q-space />
-          <q-icon
-            :name="showHistoryList ? 'expand_less' : 'expand_more'"
-            size="18px"
-            class="history-toggle-icon"
-          />
-          <q-btn
-            v-if="searchHistoryStore.totalCount > 0"
-            flat
-            round
-            dense
-            icon="delete"
-            size="xs"
-            class="history-clear-btn"
-            @click.stop="confirmClearHistory"
+    <!--
+      sidebar-inner: fixed-width wrapper that prevents per-frame child reflows
+      during the sidebar width CSS transition. The outer .app-sidebar transitions
+      width with overflow:hidden, clipping this wrapper. Children inside are always
+      laid out at the expanded width (260px / 280px) and never reflow.
+    -->
+    <div class="sidebar-inner">
+      <!-- Logo / 收起按钮 -->
+      <div class="sidebar-header">
+        <div class="sidebar-toggle" @click="handleToggle">
+          <q-icon name="menu" size="20px" class="sidebar-nav-icon" />
+          <q-tooltip
+            v-if="!sidebarExpanded"
+            anchor="center right"
+            self="center left"
           >
-            <q-tooltip>清除历史</q-tooltip>
-          </q-btn>
-        </template>
-        <q-tooltip
-          v-if="!sidebarExpanded"
-          anchor="center right"
-          self="center left"
+            展开侧边栏
+          </q-tooltip>
+        </div>
+        <router-link
+          v-if="sidebarExpanded"
+          to="/"
+          class="sidebar-logo"
+          @click="onNavigate"
         >
-          历史记录
-        </q-tooltip>
+          <span class="sidebar-logo-text">blbl.top</span>
+        </router-link>
       </div>
-    </div>
 
-    <!-- 搜索历史列表（仅展开模式） -->
-    <transition name="fade">
-      <div v-if="sidebarExpanded && showHistoryList" class="sidebar-history">
-        <q-scroll-area class="history-scroll-area">
-          <div v-if="searchHistoryStore.totalCount === 0" class="history-empty">
-            暂无搜索记录
-          </div>
-          <template v-else>
-            <!-- 置顶记录 -->
-            <div
-              v-if="searchHistoryStore.pinnedItems.length > 0"
-              class="history-group"
-            >
-              <div class="history-group-label">置顶</div>
-              <div
-                v-for="item in searchHistoryStore.pinnedItems"
-                :key="'pin-' + item.id"
-                class="history-item pinned"
-                :title="getItemTooltip(item)"
-                @click="searchFromHistory(item.query)"
-              >
-                <q-icon name="push_pin" size="14px" class="history-item-icon" />
-                <span class="history-item-text">
-                  {{ item.displayName || item.query }}
-                </span>
-                <transition name="fade">
-                  <span
-                    v-if="copiedItemId === item.id"
-                    class="copied-indicator"
-                  >
-                    链接已复制
-                  </span>
-                </transition>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  icon="more_horiz"
-                  size="xs"
-                  class="history-more-btn"
-                  @click.stop
-                >
-                  <q-menu
-                    anchor="bottom right"
-                    self="top right"
-                    class="history-item-menu"
-                  >
-                    <q-list dense>
-                      <q-item
-                        clickable
-                        v-close-popup
-                        @click.stop="startRename(item)"
-                      >
-                        <q-item-section side
-                          ><q-icon name="edit" size="16px"
-                        /></q-item-section>
-                        <q-item-section>重命名</q-item-section>
-                      </q-item>
-                      <q-item
-                        clickable
-                        v-close-popup
-                        @click.stop="searchHistoryStore.togglePin(item.id)"
-                      >
-                        <q-item-section side
-                          ><q-icon name="push_pin" size="16px"
-                        /></q-item-section>
-                        <q-item-section>取消置顶</q-item-section>
-                      </q-item>
-                      <q-item
-                        clickable
-                        v-close-popup
-                        @click.stop="copySearchLink(item.query, item.id)"
-                      >
-                        <q-item-section side
-                          ><q-icon name="link" size="16px"
-                        /></q-item-section>
-                        <q-item-section>复制链接</q-item-section>
-                      </q-item>
-                      <q-separator />
-                      <q-item
-                        clickable
-                        v-close-popup
-                        @click.stop="searchHistoryStore.removeRecord(item.id)"
-                      >
-                        <q-item-section side
-                          ><q-icon
-                            name="delete"
-                            size="16px"
-                            class="text-negative"
-                        /></q-item-section>
-                        <q-item-section class="text-negative"
-                          >删除</q-item-section
-                        >
-                      </q-item>
-                    </q-list>
-                  </q-menu>
-                </q-btn>
-              </div>
-            </div>
-
-            <!-- 按时间分组的最近记录 -->
-            <div
-              v-for="group in searchHistoryStore.groupedRecentItems"
-              :key="group.label"
-              class="history-group"
-            >
-              <div class="history-group-label">{{ group.label }}</div>
-              <div
-                v-for="item in group.items"
-                :key="'recent-' + item.id"
-                class="history-item"
-                :title="getItemTooltip(item)"
-                @click="searchFromHistory(item.query)"
-              >
-                <q-icon name="schedule" size="14px" class="history-item-icon" />
-                <span class="history-item-text">
-                  {{ item.displayName || item.query }}
-                </span>
-                <transition name="fade">
-                  <span
-                    v-if="copiedItemId === item.id"
-                    class="copied-indicator"
-                  >
-                    链接已复制
-                  </span>
-                </transition>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  icon="more_horiz"
-                  size="xs"
-                  class="history-more-btn"
-                  @click.stop
-                >
-                  <q-menu
-                    anchor="bottom right"
-                    self="top right"
-                    class="history-item-menu"
-                  >
-                    <q-list dense>
-                      <q-item
-                        clickable
-                        v-close-popup
-                        @click.stop="startRename(item)"
-                      >
-                        <q-item-section side
-                          ><q-icon name="edit" size="16px"
-                        /></q-item-section>
-                        <q-item-section>重命名</q-item-section>
-                      </q-item>
-                      <q-item
-                        clickable
-                        v-close-popup
-                        @click.stop="searchHistoryStore.togglePin(item.id)"
-                      >
-                        <q-item-section side
-                          ><q-icon name="push_pin" size="16px"
-                        /></q-item-section>
-                        <q-item-section>置顶</q-item-section>
-                      </q-item>
-                      <q-item
-                        clickable
-                        v-close-popup
-                        @click.stop="copySearchLink(item.query, item.id)"
-                      >
-                        <q-item-section side
-                          ><q-icon name="link" size="16px"
-                        /></q-item-section>
-                        <q-item-section>复制链接</q-item-section>
-                      </q-item>
-                      <q-separator />
-                      <q-item
-                        clickable
-                        v-close-popup
-                        @click.stop="searchHistoryStore.removeRecord(item.id)"
-                      >
-                        <q-item-section side
-                          ><q-icon
-                            name="delete"
-                            size="16px"
-                            class="text-negative"
-                        /></q-item-section>
-                        <q-item-section class="text-negative"
-                          >删除</q-item-section
-                        >
-                      </q-item>
-                    </q-list>
-                  </q-menu>
-                </q-btn>
-              </div>
-            </div>
-          </template>
-        </q-scroll-area>
-      </div>
-    </transition>
-
-    <!-- 重命名对话框 -->
-    <q-dialog v-model="showRenameDialog">
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">重命名</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          <q-input
-            v-model="renameValue"
-            dense
-            autofocus
-            @keyup.enter="confirmRename"
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn
-            flat
-            label="取消"
-            color="grey"
-            @click="showRenameDialog = false"
-          />
-          <q-btn flat label="确认" color="primary" @click="confirmRename" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- 底部区域 -->
-    <div class="sidebar-bottom">
-      <!-- 主题切换 -->
-      <div
-        class="sidebar-bottom-item"
-        :class="{ 'item-collapsed': !sidebarExpanded }"
-        @click="toggleDarkMode"
-      >
-        <q-icon
-          :name="isDark ? 'bedtime' : 'wb_sunny'"
-          size="22px"
-          class="sidebar-item-icon"
-        />
-        <transition name="fade">
-          <span v-if="sidebarExpanded" class="sidebar-bottom-label">
-            {{ isDark ? '深色' : '浅色' }}
-          </span>
-        </transition>
-        <q-tooltip
-          v-if="!sidebarExpanded"
-          anchor="center right"
-          self="center left"
+      <!-- 导航项 -->
+      <div class="sidebar-nav">
+        <!-- 新建搜索 -->
+        <div
+          class="sidebar-nav-item"
+          :class="{ 'nav-item-collapsed': !sidebarExpanded }"
+          @click="navigateToSearch"
         >
-          {{ isDark ? '浅色模式' : '深色模式' }}
-        </q-tooltip>
-      </div>
-
-      <!-- 用户登录 -->
-      <div
-        class="sidebar-bottom-item sidebar-user"
-        :class="{ 'item-collapsed': !sidebarExpanded }"
-        @click="handleUserClick"
-      >
-        <template v-if="accountStore.isLoggedIn && accountStore.userAvatar">
-          <q-avatar size="22px" class="sidebar-avatar">
-            <img
-              :src="accountStore.userAvatar"
-              :alt="accountStore.userName"
-              referrerpolicy="no-referrer"
-            />
-          </q-avatar>
+          <q-icon name="add" size="22px" class="sidebar-nav-icon" />
           <transition name="fade">
-            <span v-if="sidebarExpanded" class="sidebar-user-name">
-              {{ accountStore.userName }}
+            <span v-if="sidebarExpanded" class="nav-label">新建搜索</span>
+          </transition>
+          <q-tooltip
+            v-if="!sidebarExpanded"
+            anchor="center right"
+            self="center left"
+          >
+            新建搜索
+          </q-tooltip>
+        </div>
+
+        <!-- 历史记录 -->
+        <div
+          class="sidebar-nav-item"
+          :class="{
+            'nav-item-collapsed': !sidebarExpanded,
+            'nav-item-active': !showHistoryList,
+          }"
+          @click="toggleHistory"
+        >
+          <q-icon name="history" size="22px" class="sidebar-nav-icon" />
+          <transition name="fade">
+            <span v-if="sidebarExpanded" class="nav-label">历史记录</span>
+          </transition>
+          <template v-if="sidebarExpanded">
+            <q-space />
+            <q-icon
+              :name="showHistoryList ? 'expand_less' : 'expand_more'"
+              size="18px"
+              class="history-toggle-icon"
+            />
+            <q-btn
+              v-if="searchHistoryStore.totalCount > 0"
+              flat
+              round
+              dense
+              icon="delete"
+              size="xs"
+              class="history-clear-btn"
+              @click.stop="confirmClearHistory"
+            >
+              <q-tooltip>清除历史</q-tooltip>
+            </q-btn>
+          </template>
+          <q-tooltip
+            v-if="!sidebarExpanded"
+            anchor="center right"
+            self="center left"
+          >
+            历史记录
+          </q-tooltip>
+        </div>
+      </div>
+
+      <!-- 搜索历史列表（仅展开模式） -->
+      <transition name="fade">
+        <div v-if="sidebarExpanded && showHistoryList" class="sidebar-history">
+          <q-scroll-area class="history-scroll-area" @scroll="onHistoryScroll">
+            <div
+              v-if="searchHistoryStore.totalCount === 0"
+              class="history-empty"
+            >
+              暂无搜索记录
+            </div>
+            <template v-else>
+              <!-- 置顶记录 -->
+              <div
+                v-if="searchHistoryStore.pinnedItems.length > 0"
+                class="history-group"
+              >
+                <div class="history-group-label">置顶</div>
+                <div
+                  v-for="item in searchHistoryStore.pinnedItems"
+                  :key="'pin-' + item.id"
+                  class="history-item pinned"
+                  :title="getItemTooltip(item)"
+                  @click="searchFromHistory(item.query)"
+                >
+                  <q-icon
+                    name="push_pin"
+                    size="14px"
+                    class="history-item-icon"
+                  />
+                  <span class="history-item-text">
+                    {{ item.displayName || item.query }}
+                  </span>
+                  <transition name="fade">
+                    <span
+                      v-if="copiedItemId === item.id"
+                      class="copied-indicator"
+                    >
+                      链接已复制
+                    </span>
+                  </transition>
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    icon="more_horiz"
+                    size="xs"
+                    class="history-more-btn"
+                    @click.stop
+                  >
+                    <q-menu
+                      anchor="bottom right"
+                      self="top right"
+                      class="history-item-menu"
+                    >
+                      <q-list dense>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click.stop="startRename(item)"
+                        >
+                          <q-item-section side
+                            ><q-icon name="edit" size="16px"
+                          /></q-item-section>
+                          <q-item-section>重命名</q-item-section>
+                        </q-item>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click.stop="searchHistoryStore.togglePin(item.id)"
+                        >
+                          <q-item-section side
+                            ><q-icon name="push_pin" size="16px"
+                          /></q-item-section>
+                          <q-item-section>取消置顶</q-item-section>
+                        </q-item>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click.stop="copySearchLink(item.query, item.id)"
+                        >
+                          <q-item-section side
+                            ><q-icon name="link" size="16px"
+                          /></q-item-section>
+                          <q-item-section>复制链接</q-item-section>
+                        </q-item>
+                        <q-separator />
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click.stop="searchHistoryStore.removeRecord(item.id)"
+                        >
+                          <q-item-section side
+                            ><q-icon
+                              name="delete"
+                              size="16px"
+                              class="text-negative"
+                          /></q-item-section>
+                          <q-item-section class="text-negative"
+                            >删除</q-item-section
+                          >
+                        </q-item>
+                      </q-list>
+                    </q-menu>
+                  </q-btn>
+                </div>
+              </div>
+
+              <!-- 按时间分组的最近记录 -->
+              <div
+                v-for="group in visibleGroupedRecentItems"
+                :key="group.label"
+                class="history-group"
+              >
+                <div class="history-group-label">{{ group.label }}</div>
+                <div
+                  v-for="item in group.items"
+                  :key="'recent-' + item.id"
+                  class="history-item"
+                  :title="getItemTooltip(item)"
+                  @click="searchFromHistory(item.query)"
+                >
+                  <q-icon
+                    name="schedule"
+                    size="14px"
+                    class="history-item-icon"
+                  />
+                  <span class="history-item-text">
+                    {{ item.displayName || item.query }}
+                  </span>
+                  <transition name="fade">
+                    <span
+                      v-if="copiedItemId === item.id"
+                      class="copied-indicator"
+                    >
+                      链接已复制
+                    </span>
+                  </transition>
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    icon="more_horiz"
+                    size="xs"
+                    class="history-more-btn"
+                    @click.stop
+                  >
+                    <q-menu
+                      anchor="bottom right"
+                      self="top right"
+                      class="history-item-menu"
+                    >
+                      <q-list dense>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click.stop="startRename(item)"
+                        >
+                          <q-item-section side
+                            ><q-icon name="edit" size="16px"
+                          /></q-item-section>
+                          <q-item-section>重命名</q-item-section>
+                        </q-item>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click.stop="searchHistoryStore.togglePin(item.id)"
+                        >
+                          <q-item-section side
+                            ><q-icon name="push_pin" size="16px"
+                          /></q-item-section>
+                          <q-item-section>置顶</q-item-section>
+                        </q-item>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click.stop="copySearchLink(item.query, item.id)"
+                        >
+                          <q-item-section side
+                            ><q-icon name="link" size="16px"
+                          /></q-item-section>
+                          <q-item-section>复制链接</q-item-section>
+                        </q-item>
+                        <q-separator />
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click.stop="searchHistoryStore.removeRecord(item.id)"
+                        >
+                          <q-item-section side
+                            ><q-icon
+                              name="delete"
+                              size="16px"
+                              class="text-negative"
+                          /></q-item-section>
+                          <q-item-section class="text-negative"
+                            >删除</q-item-section
+                          >
+                        </q-item>
+                      </q-list>
+                    </q-menu>
+                  </q-btn>
+                </div>
+              </div>
+            </template>
+          </q-scroll-area>
+        </div>
+      </transition>
+
+      <!-- 重命名对话框 -->
+      <q-dialog v-model="showRenameDialog">
+        <q-card style="min-width: 300px">
+          <q-card-section>
+            <div class="text-h6">重命名</div>
+          </q-card-section>
+          <q-card-section class="q-pt-none">
+            <q-input
+              v-model="renameValue"
+              dense
+              autofocus
+              @keyup.enter="confirmRename"
+            />
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-btn
+              flat
+              label="取消"
+              color="grey"
+              @click="showRenameDialog = false"
+            />
+            <q-btn flat label="确认" color="primary" @click="confirmRename" />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
+      <!-- 底部区域 -->
+      <div class="sidebar-bottom">
+        <!-- 主题切换 -->
+        <div
+          class="sidebar-bottom-item"
+          :class="{ 'item-collapsed': !sidebarExpanded }"
+          @click="toggleDarkMode"
+        >
+          <q-icon
+            :name="isDark ? 'bedtime' : 'wb_sunny'"
+            size="22px"
+            class="sidebar-item-icon"
+          />
+          <transition name="fade">
+            <span v-if="sidebarExpanded" class="sidebar-bottom-label">
+              {{ isDark ? '深色' : '浅色' }}
             </span>
           </transition>
-
-          <!-- 已登录用户的菜单 -->
-          <q-menu
-            v-model="showUserMenu"
-            anchor="top right"
-            self="bottom right"
-            class="sidebar-user-menu"
+          <q-tooltip
+            v-if="!sidebarExpanded"
+            anchor="center right"
+            self="center left"
           >
-            <q-list>
-              <q-item>
-                <q-item-section>
-                  <q-item-label>{{ accountStore.userName }}</q-item-label>
-                  <q-item-label caption>
-                    UID: {{ accountStore.userMid }}
-                  </q-item-label>
-                </q-item-section>
-              </q-item>
-              <q-separator />
-              <q-item
-                v-for="(stat, idx) in statsItems"
-                :key="idx"
-                dense
-                class="user-menu-item user-stat-item"
-              >
-                <q-item-section class="stat-label-section">
-                  <q-item-label>{{ stat.label }}</q-item-label>
-                </q-item-section>
-                <q-item-section class="stat-value-section" side>
-                  <q-item-label class="text-weight-medium">
-                    {{ stat.value }}
-                  </q-item-label>
-                </q-item-section>
-              </q-item>
-              <q-separator />
-              <q-item
-                clickable
-                v-close-popup
-                @click="accountStore.handleUpdateFollowings"
-                :disable="accountStore.isUpdatingFollowings"
-                class="user-menu-item"
-              >
-                <q-item-section class="text-right">
-                  <q-item-label>
-                    {{
-                      accountStore.isUpdatingFollowings
-                        ? '同步中...'
-                        : '同步关注'
-                    }}
-                  </q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-spinner
-                    v-if="accountStore.isUpdatingFollowings"
-                    size="xs"
-                    color="primary"
-                  />
-                  <q-icon v-else size="xs" name="refresh" />
-                </q-item-section>
-              </q-item>
-              <q-item
-                clickable
-                v-close-popup
-                @click="showLogoutDialog = true"
-                class="user-menu-item"
-              >
-                <q-item-section class="text-right">
-                  <q-item-label>退出登录</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-icon size="xs" name="logout" />
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </q-menu>
-        </template>
-        <template v-else>
-          <q-icon
-            name="account_circle"
-            size="22px"
-            class="sidebar-login-icon"
-          />
-          <transition name="fade">
-            <span v-if="sidebarExpanded" class="sidebar-user-name"> 登录 </span>
-          </transition>
-        </template>
-        <q-tooltip
-          v-if="!sidebarExpanded"
-          anchor="center right"
-          self="center left"
+            {{ isDark ? '浅色模式' : '深色模式' }}
+          </q-tooltip>
+        </div>
+
+        <!-- 用户登录 -->
+        <div
+          class="sidebar-bottom-item sidebar-user"
+          :class="{ 'item-collapsed': !sidebarExpanded }"
+          @click="handleUserClick"
         >
-          {{ accountStore.isLoggedIn ? accountStore.userName : '登录' }}
-        </q-tooltip>
-      </div>
-    </div>
-
-    <!-- 登录对话框 -->
-    <q-dialog v-model="showLoginDialog">
-      <q-card class="q-card-qrcode shadow-transition">
-        <q-card-section>
-          <div class="text-h6">扫码登录</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none text-center">
-          <div v-if="authStore.isLoading" class="q-pa-md">
-            <q-spinner size="40px" />
-            <div class="q-mt-md">生成二维码中...</div>
-          </div>
-          <div v-else-if="authStore.canShowQRCode" class="q-pa-md">
-            <div class="qr-container q-mb-md">
-              <vue-qrcode
-                :value="authStore.qrCodeState.qrCodeUrl"
-                tag="canvas"
-                :options="qrCodeOptions"
+          <template v-if="accountStore.isLoggedIn && accountStore.userAvatar">
+            <q-avatar size="22px" class="sidebar-avatar">
+              <img
+                :src="accountStore.userAvatar"
+                :alt="accountStore.userName"
+                referrerpolicy="no-referrer"
               />
-            </div>
-            <div class="text-subtitle2 q-mb-md">
-              {{ authStore.qrCodeState.statusMessage }}
-            </div>
-            <div class="text-grey q-mb-sm">
-              请使用哔哩哔哩手机客户端扫描二维码
-            </div>
-            <div class="text-grey">
-              二维码将在 {{ authStore.qrCodeState.remainingTime }} 秒后过期
-            </div>
-          </div>
-          <div v-if="authStore.qrCodeState.error" class="text-negative q-pa-md">
-            {{ authStore.qrCodeState.error }}
-          </div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="关闭" color="primary" @click="closeLoginDialog" />
-          <q-btn
-            flat
-            label="刷新"
-            color="primary"
-            @click="refreshQRCode"
-            v-if="!authStore.isLoading"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+            </q-avatar>
+            <transition name="fade">
+              <span v-if="sidebarExpanded" class="sidebar-user-name">
+                {{ accountStore.userName }}
+              </span>
+            </transition>
 
-    <!-- 退出确认对话框 -->
-    <q-dialog v-model="showLogoutDialog">
-      <q-card class="q-card-logout">
-        <q-card-section>
-          <div class="text-h6">退出登录</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          <div class="text-body1">确定要退出登录吗？</div>
-          <div class="text-caption text-grey q-mt-sm">
-            退出后需要重新扫码登录
-          </div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn
-            flat
-            label="取消"
-            color="grey"
-            @click="showLogoutDialog = false"
-          />
-          <q-btn
-            flat
-            label="确认退出"
-            color="negative"
-            @click="confirmLogout"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+            <!-- 已登录用户的菜单 -->
+            <q-menu
+              v-model="showUserMenu"
+              anchor="top right"
+              self="bottom right"
+              class="sidebar-user-menu"
+            >
+              <q-list>
+                <q-item>
+                  <q-item-section>
+                    <q-item-label>{{ accountStore.userName }}</q-item-label>
+                    <q-item-label caption>
+                      UID: {{ accountStore.userMid }}
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item
+                  v-for="(stat, idx) in statsItems"
+                  :key="idx"
+                  dense
+                  class="user-menu-item user-stat-item"
+                >
+                  <q-item-section class="stat-label-section">
+                    <q-item-label>{{ stat.label }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section class="stat-value-section" side>
+                    <q-item-label class="text-weight-medium">
+                      {{ stat.value }}
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item
+                  clickable
+                  v-close-popup
+                  @click="accountStore.handleUpdateFollowings"
+                  :disable="accountStore.isUpdatingFollowings"
+                  class="user-menu-item"
+                >
+                  <q-item-section class="text-right">
+                    <q-item-label>
+                      {{
+                        accountStore.isUpdatingFollowings
+                          ? '同步中...'
+                          : '同步关注'
+                      }}
+                    </q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-spinner
+                      v-if="accountStore.isUpdatingFollowings"
+                      size="xs"
+                      color="primary"
+                    />
+                    <q-icon v-else size="xs" name="refresh" />
+                  </q-item-section>
+                </q-item>
+                <q-item
+                  clickable
+                  v-close-popup
+                  @click="showLogoutDialog = true"
+                  class="user-menu-item"
+                >
+                  <q-item-section class="text-right">
+                    <q-item-label>退出登录</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-icon size="xs" name="logout" />
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
+          </template>
+          <template v-else>
+            <q-icon
+              name="account_circle"
+              size="22px"
+              class="sidebar-login-icon"
+            />
+            <transition name="fade">
+              <span v-if="sidebarExpanded" class="sidebar-user-name">
+                登录
+              </span>
+            </transition>
+          </template>
+          <q-tooltip
+            v-if="!sidebarExpanded"
+            anchor="center right"
+            self="center left"
+          >
+            {{ accountStore.isLoggedIn ? accountStore.userName : '登录' }}
+          </q-tooltip>
+        </div>
+      </div>
 
-    <!-- 清除历史确认对话框 -->
-    <q-dialog v-model="showClearHistoryDialog">
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">清除搜索历史</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          <div class="text-body1">确定要清除所有搜索历史记录吗？</div>
-          <div class="text-caption text-grey q-mt-sm">置顶记录也会被清除</div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn
-            flat
-            label="取消"
-            color="grey"
-            @click="showClearHistoryDialog = false"
-          />
-          <q-btn flat label="确认清除" color="negative" @click="clearHistory" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+      <!-- 登录对话框 -->
+      <q-dialog v-model="showLoginDialog">
+        <q-card class="q-card-qrcode shadow-transition">
+          <q-card-section>
+            <div class="text-h6">扫码登录</div>
+          </q-card-section>
+          <q-card-section class="q-pt-none text-center">
+            <div v-if="authStore.isLoading" class="q-pa-md">
+              <q-spinner size="40px" />
+              <div class="q-mt-md">生成二维码中...</div>
+            </div>
+            <div v-else-if="authStore.canShowQRCode" class="q-pa-md">
+              <div class="qr-container q-mb-md">
+                <vue-qrcode
+                  :value="authStore.qrCodeState.qrCodeUrl"
+                  tag="canvas"
+                  :options="qrCodeOptions"
+                />
+              </div>
+              <div class="text-subtitle2 q-mb-md">
+                {{ authStore.qrCodeState.statusMessage }}
+              </div>
+              <div class="text-grey q-mb-sm">
+                请使用哔哩哔哩手机客户端扫描二维码
+              </div>
+              <div class="text-grey">
+                二维码将在 {{ authStore.qrCodeState.remainingTime }} 秒后过期
+              </div>
+            </div>
+            <div
+              v-if="authStore.qrCodeState.error"
+              class="text-negative q-pa-md"
+            >
+              {{ authStore.qrCodeState.error }}
+            </div>
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-btn
+              flat
+              label="关闭"
+              color="primary"
+              @click="closeLoginDialog"
+            />
+            <q-btn
+              flat
+              label="刷新"
+              color="primary"
+              @click="refreshQRCode"
+              v-if="!authStore.isLoading"
+            />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
+      <!-- 退出确认对话框 -->
+      <q-dialog v-model="showLogoutDialog">
+        <q-card class="q-card-logout">
+          <q-card-section>
+            <div class="text-h6">退出登录</div>
+          </q-card-section>
+          <q-card-section class="q-pt-none">
+            <div class="text-body1">确定要退出登录吗？</div>
+            <div class="text-caption text-grey q-mt-sm">
+              退出后需要重新扫码登录
+            </div>
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-btn
+              flat
+              label="取消"
+              color="grey"
+              @click="showLogoutDialog = false"
+            />
+            <q-btn
+              flat
+              label="确认退出"
+              color="negative"
+              @click="confirmLogout"
+            />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
+      <!-- 清除历史确认对话框 -->
+      <q-dialog v-model="showClearHistoryDialog">
+        <q-card style="min-width: 300px">
+          <q-card-section>
+            <div class="text-h6">清除搜索历史</div>
+          </q-card-section>
+          <q-card-section class="q-pt-none">
+            <div class="text-body1">确定要清除所有搜索历史记录吗？</div>
+            <div class="text-caption text-grey q-mt-sm">置顶记录也会被清除</div>
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-btn
+              flat
+              label="取消"
+              color="grey"
+              @click="showClearHistoryDialog = false"
+            />
+            <q-btn
+              flat
+              label="确认清除"
+              color="negative"
+              @click="clearHistory"
+            />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+    </div>
+    <!-- /.sidebar-inner -->
 
     <!-- 侧边栏右边缘手柄：点击切换展开/收起（仅桌面端） -->
     <div
@@ -567,56 +602,24 @@
       <div class="edge-handle-indicator">
         <svg
           v-if="sidebarExpanded"
-          width="16"
-          height="16"
+          width="10"
+          height="10"
           viewBox="0 0 16 16"
           fill="none"
         >
-          <rect
-            x="9"
-            y="2"
-            width="1.5"
-            height="12"
-            rx="0.75"
-            fill="currentColor"
-          />
-          <rect
-            x="12"
-            y="2"
-            width="1.5"
-            height="12"
-            rx="0.75"
-            fill="currentColor"
-          />
           <path
-            d="M6 4L2 8L6 12"
+            d="M10 3L4 8L10 13"
             stroke="currentColor"
-            stroke-width="1.5"
+            stroke-width="1.8"
             stroke-linecap="round"
             stroke-linejoin="round"
           />
         </svg>
-        <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <rect
-            x="2.5"
-            y="2"
-            width="1.5"
-            height="12"
-            rx="0.75"
-            fill="currentColor"
-          />
-          <rect
-            x="5"
-            y="2"
-            width="1.5"
-            height="12"
-            rx="0.75"
-            fill="currentColor"
-          />
+        <svg v-else width="10" height="10" viewBox="0 0 16 16" fill="none">
           <path
-            d="M10 4L14 8L10 12"
+            d="M6 3L12 8L6 13"
             stroke="currentColor"
-            stroke-width="1.5"
+            stroke-width="1.8"
             stroke-linecap="round"
             stroke-linejoin="round"
           />
@@ -655,6 +658,10 @@ const showClearHistoryDialog = ref(false);
 const showRenameDialog = ref(false);
 const renameValue = ref('');
 const renameItemId = ref('');
+
+// History lazy-loading: only render up to this many recent items initially
+const HISTORY_PAGE_SIZE = 25;
+const historyDisplayLimit = ref(HISTORY_PAGE_SIZE);
 
 // Dark mode
 const isDark = ref(JSON.parse(localStorage.getItem('isDark') || 'true'));
@@ -791,6 +798,7 @@ const confirmClearHistory = () => {
 const clearHistory = () => {
   searchHistoryStore.clearAll();
   showClearHistoryDialog.value = false;
+  historyDisplayLimit.value = HISTORY_PAGE_SIZE;
 };
 
 // Tooltip helper
@@ -883,6 +891,42 @@ onMounted(async () => {
   await searchHistoryStore.loadHistory();
 });
 
+// Lazy-loaded recent history: limits rendered items for performance
+const visibleGroupedRecentItems = computed(() => {
+  const allGroups = searchHistoryStore.groupedRecentItems;
+  const limit = historyDisplayLimit.value;
+  const result: typeof allGroups = [];
+  let count = 0;
+
+  for (const group of allGroups) {
+    if (count >= limit) break;
+    const remaining = limit - count;
+    if (group.items.length <= remaining) {
+      result.push(group);
+      count += group.items.length;
+    } else {
+      result.push({
+        label: group.label,
+        items: group.items.slice(0, remaining),
+      });
+      count += remaining;
+    }
+  }
+  return result;
+});
+
+const totalRecentCount = computed(() => searchHistoryStore.recentItems.length);
+const hasMoreHistory = computed(
+  () => historyDisplayLimit.value < totalRecentCount.value
+);
+
+const onHistoryScroll = (info: { verticalPercentage: number }) => {
+  // Load more when scrolled past 85%
+  if (info.verticalPercentage > 0.85 && hasMoreHistory.value) {
+    historyDisplayLimit.value += HISTORY_PAGE_SIZE;
+  }
+};
+
 onUnmounted(() => {
   authStore.cleanup();
 });
@@ -915,11 +959,26 @@ onUnmounted(() => {
   left: 0;
   top: 0;
   bottom: 0;
-  display: flex;
-  flex-direction: column;
   z-index: 2100;
   transition: width 0.25s ease, transform 0.25s ease;
   overflow: hidden;
+}
+
+/*
+ * sidebar-inner: always at the expanded width so children never reflow
+ * during the outer container's width CSS transition.
+ * The outer .app-sidebar clips this via overflow:hidden.
+ */
+.sidebar-inner {
+  width: 260px;
+  min-width: 260px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-mobile .sidebar-inner {
+  width: 280px;
+  min-width: 280px;
 }
 
 /* 桌面端（>= 768px）：推动内容 */
@@ -962,10 +1021,10 @@ body.body--dark .app-sidebar {
 /* ============ 侧边栏边缘手柄 ============ */
 .sidebar-edge-handle {
   position: absolute;
-  right: -6px;
+  right: 0;
   top: 0;
   bottom: 0;
-  width: 12px;
+  width: 10px;
   z-index: 10;
   transition: background-color 0.15s ease;
 }
@@ -992,9 +1051,9 @@ body.body--dark .app-sidebar {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
   opacity: 0;
   transition: opacity 0.15s ease;
   pointer-events: none;

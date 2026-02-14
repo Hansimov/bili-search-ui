@@ -6,7 +6,11 @@
   >
     <q-item-section avatar side>
       <q-avatar class="result-author-avatar">
-        <img :src="authorAvatarUrl" referrerpolicy="no-referrer" />
+        <img
+          :src="cachedAvatarSrc"
+          referrerpolicy="no-referrer"
+          @error="onAvatarError"
+        />
       </q-avatar>
     </q-item-section>
     <q-item-section>
@@ -17,39 +21,45 @@
   </q-item>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+import { computed } from 'vue';
 import defaultAvatarUrl from 'src/assets/noface.jpg@96w_96h.avif';
 import type { Dict } from 'src/stores/resultStore';
-import type { PropType } from 'vue';
 import { useExploreStore } from 'src/stores/exploreStore';
+import { useCachedImage } from 'src/composables/useCachedImage';
 
-export default {
-  props: {
-    authorItem: {
-      type: Object as PropType<Dict>,
-      required: true,
+const props = defineProps<{
+  authorItem: Dict;
+}>();
+
+const exploreStore = useExploreStore();
+
+const authorAvatarUrl = computed(
+  () => props.authorItem.face || defaultAvatarUrl
+);
+
+const { cachedSrc } = useCachedImage(() => authorAvatarUrl.value);
+
+// Use cached version if available, otherwise original
+const cachedAvatarSrc = computed(
+  () => cachedSrc.value || authorAvatarUrl.value
+);
+
+const onAvatarError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  if (img.src !== defaultAvatarUrl) {
+    img.src = defaultAvatarUrl;
+  }
+};
+
+const onAuthorClick = () => {
+  exploreStore.setAuthorFilters([
+    {
+      mid: props.authorItem.mid,
+      name: props.authorItem.name,
+      type: 'author',
     },
-  },
-  computed: {
-    authorAvatarUrl(): string {
-      return this.authorItem.face || defaultAvatarUrl;
-    },
-  },
-  setup(props) {
-    const exploreStore = useExploreStore();
-    const onAuthorClick = () => {
-      exploreStore.setAuthorFilters([
-        {
-          mid: props.authorItem.mid,
-          name: props.authorItem.name,
-          type: 'author',
-        },
-      ]);
-    };
-    return {
-      onAuthorClick,
-    };
-  },
+  ]);
 };
 </script>
 

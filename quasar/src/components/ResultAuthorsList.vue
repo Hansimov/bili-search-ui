@@ -107,6 +107,8 @@ export default {
   overflow-y: scroll;
   overflow-x: hidden;
   max-height: 110px;
+  /* CSS containment: isolate grid layout from ancestor reflows */
+  contain: layout style;
   &::-webkit-scrollbar {
     width: 0px;
     background: transparent;

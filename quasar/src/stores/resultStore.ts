@@ -121,6 +121,12 @@ export const resultsSortMethods: ResultsSortMethod[] = [
         icon: 'fa-solid fa-text-height',
     },
     {
+        field: 'stat_score',
+        order: 'desc',
+        label: '最高热度',
+        icon: 'fa-solid fa-fire',
+    },
+    {
         field: 'pubdate',
         order: 'desc',
         label: '最新发布',
