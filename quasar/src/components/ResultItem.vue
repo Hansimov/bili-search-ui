@@ -10,6 +10,7 @@
           :title="result.title + '\n' + result.tags"
           referrerpolicy="no-referrer"
           class="rounded-borders result-item-cover"
+          :ratio="224 / 140"
           no-transition
           no-spinner
         >
@@ -133,12 +134,7 @@ export default {
 }
 .result-item-cover {
   max-width: var(--result-item-width);
-  max-height: 140px;
-}
-@media (max-width: 520px) {
-  .result-item-cover {
-    max-height: calc(40vw * 140 / 224);
-  }
+  width: 100%;
 }
 .result-item {
   transition: transform 0.25s ease, filter 0.3s ease;
