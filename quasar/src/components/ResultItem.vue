@@ -13,12 +13,15 @@
           :ratio="224 / 140"
           no-transition
           no-spinner
+          @load="onCoverLoad"
         >
           <span
             class="text-caption absolute-bottom text-center result-bottom-bar"
+            :class="{ 'bar-visible': coverLoaded }"
           ></span>
           <span
             class="text-caption absolute-top text-center result-top-bar"
+            :class="{ 'bar-visible': coverLoaded }"
           ></span>
           <span class="text-caption absolute-top text-left result-score">
             {{ result?.score.toFixed(1) }}
@@ -66,6 +69,7 @@
 </template>
 
 <script>
+import { ref, watch } from 'vue';
 import constants from '../stores/constants.json';
 import {
   humanReadableNumber,
@@ -86,7 +90,18 @@ export default {
     const { cachedSrc: coverSrc } = useCachedImage(
       () => props.result.pic + coverPicSuffix
     );
-    return { coverSrc };
+    const coverLoaded = ref(false);
+
+    // Reset coverLoaded when the image source changes
+    watch(coverSrc, () => {
+      coverLoaded.value = false;
+    });
+
+    const onCoverLoad = () => {
+      coverLoaded.value = true;
+    };
+
+    return { coverSrc, coverLoaded, onCoverLoad };
   },
   data() {
     return {
@@ -205,8 +220,13 @@ body.body--dark .result-title:hover {
 }
 .result-top-bar,
 .result-bottom-bar {
-  background: rgba(0, 0, 0, 0.4);
+  background: transparent;
   padding: 12px 0px 12px 0px;
+  transition: background 0.3s ease;
+}
+.result-top-bar.bar-visible,
+.result-bottom-bar.bar-visible {
+  background: rgba(0, 0, 0, 0.4);
 }
 .q-img i {
   vertical-align: 2%;

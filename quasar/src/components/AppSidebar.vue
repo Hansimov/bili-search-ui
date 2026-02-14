@@ -25,6 +25,8 @@
             v-if="!sidebarExpanded"
             anchor="center right"
             self="center left"
+            transition-show="fade"
+            transition-hide="fade"
           >
             展开侧边栏
           </q-tooltip>
@@ -55,6 +57,8 @@
             v-if="!sidebarExpanded"
             anchor="center right"
             self="center left"
+            transition-show="fade"
+            transition-hide="fade"
           >
             新建搜索
           </q-tooltip>
@@ -97,6 +101,8 @@
             v-if="!sidebarExpanded"
             anchor="center right"
             self="center left"
+            transition-show="fade"
+            transition-hide="fade"
           >
             历史记录
           </q-tooltip>
@@ -359,6 +365,8 @@
             v-if="!sidebarExpanded"
             anchor="center right"
             self="center left"
+            transition-show="fade"
+            transition-hide="fade"
           >
             {{ isDark ? '浅色模式' : '深色模式' }}
           </q-tooltip>
@@ -474,6 +482,8 @@
             v-if="!sidebarExpanded"
             anchor="center right"
             self="center left"
+            transition-show="fade"
+            transition-hide="fade"
           >
             {{ accountStore.isLoggedIn ? accountStore.userName : '登录' }}
           </q-tooltip>
@@ -1152,6 +1162,8 @@ body.body--dark .sidebar-toggle:hover {
 
 .sidebar-nav-item.nav-item-collapsed {
   padding: 8px;
+  width: 38px;
+  flex-shrink: 0;
 }
 
 body.body--light .sidebar-nav-item:hover {
@@ -1344,6 +1356,8 @@ body.body--dark .sidebar-bottom {
 
 .sidebar-bottom-item.item-collapsed {
   padding: 8px;
+  width: 38px;
+  flex-shrink: 0;
 }
 
 body.body--light .sidebar-bottom-item:hover {
