@@ -10,6 +10,7 @@
       v-model="showSnapshotViewer"
       :bvid="result.bvid"
       :title="result.title"
+      :result="result"
     />
     <q-card-section class="q-px-xs q-pt-none q-pb-xs">
       <a

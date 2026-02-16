@@ -1,8 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
     getFrameInfo,
+    getSheetFrameRange,
+    getSheetIndexForFrame,
     formatTimestamp,
     buildBilibiliUrl,
+    INITIAL_SHEETS_LIMIT,
+    MAX_RETRIES,
+    RETRY_DELAY_MS,
     type VideoshotData,
 } from 'src/services/videoshotService';
 
@@ -19,9 +24,11 @@ const mockData: VideoshotData = {
         'https://i0.hdslb.com/bfs/videoshot/test1.jpg',
         'https://i0.hdslb.com/bfs/videoshot/test2.jpg',
     ],
+    loadedSheetIndices: new Set([0, 1]),
     timestamps: Array.from({ length: 150 }, (_, i) => i * 10),
     framesPerSheet: 100,
     totalFrames: 150,
+    totalSheets: 2,
 };
 
 // ============================================================================
@@ -32,6 +39,7 @@ describe('getFrameInfo', () => {
     it('should return correct info for the first frame (index 0)', () => {
         const frame = getFrameInfo(mockData, 0);
         expect(frame.index).toBe(0);
+        expect(frame.sheetIndex).toBe(0);
         expect(frame.sheetUrl).toBe(
             'https://i0.hdslb.com/bfs/videoshot/test1.jpg'
         );
@@ -46,19 +54,18 @@ describe('getFrameInfo', () => {
 
     it('should calculate column offset for frame in the same row', () => {
         const frame = getFrameInfo(mockData, 3);
-        expect(frame.offsetX).toBe(3 * 160); // col=3
-        expect(frame.offsetY).toBe(0); // row=0
+        expect(frame.offsetX).toBe(3 * 160);
+        expect(frame.offsetY).toBe(0);
         expect(frame.timestamp).toBe(30);
     });
 
     it('should wrap to next row after img_x_len frames', () => {
         const frame = getFrameInfo(mockData, 10);
-        expect(frame.offsetX).toBe(0); // col=0 (10 % 10 = 0)
-        expect(frame.offsetY).toBe(90); // row=1 (10 / 10 = 1)
+        expect(frame.offsetX).toBe(0);
+        expect(frame.offsetY).toBe(90);
     });
 
     it('should calculate arbitrary frame offset correctly', () => {
-        // Frame 23: localIndex=23, col=3, row=2
         const frame = getFrameInfo(mockData, 23);
         expect(frame.offsetX).toBe(3 * 160);
         expect(frame.offsetY).toBe(2 * 90);
@@ -67,31 +74,82 @@ describe('getFrameInfo', () => {
 
     it('should use second sheet for frames beyond framesPerSheet', () => {
         const frame = getFrameInfo(mockData, 100);
+        expect(frame.sheetIndex).toBe(1);
         expect(frame.sheetUrl).toBe(
             'https://i0.hdslb.com/bfs/videoshot/test2.jpg'
         );
-        expect(frame.offsetX).toBe(0); // localIndex=0
+        expect(frame.offsetX).toBe(0);
         expect(frame.offsetY).toBe(0);
         expect(frame.timestamp).toBe(1000);
     });
 
     it('should handle last frame of first sheet correctly', () => {
         const frame = getFrameInfo(mockData, 99);
+        expect(frame.sheetIndex).toBe(0);
         expect(frame.sheetUrl).toBe(
             'https://i0.hdslb.com/bfs/videoshot/test1.jpg'
         );
-        expect(frame.offsetX).toBe(9 * 160); // col=9
-        expect(frame.offsetY).toBe(9 * 90); // row=9
+        expect(frame.offsetX).toBe(9 * 160);
+        expect(frame.offsetY).toBe(9 * 90);
     });
 
     it('should handle frame in second sheet with offset', () => {
-        // Frame 115: sheetIndex=1, localIndex=15, col=5, row=1
         const frame = getFrameInfo(mockData, 115);
+        expect(frame.sheetIndex).toBe(1);
         expect(frame.sheetUrl).toBe(
             'https://i0.hdslb.com/bfs/videoshot/test2.jpg'
         );
         expect(frame.offsetX).toBe(5 * 160);
         expect(frame.offsetY).toBe(1 * 90);
+    });
+});
+
+// ============================================================================
+// getSheetFrameRange & getSheetIndexForFrame
+// ============================================================================
+
+describe('getSheetFrameRange', () => {
+    it('should return full range for first sheet', () => {
+        expect(getSheetFrameRange(mockData, 0)).toEqual([0, 100]);
+    });
+
+    it('should return partial range for last sheet', () => {
+        expect(getSheetFrameRange(mockData, 1)).toEqual([100, 150]);
+    });
+
+    it('should handle single-sheet data', () => {
+        const singleSheetData: VideoshotData = {
+            ...mockData,
+            images: ['https://example.com/1.jpg'],
+            timestamps: Array.from({ length: 50 }, (_, i) => i * 5),
+            totalFrames: 50,
+            totalSheets: 1,
+        };
+        expect(getSheetFrameRange(singleSheetData, 0)).toEqual([0, 50]);
+    });
+});
+
+describe('getSheetIndexForFrame', () => {
+    it('should return 0 for frames in first sheet', () => {
+        expect(getSheetIndexForFrame(mockData, 0)).toBe(0);
+        expect(getSheetIndexForFrame(mockData, 99)).toBe(0);
+    });
+
+    it('should return 1 for frames in second sheet', () => {
+        expect(getSheetIndexForFrame(mockData, 100)).toBe(1);
+        expect(getSheetIndexForFrame(mockData, 149)).toBe(1);
+    });
+});
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+describe('service constants', () => {
+    it('should have sensible default limits', () => {
+        expect(INITIAL_SHEETS_LIMIT).toBe(3);
+        expect(MAX_RETRIES).toBe(2);
+        expect(RETRY_DELAY_MS).toBe(3000);
     });
 });
 
@@ -196,5 +254,58 @@ describe('frame-to-url integration', () => {
     it('should produce formatted timestamp from frame info', () => {
         const frame = getFrameInfo(mockData, 42);
         expect(formatTimestamp(frame.timestamp)).toBe('07:00');
+    });
+
+    it('should chain sheet index → frame range → individual frame info', () => {
+        const sheetIdx = getSheetIndexForFrame(mockData, 115);
+        expect(sheetIdx).toBe(1);
+        const [start, end] = getSheetFrameRange(mockData, sheetIdx);
+        expect(start).toBe(100);
+        expect(end).toBe(150);
+        // frame 115 falls in that range
+        expect(115).toBeGreaterThanOrEqual(start);
+        expect(115).toBeLessThan(end);
+        const frame = getFrameInfo(mockData, 115);
+        expect(frame.sheetIndex).toBe(sheetIdx);
+    });
+});
+
+// ============================================================================
+// Lazy loading helpers
+// ============================================================================
+
+describe('lazy loading calculations', () => {
+    const manySheetData: VideoshotData = {
+        imgXLen: 10,
+        imgYLen: 10,
+        imgXSize: 160,
+        imgYSize: 90,
+        images: Array.from({ length: 10 }, (_, i) => `https://example.com/${i}.jpg`),
+        loadedSheetIndices: new Set<number>(),
+        timestamps: Array.from({ length: 950 }, (_, i) => i * 5),
+        framesPerSheet: 100,
+        totalFrames: 950,
+        totalSheets: 10,
+    };
+
+    it('should determine initial load count correctly', () => {
+        const initialCount = Math.min(INITIAL_SHEETS_LIMIT, manySheetData.totalSheets);
+        expect(initialCount).toBe(3);
+    });
+
+    it('should correctly track which sheets are loaded', () => {
+        const loaded = new Set<number>([0, 1, 2]);
+        expect(loaded.size).toBe(3);
+        expect(loaded.has(0)).toBe(true);
+        expect(loaded.has(5)).toBe(false);
+    });
+
+    it('should find next unloaded sheets for batch loading', () => {
+        const loaded = new Set<number>([0, 1, 2]);
+        const nextBatch: number[] = [];
+        for (let i = 0; i < manySheetData.totalSheets && nextBatch.length < INITIAL_SHEETS_LIMIT; i++) {
+            if (!loaded.has(i)) nextBatch.push(i);
+        }
+        expect(nextBatch).toEqual([3, 4, 5]);
     });
 });
