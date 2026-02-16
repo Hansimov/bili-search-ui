@@ -47,3 +47,13 @@ export function secondsToDuration(seconds: number): string {
 export function tsToYmd(ts: number): string {
     return intToIso(ts).slice(0, 10);
 }
+
+/**
+ * 将 Unix 时间戳转换为 yyyy-mm-dd hh:mm:ss 格式（Asia/Shanghai 时区）
+ *
+ * @param ts Unix 时间戳（秒）
+ * @returns 格式化字符串，如 "2024-01-15 13:45:30"
+ */
+export function tsToDatetime(ts: number): string {
+    return intToIso(ts).replace(/\//g, '-');
+}

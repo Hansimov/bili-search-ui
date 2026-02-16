@@ -11,6 +11,7 @@ import {
     RETRY_DELAY_MS,
     type VideoshotData,
 } from 'src/services/videoshotService';
+import { tsToDatetime, tsToYmd } from 'src/utils/convert';
 
 // ============================================================================
 // Test data
@@ -429,5 +430,134 @@ describe('getFrameInfo sheetHeight', () => {
         const frame100 = getFrameInfo(mockData, 100);
         expect(frame0.sheetHeight).toBe(frame99.sheetHeight);
         expect(frame0.sheetHeight).toBe(frame100.sheetHeight);
+    });
+});
+
+// ============================================================================
+// tsToDatetime (cover frame date display)
+// ============================================================================
+
+describe('tsToDatetime', () => {
+    it('should return datetime string with hyphens (yyyy-mm-dd hh:mm:ss)', () => {
+        const result = tsToDatetime(1704067200); // 2024-01-01 08:00:00 CST
+        // Should contain hyphens, not slashes
+        expect(result).not.toContain('/');
+        expect(result).toMatch(/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/);
+    });
+
+    it('should return a string consistent with tsToYmd for the date part', () => {
+        const ts = 1704067200;
+        const datetime = tsToDatetime(ts);
+        const ymd = tsToYmd(ts);
+        // tsToYmd returns yyyy/mm/dd; tsToDatetime replaces / with -
+        const datePart = datetime.split(/\s+/)[0];
+        expect(datePart).toBe(ymd.replace(/\//g, '-'));
+    });
+
+    it('should handle epoch 0', () => {
+        const result = tsToDatetime(0);
+        expect(result).toMatch(/\d{4}-\d{2}-\d{2}/);
+    });
+});
+
+// ============================================================================
+// Cover frame integration (frame 0 = cover logic)
+// ============================================================================
+
+describe('cover frame display logic', () => {
+    /**
+     * Simulates the VideoSnapshotViewer's cover frame logic:
+     * - Frame 0 = cover image when result.pic exists
+     * - Frame 1..N = snapshot frames from videoshotData
+     * - snapshotFrameIndex = currentIndex - 1 (when hasCover)
+     */
+    const hasCover = true;
+    const totalSnapshots = mockData.totalFrames; // 150
+
+    it('should calculate totalDisplayFrames correctly with cover', () => {
+        const totalDisplayFrames = totalSnapshots + (hasCover ? 1 : 0);
+        expect(totalDisplayFrames).toBe(151);
+    });
+
+    it('should identify frame 0 as cover frame', () => {
+        const currentIndex = 0;
+        const isCoverFrame = hasCover && currentIndex === 0;
+        expect(isCoverFrame).toBe(true);
+    });
+
+    it('should not identify frame 1+ as cover frame', () => {
+        for (const idx of [1, 10, 50, 150]) {
+            const isCoverFrame = hasCover && idx === 0;
+            expect(isCoverFrame).toBe(false);
+        }
+    });
+
+    it('should map display index to correct snapshot index with cover offset', () => {
+        // Display index 1 → snapshot index 0
+        const snapshotIdx = 1 - (hasCover ? 1 : 0);
+        expect(snapshotIdx).toBe(0);
+        const frame = getFrameInfo(mockData, snapshotIdx);
+        expect(frame.timestamp).toBe(0); // first snapshot at t=0
+    });
+
+    it('should map display index to correct snapshot index for later frames', () => {
+        // Display index 10 → snapshot index 9
+        const displayIdx = 10;
+        const snapshotIdx = displayIdx - (hasCover ? 1 : 0);
+        expect(snapshotIdx).toBe(9);
+        const frame = getFrameInfo(mockData, snapshotIdx);
+        expect(frame.timestamp).toBe(90);
+    });
+
+    it('should handle last display frame correctly', () => {
+        const totalDisplayFrames = totalSnapshots + 1;
+        const lastDisplayIdx = totalDisplayFrames - 1; // 150
+        const snapshotIdx = lastDisplayIdx - 1; // 149
+        const frame = getFrameInfo(mockData, snapshotIdx);
+        expect(frame.index).toBe(149);
+        expect(frame.sheetIndex).toBe(1);
+    });
+
+    it('should produce correct bilibili URL for cover frame (t=0)', () => {
+        const url = buildBilibiliUrl('BV1test', 0);
+        expect(url).toBe('https://www.bilibili.com/video/BV1test/?t=0');
+    });
+
+    it('should handle timeline selection with cover offset', () => {
+        // Timeline emits snapshot index 5 → display index 6
+        const snapshotTimelineIdx = 5;
+        const displayIdx = snapshotTimelineIdx + (hasCover ? 1 : 0);
+        expect(displayIdx).toBe(6);
+        // Verify reverse mapping
+        const snapshotFrameIndex = displayIdx - (hasCover ? 1 : 0);
+        expect(snapshotFrameIndex).toBe(5);
+    });
+
+    it('should work without cover (no offset)', () => {
+        const noCover = false;
+        const totalDisplayFrames = totalSnapshots + (noCover ? 1 : 0);
+        expect(totalDisplayFrames).toBe(150);
+
+        const displayIdx = 5;
+        const snapshotIdx = displayIdx - (noCover ? 1 : 0);
+        expect(snapshotIdx).toBe(5);
+    });
+});
+
+// ============================================================================
+// rewriteImageUrl for cover images
+// ============================================================================
+
+describe('rewriteImageUrl for cover images', () => {
+    it('should rewrite cover image URL from //i0.hdslb.com/bfs/archive/', () => {
+        expect(
+            rewriteImageUrl('//i0.hdslb.com/bfs/archive/abc123.jpg')
+        ).toBe('/bili-img/i0.hdslb.com/bfs/archive/abc123.jpg');
+    });
+
+    it('should handle cover with https prefix', () => {
+        expect(
+            rewriteImageUrl('https://i1.hdslb.com/bfs/archive/cover.jpg')
+        ).toBe('/bili-img/i1.hdslb.com/bfs/archive/cover.jpg');
     });
 });

@@ -22,24 +22,9 @@
     <q-card class="snapshot-viewer column no-wrap" ref="viewerCardRef">
       <!-- ─── Header ─────────────────────────────────────── -->
       <q-toolbar class="snapshot-viewer-header">
-        <q-toolbar-title class="snapshot-viewer-title">
+        <q-toolbar-title class="snapshot-viewer-title" :title="title">
           {{ title }}
         </q-toolbar-title>
-
-        <!-- Toggle timeline visibility: icon shows current state -->
-        <q-btn
-          flat
-          round
-          dense
-          :icon="showTimeline ? 'view_sidebar' : 'photo_size_select_large'"
-          color="grey-4"
-          class="q-mr-xs"
-          @click="showTimeline = !showTimeline"
-        >
-          <q-tooltip :delay="400">
-            {{ showTimeline ? '收起缩略图' : '展开缩略图' }}
-          </q-tooltip>
-        </q-btn>
 
         <!-- Layout toggle: icon shows current layout state -->
         <q-btn
@@ -49,10 +34,26 @@
           :icon="layout === 'left' ? 'view_sidebar' : 'view_stream'"
           color="grey-4"
           class="q-mr-xs"
+          :disable="!showTimeline"
           @click="toggleLayout"
         >
           <q-tooltip :delay="400">
             {{ layout === 'bottom' ? '切换为侧边时间线' : '切换为底部时间线' }}
+          </q-tooltip>
+        </q-btn>
+
+        <!-- Toggle timeline visibility: visible/hidden -->
+        <q-btn
+          flat
+          round
+          dense
+          :icon="showTimeline ? 'visibility' : 'visibility_off'"
+          color="grey-4"
+          class="q-mr-xs"
+          @click="showTimeline = !showTimeline"
+        >
+          <q-tooltip :delay="400">
+            {{ showTimeline ? '隐藏缩略图' : '显示缩略图' }}
           </q-tooltip>
         </q-btn>
 
@@ -72,7 +73,7 @@
           </a>
           <span v-if="result.pubdate" class="info-divider">·</span>
           <span v-if="result.pubdate" class="info-date">
-            {{ tsToYmd(result.pubdate) }}
+            发布于 {{ tsToDatetime(result.pubdate) }}
           </span>
         </div>
         <div class="info-stats-row" v-if="result.stat">
@@ -113,21 +114,38 @@
             }}</span>
           </span>
         </div>
-        <!-- Description (collapsible, overlays content below) -->
+        <!-- Description (single line, click to open dialog) -->
         <div
-          class="snapshot-desc-wrapper"
+          class="snapshot-desc-row"
           v-if="result?.desc && result.desc !== '-'"
+          @click="descDialogOpen = true"
         >
-          <div
-            class="snapshot-desc"
-            :class="{ 'snapshot-desc-expanded': descExpanded }"
-            @click="descExpanded = !descExpanded"
-            :title="descExpanded ? '点击收起' : '点击展开'"
-          >
-            {{ result.desc }}
-          </div>
+          <span class="snapshot-desc-text">{{ result.desc }}</span>
+          <span class="snapshot-desc-hint">点击展开</span>
         </div>
       </div>
+
+      <!-- ─── Description Dialog ─────────────────────────── -->
+      <q-dialog v-model="descDialogOpen">
+        <q-card class="snapshot-desc-dialog">
+          <q-toolbar class="snapshot-desc-dialog-header">
+            <q-toolbar-title class="snapshot-desc-dialog-title">
+              视频简介
+            </q-toolbar-title>
+            <q-btn
+              flat
+              round
+              dense
+              icon="close"
+              color="grey-4"
+              @click="descDialogOpen = false"
+            />
+          </q-toolbar>
+          <q-card-section class="snapshot-desc-dialog-body">
+            <div class="snapshot-desc-full">{{ result?.desc }}</div>
+          </q-card-section>
+        </q-card>
+      </q-dialog>
 
       <!-- ─── Loading ────────────────────────────────────── -->
       <div v-if="loading" class="col flex flex-center column">
@@ -169,11 +187,11 @@
           >
             <SnapshotTimeline
               :data="videoshotData"
-              :currentIndex="currentIndex"
+              :currentIndex="snapshotFrameIndex"
               :thumbScale="timelineScale"
               :direction="'vertical'"
               :loadedSheetIndices="videoshotData.loadedSheetIndices"
-              @select="goToFrame"
+              @select="onTimelineSelect"
               @need-sheets="onNeedSheets"
             />
           </div>
@@ -181,7 +199,10 @@
           <!-- Main area: frame + controls -->
           <div class="snapshot-main-area col flex column">
             <!-- Frame with nav -->
-            <div class="snapshot-frame-region col flex flex-center">
+            <div
+              class="snapshot-frame-region col flex flex-center"
+              ref="frameRegionRef"
+            >
               <div class="snapshot-frame-wrapper flex items-center">
                 <q-btn
                   flat
@@ -193,21 +214,31 @@
                   @click="prevFrame"
                 />
                 <div class="snapshot-frame-column">
-                  <!-- Frame counter (tight above preview) -->
+                  <!-- Frame counter (above preview) -->
                   <div class="snapshot-frame-counter" v-if="videoshotData">
-                    <span class="frame-idx">{{ currentIndex + 1 }}</span>
+                    <span class="frame-idx">{{ currentIndex }}</span>
                     <span class="frame-sep">/</span>
                     <span class="frame-total">{{
-                      videoshotData.totalFrames
+                      totalDisplayFrames - 1
                     }}</span>
                   </div>
+                  <!-- Cover image (frame 0) -->
+                  <img
+                    v-if="isCoverFrame"
+                    :src="coverImageUrl"
+                    referrerpolicy="no-referrer"
+                    draggable="false"
+                    class="snapshot-main-frame snapshot-cover-frame"
+                    :style="coverFrameStyle"
+                  />
+                  <!-- Snapshot frame -->
                   <SnapshotFrameDisplay
-                    v-if="currentFrame"
+                    v-else-if="currentFrame"
                     :frame="currentFrame"
                     :scale="mainScale"
                     class="snapshot-main-frame"
                   />
-                  <!-- Timestamp bar (tight below preview) -->
+                  <!-- Timestamp bar (below preview) -->
                   <div class="snapshot-time-bar">
                     <a
                       :href="currentBilibiliUrl"
@@ -234,10 +265,7 @@
                   icon="chevron_right"
                   size="lg"
                   class="nav-btn"
-                  :disable="
-                    !videoshotData ||
-                    currentIndex >= videoshotData.totalFrames - 1
-                  "
+                  :disable="currentIndex >= totalDisplayFrames - 1"
                   @click="nextFrame"
                 />
               </div>
@@ -256,11 +284,11 @@
           >
             <SnapshotTimeline
               :data="videoshotData"
-              :currentIndex="currentIndex"
+              :currentIndex="snapshotFrameIndex"
               :thumbScale="timelineScale"
               :direction="'horizontal'"
               :loadedSheetIndices="videoshotData.loadedSheetIndices"
-              @select="goToFrame"
+              @select="onTimelineSelect"
               @need-sheets="onNeedSheets"
             />
           </div>
@@ -279,12 +307,12 @@ import {
   getFrameInfo,
   formatTimestamp,
   buildBilibiliUrl,
+  rewriteImageUrl,
   MAX_RETRIES,
   type VideoshotData,
   type FrameInfo,
 } from 'src/services/videoshotService';
-import { humanReadableNumber } from 'src/utils/convert';
-import { tsToYmd } from 'src/utils/convert';
+import { humanReadableNumber, tsToDatetime } from 'src/utils/convert';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Dict = Record<string, any>;
@@ -316,7 +344,7 @@ const retryCount = ref(0);
 const videoshotData = ref<VideoshotData | null>(null);
 const currentIndex = ref(0);
 const layout = ref<'bottom' | 'left'>('left');
-const descExpanded = ref(false);
+const descDialogOpen = ref(false);
 
 // ── Window size tracking for responsive layout ────────────────────────
 const windowWidth = ref(
@@ -330,13 +358,46 @@ const onWindowResize = () => {
   windowHeight.value = window.innerHeight;
 };
 
+// ── Cover frame (frame 0) ──────────────────────────────────────────────────
+const hasCover = computed(() => !!props.result?.pic);
+
+const coverImageUrl = computed(() => {
+  if (!props.result?.pic) return '';
+  return rewriteImageUrl(props.result.pic);
+});
+
+/** Total frames including cover (frame 0 = cover when available) */
+const totalDisplayFrames = computed(() => {
+  if (!videoshotData.value) return hasCover.value ? 1 : 0;
+  return videoshotData.value.totalFrames + (hasCover.value ? 1 : 0);
+});
+
+const isCoverFrame = computed(() => hasCover.value && currentIndex.value === 0);
+
+/** Snapshot data index (offset by -1 when cover is present) */
+const snapshotFrameIndex = computed(() => {
+  return hasCover.value ? currentIndex.value - 1 : currentIndex.value;
+});
+
+const coverFrameStyle = computed(() => {
+  if (!videoshotData.value) return {};
+  return {
+    maxWidth: `${videoshotData.value.imgXSize * mainScale.value}px`,
+    maxHeight: `${videoshotData.value.imgYSize * mainScale.value}px`,
+  };
+});
+
 // ── Computed: current frame ────────────────────────────────────────────────
 const currentFrame = computed<FrameInfo | null>(() => {
   if (!videoshotData.value) return null;
-  return getFrameInfo(videoshotData.value, currentIndex.value);
+  if (isCoverFrame.value) return null;
+  const idx = snapshotFrameIndex.value;
+  if (idx < 0 || idx >= videoshotData.value.totalFrames) return null;
+  return getFrameInfo(videoshotData.value, idx);
 });
 
 const currentTimestampStr = computed(() => {
+  if (isCoverFrame.value) return '封面';
   if (!currentFrame.value) return '00:00';
   return formatTimestamp(currentFrame.value.timestamp);
 });
@@ -350,6 +411,7 @@ const totalDurationStr = computed(() => {
 });
 
 const currentBilibiliUrl = computed(() => {
+  if (isCoverFrame.value) return buildBilibiliUrl(props.bvid, 0, props.page);
   if (!currentFrame.value) return '#';
   return buildBilibiliUrl(props.bvid, currentFrame.value.timestamp, props.page);
 });
@@ -394,16 +456,18 @@ const prevFrame = () => {
 };
 
 const nextFrame = () => {
-  if (
-    videoshotData.value &&
-    currentIndex.value < videoshotData.value.totalFrames - 1
-  ) {
+  if (currentIndex.value < totalDisplayFrames.value - 1) {
     currentIndex.value++;
   }
 };
 
 const goToFrame = (index: number) => {
   currentIndex.value = index;
+};
+
+/** Timeline emits snapshot-data index; convert to display index (with cover offset) */
+const onTimelineSelect = (snapshotIdx: number) => {
+  currentIndex.value = snapshotIdx + (hasCover.value ? 1 : 0);
 };
 
 const close = () => {
@@ -414,12 +478,24 @@ const toggleLayout = () => {
   layout.value = layout.value === 'bottom' ? 'left' : 'bottom';
 };
 
-// ── Mouse wheel ────────────────────────────────────────────────────────────
+// ── Mouse wheel (on main frame region) ─────────────────────────────────────
 const viewerCardRef = ref<HTMLElement | null>(null);
+const frameRegionRef = ref<HTMLElement | null>(null);
+
 const onWheel = (e: WheelEvent) => {
+  e.preventDefault();
   if (e.deltaY > 0) nextFrame();
   else if (e.deltaY < 0) prevFrame();
 };
+
+// Attach/detach wheel listener when frame region mounts/unmounts
+watch(frameRegionRef, (newEl, oldEl) => {
+  if (oldEl) oldEl.removeEventListener('wheel', onWheel as EventListener);
+  if (newEl)
+    newEl.addEventListener('wheel', onWheel as EventListener, {
+      passive: false,
+    });
+});
 
 // ── Keyboard handling ──────────────────────────────────────────────────────
 const onKeydown = (e: KeyboardEvent) => {
@@ -440,8 +516,7 @@ const onKeydown = (e: KeyboardEvent) => {
       break;
     case 'End':
       e.preventDefault();
-      if (videoshotData.value)
-        currentIndex.value = videoshotData.value.totalFrames - 1;
+      currentIndex.value = totalDisplayFrames.value - 1;
       break;
     case 'PageUp':
       e.preventDefault();
@@ -449,12 +524,10 @@ const onKeydown = (e: KeyboardEvent) => {
       break;
     case 'PageDown':
       e.preventDefault();
-      if (videoshotData.value) {
-        currentIndex.value = Math.min(
-          videoshotData.value.totalFrames - 1,
-          currentIndex.value + 10
-        );
-      }
+      currentIndex.value = Math.min(
+        totalDisplayFrames.value - 1,
+        currentIndex.value + 10
+      );
       break;
   }
 };
@@ -557,20 +630,13 @@ const onDialogShow = () => {
 // ── Window resize tracking ─────────────────────────────────────────────
 onMounted(() => {
   window.addEventListener('resize', onWindowResize);
-  // Add wheel listener with passive option to avoid Chrome violation
-  const card = viewerCardRef.value;
-  if (card) {
-    const el = (card as unknown as { $el?: HTMLElement }).$el ?? card;
-    el.addEventListener('wheel', onWheel as EventListener, { passive: true });
-  }
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onWindowResize);
-  const card = viewerCardRef.value;
-  if (card) {
-    const el = (card as unknown as { $el?: HTMLElement }).$el ?? card;
-    el.removeEventListener('wheel', onWheel as EventListener);
+  // Clean up wheel listener if still attached
+  if (frameRegionRef.value) {
+    frameRegionRef.value.removeEventListener('wheel', onWheel as EventListener);
   }
 });
 
@@ -602,6 +668,8 @@ watch(
   background: rgba(0, 0, 0, 0.35);
   min-height: 40px;
   flex: 0 0 auto;
+  padding-left: 20px;
+  padding-right: 12px;
 }
 .snapshot-viewer-title {
   font-size: 13px;
@@ -610,6 +678,7 @@ watch(
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding-left: 0;
 }
 .snapshot-status-text {
   color: rgba(255, 255, 255, 0.65);
@@ -618,7 +687,7 @@ watch(
 
 /* ── Info Bar (below header) ───────────── */
 .snapshot-info-bar {
-  padding: 6px 20px 6px;
+  padding: 6px 20px;
   background: rgba(0, 0, 0, 0.15);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   flex: 0 0 auto;
@@ -668,41 +737,71 @@ watch(
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Description (collapsible, overlay) ── */
-.snapshot-desc-wrapper {
-  position: relative;
-  height: 0;
-  z-index: 10;
+/* ── Description (single line with hint) ── */
+.snapshot-desc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 0;
+  transition: background 0.2s;
 }
-.snapshot-desc {
-  position: relative;
+.snapshot-desc-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.snapshot-desc-text {
   color: rgba(255, 255, 255, 0.4);
   font-size: 12px;
   line-height: 1.5;
-  text-align: left;
-  margin-top: 4px;
-  max-height: 1.5em;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+.snapshot-desc-row:hover .snapshot-desc-text {
+  color: rgba(255, 255, 255, 0.55);
+}
+.snapshot-desc-hint {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 11px;
   white-space: nowrap;
-  cursor: pointer;
-  transition: max-height 0.3s ease, white-space 0.3s ease, background 0.3s ease,
-    box-shadow 0.3s ease;
-  border-radius: 4px;
-  padding: 2px 4px;
+  flex-shrink: 0;
 }
-.snapshot-desc:hover {
-  color: rgba(255, 255, 255, 0.55);
+.snapshot-desc-row:hover .snapshot-desc-hint {
+  color: rgba(144, 202, 249, 0.6);
 }
-.snapshot-desc-expanded {
-  max-height: 8em;
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  background: rgba(17, 24, 39, 0.95);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  color: rgba(255, 255, 255, 0.55);
+
+/* ── Description dialog ── */
+.snapshot-desc-dialog {
+  background-color: #1a2233;
+  color: #e0e0e0;
+  border-radius: 12px;
+  min-width: 320px;
+  max-width: 560px;
+  width: 90vw;
+}
+.snapshot-desc-dialog-header {
+  background: rgba(0, 0, 0, 0.25);
+  min-height: 40px;
+}
+.snapshot-desc-dialog-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+.snapshot-desc-dialog-body {
+  padding: 16px 20px;
+}
+.snapshot-desc-full {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
 }
 
 /* ── Body layout ────────────────────────── */
@@ -737,25 +836,77 @@ watch(
   gap: 0;
 }
 
-/* ── Frame counter (above preview with spacing) ── */
+/* ── Frame counter (above preview) ── */
 .snapshot-frame-counter {
-  text-align: center;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0;
   padding: 2px 0 6px;
   flex: 0 0 auto;
   font-family: monospace;
   font-size: 13px;
+  line-height: 1;
 }
 .frame-idx {
   color: #90caf9;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 13px;
 }
 .frame-sep {
   color: rgba(255, 255, 255, 0.25);
   margin: 0 1px;
+  font-size: 13px;
 }
 .frame-total {
   color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+}
+
+/* ── Timestamp bar (below preview) ── */
+.snapshot-time-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  padding: 6px 0 0;
+  flex: 0 0 auto;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1;
+}
+.time-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  text-decoration: none;
+  padding: 2px 10px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.time-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.time-current {
+  color: #64b5f6;
+  font-weight: 600;
+  font-size: 13px;
+}
+.time-sep {
+  color: rgba(255, 255, 255, 0.2);
+  margin: 0 2px;
+  font-size: 13px;
+}
+.time-total {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 13px;
+}
+.time-jump-icon {
+  color: rgba(255, 255, 255, 0.2);
+  margin-left: 4px;
+  transition: color 0.2s;
+}
+.time-link:hover .time-jump-icon {
+  color: #90caf9;
 }
 
 /* ── Frame region ───────────────────────── */
@@ -778,49 +929,9 @@ watch(
   border-radius: 6px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
-
-/* ── Timestamp bar (below preview with spacing) ── */
-.snapshot-time-bar {
-  text-align: center;
-  padding: 6px 0 0;
-  flex: 0 0 auto;
-  font-family: monospace;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.time-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  text-decoration: none;
-  padding: 2px 10px;
-  border-radius: 6px;
-  transition: background 0.2s;
-}
-.time-link:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-.time-link .time-current {
-  color: #64b5f6;
-  font-weight: 600;
-  font-size: 14px;
-}
-.time-link .time-sep {
-  color: rgba(255, 255, 255, 0.2);
-  margin: 0 2px;
-}
-.time-link .time-total {
-  color: rgba(255, 255, 255, 0.35);
-  font-size: 13px;
-}
-.time-jump-icon {
-  color: rgba(255, 255, 255, 0.2);
-  margin-left: 4px;
-  transition: color 0.2s;
-}
-.time-link:hover .time-jump-icon {
-  color: #90caf9;
+.snapshot-cover-frame {
+  object-fit: contain;
+  display: block;
 }
 
 /* ── Shortcuts hint ─────────────────────── */
@@ -860,7 +971,7 @@ watch(
   .info-stats-row {
     display: none;
   }
-  .snapshot-desc-wrapper {
+  .snapshot-desc-row {
     display: none;
   }
   .nav-btn {
