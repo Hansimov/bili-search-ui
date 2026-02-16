@@ -1,9 +1,15 @@
 <template>
-  <q-card flat class="result-item q-pt-none q-pb-sm">
+  <q-card
+    flat
+    class="result-item q-pt-none q-pb-sm"
+    :class="{ 'result-item-menu-open': contextMenuOpen }"
+  >
     <!-- Right-click context menu -->
     <ResultItemContextMenu
       :bvid="result.bvid"
       @view-snapshot="showSnapshotViewer = true"
+      @menu-open="contextMenuOpen = true"
+      @menu-close="contextMenuOpen = false"
     />
     <!-- Snapshot viewer dialog -->
     <VideoSnapshotViewer
@@ -120,7 +126,14 @@ export default {
       coverLoaded.value = true;
     };
 
-    return { coverSrc, coverLoaded, onCoverLoad, showSnapshotViewer };
+    const contextMenuOpen = ref(false);
+    return {
+      coverSrc,
+      coverLoaded,
+      onCoverLoad,
+      showSnapshotViewer,
+      contextMenuOpen,
+    };
   },
   data() {
     return {
@@ -176,14 +189,17 @@ export default {
 .result-item {
   transition: transform 0.25s ease, filter 0.3s ease;
 }
-.result-item:hover {
+.result-item:hover,
+.result-item.result-item-menu-open {
   transform: scale(1.025);
 }
-body.body--light .result-item:hover {
+body.body--light .result-item:hover,
+body.body--light .result-item.result-item-menu-open {
   background: linear-gradient(#ffffff00, #eeeeeeee);
   filter: contrast(1.25) saturate(1.15) brightness(1.05);
 }
-body.body--dark .result-item:hover {
+body.body--dark .result-item:hover,
+body.body--dark .result-item.result-item-menu-open {
   background: linear-gradient(#22222200, #55555555);
   filter: contrast(1.25) saturate(1.15) brightness(1.1);
 }

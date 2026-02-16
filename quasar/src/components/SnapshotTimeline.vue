@@ -82,6 +82,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   select: [index: number];
+  'need-sheets': [indices: number[]];
 }>();
 
 const timelineRef = ref<HTMLElement | null>(null);
@@ -97,7 +98,7 @@ const isVertical = computed(() => props.direction === 'vertical');
 /** Minimum size of the scroll container to fit items */
 const scrollContainerStyle = computed(() => {
   if (isVertical.value) return {};
-  return { minHeight: `${itemHeight.value + 4}px` };
+  return { minHeight: `${itemHeight.value + 10}px` };
 });
 
 // ── Item sizing ────────────────────────────────────────────────────────────
@@ -211,6 +212,27 @@ const onScroll = () => {
     : scrollRef.value.scrollLeft;
 };
 
+// ── Lazy loading: emit needed sheet indices ────────────────────────────────
+const neededSheetIndices = computed(() => {
+  const sheets = new Set<number>();
+  for (const entry of visibleEntries.value) {
+    if (!isSheetLoaded(entry.frame.sheetIndex)) {
+      sheets.add(entry.frame.sheetIndex);
+    }
+  }
+  return [...sheets];
+});
+
+watch(
+  neededSheetIndices,
+  (indices) => {
+    if (indices.length > 0) {
+      emit('need-sheets', indices);
+    }
+  },
+  { immediate: true }
+);
+
 /** Scroll the active frame into view */
 const scrollToActive = async () => {
   await nextTick();
@@ -259,7 +281,7 @@ onBeforeUnmount(() => {
 .snapshot-timeline {
   width: 100%;
   overflow: hidden;
-  padding: 6px 0;
+  padding: 6px 0 10px;
 }
 
 /* ── Horizontal ─────────────────────────── */
@@ -343,9 +365,9 @@ onBeforeUnmount(() => {
   font-size: 11px;
   font-family: monospace;
   color: rgba(255, 255, 255, 0.9);
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-  padding: 8px 2px 2px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+  padding: 10px 2px 4px;
   pointer-events: none;
-  line-height: 1;
+  line-height: 1.2;
 }
 </style>

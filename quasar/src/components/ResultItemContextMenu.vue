@@ -6,11 +6,14 @@
 -->
 <template>
   <q-menu
+    ref="menuRef"
     touch-position
     context-menu
     class="result-context-menu"
     transition-show="jump-down"
     transition-hide="jump-up"
+    @before-show="onMenuShow"
+    @hide="onMenuHide"
   >
     <q-list dense class="context-menu-list">
       <q-item
@@ -41,60 +44,89 @@
 
       <q-item
         clickable
-        v-close-popup
         class="context-menu-item"
+        :class="{ 'context-menu-item-success': copiedLink }"
         @click="doCopyLink"
       >
         <q-item-section avatar class="context-menu-icon">
-          <q-icon name="link" size="18px" />
+          <q-icon :name="copiedLink ? 'check_circle' : 'link'" size="18px" />
         </q-item-section>
-        <q-item-section class="context-menu-label">复制链接</q-item-section>
+        <q-item-section class="context-menu-label">
+          {{ copiedLink ? '已复制链接' : '复制链接' }}
+        </q-item-section>
       </q-item>
 
       <q-item
         clickable
-        v-close-popup
         class="context-menu-item"
+        :class="{ 'context-menu-item-success': copiedBvid }"
         @click="doCopyBvid"
       >
         <q-item-section avatar class="context-menu-icon">
-          <q-icon name="content_copy" size="18px" />
+          <q-icon
+            :name="copiedBvid ? 'check_circle' : 'content_copy'"
+            size="18px"
+          />
         </q-item-section>
-        <q-item-section class="context-menu-label">复制BV号</q-item-section>
+        <q-item-section class="context-menu-label">
+          {{ copiedBvid ? '已复制BV号' : '复制BV号' }}
+        </q-item-section>
       </q-item>
     </q-list>
   </q-menu>
 </template>
 
 <script setup lang="ts">
-import { copyToClipboard } from 'quasar';
-import { showCopyToast } from 'src/services/videoshotService';
+import { ref } from 'vue';
+import { copyToClipboard, QMenu } from 'quasar';
 
 const props = defineProps<{
   bvid: string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'view-snapshot': [];
+  'menu-open': [];
+  'menu-close': [];
 }>();
+
+const menuRef = ref<InstanceType<typeof QMenu> | null>(null);
+const copiedBvid = ref(false);
+const copiedLink = ref(false);
+
+const onMenuShow = () => {
+  copiedBvid.value = false;
+  copiedLink.value = false;
+  emit('menu-open');
+};
+
+const onMenuHide = () => {
+  emit('menu-close');
+};
 
 const openInBilibili = () => {
   window.open(`https://www.bilibili.com/video/${props.bvid}`, '_blank');
 };
 
-const doCopyBvid = (e: Event) => {
-  const mouseEvt = e as MouseEvent;
+const doCopyBvid = () => {
+  if (copiedBvid.value) return;
   copyToClipboard(props.bvid)
-    .then(() => showCopyToast('已复制BV号', mouseEvt))
-    .catch(() => showCopyToast('复制失败', mouseEvt, true));
+    .then(() => {
+      copiedBvid.value = true;
+      setTimeout(() => menuRef.value?.hide(), 1000);
+    })
+    .catch(() => menuRef.value?.hide());
 };
 
-const doCopyLink = (e: Event) => {
-  const mouseEvt = e as MouseEvent;
+const doCopyLink = () => {
+  if (copiedLink.value) return;
   const url = `https://www.bilibili.com/video/${props.bvid}`;
   copyToClipboard(url)
-    .then(() => showCopyToast('已复制链接', mouseEvt))
-    .catch(() => showCopyToast('复制失败', mouseEvt, true));
+    .then(() => {
+      copiedLink.value = true;
+      setTimeout(() => menuRef.value?.hide(), 1000);
+    })
+    .catch(() => menuRef.value?.hide());
 };
 </script>
 
@@ -148,5 +180,16 @@ body.body--dark .context-menu-item:hover {
 }
 body.body--dark .context-menu-icon .q-icon {
   color: #aaa;
+}
+
+/* Copied success feedback */
+.context-menu-item-success {
+  pointer-events: none;
+}
+.context-menu-item-success .context-menu-icon .q-icon {
+  color: #4caf50 !important;
+}
+.context-menu-item-success .context-menu-label {
+  color: #4caf50 !important;
 }
 </style>

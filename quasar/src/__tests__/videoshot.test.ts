@@ -289,8 +289,11 @@ describe('lazy loading calculations', () => {
     };
 
     it('should determine initial load count correctly', () => {
-        const initialCount = Math.min(INITIAL_SHEETS_LIMIT, manySheetData.totalSheets);
-        expect(initialCount).toBe(3);
+        // Initial preload now loads 2 sheets (reduced from INITIAL_SHEETS_LIMIT)
+        const initialCount = Math.min(2, manySheetData.totalSheets);
+        expect(initialCount).toBe(2);
+        // INITIAL_SHEETS_LIMIT constant is still 3 for reference
+        expect(INITIAL_SHEETS_LIMIT).toBe(3);
     });
 
     it('should correctly track which sheets are loaded', () => {
@@ -307,5 +310,48 @@ describe('lazy loading calculations', () => {
             if (!loaded.has(i)) nextBatch.push(i);
         }
         expect(nextBatch).toEqual([3, 4, 5]);
+    });
+
+    it('should determine needed sheet indices from visible frame range', () => {
+        // Simulate a timeline showing frames 95-110 (spanning sheets 0 and 1)
+        const loaded = new Set<number>([0]); // only sheet 0 loaded
+        const visibleFrameIndices = [95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105];
+        const neededSheets = new Set<number>();
+        for (const idx of visibleFrameIndices) {
+            const sheetIdx = getSheetIndexForFrame(manySheetData, idx);
+            if (!loaded.has(sheetIdx)) {
+                neededSheets.add(sheetIdx);
+            }
+        }
+        expect([...neededSheets]).toEqual([1]);
+    });
+
+    it('should not request already loaded sheets', () => {
+        const loaded = new Set<number>([0, 1, 2]);
+        const visibleFrameIndices = [0, 1, 2, 50, 100, 150];
+        const neededSheets = new Set<number>();
+        for (const idx of visibleFrameIndices) {
+            const sheetIdx = getSheetIndexForFrame(manySheetData, idx);
+            if (!loaded.has(sheetIdx)) {
+                neededSheets.add(sheetIdx);
+            }
+        }
+        // All visible frames are in sheets 0 and 1, both loaded
+        expect([...neededSheets]).toEqual([]);
+    });
+
+    it('should preserve loadedSheetIndices across simulated layout switch', () => {
+        // Simulate: load some sheets, then "switch layout" (reuse same data)
+        const data = { ...manySheetData, loadedSheetIndices: new Set<number>() };
+        data.loadedSheetIndices.add(0);
+        data.loadedSheetIndices.add(1);
+        data.loadedSheetIndices.add(3);
+
+        // After "layout switch", the same data object is used
+        expect(data.loadedSheetIndices.has(0)).toBe(true);
+        expect(data.loadedSheetIndices.has(1)).toBe(true);
+        expect(data.loadedSheetIndices.has(3)).toBe(true);
+        expect(data.loadedSheetIndices.has(2)).toBe(false);
+        expect(data.loadedSheetIndices.size).toBe(3);
     });
 });

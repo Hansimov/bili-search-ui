@@ -26,6 +26,21 @@
           {{ title }}
         </q-toolbar-title>
 
+        <!-- Toggle timeline visibility -->
+        <q-btn
+          flat
+          round
+          dense
+          :icon="showTimeline ? 'photo_library' : 'hide_image'"
+          color="grey-4"
+          class="q-mr-xs"
+          @click="showTimeline = !showTimeline"
+        >
+          <q-tooltip :delay="400">
+            {{ showTimeline ? '收起缩略图' : '展开缩略图' }}
+          </q-tooltip>
+        </q-btn>
+
         <!-- Layout toggle -->
         <q-btn
           flat
@@ -43,6 +58,45 @@
 
         <q-btn flat round dense icon="close" color="grey-4" @click="close" />
       </q-toolbar>
+
+      <!-- ─── Video Info Bar ─────────────────────────────────── -->
+      <div class="snapshot-info-bar" v-if="result">
+        <div class="info-bar-content">
+          <a
+            v-if="result.owner"
+            :href="`https://space.bilibili.com/${result.owner.mid}/video`"
+            target="_blank"
+            class="info-uploader"
+          >
+            {{ result.owner.name }}
+          </a>
+          <span v-if="result.pubdate" class="info-divider">·</span>
+          <span v-if="result.pubdate" class="info-date">
+            {{ tsToYmd(result.pubdate) }}
+          </span>
+          <template v-if="result.stat">
+            <span class="info-divider">·</span>
+            <span class="info-stats">
+              <span class="info-stat-item">
+                <q-icon name="fa-regular fa-play-circle" size="12px" />
+                {{ humanReadableNumber(result.stat.view) }}
+              </span>
+              <span class="info-stat-item">
+                <q-icon name="sms" size="12px" />
+                {{ humanReadableNumber(result.stat.danmaku) }}
+              </span>
+              <span class="info-stat-item">
+                <q-icon name="thumb_up_off_alt" size="12px" />
+                {{ humanReadableNumber(result.stat.like) }}
+              </span>
+              <span class="info-stat-item">
+                <q-icon name="star_border" size="12px" />
+                {{ humanReadableNumber(result.stat.favorite) }}
+              </span>
+            </span>
+          </template>
+        </div>
+      </div>
 
       <!-- ─── Loading ────────────────────────────────────── -->
       <div v-if="loading" class="col flex flex-center column">
@@ -78,7 +132,10 @@
           "
         >
           <!-- Timeline (left layout: PPT-like thumbnail panel) -->
-          <div v-if="layout === 'left'" class="snapshot-timeline-left">
+          <div
+            v-if="layout === 'left' && showTimeline"
+            class="snapshot-timeline-left"
+          >
             <SnapshotTimeline
               :data="videoshotData"
               :currentIndex="currentIndex"
@@ -86,6 +143,7 @@
               :direction="'vertical'"
               :loadedSheetIndices="videoshotData.loadedSheetIndices"
               @select="goToFrame"
+              @need-sheets="onNeedSheets"
             />
           </div>
 
@@ -96,27 +154,6 @@
               <span class="frame-idx">{{ currentIndex + 1 }}</span>
               <span class="frame-sep">/</span>
               <span class="frame-total">{{ videoshotData.totalFrames }}</span>
-              <span class="frame-sheet-info">
-                · {{ videoshotData.loadedSheetIndices.size }}/{{
-                  videoshotData.totalSheets
-                }}
-                快照
-                <q-btn
-                  v-if="
-                    videoshotData.loadedSheetIndices.size <
-                    videoshotData.totalSheets
-                  "
-                  flat
-                  dense
-                  no-caps
-                  size="xs"
-                  label="加载更多"
-                  color="light-blue-4"
-                  class="q-ml-xs"
-                  :loading="loadingSheetsMore"
-                  @click="loadNextBatchSheets"
-                />
-              </span>
             </div>
 
             <!-- Frame with nav -->
@@ -152,61 +189,27 @@
               </div>
             </div>
 
-            <!-- Timestamp bar (below preview) -->
+            <!-- Timestamp bar (clickable to B站) -->
             <div class="snapshot-time-bar">
-              <span class="time-current">{{ currentTimestampStr }}</span>
-              <span class="time-sep">/</span>
-              <span class="time-total">{{ totalDurationStr }}</span>
               <a
                 :href="currentBilibiliUrl"
                 target="_blank"
-                class="time-jump-link"
-                title="在B站打开此时间点"
+                class="time-link"
+                title="点击在B站打开此时间点"
               >
-                <q-icon name="open_in_new" size="13px" />
-                跳转B站
+                <span class="time-current">{{ currentTimestampStr }}</span>
+                <span class="time-sep">/</span>
+                <span class="time-total">{{ totalDurationStr }}</span>
+                <q-icon name="open_in_new" size="11px" class="time-jump-icon" />
               </a>
             </div>
 
-            <!-- Video info section -->
-            <div class="snapshot-video-info" v-if="result">
-              <div class="video-info-main">
-                <a
-                  v-if="result.owner"
-                  :href="`https://space.bilibili.com/${result.owner.mid}/video`"
-                  target="_blank"
-                  class="video-info-uploader"
-                >
-                  {{ result.owner.name }}
-                </a>
-                <span v-if="result.pubdate" class="video-info-date">
-                  {{ tsToYmd(result.pubdate) }}
-                </span>
-                <span v-if="result.stat" class="video-info-stats">
-                  <span class="video-stat-item">
-                    <q-icon name="fa-regular fa-play-circle" size="12px" />
-                    {{ humanReadableNumber(result.stat.view) }}
-                  </span>
-                  <span class="video-stat-item">
-                    <q-icon name="fa-solid fa-align-left" size="12px" />
-                    {{ humanReadableNumber(result.stat.danmaku) }}
-                  </span>
-                  <span class="video-stat-item">
-                    <q-icon name="fa-solid fa-thumbs-up" size="12px" />
-                    {{ humanReadableNumber(result.stat.like) }}
-                  </span>
-                  <span class="video-stat-item">
-                    <q-icon name="fa-solid fa-star" size="12px" />
-                    {{ humanReadableNumber(result.stat.favorite) }}
-                  </span>
-                </span>
-              </div>
-              <div
-                v-if="result.desc && result.desc !== '-'"
-                class="video-info-desc"
-              >
-                {{ result.desc }}
-              </div>
+            <!-- Video description -->
+            <div
+              v-if="result?.desc && result.desc !== '-'"
+              class="snapshot-desc"
+            >
+              {{ result.desc }}
             </div>
 
             <!-- Keyboard shortcuts hint -->
@@ -216,7 +219,10 @@
           </div>
 
           <!-- Timeline (bottom layout) -->
-          <div v-if="layout === 'bottom'" class="snapshot-timeline-bottom">
+          <div
+            v-if="layout === 'bottom' && showTimeline"
+            class="snapshot-timeline-bottom"
+          >
             <SnapshotTimeline
               :data="videoshotData"
               :currentIndex="currentIndex"
@@ -224,6 +230,7 @@
               :direction="'horizontal'"
               :loadedSheetIndices="videoshotData.loadedSheetIndices"
               @select="goToFrame"
+              @need-sheets="onNeedSheets"
             />
           </div>
         </div>
@@ -233,7 +240,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import SnapshotFrameDisplay from './SnapshotFrameDisplay.vue';
 import SnapshotTimeline from './SnapshotTimeline.vue';
 import {
@@ -241,7 +248,6 @@ import {
   getFrameInfo,
   formatTimestamp,
   buildBilibiliUrl,
-  INITIAL_SHEETS_LIMIT,
   MAX_RETRIES,
   type VideoshotData,
   type FrameInfo,
@@ -273,12 +279,24 @@ const emit = defineEmits<{
 
 // ── State ──────────────────────────────────────────────────────────────────
 const loading = ref(false);
-const loadingSheetsMore = ref(false);
 const error = ref('');
+const showTimeline = ref(true);
 const retryCount = ref(0);
 const videoshotData = ref<VideoshotData | null>(null);
 const currentIndex = ref(0);
 const layout = ref<'bottom' | 'left'>('bottom');
+
+// ── Window size tracking for responsive layout ────────────────────────
+const windowWidth = ref(
+  typeof window !== 'undefined' ? window.innerWidth : 1024
+);
+const windowHeight = ref(
+  typeof window !== 'undefined' ? window.innerHeight : 768
+);
+const onWindowResize = () => {
+  windowWidth.value = window.innerWidth;
+  windowHeight.value = window.innerHeight;
+};
 
 // ── Computed: current frame ────────────────────────────────────────────────
 const currentFrame = computed<FrameInfo | null>(() => {
@@ -310,21 +328,31 @@ const LEFT_PANEL_WIDTH = 180;
 
 const mainScale = computed(() => {
   if (!videoshotData.value) return 4;
-  const sideOffset = layout.value === 'left' ? LEFT_PANEL_WIDTH + 20 : 0;
-  const maxWidth = Math.min(960 - sideOffset, 800);
-  const maxHeight = 360;
+  const dialogWidth = Math.min(windowWidth.value * 0.9, 1100);
+  const sideOffset =
+    layout.value === 'left' && showTimeline.value ? LEFT_PANEL_WIDTH + 20 : 0;
+  const navBtnsWidth = 120;
+  const padding = 40;
+  const maxWidth = dialogWidth - sideOffset - navBtnsWidth - padding;
+  const dialogHeight = Math.min(windowHeight.value * 0.85, 800);
+  const overhead = 180;
+  const timelineH = layout.value === 'bottom' && showTimeline.value ? 150 : 0;
+  const maxHeight = Math.max(dialogHeight - overhead - timelineH, 120);
   const scaleX = maxWidth / videoshotData.value.imgXSize;
   const scaleY = maxHeight / videoshotData.value.imgYSize;
-  return Math.min(scaleX, scaleY);
+  return Math.min(scaleX, scaleY, 6);
 });
 
 const timelineScale = computed(() => {
   if (!videoshotData.value) return 0.65;
   if (layout.value === 'left') {
-    // Fit thumbnails inside the left panel (panel - padding - border)
     const availableWidth = LEFT_PANEL_WIDTH - 20;
     return availableWidth / videoshotData.value.imgXSize;
   }
+  // Bottom layout: adjust for narrow windows
+  const dialogWidth = Math.min(windowWidth.value * 0.9, 1100);
+  if (dialogWidth < 600) return 0.4;
+  if (dialogWidth < 800) return 0.5;
   return 0.65;
 });
 
@@ -427,34 +455,20 @@ const preloadSheets = (
 };
 
 /**
- * 首次加载：并行预加载前 N 张拼版图
+ * 首次加载：预加载前 2 张拼版图，其余由懒加载处理
  */
 const initialPreload = async (data: VideoshotData) => {
-  const indices = Array.from(
-    { length: Math.min(INITIAL_SHEETS_LIMIT, data.totalSheets) },
-    (_, i) => i
-  );
+  const count = Math.min(2, data.totalSheets);
+  const indices = Array.from({ length: count }, (_, i) => i);
   await preloadSheets(data, indices);
 };
 
 /**
- * "加载更多" 按钮：加载下一批拼版图
+ * 懒加载：当时间线显示需要新拼版图时自动预加载
  */
-const loadNextBatchSheets = async () => {
+const onNeedSheets = async (indices: number[]) => {
   if (!videoshotData.value) return;
-  loadingSheetsMore.value = true;
-  const loaded = videoshotData.value.loadedSheetIndices;
-  const nextIndices: number[] = [];
-  for (
-    let i = 0;
-    i < videoshotData.value.totalSheets &&
-    nextIndices.length < INITIAL_SHEETS_LIMIT;
-    i++
-  ) {
-    if (!loaded.has(i)) nextIndices.push(i);
-  }
-  await preloadSheets(videoshotData.value, nextIndices);
-  loadingSheetsMore.value = false;
+  await preloadSheets(videoshotData.value, indices);
 };
 
 // ── Data loading ───────────────────────────────────────────────────────────
@@ -492,6 +506,15 @@ const onDialogShow = () => {
   }
 };
 
+// ── Window resize tracking ─────────────────────────────────────────────
+onMounted(() => {
+  window.addEventListener('resize', onWindowResize);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWindowResize);
+});
+
 // Reset data when bvid changes
 watch(
   () => props.bvid,
@@ -528,6 +551,53 @@ watch(
 .snapshot-status-text {
   color: rgba(255, 255, 255, 0.65);
   font-size: 14px;
+}
+
+/* ── Info Bar (below header) ───────────── */
+.snapshot-info-bar {
+  padding: 4px 20px 6px;
+  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  flex: 0 0 auto;
+}
+.info-bar-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.info-uploader {
+  color: #81d4fa;
+  text-decoration: none;
+  font-weight: 500;
+}
+.info-uploader:hover {
+  text-decoration: underline;
+  color: #b3e5fc;
+}
+.info-divider {
+  color: rgba(255, 255, 255, 0.15);
+}
+.info-date {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+.info-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.info-stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+}
+.info-stat-item .q-icon {
+  opacity: 0.65;
 }
 
 /* ── Body layout ────────────────────────── */
@@ -574,11 +644,6 @@ watch(
 .frame-total {
   color: rgba(255, 255, 255, 0.4);
 }
-.frame-sheet-info {
-  color: rgba(255, 255, 255, 0.25);
-  font-size: 11px;
-  margin-left: 6px;
-}
 
 /* ── Frame region ───────────────────────── */
 .snapshot-frame-region {
@@ -601,7 +666,7 @@ watch(
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
-/* ── Timestamp bar (below preview) ──────── */
+/* ── Timestamp bar (clickable link) ─────── */
 .snapshot-time-bar {
   text-align: center;
   padding: 2px 16px 4px;
@@ -610,88 +675,56 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
 }
-.time-current {
+.time-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  text-decoration: none;
+  padding: 2px 10px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.time-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.time-link .time-current {
   color: #64b5f6;
   font-weight: 600;
   font-size: 14px;
 }
-.time-sep {
+.time-link .time-sep {
   color: rgba(255, 255, 255, 0.2);
   margin: 0 2px;
 }
-.time-total {
+.time-link .time-total {
   color: rgba(255, 255, 255, 0.35);
   font-size: 13px;
 }
-.time-jump-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: rgba(255, 255, 255, 0.3);
-  text-decoration: none;
-  font-size: 11px;
-  margin-left: 12px;
+.time-jump-icon {
+  color: rgba(255, 255, 255, 0.2);
+  margin-left: 4px;
   transition: color 0.2s;
 }
-.time-jump-link:hover {
+.time-link:hover .time-jump-icon {
   color: #90caf9;
 }
 
-/* ── Video info section ─────────────────── */
-.snapshot-video-info {
-  padding: 4px 24px 2px;
-  flex: 0 0 auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-}
-.video-info-main {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.video-info-uploader {
-  color: #81d4fa;
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 500;
-}
-.video-info-uploader:hover {
-  text-decoration: underline;
-}
-.video-info-date {
+/* ── Description ──────────────────────────── */
+.snapshot-desc {
   color: rgba(255, 255, 255, 0.3);
   font-size: 12px;
-}
-.video-info-stats {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-.video-stat-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 12px;
-}
-.video-stat-item .q-icon {
-  opacity: 0.6;
-}
-.video-info-desc {
-  color: rgba(255, 255, 255, 0.25);
-  font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.5;
   text-align: center;
-  margin-top: 3px;
-  max-height: 2.8em;
+  padding: 0 32px;
+  margin: 2px 0;
+  max-height: 3em;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  flex: 0 0 auto;
 }
 
 /* ── Shortcuts hint ─────────────────────── */
@@ -715,5 +748,41 @@ watch(
   flex: 0 0 auto;
   width: 180px;
   overflow: hidden;
+}
+
+/* ── Responsive ───────────────────────────── */
+@media (max-width: 768px) {
+  .snapshot-viewer {
+    width: 96vw;
+    height: 92vh;
+    max-width: none;
+    max-height: none;
+  }
+  .snapshot-timeline-left {
+    width: 140px;
+  }
+  .info-stats {
+    display: none;
+  }
+  .snapshot-desc {
+    padding: 0 16px;
+  }
+  .nav-btn {
+    min-width: 32px;
+  }
+}
+@media (max-width: 480px) {
+  .snapshot-viewer-title {
+    font-size: 12px;
+  }
+  .snapshot-info-bar {
+    padding: 3px 12px 4px;
+  }
+  .info-bar-content {
+    font-size: 12px;
+  }
+  .snapshot-frame-counter {
+    padding: 4px 12px 0;
+  }
 }
 </style>
