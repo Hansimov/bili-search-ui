@@ -13,7 +13,7 @@
 <template>
   <div class="snapshot-frame-display" :style="containerStyle">
     <img
-      :src="frame.sheetUrl"
+      :src="imgSrc"
       referrerpolicy="no-referrer"
       draggable="false"
       class="snapshot-sprite-sheet"
@@ -23,6 +23,9 @@
     />
     <div v-if="!loaded" class="snapshot-frame-placeholder">
       <q-spinner-dots size="20px" color="grey-5" />
+    </div>
+    <div v-else-if="hasError" class="snapshot-frame-error" @click.stop="retry">
+      <q-icon name="refresh" size="18px" color="grey-5" />
     </div>
   </div>
 </template>
@@ -42,6 +45,8 @@ const props = withDefaults(
 );
 
 const loaded = ref(false);
+const hasError = ref(false);
+const retryKey = ref(0);
 
 const containerStyle = computed(() => ({
   width: `${props.frame.width * props.scale}px`,
@@ -56,22 +61,40 @@ const imgStyle = computed(() => ({
   left: `${-props.frame.offsetX * props.scale}px`,
   top: `${-props.frame.offsetY * props.scale}px`,
   width: `${props.frame.sheetWidth * props.scale}px`,
-  height: 'auto',
-  display: loaded.value ? 'block' : 'none',
+  height: `${props.frame.sheetHeight * props.scale}px`,
+  display: loaded.value && !hasError.value ? 'block' : 'none',
 }));
+
+/** Image src with cache-busting on retry */
+const imgSrc = computed(() => {
+  const url = props.frame.sheetUrl;
+  if (retryKey.value > 0) {
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}_r=${retryKey.value}`;
+  }
+  return url;
+});
 
 watch(
   () => props.frame.sheetUrl,
   () => {
     loaded.value = false;
+    hasError.value = false;
   }
 );
 
 const onLoad = () => {
   loaded.value = true;
+  hasError.value = false;
 };
 const onError = () => {
   loaded.value = true;
+  hasError.value = true;
+};
+const retry = () => {
+  loaded.value = false;
+  hasError.value = false;
+  retryKey.value++;
 };
 </script>
 
@@ -90,5 +113,18 @@ const onError = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.snapshot-frame-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.snapshot-frame-error:hover {
+  opacity: 1;
 }
 </style>

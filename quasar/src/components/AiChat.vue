@@ -59,8 +59,12 @@ export default {
 
     onMounted(() => {
       if (aiChatMessagesList.value) {
-        aiChatMessagesList.value.addEventListener('scroll', onScroll);
-        aiChatMessagesList.value.addEventListener('wheel', onWheel);
+        aiChatMessagesList.value.addEventListener('scroll', onScroll, {
+          passive: true,
+        });
+        aiChatMessagesList.value.addEventListener('wheel', onWheel, {
+          passive: true,
+        });
         aiChatStore.setAiChatMessagesListRef(aiChatMessagesList.value);
       }
     });

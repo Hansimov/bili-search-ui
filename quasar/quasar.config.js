@@ -16,248 +16,296 @@ const FRONTEND_PORT = process.env.FRONTEND_PORT || 21002;
 const WEBSOCKET_PORT = process.env.WEBSOCKET_PORT || 21003;
 
 module.exports = configure(function (/* ctx */) {
-  return {
-    // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
-    // preFetch: true,
+    return {
+        // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
+        // preFetch: true,
 
-    // app boot file (/src/boot)
-    // --> boot files are part of "main.js"
-    // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['axios', 'vue-qrcode', 'auth'],
+        // app boot file (/src/boot)
+        // --> boot files are part of "main.js"
+        // https://v2.quasar.dev/quasar-cli-vite/boot-files
+        boot: ['axios', 'vue-qrcode', 'auth'],
 
-    // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
-    css: [
-      // vue-flow styles
-      // '~@vue-flow/core/dist/style.css',
-      // '~@vue-flow/core/dist/theme-default.css',
-      // '~@vue-flow/controls/dist/style.css',
-      // user-defined global styles
-      'app.css', 'color.css',
-    ],
-
-    // https://github.com/quasarframework/quasar/tree/dev/extras
-    extras: [
-      'ionicons-v4',
-      'mdi-v7',
-      'fontawesome-v6',
-      // 'eva-icons',
-      // 'themify',
-      // 'line-awesome',
-      // 'roboto-font-latin-ext', // this or either 'roboto-font', NEVER both!
-      'roboto-font', // optional, you are not bound to it
-      'material-icons', // optional, you are not bound to it
-      'material-icons-outlined', // optional, you are not bound to it
-    ],
-
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
-    build: {
-      target: {
-        browser: ['es2019', 'edge88', 'firefox78', 'chrome87', 'safari13.1'],
-        node: 'node20',
-      },
-
-      vueRouterMode: 'history', // available values: 'hash', 'history'
-      // vueRouterBase,
-      // vueDevtools,
-      // vueOptionsAPI: false,
-
-      // rebuildCache: true, // rebuilds Vite/linter/etc cache on startup
-
-      // publicPath: '/',
-      // analyze: true,
-      // env: {},
-      // rawDefine: {}
-      // ignorePublicFolder: true,
-      // minify: false,
-      // polyfillModulePreload: true,
-      // distDir
-
-      // extendViteConf (viteConf) {},
-      // viteVuePluginOptions: {},
-
-      vitePlugins: [
-        [
-          'vite-plugin-checker',
-          {
-            vueTsc: {
-              tsconfigPath: 'tsconfig.vue-tsc.json',
-            },
-            eslint: {
-              lintCommand: 'eslint "./**/*.{js,ts,mjs,cjs,vue}"',
-            },
-          },
-          { server: false },
+        // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
+        css: [
+            // vue-flow styles
+            // '~@vue-flow/core/dist/style.css',
+            // '~@vue-flow/core/dist/theme-default.css',
+            // '~@vue-flow/controls/dist/style.css',
+            // user-defined global styles
+            'app.css', 'color.css',
         ],
-      ],
-    },
 
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#devServer
-    devServer: {
-      // https: true
-      open: false, // opens browser window automatically
-      proxy: {
-        // https://quasar.dev/quasar-cli-vite/api-proxying
-        // proxy all requests starting with /api to jsonplaceholder
-        '/api': {
-          target: `http://localhost:${BACKEND_PORT}`,
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, ''),
+        // https://github.com/quasarframework/quasar/tree/dev/extras
+        extras: [
+            'ionicons-v4',
+            'mdi-v7',
+            'fontawesome-v6',
+            // 'eva-icons',
+            // 'themify',
+            // 'line-awesome',
+            // 'roboto-font-latin-ext', // this or either 'roboto-font', NEVER both!
+            'roboto-font', // optional, you are not bound to it
+            'material-icons', // optional, you are not bound to it
+            'material-icons-outlined', // optional, you are not bound to it
+        ],
+
+        // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
+        build: {
+            target: {
+                browser: ['es2019', 'edge88', 'firefox78', 'chrome87', 'safari13.1'],
+                node: 'node20',
+            },
+
+            vueRouterMode: 'history', // available values: 'hash', 'history'
+            // vueRouterBase,
+            // vueDevtools,
+            // vueOptionsAPI: false,
+
+            // rebuildCache: true, // rebuilds Vite/linter/etc cache on startup
+
+            // publicPath: '/',
+            // analyze: true,
+            // env: {},
+            // rawDefine: {}
+            // ignorePublicFolder: true,
+            // minify: false,
+            // polyfillModulePreload: true,
+            // distDir
+
+            // extendViteConf (viteConf) {},
+            // viteVuePluginOptions: {},
+
+            vitePlugins: [
+                [
+                    'vite-plugin-checker',
+                    {
+                        vueTsc: {
+                            tsconfigPath: 'tsconfig.vue-tsc.json',
+                        },
+                        eslint: {
+                            lintCommand: 'eslint "./**/*.{js,ts,mjs,cjs,vue}"',
+                        },
+                    },
+                    { server: false },
+                ],
+                // Dynamic proxy plugin for Bilibili CDN images (supports multiple CDN hosts)
+                {
+                    name: 'bili-img-dynamic-proxy',
+                    configureServer(server) {
+                        const https = require('https');
+                        const http = require('http');
+                        server.middlewares.use('/bili-img', (req, res) => {
+                            // URL format: /bili-img/{hostname}/{rest_path}
+                            const match = (req.url || '').match(/^\/([^/]+)(\/.*)/);
+                            if (!match) {
+                                res.statusCode = 400;
+                                res.end('Bad Request');
+                                return;
+                            }
+                            const [, hostname, restPath] = match;
+                            const useHttps = true;
+                            const mod = useHttps ? https : http;
+                            const proxyReq = mod.request(
+                                {
+                                    hostname,
+                                    port: useHttps ? 443 : 80,
+                                    path: restPath,
+                                    method: 'GET',
+                                    headers: {
+                                        'Referer': 'https://www.bilibili.com',
+                                        'Origin': 'https://www.bilibili.com',
+                                        'User-Agent':
+                                            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                                    },
+                                },
+                                (proxyRes) => {
+                                    // Forward status and selected headers
+                                    const fwdHeaders = {};
+                                    for (const key of ['content-type', 'content-length', 'cache-control', 'etag', 'last-modified']) {
+                                        if (proxyRes.headers[key]) fwdHeaders[key] = proxyRes.headers[key];
+                                    }
+                                    res.writeHead(proxyRes.statusCode || 502, fwdHeaders);
+                                    proxyRes.pipe(res);
+                                }
+                            );
+                            proxyReq.on('error', () => {
+                                res.statusCode = 502;
+                                res.end('Bad Gateway');
+                            });
+                            proxyReq.end();
+                        });
+                    },
+                },
+            ],
         },
-        // proxy all websocket requests to websocket server
-        '/ws': {
-          target: `ws://localhost:${WEBSOCKET_PORT}/ws`,
-          ws: true,
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/ws/, ''),
+
+        // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#devServer
+        devServer: {
+            // https: true
+            open: false, // opens browser window automatically
+            proxy: {
+                // https://quasar.dev/quasar-cli-vite/api-proxying
+                // proxy all requests starting with /api to jsonplaceholder
+                '/api': {
+                    target: `http://localhost:${BACKEND_PORT}`,
+                    changeOrigin: true,
+                    rewrite: (path) => path.replace(/^\/api/, ''),
+                },
+                // proxy all websocket requests to websocket server
+                '/ws': {
+                    target: `ws://localhost:${WEBSOCKET_PORT}/ws`,
+                    ws: true,
+                    changeOrigin: true,
+                    rewrite: (path) => path.replace(/^\/ws/, ''),
+                },
+                // proxy login requests to passport server
+                '/bili-passport': {
+                    target: 'https://passport.bilibili.com',
+                    changeOrigin: true,
+                    secure: true,
+                    rewrite: (path) => path.replace(/^\/bili-passport/, ''),
+                    headers: {
+                        'Referer': 'https://passport.bilibili.com',
+                        'Origin': 'https://passport.bilibili.com',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    }
+                },
+                // proxy api requests to bili api server
+                '/bili-api': {
+                    target: 'https://api.bilibili.com',
+                    changeOrigin: true,
+                    secure: true,
+                    rewrite: (path) => path.replace(/^\/bili-api/, ''),
+                    headers: {
+                        'Referer': 'https://www.bilibili.com',
+                        'Origin': 'https://www.bilibili.com',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    },
+                    cookieDomainRewrite: false,
+                    preserveHeaderKeyCase: true,
+                },
+
+            },
+            port: parseInt(FRONTEND_PORT),
+            hmr: {
+                clientPort: parseInt(FRONTEND_PORT),
+            },
         },
-        // proxy login requests to passport server
-        '/bili-passport': {
-          target: 'https://passport.bilibili.com',
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/bili-passport/, ''),
-          headers: {
-            'Referer': 'https://passport.bilibili.com',
-            'Origin': 'https://passport.bilibili.com',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-          }
-        },
-        // proxy api requests to bili api server
-        '/bili-api': {
-          target: 'https://api.bilibili.com',
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/bili-api/, ''),
-          headers: {
-            'Referer': 'https://www.bilibili.com',
-            'Origin': 'https://www.bilibili.com',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-          },
-          cookieDomainRewrite: false,
-          preserveHeaderKeyCase: true,
+
+        // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#framework
+        framework: {
+            config: {
+                dark: 'auto',
+            },
+
+            iconSet: 'material-icons-outlined', // Quasar icon set
+            // lang: 'en-US', // Quasar language pack
+
+            // For special cases outside of where the auto-import strategy can have an impact
+            // (like functional components as one of the examples),
+            // you can manually specify Quasar components/directives to be available everywhere:
+            //
+            // components: [],
+            // directives: [],
+
+            // Quasar plugins
+            plugins: ['Notify'],
         },
 
-      },
-      port: parseInt(FRONTEND_PORT),
-      hmr: {
-        clientPort: parseInt(FRONTEND_PORT),
-      },
-    },
+        // animations: 'all', // --- includes all animations
+        // https://v2.quasar.dev/options/animations
+        animations: [],
 
-    // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#framework
-    framework: {
-      config: {
-        dark: 'auto',
-      },
+        // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#sourcefiles
+        // sourceFiles: {
+        //   rootComponent: 'src/App.vue',
+        //   router: 'src/router/index',
+        //   store: 'src/store/index',
+        //   registerServiceWorker: 'src-pwa/register-service-worker',
+        //   serviceWorker: 'src-pwa/custom-service-worker',
+        //   pwaManifestFile: 'src-pwa/manifest.json',
+        //   electronMain: 'src-electron/electron-main',
+        //   electronPreload: 'src-electron/electron-preload'
+        // },
 
-      iconSet: 'material-icons-outlined', // Quasar icon set
-      // lang: 'en-US', // Quasar language pack
+        // https://v2.quasar.dev/quasar-cli-vite/developing-ssr/configuring-ssr
+        ssr: {
+            // ssrPwaHtmlFilename: 'offline.html', // do NOT use index.html as name!
+            // will mess up SSR
 
-      // For special cases outside of where the auto-import strategy can have an impact
-      // (like functional components as one of the examples),
-      // you can manually specify Quasar components/directives to be available everywhere:
-      //
-      // components: [],
-      // directives: [],
+            // extendSSRWebserverConf (esbuildConf) {},
+            // extendPackageJson (json) {},
 
-      // Quasar plugins
-      plugins: ['Notify'],
-    },
+            pwa: false,
 
-    // animations: 'all', // --- includes all animations
-    // https://v2.quasar.dev/options/animations
-    animations: [],
+            // manualStoreHydration: true,
+            // manualPostHydrationTrigger: true,
 
-    // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#sourcefiles
-    // sourceFiles: {
-    //   rootComponent: 'src/App.vue',
-    //   router: 'src/router/index',
-    //   store: 'src/store/index',
-    //   registerServiceWorker: 'src-pwa/register-service-worker',
-    //   serviceWorker: 'src-pwa/custom-service-worker',
-    //   pwaManifestFile: 'src-pwa/manifest.json',
-    //   electronMain: 'src-electron/electron-main',
-    //   electronPreload: 'src-electron/electron-preload'
-    // },
+            prodPort: 3000, // The default port that the production server should use
+            // (gets superseded if process.env.PORT is specified at runtime)
 
-    // https://v2.quasar.dev/quasar-cli-vite/developing-ssr/configuring-ssr
-    ssr: {
-      // ssrPwaHtmlFilename: 'offline.html', // do NOT use index.html as name!
-      // will mess up SSR
+            middlewares: [
+                'render', // keep this as last one
+            ],
+        },
 
-      // extendSSRWebserverConf (esbuildConf) {},
-      // extendPackageJson (json) {},
+        // https://v2.quasar.dev/quasar-cli-vite/developing-pwa/configuring-pwa
+        pwa: {
+            workboxMode: 'generateSW', // or 'injectManifest'
+            injectPwaMetaTags: true,
+            swFilename: 'sw.js',
+            manifestFilename: 'manifest.json',
+            useCredentialsForManifestTag: false,
+            // useFilenameHashes: true,
+            // extendGenerateSWOptions (cfg) {}
+            // extendInjectManifestOptions (cfg) {},
+            // extendManifestJson (json) {}
+            // extendPWACustomSWConf (esbuildConf) {}
+        },
 
-      pwa: false,
+        // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-cordova-apps/configuring-cordova
+        cordova: {
+            // noIosLegacyBuildFlag: true, // uncomment only if you know what you are doing
+        },
 
-      // manualStoreHydration: true,
-      // manualPostHydrationTrigger: true,
+        // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-capacitor-apps/configuring-capacitor
+        capacitor: {
+            hideSplashscreen: true,
+        },
 
-      prodPort: 3000, // The default port that the production server should use
-      // (gets superseded if process.env.PORT is specified at runtime)
+        // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-electron-apps/configuring-electron
+        electron: {
+            // extendElectronMainConf (esbuildConf)
+            // extendElectronPreloadConf (esbuildConf)
 
-      middlewares: [
-        'render', // keep this as last one
-      ],
-    },
+            inspectPort: 5858,
 
-    // https://v2.quasar.dev/quasar-cli-vite/developing-pwa/configuring-pwa
-    pwa: {
-      workboxMode: 'generateSW', // or 'injectManifest'
-      injectPwaMetaTags: true,
-      swFilename: 'sw.js',
-      manifestFilename: 'manifest.json',
-      useCredentialsForManifestTag: false,
-      // useFilenameHashes: true,
-      // extendGenerateSWOptions (cfg) {}
-      // extendInjectManifestOptions (cfg) {},
-      // extendManifestJson (json) {}
-      // extendPWACustomSWConf (esbuildConf) {}
-    },
+            bundler: 'packager', // 'packager' or 'builder'
 
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-cordova-apps/configuring-cordova
-    cordova: {
-      // noIosLegacyBuildFlag: true, // uncomment only if you know what you are doing
-    },
+            packager: {
+                // https://github.com/electron-userland/electron-packager/blob/master/docs/api.md#options
+                // OS X / Mac App Store
+                // appBundleId: '',
+                // appCategoryType: '',
+                // osxSign: '',
+                // protocol: 'myapp://path',
+                // Windows only
+                // win32metadata: { ... }
+            },
 
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-capacitor-apps/configuring-capacitor
-    capacitor: {
-      hideSplashscreen: true,
-    },
+            builder: {
+                // https://www.electron.build/configuration/configuration
 
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-electron-apps/configuring-electron
-    electron: {
-      // extendElectronMainConf (esbuildConf)
-      // extendElectronPreloadConf (esbuildConf)
+                appId: 'bili-search-ui',
+            },
+        },
 
-      inspectPort: 5858,
+        // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-browser-extensions/configuring-bex
+        bex: {
+            contentScripts: ['my-content-script'],
 
-      bundler: 'packager', // 'packager' or 'builder'
-
-      packager: {
-        // https://github.com/electron-userland/electron-packager/blob/master/docs/api.md#options
-        // OS X / Mac App Store
-        // appBundleId: '',
-        // appCategoryType: '',
-        // osxSign: '',
-        // protocol: 'myapp://path',
-        // Windows only
-        // win32metadata: { ... }
-      },
-
-      builder: {
-        // https://www.electron.build/configuration/configuration
-
-        appId: 'bili-search-ui',
-      },
-    },
-
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-browser-extensions/configuring-bex
-    bex: {
-      contentScripts: ['my-content-script'],
-
-      // extendBexScriptsConf (esbuildConf) {}
-      // extendBexManifestJson (json) {}
-    },
-  };
+            // extendBexScriptsConf (esbuildConf) {}
+            // extendBexManifestJson (json) {}
+        },
+    };
 });

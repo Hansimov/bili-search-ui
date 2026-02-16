@@ -19,19 +19,19 @@
     transition-show="fade"
     transition-hide="fade"
   >
-    <q-card class="snapshot-viewer column no-wrap" @wheel.prevent="onWheel">
+    <q-card class="snapshot-viewer column no-wrap" ref="viewerCardRef">
       <!-- ─── Header ─────────────────────────────────────── -->
       <q-toolbar class="snapshot-viewer-header">
-        <q-toolbar-title class="ellipsis snapshot-viewer-title">
+        <q-toolbar-title class="snapshot-viewer-title">
           {{ title }}
         </q-toolbar-title>
 
-        <!-- Toggle timeline visibility -->
+        <!-- Toggle timeline visibility: icon shows current state -->
         <q-btn
           flat
           round
           dense
-          :icon="showTimeline ? 'photo_library' : 'hide_image'"
+          :icon="showTimeline ? 'view_sidebar' : 'photo_size_select_large'"
           color="grey-4"
           class="q-mr-xs"
           @click="showTimeline = !showTimeline"
@@ -41,12 +41,12 @@
           </q-tooltip>
         </q-btn>
 
-        <!-- Layout toggle -->
+        <!-- Layout toggle: icon shows current layout state -->
         <q-btn
           flat
           round
           dense
-          :icon="layout === 'bottom' ? 'view_sidebar' : 'view_stream'"
+          :icon="layout === 'left' ? 'view_sidebar' : 'view_stream'"
           color="grey-4"
           class="q-mr-xs"
           @click="toggleLayout"
@@ -61,7 +61,7 @@
 
       <!-- ─── Video Info Bar ─────────────────────────────────── -->
       <div class="snapshot-info-bar" v-if="result">
-        <div class="info-bar-content">
+        <div class="info-bar-row">
           <a
             v-if="result.owner"
             :href="`https://space.bilibili.com/${result.owner.mid}/video`"
@@ -74,27 +74,58 @@
           <span v-if="result.pubdate" class="info-date">
             {{ tsToYmd(result.pubdate) }}
           </span>
-          <template v-if="result.stat">
-            <span class="info-divider">·</span>
-            <span class="info-stats">
-              <span class="info-stat-item">
-                <q-icon name="fa-regular fa-play-circle" size="12px" />
-                {{ humanReadableNumber(result.stat.view) }}
-              </span>
-              <span class="info-stat-item">
-                <q-icon name="sms" size="12px" />
-                {{ humanReadableNumber(result.stat.danmaku) }}
-              </span>
-              <span class="info-stat-item">
-                <q-icon name="thumb_up_off_alt" size="12px" />
-                {{ humanReadableNumber(result.stat.like) }}
-              </span>
-              <span class="info-stat-item">
-                <q-icon name="star_border" size="12px" />
-                {{ humanReadableNumber(result.stat.favorite) }}
-              </span>
-            </span>
-          </template>
+        </div>
+        <div class="info-stats-row" v-if="result.stat">
+          <span class="info-stat-item">
+            <span class="stat-label">播放</span>
+            <span class="stat-value">{{
+              humanReadableNumber(result.stat.view)
+            }}</span>
+          </span>
+          <span class="info-stat-item">
+            <span class="stat-label">点赞</span>
+            <span class="stat-value">{{
+              humanReadableNumber(result.stat.like)
+            }}</span>
+          </span>
+          <span class="info-stat-item">
+            <span class="stat-label">投币</span>
+            <span class="stat-value">{{
+              humanReadableNumber(result.stat.coin)
+            }}</span>
+          </span>
+          <span class="info-stat-item">
+            <span class="stat-label">收藏</span>
+            <span class="stat-value">{{
+              humanReadableNumber(result.stat.favorite)
+            }}</span>
+          </span>
+          <span class="info-stat-item">
+            <span class="stat-label">弹幕</span>
+            <span class="stat-value">{{
+              humanReadableNumber(result.stat.danmaku)
+            }}</span>
+          </span>
+          <span class="info-stat-item">
+            <span class="stat-label">评论</span>
+            <span class="stat-value">{{
+              humanReadableNumber(result.stat.reply)
+            }}</span>
+          </span>
+        </div>
+        <!-- Description (collapsible, overlays content below) -->
+        <div
+          class="snapshot-desc-wrapper"
+          v-if="result?.desc && result.desc !== '-'"
+        >
+          <div
+            class="snapshot-desc"
+            :class="{ 'snapshot-desc-expanded': descExpanded }"
+            @click="descExpanded = !descExpanded"
+            :title="descExpanded ? '点击收起' : '点击展开'"
+          >
+            {{ result.desc }}
+          </div>
         </div>
       </div>
 
@@ -149,13 +180,6 @@
 
           <!-- Main area: frame + controls -->
           <div class="snapshot-main-area col flex column">
-            <!-- Frame counter (above preview) -->
-            <div class="snapshot-frame-counter" v-if="videoshotData">
-              <span class="frame-idx">{{ currentIndex + 1 }}</span>
-              <span class="frame-sep">/</span>
-              <span class="frame-total">{{ videoshotData.totalFrames }}</span>
-            </div>
-
             <!-- Frame with nav -->
             <div class="snapshot-frame-region col flex flex-center">
               <div class="snapshot-frame-wrapper flex items-center">
@@ -168,12 +192,42 @@
                   :disable="currentIndex <= 0"
                   @click="prevFrame"
                 />
-                <SnapshotFrameDisplay
-                  v-if="currentFrame"
-                  :frame="currentFrame"
-                  :scale="mainScale"
-                  class="snapshot-main-frame"
-                />
+                <div class="snapshot-frame-column">
+                  <!-- Frame counter (tight above preview) -->
+                  <div class="snapshot-frame-counter" v-if="videoshotData">
+                    <span class="frame-idx">{{ currentIndex + 1 }}</span>
+                    <span class="frame-sep">/</span>
+                    <span class="frame-total">{{
+                      videoshotData.totalFrames
+                    }}</span>
+                  </div>
+                  <SnapshotFrameDisplay
+                    v-if="currentFrame"
+                    :frame="currentFrame"
+                    :scale="mainScale"
+                    class="snapshot-main-frame"
+                  />
+                  <!-- Timestamp bar (tight below preview) -->
+                  <div class="snapshot-time-bar">
+                    <a
+                      :href="currentBilibiliUrl"
+                      target="_blank"
+                      class="time-link"
+                      title="点击在B站打开此时间点"
+                    >
+                      <span class="time-current">{{
+                        currentTimestampStr
+                      }}</span>
+                      <span class="time-sep">/</span>
+                      <span class="time-total">{{ totalDurationStr }}</span>
+                      <q-icon
+                        name="open_in_new"
+                        size="11px"
+                        class="time-jump-icon"
+                      />
+                    </a>
+                  </div>
+                </div>
                 <q-btn
                   flat
                   round
@@ -187,29 +241,6 @@
                   @click="nextFrame"
                 />
               </div>
-            </div>
-
-            <!-- Timestamp bar (clickable to B站) -->
-            <div class="snapshot-time-bar">
-              <a
-                :href="currentBilibiliUrl"
-                target="_blank"
-                class="time-link"
-                title="点击在B站打开此时间点"
-              >
-                <span class="time-current">{{ currentTimestampStr }}</span>
-                <span class="time-sep">/</span>
-                <span class="time-total">{{ totalDurationStr }}</span>
-                <q-icon name="open_in_new" size="11px" class="time-jump-icon" />
-              </a>
-            </div>
-
-            <!-- Video description -->
-            <div
-              v-if="result?.desc && result.desc !== '-'"
-              class="snapshot-desc"
-            >
-              {{ result.desc }}
             </div>
 
             <!-- Keyboard shortcuts hint -->
@@ -284,7 +315,8 @@ const showTimeline = ref(true);
 const retryCount = ref(0);
 const videoshotData = ref<VideoshotData | null>(null);
 const currentIndex = ref(0);
-const layout = ref<'bottom' | 'left'>('bottom');
+const layout = ref<'bottom' | 'left'>('left');
+const descExpanded = ref(false);
 
 // ── Window size tracking for responsive layout ────────────────────────
 const windowWidth = ref(
@@ -383,6 +415,7 @@ const toggleLayout = () => {
 };
 
 // ── Mouse wheel ────────────────────────────────────────────────────────────
+const viewerCardRef = ref<HTMLElement | null>(null);
 const onWheel = (e: WheelEvent) => {
   if (e.deltaY > 0) nextFrame();
   else if (e.deltaY < 0) prevFrame();
@@ -428,8 +461,9 @@ const onKeydown = (e: KeyboardEvent) => {
 
 // ── Lazy loading: preload sprite sheet images ──────────────────────────────
 /**
- * 预加载指定拼版图序号列表的图片
+ * 预加载指定拼版图序号列表的图片（带单图重试）
  */
+const PRELOAD_RETRY = 2;
 const preloadSheets = (
   data: VideoshotData,
   indices: number[]
@@ -438,17 +472,31 @@ const preloadSheets = (
     .filter((i) => i < data.totalSheets && !data.loadedSheetIndices.has(i))
     .map((i) => {
       return new Promise<void>((resolve) => {
-        const img = new Image();
-        img.referrerPolicy = 'no-referrer';
-        img.onload = () => {
-          data.loadedSheetIndices.add(i);
-          resolve();
+        let attempt = 0;
+        const tryLoad = () => {
+          const img = new Image();
+          img.referrerPolicy = 'no-referrer';
+          img.onload = () => {
+            data.loadedSheetIndices.add(i);
+            resolve();
+          };
+          img.onerror = () => {
+            attempt++;
+            if (attempt <= PRELOAD_RETRY) {
+              // Retry with cache-busting
+              setTimeout(() => {
+                const sep = data.images[i].includes('?') ? '&' : '?';
+                img.src = `${data.images[i]}${sep}_r=${attempt}`;
+              }, 500 * attempt);
+            } else {
+              // Give up but still mark as loaded to allow component-level retry
+              data.loadedSheetIndices.add(i);
+              resolve();
+            }
+          };
+          img.src = data.images[i];
         };
-        img.onerror = () => {
-          data.loadedSheetIndices.add(i);
-          resolve();
-        };
-        img.src = data.images[i];
+        tryLoad();
       });
     });
   return Promise.all(promises);
@@ -509,10 +557,21 @@ const onDialogShow = () => {
 // ── Window resize tracking ─────────────────────────────────────────────
 onMounted(() => {
   window.addEventListener('resize', onWindowResize);
+  // Add wheel listener with passive option to avoid Chrome violation
+  const card = viewerCardRef.value;
+  if (card) {
+    const el = (card as unknown as { $el?: HTMLElement }).$el ?? card;
+    el.addEventListener('wheel', onWheel as EventListener, { passive: true });
+  }
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onWindowResize);
+  const card = viewerCardRef.value;
+  if (card) {
+    const el = (card as unknown as { $el?: HTMLElement }).$el ?? card;
+    el.removeEventListener('wheel', onWheel as EventListener);
+  }
 });
 
 // Reset data when bvid changes
@@ -535,6 +594,7 @@ watch(
   max-width: 1100px;
   height: 85vh;
   max-height: 800px;
+  overscroll-behavior: contain;
 }
 
 /* ── Header ─────────────────────────────── */
@@ -547,6 +607,9 @@ watch(
   font-size: 13px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .snapshot-status-text {
   color: rgba(255, 255, 255, 0.65);
@@ -555,17 +618,16 @@ watch(
 
 /* ── Info Bar (below header) ───────────── */
 .snapshot-info-bar {
-  padding: 4px 20px 6px;
+  padding: 6px 20px 6px;
   background: rgba(0, 0, 0, 0.15);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   flex: 0 0 auto;
+  position: relative;
 }
-.info-bar-content {
+.info-bar-row {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: baseline;
   gap: 6px;
-  flex-wrap: wrap;
   font-size: 13px;
 }
 .info-uploader {
@@ -584,20 +646,63 @@ watch(
   color: rgba(255, 255, 255, 0.4);
   font-size: 12px;
 }
-.info-stats {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+.info-stats-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 3px;
 }
 .info-stat-item {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 3px;
-  color: rgba(255, 255, 255, 0.45);
   font-size: 12px;
 }
-.info-stat-item .q-icon {
-  opacity: 0.65;
+.stat-label {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 11px;
+}
+.stat-value {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Description (collapsible, overlay) ── */
+.snapshot-desc-wrapper {
+  position: relative;
+  height: 0;
+  z-index: 10;
+}
+.snapshot-desc {
+  position: relative;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  margin-top: 4px;
+  max-height: 1.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: max-height 0.3s ease, white-space 0.3s ease, background 0.3s ease,
+    box-shadow 0.3s ease;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+.snapshot-desc:hover {
+  color: rgba(255, 255, 255, 0.55);
+}
+.snapshot-desc-expanded {
+  max-height: 8em;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  background: rgba(17, 24, 39, 0.95);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 /* ── Body layout ────────────────────────── */
@@ -624,10 +729,18 @@ watch(
   display: none;
 }
 
-/* ── Frame counter (above preview) ──────── */
+/* ── Frame column (counter + image + time) ── */
+.snapshot-frame-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* ── Frame counter (above preview with spacing) ── */
 .snapshot-frame-counter {
   text-align: center;
-  padding: 6px 16px 2px;
+  padding: 2px 0 6px;
   flex: 0 0 auto;
   font-family: monospace;
   font-size: 13px;
@@ -666,10 +779,10 @@ watch(
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
-/* ── Timestamp bar (clickable link) ─────── */
+/* ── Timestamp bar (below preview with spacing) ── */
 .snapshot-time-bar {
   text-align: center;
-  padding: 2px 16px 4px;
+  padding: 6px 0 0;
   flex: 0 0 auto;
   font-family: monospace;
   display: flex;
@@ -710,23 +823,6 @@ watch(
   color: #90caf9;
 }
 
-/* ── Description ──────────────────────────── */
-.snapshot-desc {
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 12px;
-  line-height: 1.5;
-  text-align: center;
-  padding: 0 32px;
-  margin: 2px 0;
-  max-height: 3em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  flex: 0 0 auto;
-}
-
 /* ── Shortcuts hint ─────────────────────── */
 .snapshot-shortcuts-hint {
   font-size: 10px;
@@ -761,11 +857,11 @@ watch(
   .snapshot-timeline-left {
     width: 140px;
   }
-  .info-stats {
+  .info-stats-row {
     display: none;
   }
-  .snapshot-desc {
-    padding: 0 16px;
+  .snapshot-desc-wrapper {
+    display: none;
   }
   .nav-btn {
     min-width: 32px;
@@ -782,7 +878,7 @@ watch(
     font-size: 12px;
   }
   .snapshot-frame-counter {
-    padding: 4px 12px 0;
+    padding: 2px 0 0;
   }
 }
 </style>

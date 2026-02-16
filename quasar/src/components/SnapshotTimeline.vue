@@ -187,17 +187,22 @@ const visibleEntries = computed(() => {
   for (let i = startIdx; i <= endIdx; i++) {
     const offset = i * itemSize;
     const frame = getFrameInfo(props.data, i);
+    const w = `${itemWidth.value}px`;
+    const h = `${itemHeight.value}px`;
     const style: Record<string, string> = isVertical.value
       ? {
           position: 'absolute',
           top: `${offset}px`,
           left: '0',
           right: '0',
+          height: h,
         }
       : {
           position: 'absolute',
           left: `${offset}px`,
           top: '0',
+          width: w,
+          height: h,
         };
     entries.push({ index: i, frame, style });
   }
@@ -335,6 +340,9 @@ onBeforeUnmount(() => {
   position: absolute;
   overflow: hidden;
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .timeline-item:hover {
   border-color: rgba(255, 255, 255, 0.4);

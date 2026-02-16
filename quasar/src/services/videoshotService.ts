@@ -81,6 +81,31 @@ export const MAX_RETRIES = 2;
 export const RETRY_DELAY_MS = 3000;
 
 // ============================================================================
+// Image URL Utilities
+// ============================================================================
+
+/**
+ * 将 Bilibili CDN 图片 URL 重写为本地代理路径
+ *
+ * 避免浏览器直接请求 CDN 时被防盗链拦截。
+ * 将主机名编码在路径中，以支持不同 CDN 源（i0.hdslb.com、bimp.hdslb.com 等）。
+ * 例如：`//bimp.hdslb.com/videoshotpvhdboss/xxx.jpg`
+ *     → `/bili-img/bimp.hdslb.com/videoshotpvhdboss/xxx.jpg`
+ *
+ * @param url 原始图片 URL（可能带 `//` 前缀或完整 `https://`）
+ * @returns 本地代理路径（含 CDN 主机名）
+ */
+export function rewriteImageUrl(url: string): string {
+    if (url.startsWith('//')) url = `https:${url}`;
+    try {
+        const parsed = new URL(url);
+        return `/bili-img/${parsed.host}${parsed.pathname}`;
+    } catch {
+        return url;
+    }
+}
+
+// ============================================================================
 // API
 // ============================================================================
 
@@ -123,7 +148,7 @@ export async function fetchVideoshot(
             }
 
             const images: string[] = (data.image || []).map((url: string) =>
-                url.startsWith('//') ? `https:${url}` : url
+                rewriteImageUrl(url)
             );
             const timestamps: number[] = data.index || [];
 

@@ -5,6 +5,7 @@ import {
     getSheetIndexForFrame,
     formatTimestamp,
     buildBilibiliUrl,
+    rewriteImageUrl,
     INITIAL_SHEETS_LIMIT,
     MAX_RETRIES,
     RETRY_DELAY_MS,
@@ -353,5 +354,80 @@ describe('lazy loading calculations', () => {
         expect(data.loadedSheetIndices.has(3)).toBe(true);
         expect(data.loadedSheetIndices.has(2)).toBe(false);
         expect(data.loadedSheetIndices.size).toBe(3);
+    });
+});
+
+// ============================================================================
+// rewriteImageUrl
+// ============================================================================
+
+describe('rewriteImageUrl', () => {
+    it('should rewrite // prefixed CDN URL to local proxy path with hostname', () => {
+        expect(rewriteImageUrl('//i0.hdslb.com/bfs/videoshot/test.jpg')).toBe(
+            '/bili-img/i0.hdslb.com/bfs/videoshot/test.jpg'
+        );
+    });
+
+    it('should rewrite https:// CDN URL to local proxy path with hostname', () => {
+        expect(rewriteImageUrl('https://i0.hdslb.com/bfs/videoshot/test.jpg')).toBe(
+            '/bili-img/i0.hdslb.com/bfs/videoshot/test.jpg'
+        );
+    });
+
+    it('should handle different CDN subdomains (i1, i2)', () => {
+        expect(rewriteImageUrl('//i1.hdslb.com/bfs/videoshot/abc.jpg')).toBe(
+            '/bili-img/i1.hdslb.com/bfs/videoshot/abc.jpg'
+        );
+        expect(rewriteImageUrl('//i2.hdslb.com/bfs/videoshot/def.jpg')).toBe(
+            '/bili-img/i2.hdslb.com/bfs/videoshot/def.jpg'
+        );
+    });
+
+    it('should preserve full path including subdirectories', () => {
+        expect(rewriteImageUrl('//i0.hdslb.com/bfs/videoshot/12345/shot1.jpg')).toBe(
+            '/bili-img/i0.hdslb.com/bfs/videoshot/12345/shot1.jpg'
+        );
+    });
+
+    it('should return original string for invalid URLs', () => {
+        expect(rewriteImageUrl('not-a-url')).toBe('not-a-url');
+    });
+
+    it('should handle URL with query parameters (path only)', () => {
+        // URL.pathname strips query params
+        expect(rewriteImageUrl('https://i0.hdslb.com/bfs/videoshot/test.jpg?w=160')).toBe(
+            '/bili-img/i0.hdslb.com/bfs/videoshot/test.jpg'
+        );
+    });
+
+    it('should handle bimp.hdslb.com CDN host (pvhdboss format)', () => {
+        expect(rewriteImageUrl('//bimp.hdslb.com/videoshotpvhdboss/12345_abc-0001.jpg')).toBe(
+            '/bili-img/bimp.hdslb.com/videoshotpvhdboss/12345_abc-0001.jpg'
+        );
+    });
+
+    it('should handle boss.hdslb.com CDN host', () => {
+        expect(rewriteImageUrl('//boss.hdslb.com/videoshotpvhdboss/12345.bin')).toBe(
+            '/bili-img/boss.hdslb.com/videoshotpvhdboss/12345.bin'
+        );
+    });
+});
+
+// ============================================================================
+// getFrameInfo: sheetHeight calculation
+// ============================================================================
+
+describe('getFrameInfo sheetHeight', () => {
+    it('should calculate correct sheetHeight for full grid', () => {
+        const frame = getFrameInfo(mockData, 0);
+        expect(frame.sheetHeight).toBe(10 * 90); // imgYLen * imgYSize = 900
+    });
+
+    it('should return same sheetHeight for all frames (uniform grid)', () => {
+        const frame0 = getFrameInfo(mockData, 0);
+        const frame99 = getFrameInfo(mockData, 99);
+        const frame100 = getFrameInfo(mockData, 100);
+        expect(frame0.sheetHeight).toBe(frame99.sheetHeight);
+        expect(frame0.sheetHeight).toBe(frame100.sheetHeight);
     });
 });
