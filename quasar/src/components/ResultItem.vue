@@ -1,5 +1,16 @@
 <template>
   <q-card flat class="result-item q-pt-none q-pb-sm">
+    <!-- Right-click context menu -->
+    <ResultItemContextMenu
+      :bvid="result.bvid"
+      @view-snapshot="showSnapshotViewer = true"
+    />
+    <!-- Snapshot viewer dialog -->
+    <VideoSnapshotViewer
+      v-model="showSnapshotViewer"
+      :bvid="result.bvid"
+      :title="result.title"
+    />
     <q-card-section class="q-px-xs q-pt-none q-pb-xs">
       <a
         :href="`https://www.bilibili.com/video/${result.bvid}`"
@@ -77,8 +88,14 @@ import {
   tsToYmd,
 } from 'src/utils/convert';
 import { useCachedImage } from 'src/composables/useCachedImage';
+import ResultItemContextMenu from './ResultItemContextMenu.vue';
+import VideoSnapshotViewer from './VideoSnapshotViewer.vue';
 
 export default {
+  components: {
+    ResultItemContextMenu,
+    VideoSnapshotViewer,
+  },
   props: {
     result: {
       type: Object,
@@ -91,6 +108,7 @@ export default {
       () => props.result.pic + coverPicSuffix
     );
     const coverLoaded = ref(false);
+    const showSnapshotViewer = ref(false);
 
     // Reset coverLoaded when the image source changes
     watch(coverSrc, () => {
@@ -101,7 +119,7 @@ export default {
       coverLoaded.value = true;
     };
 
-    return { coverSrc, coverLoaded, onCoverLoad };
+    return { coverSrc, coverLoaded, onCoverLoad, showSnapshotViewer };
   },
   data() {
     return {
