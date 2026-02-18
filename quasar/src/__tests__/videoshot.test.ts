@@ -11,7 +11,7 @@ import {
     RETRY_DELAY_MS,
     type VideoshotData,
 } from 'src/services/videoshotService';
-import { tsToDatetime, tsToYmd } from 'src/utils/convert';
+import { tsToDatetime, tsToYmd, hasLeadingCjkPunctuation } from 'src/utils/convert';
 
 // ============================================================================
 // Test data
@@ -559,5 +559,69 @@ describe('rewriteImageUrl for cover images', () => {
         expect(
             rewriteImageUrl('https://i1.hdslb.com/bfs/archive/cover.jpg')
         ).toBe('/bili-img/i1.hdslb.com/bfs/archive/cover.jpg');
+    });
+});
+
+// ============================================================================
+// hasLeadingCjkPunctuation (full-width character alignment)
+// ============================================================================
+
+describe('hasLeadingCjkPunctuation', () => {
+    it('should detect leading 【 (left black lenticular bracket)', () => {
+        expect(hasLeadingCjkPunctuation('【官方MV】美丽的神话')).toBe(true);
+    });
+
+    it('should detect leading （ (fullwidth left parenthesis)', () => {
+        expect(hasLeadingCjkPunctuation('（完整版）电影解读')).toBe(true);
+    });
+
+    it('should detect leading 《 (left double angle bracket)', () => {
+        expect(hasLeadingCjkPunctuation('《原神》4.0前瞻')).toBe(true);
+    });
+
+    it('should detect leading 「 (left corner bracket)', () => {
+        expect(hasLeadingCjkPunctuation('「新番」万人追更')).toBe(true);
+    });
+
+    it('should detect leading “ (left double quotation mark)', () => {
+        expect(hasLeadingCjkPunctuation('“真相”大揭秘')).toBe(true);
+    });
+
+    it('should detect leading \u2018 (left single quotation mark)', () => {
+        expect(hasLeadingCjkPunctuation('\u2018引用\u2019测试')).toBe(true);
+    });
+
+    it('should return false for normal text starting with CJK character', () => {
+        expect(hasLeadingCjkPunctuation('这是一个测试')).toBe(false);
+    });
+
+    it('should return false for text starting with ASCII letter', () => {
+        expect(hasLeadingCjkPunctuation('Hello World')).toBe(false);
+    });
+
+    it('should return false for text starting with ASCII punctuation', () => {
+        expect(hasLeadingCjkPunctuation('[test]')).toBe(false);
+        expect(hasLeadingCjkPunctuation('(test)')).toBe(false);
+    });
+
+    it('should return false for empty string', () => {
+        expect(hasLeadingCjkPunctuation('')).toBe(false);
+    });
+
+    it('should return false for text starting with number', () => {
+        expect(hasLeadingCjkPunctuation('123测试')).toBe(false);
+    });
+
+    it('should detect leading 】 (right black lenticular bracket)', () => {
+        // Even closing brackets have this issue in full-width fonts
+        expect(hasLeadingCjkPunctuation('】收尾')).toBe(true);
+    });
+
+    it('should detect leading ［ (fullwidth left square bracket)', () => {
+        expect(hasLeadingCjkPunctuation('［字幕组］动漫解读')).toBe(true);
+    });
+
+    it('should detect leading 〔 (left tortoise shell bracket)', () => {
+        expect(hasLeadingCjkPunctuation('〔合集〕全集')).toBe(true);
     });
 });

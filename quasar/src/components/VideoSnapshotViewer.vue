@@ -22,7 +22,11 @@
     <q-card class="snapshot-viewer column no-wrap" ref="viewerCardRef">
       <!-- ─── Header ─────────────────────────────────────── -->
       <q-toolbar class="snapshot-viewer-header">
-        <q-toolbar-title class="snapshot-viewer-title" :title="title">
+        <q-toolbar-title
+          class="snapshot-viewer-title"
+          :class="{ 'cjk-punct-indent': titleHasLeadingCjkPunct }"
+          :title="title"
+        >
           {{ title }}
         </q-toolbar-title>
 
@@ -388,7 +392,11 @@ import {
   type VideoshotData,
   type FrameInfo,
 } from 'src/services/videoshotService';
-import { humanReadableNumber, tsToDatetime } from 'src/utils/convert';
+import {
+  humanReadableNumber,
+  tsToDatetime,
+  hasLeadingCjkPunctuation,
+} from 'src/utils/convert';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Dict = Record<string, any>;
@@ -421,6 +429,11 @@ const videoshotData = ref<VideoshotData | null>(null);
 const currentIndex = ref(0);
 const layout = ref<'left' | 'bottom' | 'right' | 'top'>('left');
 const descDialogOpen = ref(false);
+
+// ── CJK punctuation detection ──────────────────────────────────────────────
+const titleHasLeadingCjkPunct = computed(() =>
+  hasLeadingCjkPunctuation(props.title)
+);
 
 // ── Info visibility toggles ────────────────────────────────────────────────
 type InfoVisibilityKey = 'uploader' | 'stats' | 'desc';
@@ -593,9 +606,10 @@ const mainScale = computed(() => {
   const padding = 40;
   const maxWidth = dialogWidth - sideOffset - navBtnsWidth - padding;
   const dialogHeight = Math.min(windowHeight.value * 0.85, 800);
-  const overhead = 200;
-  const timelineH = !isHorizontalLayout.value && showTimeline.value ? 130 : 0;
-  const maxHeight = Math.max(dialogHeight - overhead - timelineH, 120);
+  // Overhead for: header(40) + info-bar(~80) + frame-counter(25) + time-bar(28) + shortcuts(20) + padding(30)
+  const overhead = 225;
+  const timelineH = !isHorizontalLayout.value && showTimeline.value ? 140 : 0;
+  const maxHeight = Math.max(dialogHeight - overhead - timelineH, 100);
   const scaleX = maxWidth / videoshotData.value.imgXSize;
   const scaleY = maxHeight / videoshotData.value.imgYSize;
   return Math.min(scaleX, scaleY, 6);
@@ -835,6 +849,12 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   padding-left: 0;
+  font-feature-settings: 'halt' 1;
+}
+/* Compensate leading CJK punctuation whitespace when halt is not supported */
+.snapshot-viewer-title.cjk-punct-indent {
+  text-indent: -0.5em;
+  padding-left: 0.5em;
 }
 .snapshot-status-text {
   color: rgba(255, 255, 255, 0.65);
@@ -868,11 +888,11 @@ watch(
   color: rgba(255, 255, 255, 0.15);
 }
 .info-date {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 12px;
 }
 .info-date-value {
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.72);
   font-variant-numeric: tabular-nums;
 }
 .info-stats-row {
@@ -888,13 +908,14 @@ watch(
   font-size: 12px;
 }
 .stat-label {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
 }
 .stat-value {
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.78);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
 
 /* ── Description (single line with hint) ── */
@@ -994,6 +1015,9 @@ watch(
   flex-direction: column;
   align-items: center;
   gap: 0;
+  /* Ensure the column doesn't push time bar off screen */
+  max-height: 100%;
+  overflow: visible;
 }
 
 /* ── Frame counter (above preview) ── */
@@ -1028,8 +1052,9 @@ watch(
   display: flex;
   align-items: baseline;
   justify-content: center;
-  padding: 6px 0 0;
+  padding: 6px 0 2px;
   flex: 0 0 auto;
+  min-height: 24px;
   font-family: monospace;
   font-size: 14px;
   line-height: 1;
@@ -1074,6 +1099,10 @@ watch(
   flex: 1 1 0;
   min-height: 0;
   padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 .snapshot-frame-wrapper {
   gap: 4px;

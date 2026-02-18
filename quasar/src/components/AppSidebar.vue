@@ -601,42 +601,43 @@
       </q-dialog>
     </div>
     <!-- /.sidebar-inner -->
-
-    <!-- 侧边栏右边缘手柄：点击切换展开/收起（仅桌面端） -->
-    <div
-      v-if="hasSidebar && !isTablet"
-      class="sidebar-edge-handle"
-      :class="sidebarExpanded ? 'edge-collapse' : 'edge-expand'"
-      @click.stop="layoutStore.toggleSidebar()"
-    >
-      <div class="edge-handle-indicator">
-        <svg
-          v-if="sidebarExpanded"
-          width="10"
-          height="10"
-          viewBox="0 0 16 16"
-          fill="none"
-        >
-          <path
-            d="M10 3L4 8L10 13"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <svg v-else width="10" height="10" viewBox="0 0 16 16" fill="none">
-          <path
-            d="M6 3L12 8L6 13"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </div>
-    </div>
   </aside>
+
+  <!-- 侧边栏右边缘手柄：放在 aside 外侧，避免遮挡滚动条（仅桌面端） -->
+  <div
+    v-if="hasSidebar && !isTablet"
+    class="sidebar-edge-handle"
+    :class="sidebarExpanded ? 'edge-collapse' : 'edge-expand'"
+    :style="edgeHandleStyle"
+    @click.stop="layoutStore.toggleSidebar()"
+  >
+    <div class="edge-handle-indicator">
+      <svg
+        v-if="sidebarExpanded"
+        width="10"
+        height="10"
+        viewBox="0 0 16 16"
+        fill="none"
+      >
+        <path
+          d="M10 3L4 8L10 13"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      <svg v-else width="10" height="10" viewBox="0 0 16 16" fill="none">
+        <path
+          d="M6 3L12 8L6 13"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -675,6 +676,12 @@ const historyDisplayLimit = ref(HISTORY_PAGE_SIZE);
 
 // Dark mode
 const isDark = ref(JSON.parse(localStorage.getItem('isDark') || 'true'));
+
+// Edge handle positioning: placed outside <aside> to avoid scrollbar overlap.
+// Uses position:fixed and left offset that follows the sidebar width via CSS transition.
+const edgeHandleStyle = computed(() => ({
+  left: sidebarExpanded.value ? '260px' : '50px',
+}));
 Dark.set(isDark.value);
 
 const toggleDarkMode = () => {
@@ -1028,15 +1035,14 @@ body.body--dark .app-sidebar {
   border-right: 1px solid #333;
 }
 
-/* ============ 侧边栏边缘手柄 ============ */
+/* ============ 侧边栏边缘手柄（固定在侧边栏外侧） ============ */
 .sidebar-edge-handle {
-  position: absolute;
-  right: 0;
+  position: fixed;
   top: 0;
   bottom: 0;
   width: 10px;
-  z-index: 10;
-  transition: background-color 0.15s ease;
+  z-index: 2101; /* above sidebar (2100) */
+  transition: left 0.25s ease, background-color 0.15s ease;
 }
 /* 收起状态：chevron-right 光标（类似 angle-right / ›） */
 .sidebar-edge-handle.edge-expand {

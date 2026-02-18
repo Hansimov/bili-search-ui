@@ -57,3 +57,19 @@ export function tsToYmd(ts: number): string {
 export function tsToDatetime(ts: number): string {
     return intToIso(ts).replace(/\//g, '-');
 }
+
+/**
+ * CJK opening punctuation characters that have built-in left-side whitespace
+ * in their full-width glyph (causes visual misalignment at text start).
+ *
+ * Includes: 【】〈〉《》「」『』（）［］〔〕"' etc.
+ */
+const CJK_LEADING_PUNCT_RE = /^[\u3010\u3011\u3008\u3009\u300a\u300b\u300c\u300d\u300e\u300f\u3014\u3015\uff08\uff09\uff3b\uff3d\u201c\u2018]/;
+
+/**
+ * Check if a string starts with a CJK full-width punctuation character
+ * that has built-in left whitespace in its glyph.
+ */
+export function hasLeadingCjkPunctuation(text: string): boolean {
+    return CJK_LEADING_PUNCT_RE.test(text);
+}

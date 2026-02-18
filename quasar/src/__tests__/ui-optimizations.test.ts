@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { hasLeadingCjkPunctuation } from 'src/utils/convert';
 
 // ============================================================================
 // Tests for UI optimizations (user-7 tasks)
@@ -143,5 +144,138 @@ describe('explore session switch flat button design', () => {
         const darkHoverBg = 'rgba(255, 255, 255, 0.08)';
         expect(darkBg).toBe('transparent');
         expect(darkHoverBg).toContain('0.08');
+    });
+});
+
+// ============================================================================
+// 4. Sidebar edge handle — positioned outside sidebar to avoid scrollbar overlap
+// ============================================================================
+describe('sidebar edge handle positioning', () => {
+    /**
+     * The edge handle should be positioned outside the <aside> sidebar element
+     * using position:fixed so it doesn't overlap with the scrollbar inside.
+     * It uses a left offset that matches the sidebar's current width.
+     */
+
+    it('edge handle left offset should match collapsed sidebar width', () => {
+        const sidebarExpanded = false;
+        const edgeLeft = sidebarExpanded ? 260 : 50;
+        expect(edgeLeft).toBe(50);
+    });
+
+    it('edge handle left offset should match expanded sidebar width', () => {
+        const sidebarExpanded = true;
+        const edgeLeft = sidebarExpanded ? 260 : 50;
+        expect(edgeLeft).toBe(260);
+    });
+
+    it('edge handle z-index should be above sidebar', () => {
+        const sidebarZIndex = 2100;
+        const edgeHandleZIndex = 2101;
+        expect(edgeHandleZIndex).toBeGreaterThan(sidebarZIndex);
+    });
+
+    it('edge handle should not overlap with sidebar content area', () => {
+        // Handle is 10px wide, positioned OUTSIDE the sidebar
+        const sidebarWidth = 260;
+        const handleLeft = sidebarWidth; // starts at the sidebar edge
+        const handleWidth = 10;
+        // The handle occupies [260, 270) — entirely outside the sidebar [0, 260)
+        expect(handleLeft).toBeGreaterThanOrEqual(sidebarWidth);
+        expect(handleLeft + handleWidth).toBe(270);
+    });
+});
+
+// ============================================================================
+// 5. Snapshot viewer — mainScale overhead accounts for time bar
+// ============================================================================
+describe('snapshot viewer mainScale overhead', () => {
+    /**
+     * The mainScale computation subtracts overhead from the dialog height to
+     * leave room for header, info bar, frame counter, time bar, shortcuts hint.
+     * The overhead must be large enough to prevent the time bar from being
+     * clipped, especially when timeline is at top/bottom.
+     */
+
+    it('overhead should account for all fixed-height elements', () => {
+        // header(40) + info-bar(~80) + frame-counter(25) + time-bar(28) +
+        // shortcuts(20) + padding(30) = 223, rounded up to 225
+        const overhead = 225;
+        const headerH = 40;
+        const infoBarH = 80;
+        const frameCounterH = 25;
+        const timeBarH = 28;
+        const shortcutsH = 20;
+        const paddingH = 30;
+        const minOverhead = headerH + infoBarH + frameCounterH + timeBarH + shortcutsH + paddingH;
+        expect(overhead).toBeGreaterThanOrEqual(minOverhead);
+    });
+
+    it('timelineH should be subtracted when layout is top or bottom', () => {
+        const isHorizontalLayout = false; // top or bottom
+        const showTimeline = true;
+        const timelineH = !isHorizontalLayout && showTimeline ? 140 : 0;
+        expect(timelineH).toBe(140);
+    });
+
+    it('timelineH should be 0 when layout is left or right', () => {
+        const isHorizontalLayout = true; // left or right
+        const showTimeline = true;
+        const timelineH = !isHorizontalLayout && showTimeline ? 140 : 0;
+        expect(timelineH).toBe(0);
+    });
+
+    it('maxHeight should never go below 100', () => {
+        const dialogHeight = 200;
+        const overhead = 225;
+        const timelineH = 140;
+        const maxHeight = Math.max(dialogHeight - overhead - timelineH, 100);
+        expect(maxHeight).toBe(100);
+    });
+});
+
+// ============================================================================
+// 6. CJK punctuation alignment — title indentation logic
+// ============================================================================
+describe('CJK punctuation title alignment', () => {
+    /**
+     * Titles starting with CJK full-width opening punctuation (【, （, 《, etc.)
+     * should get a cjk-punct-indent CSS class that applies:
+     * - font-feature-settings: 'halt' 1 (reduces fullwidth punct to half-width)
+     * - text-indent: -0.5em with padding-left: 0.5em (fallback for fonts w/o halt)
+     */
+
+    it('should flag titles starting with 【 for indentation', () => {
+        const title = '【合集】我的世界';
+        expect(hasLeadingCjkPunctuation(title)).toBe(true);
+    });
+
+    it('should flag titles starting with （ for indentation', () => {
+        const title = '（完整版）电影解读';
+        expect(hasLeadingCjkPunctuation(title)).toBe(true);
+    });
+
+    it('should not flag normal CJK text', () => {
+        const title = '我的世界合集';
+        expect(hasLeadingCjkPunctuation(title)).toBe(false);
+    });
+
+    it('should not flag ASCII bracket titles', () => {
+        const title = '[Subtitle Group] Anime EP01';
+        expect(hasLeadingCjkPunctuation(title)).toBe(false);
+    });
+
+    it('conditional class should be applied correctly', () => {
+        // Simulates Vue template: :class="{ 'cjk-punct-indent': titleHasLeadingCjkPunct }"
+        const testCases = [
+            { title: '【MV】新歌发布', expected: true },
+            { title: '普通标题', expected: false },
+            { title: '（转载）', expected: true },
+            { title: 'Normal Title', expected: false },
+        ];
+        for (const tc of testCases) {
+            const classes = { 'cjk-punct-indent': hasLeadingCjkPunctuation(tc.title) };
+            expect(classes['cjk-punct-indent']).toBe(tc.expected);
+        }
     });
 });

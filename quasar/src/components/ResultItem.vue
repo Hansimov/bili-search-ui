@@ -64,6 +64,7 @@
       >
         <div
           class="result-title"
+          :class="{ 'cjk-punct-indent': titleHasLeadingCjkPunct }"
           v-html="highlightedTitle()"
           :title="result.title + '\n' + result.tags"
         ></div>
@@ -88,11 +89,13 @@
 
 <script>
 import { ref, watch } from 'vue';
+import { computed } from 'vue';
 import constants from '../stores/constants.json';
 import {
   humanReadableNumber,
   secondsToDuration,
   tsToYmd,
+  hasLeadingCjkPunctuation,
 } from 'src/utils/convert';
 import { useCachedImage } from 'src/composables/useCachedImage';
 import ResultItemContextMenu from './ResultItemContextMenu.vue';
@@ -127,12 +130,18 @@ export default {
     };
 
     const contextMenuOpen = ref(false);
+
+    const titleHasLeadingCjkPunct = computed(() =>
+      hasLeadingCjkPunctuation(props.result?.title || '')
+    );
+
     return {
       coverSrc,
       coverLoaded,
       onCoverLoad,
       showSnapshotViewer,
       contextMenuOpen,
+      titleHasLeadingCjkPunct,
     };
   },
   data() {
@@ -226,6 +235,12 @@ body.body--dark .result-item.result-item-menu-open {
   text-overflow: ellipsis;
   flex-grow: 1;
   opacity: 0.85;
+  font-feature-settings: 'halt' 1;
+}
+/* Compensate leading CJK punctuation whitespace when halt is not supported */
+.result-title.cjk-punct-indent {
+  text-indent: -0.5em;
+  padding-left: 0.5em;
 }
 body.body--light .result-owner-name:hover,
 body.body--light .result-title:hover {
