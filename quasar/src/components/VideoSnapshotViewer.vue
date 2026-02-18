@@ -26,43 +26,82 @@
           {{ title }}
         </q-toolbar-title>
 
-        <!-- Layout toggle: icon shows current layout state -->
+        <!-- Layout & visibility dropdown -->
         <q-btn
           flat
           round
           dense
-          :icon="layout === 'left' ? 'view_sidebar' : 'view_stream'"
+          :icon="layoutBtnIcon"
           color="grey-4"
           class="q-mr-xs"
-          :disable="!showTimeline"
-          @click="toggleLayout"
+          :class="layoutBtnIconClass"
         >
-          <q-tooltip :delay="400">
-            {{ layout === 'bottom' ? '切换为侧边时间线' : '切换为底部时间线' }}
-          </q-tooltip>
-        </q-btn>
+          <q-tooltip :delay="400">布局与显示设置</q-tooltip>
+          <q-menu
+            anchor="bottom right"
+            self="top right"
+            class="snapshot-layout-menu"
+          >
+            <q-list dense>
+              <q-item-label header class="menu-section-header"
+                >缩略图布局</q-item-label
+              >
+              <q-item
+                v-for="opt in thumbnailLayoutOptions"
+                :key="opt.value"
+                clickable
+                v-close-popup
+                :active="
+                  opt.value === 'hidden'
+                    ? !showTimeline
+                    : showTimeline && layout === opt.value
+                "
+                active-class="menu-item-active"
+                @click="onThumbnailLayoutSelect(opt.value)"
+              >
+                <q-item-section avatar class="menu-item-icon">
+                  <q-icon
+                    :name="opt.icon"
+                    size="18px"
+                    :class="opt.iconClass || ''"
+                  />
+                </q-item-section>
+                <q-item-section>{{ opt.label }}</q-item-section>
+              </q-item>
 
-        <!-- Toggle timeline visibility: visible/hidden -->
-        <q-btn
-          flat
-          round
-          dense
-          :icon="showTimeline ? 'visibility' : 'visibility_off'"
-          color="grey-4"
-          class="q-mr-xs"
-          @click="showTimeline = !showTimeline"
-        >
-          <q-tooltip :delay="400">
-            {{ showTimeline ? '隐藏缩略图' : '显示缩略图' }}
-          </q-tooltip>
+              <q-separator class="menu-separator" />
+
+              <q-item-label header class="menu-section-header"
+                >信息可见性</q-item-label
+              >
+              <q-item
+                v-for="opt in infoVisibilityOptions"
+                :key="opt.key"
+                clickable
+                @click="toggleInfoVisibility(opt.key)"
+              >
+                <q-item-section avatar class="menu-item-icon">
+                  <q-icon
+                    :name="
+                      infoVisibility[opt.key]
+                        ? 'check_box'
+                        : 'check_box_outline_blank'
+                    "
+                    size="18px"
+                  />
+                </q-item-section>
+                <q-item-section>{{ opt.label }}</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
         </q-btn>
 
         <q-btn flat round dense icon="close" color="grey-4" @click="close" />
       </q-toolbar>
 
       <!-- ─── Video Info Bar ─────────────────────────────────── -->
-      <div class="snapshot-info-bar" v-if="result">
-        <div class="info-bar-row">
+      <div class="snapshot-info-bar" v-if="result && hasAnyInfoVisible">
+        <div class="info-bar-row" v-if="infoVisibility.uploader">
           <a
             v-if="result.owner"
             :href="`https://space.bilibili.com/${result.owner.mid}/video`"
@@ -73,10 +112,13 @@
           </a>
           <span v-if="result.pubdate" class="info-divider">·</span>
           <span v-if="result.pubdate" class="info-date">
-            发布于 {{ tsToDatetime(result.pubdate) }}
+            发布于
+            <span class="info-date-value">{{
+              tsToDatetime(result.pubdate)
+            }}</span>
           </span>
         </div>
-        <div class="info-stats-row" v-if="result.stat">
+        <div class="info-stats-row" v-if="result.stat && infoVisibility.stats">
           <span class="info-stat-item">
             <span class="stat-label">播放</span>
             <span class="stat-value">{{
@@ -117,7 +159,7 @@
         <!-- Description (single line, click to open dialog) -->
         <div
           class="snapshot-desc-row"
-          v-if="result?.desc && result.desc !== '-'"
+          v-if="result?.desc && result.desc !== '-' && infoVisibility.desc"
           @click="descDialogOpen = true"
         >
           <span class="snapshot-desc-text">{{ result.desc }}</span>
@@ -174,16 +216,27 @@
 
       <!-- ─── Main Content ───────────────────────────────── -->
       <template v-else-if="videoshotData && videoshotData.totalFrames > 0">
-        <div
-          class="snapshot-body col"
-          :class="
-            layout === 'left' ? 'snapshot-body-left' : 'snapshot-body-bottom'
-          "
-        >
+        <div class="snapshot-body col" :class="bodyLayoutClass">
+          <!-- Timeline (top layout) -->
+          <div
+            v-if="layout === 'top' && showTimeline"
+            class="snapshot-timeline-horizontal snapshot-timeline-top"
+          >
+            <SnapshotTimeline
+              :data="videoshotData"
+              :currentIndex="snapshotFrameIndex"
+              :thumbScale="timelineScale"
+              :direction="'horizontal'"
+              :loadedSheetIndices="videoshotData.loadedSheetIndices"
+              @select="onTimelineSelect"
+              @need-sheets="onNeedSheets"
+            />
+          </div>
+
           <!-- Timeline (left layout: PPT-like thumbnail panel) -->
           <div
             v-if="layout === 'left' && showTimeline"
-            class="snapshot-timeline-left"
+            class="snapshot-timeline-vertical snapshot-timeline-left"
           >
             <SnapshotTimeline
               :data="videoshotData"
@@ -280,13 +333,29 @@
           <!-- Timeline (bottom layout) -->
           <div
             v-if="layout === 'bottom' && showTimeline"
-            class="snapshot-timeline-bottom"
+            class="snapshot-timeline-horizontal snapshot-timeline-bottom"
           >
             <SnapshotTimeline
               :data="videoshotData"
               :currentIndex="snapshotFrameIndex"
               :thumbScale="timelineScale"
               :direction="'horizontal'"
+              :loadedSheetIndices="videoshotData.loadedSheetIndices"
+              @select="onTimelineSelect"
+              @need-sheets="onNeedSheets"
+            />
+          </div>
+
+          <!-- Timeline (right layout: PPT-like thumbnail panel) -->
+          <div
+            v-if="layout === 'right' && showTimeline"
+            class="snapshot-timeline-vertical snapshot-timeline-right"
+          >
+            <SnapshotTimeline
+              :data="videoshotData"
+              :currentIndex="snapshotFrameIndex"
+              :thumbScale="timelineScale"
+              :direction="'vertical'"
               :loadedSheetIndices="videoshotData.loadedSheetIndices"
               @select="onTimelineSelect"
               @need-sheets="onNeedSheets"
@@ -299,7 +368,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import {
+  ref,
+  reactive,
+  computed,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+} from 'vue';
 import SnapshotFrameDisplay from './SnapshotFrameDisplay.vue';
 import SnapshotTimeline from './SnapshotTimeline.vue';
 import {
@@ -343,8 +419,92 @@ const showTimeline = ref(true);
 const retryCount = ref(0);
 const videoshotData = ref<VideoshotData | null>(null);
 const currentIndex = ref(0);
-const layout = ref<'bottom' | 'left'>('left');
+const layout = ref<'left' | 'bottom' | 'right' | 'top'>('left');
 const descDialogOpen = ref(false);
+
+// ── Info visibility toggles ────────────────────────────────────────────────
+type InfoVisibilityKey = 'uploader' | 'stats' | 'desc';
+const infoVisibility = reactive<Record<InfoVisibilityKey, boolean>>({
+  uploader: true,
+  stats: true,
+  desc: true,
+});
+
+const hasAnyInfoVisible = computed(() => {
+  return infoVisibility.uploader || infoVisibility.stats || infoVisibility.desc;
+});
+
+const toggleInfoVisibility = (key: InfoVisibilityKey) => {
+  infoVisibility[key] = !infoVisibility[key];
+};
+
+// ── Layout dropdown options ────────────────────────────────────────────────
+const thumbnailLayoutOptions = [
+  {
+    value: 'left' as const,
+    label: '左侧',
+    icon: 'view_sidebar',
+    iconClass: 'icon-mirrored',
+  },
+  { value: 'right' as const, label: '右侧', icon: 'view_sidebar' },
+  {
+    value: 'top' as const,
+    label: '顶部',
+    icon: 'view_sidebar',
+    iconClass: 'icon-rotated-top',
+  },
+  {
+    value: 'bottom' as const,
+    label: '底部',
+    icon: 'view_sidebar',
+    iconClass: 'icon-rotated-bottom',
+  },
+  { value: 'hidden' as const, label: '隐藏', icon: 'visibility_off' },
+];
+
+const infoVisibilityOptions: { key: InfoVisibilityKey; label: string }[] = [
+  { key: 'uploader', label: 'UP主信息 / 发布时间' },
+  { key: 'stats', label: '统计信息' },
+  { key: 'desc', label: '简介' },
+];
+
+const onThumbnailLayoutSelect = (
+  value: 'left' | 'bottom' | 'right' | 'top' | 'hidden'
+) => {
+  if (value === 'hidden') {
+    showTimeline.value = false;
+  } else {
+    showTimeline.value = true;
+    layout.value = value;
+  }
+};
+
+// ── Layout button icon ─────────────────────────────────────────────────────
+const layoutBtnIcon = computed(() => {
+  if (!showTimeline.value) return 'visibility_off';
+  return 'view_sidebar';
+});
+
+const layoutBtnIconClass = computed(() => {
+  if (!showTimeline.value) return '';
+  switch (layout.value) {
+    case 'left':
+      return 'layout-btn-mirrored';
+    case 'top':
+      return 'layout-btn-rotated-top';
+    case 'bottom':
+      return 'layout-btn-rotated-bottom';
+    default:
+      return '';
+  }
+});
+
+/** CSS class for the body container based on current layout */
+const bodyLayoutClass = computed(() => {
+  if (layout.value === 'left' || layout.value === 'right')
+    return 'snapshot-body-horizontal';
+  return 'snapshot-body-vertical';
+});
 
 // ── Window size tracking for responsive layout ────────────────────────
 const windowWidth = ref(
@@ -417,20 +577,24 @@ const currentBilibiliUrl = computed(() => {
 });
 
 // ── Computed: responsive scales ────────────────────────────────────────────
-/** Width of the left timeline panel (px) */
-const LEFT_PANEL_WIDTH = 180;
+/** Width of the side timeline panel (px) */
+const SIDE_PANEL_WIDTH = 180;
+
+const isHorizontalLayout = computed(
+  () => layout.value === 'left' || layout.value === 'right'
+);
 
 const mainScale = computed(() => {
   if (!videoshotData.value) return 4;
   const dialogWidth = Math.min(windowWidth.value * 0.9, 1100);
   const sideOffset =
-    layout.value === 'left' && showTimeline.value ? LEFT_PANEL_WIDTH + 20 : 0;
+    isHorizontalLayout.value && showTimeline.value ? SIDE_PANEL_WIDTH + 20 : 0;
   const navBtnsWidth = 120;
   const padding = 40;
   const maxWidth = dialogWidth - sideOffset - navBtnsWidth - padding;
   const dialogHeight = Math.min(windowHeight.value * 0.85, 800);
-  const overhead = 180;
-  const timelineH = layout.value === 'bottom' && showTimeline.value ? 150 : 0;
+  const overhead = 200;
+  const timelineH = !isHorizontalLayout.value && showTimeline.value ? 130 : 0;
   const maxHeight = Math.max(dialogHeight - overhead - timelineH, 120);
   const scaleX = maxWidth / videoshotData.value.imgXSize;
   const scaleY = maxHeight / videoshotData.value.imgYSize;
@@ -439,15 +603,15 @@ const mainScale = computed(() => {
 
 const timelineScale = computed(() => {
   if (!videoshotData.value) return 0.65;
-  if (layout.value === 'left') {
-    const availableWidth = LEFT_PANEL_WIDTH - 20;
+  if (isHorizontalLayout.value) {
+    const availableWidth = SIDE_PANEL_WIDTH - 20;
     return availableWidth / videoshotData.value.imgXSize;
   }
-  // Bottom layout: adjust for narrow windows
+  // Top/Bottom layout: use smaller thumbnails to save space
   const dialogWidth = Math.min(windowWidth.value * 0.9, 1100);
-  if (dialogWidth < 600) return 0.4;
-  if (dialogWidth < 800) return 0.5;
-  return 0.65;
+  if (dialogWidth < 600) return 0.3;
+  if (dialogWidth < 800) return 0.4;
+  return 0.5;
 });
 
 // ── Navigation ─────────────────────────────────────────────────────────────
@@ -461,10 +625,6 @@ const nextFrame = () => {
   }
 };
 
-const goToFrame = (index: number) => {
-  currentIndex.value = index;
-};
-
 /** Timeline emits snapshot-data index; convert to display index (with cover offset) */
 const onTimelineSelect = (snapshotIdx: number) => {
   currentIndex.value = snapshotIdx + (hasCover.value ? 1 : 0);
@@ -472,10 +632,6 @@ const onTimelineSelect = (snapshotIdx: number) => {
 
 const close = () => {
   emit('update:modelValue', false);
-};
-
-const toggleLayout = () => {
-  layout.value = layout.value === 'bottom' ? 'left' : 'bottom';
 };
 
 // ── Mouse wheel (on main frame region) ─────────────────────────────────────
@@ -712,8 +868,12 @@ watch(
   color: rgba(255, 255, 255, 0.15);
 }
 .info-date {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.45);
   font-size: 12px;
+}
+.info-date-value {
+  color: rgba(255, 255, 255, 0.65);
+  font-variant-numeric: tabular-nums;
 }
 .info-stats-row {
   display: flex;
@@ -728,11 +888,11 @@ watch(
   font-size: 12px;
 }
 .stat-label {
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.4);
   font-size: 11px;
 }
 .stat-value {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.65);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -811,10 +971,10 @@ watch(
   display: flex;
   overflow: hidden;
 }
-.snapshot-body-bottom {
+.snapshot-body-vertical {
   flex-direction: column;
 }
-.snapshot-body-left {
+.snapshot-body-horizontal {
   flex-direction: row;
 }
 
@@ -871,7 +1031,7 @@ watch(
   padding: 6px 0 0;
   flex: 0 0 auto;
   font-family: monospace;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
 }
 .time-link {
@@ -889,16 +1049,16 @@ watch(
 .time-current {
   color: #64b5f6;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
 }
 .time-sep {
   color: rgba(255, 255, 255, 0.2);
   margin: 0 2px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .time-total {
   color: rgba(255, 255, 255, 0.35);
-  font-size: 13px;
+  font-size: 14px;
 }
 .time-jump-icon {
   color: rgba(255, 255, 255, 0.2);
@@ -944,17 +1104,41 @@ watch(
 }
 
 /* ── Timeline areas ─────────────────────── */
-.snapshot-timeline-bottom {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+.snapshot-timeline-horizontal {
   background: rgba(0, 0, 0, 0.2);
   flex: 0 0 auto;
 }
-.snapshot-timeline-left {
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+.snapshot-timeline-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.snapshot-timeline-top {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.snapshot-timeline-vertical {
   background: rgba(0, 0, 0, 0.2);
   flex: 0 0 auto;
   width: 180px;
   overflow: hidden;
+}
+.snapshot-timeline-left {
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+.snapshot-timeline-right {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Layout button icon transforms ──────── */
+.layout-btn-mirrored :deep(.q-icon),
+.icon-mirrored {
+  transform: scaleX(-1);
+}
+.layout-btn-rotated-top :deep(.q-icon),
+.icon-rotated-top {
+  transform: rotate(-90deg) scaleY(1.3);
+}
+.layout-btn-rotated-bottom :deep(.q-icon),
+.icon-rotated-bottom {
+  transform: rotate(90deg) scaleY(1.3);
 }
 
 /* ── Responsive ───────────────────────────── */
@@ -965,7 +1149,7 @@ watch(
     max-width: none;
     max-height: none;
   }
-  .snapshot-timeline-left {
+  .snapshot-timeline-vertical {
     width: 140px;
   }
   .info-stats-row {
@@ -991,5 +1175,63 @@ watch(
   .snapshot-frame-counter {
     padding: 2px 0 0;
   }
+}
+</style>
+<!-- Unscoped styles for the q-menu popup (rendered outside scoped root) -->
+<style>
+.snapshot-layout-menu {
+  background-color: #1a2233 !important;
+  border-radius: 8px !important;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+.snapshot-layout-menu .q-list {
+  padding: 4px 0;
+}
+.snapshot-layout-menu .menu-section-header {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  padding: 8px 16px 4px;
+  min-height: 0;
+  line-height: 1.2;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.snapshot-layout-menu .q-item {
+  min-height: 32px;
+  padding: 2px 16px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+.snapshot-layout-menu .q-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.snapshot-layout-menu .menu-item-active {
+  background: rgba(66, 165, 245, 0.15) !important;
+  color: #90caf9 !important;
+}
+.snapshot-layout-menu .menu-item-icon {
+  min-width: 28px !important;
+  padding-right: 0 !important;
+}
+.snapshot-layout-menu .menu-item-icon .q-icon {
+  color: rgba(255, 255, 255, 0.4);
+}
+.snapshot-layout-menu .menu-item-active .menu-item-icon .q-icon {
+  color: #90caf9;
+}
+.snapshot-layout-menu .menu-separator {
+  background: rgba(255, 255, 255, 0.06);
+  margin: 4px 12px;
+}
+.snapshot-layout-menu .icon-mirrored {
+  transform: scaleX(-1);
+}
+.snapshot-layout-menu .icon-rotated-top {
+  transform: rotate(-90deg) scaleY(1.3);
+}
+.snapshot-layout-menu .icon-rotated-bottom {
+  transform: rotate(90deg) scaleY(1.3);
 }
 </style>

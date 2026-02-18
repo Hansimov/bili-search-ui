@@ -265,6 +265,21 @@ const scrollToActive = async () => {
 
 watch(() => props.currentIndex, scrollToActive);
 
+// ── Horizontal wheel scrolling ─────────────────────────────────────────────
+/**
+ * Convert vertical wheel events to horizontal scroll in horizontal mode.
+ * This allows scrolling the horizontal timeline with mouse wheel.
+ */
+const onHorizontalWheel = (e: WheelEvent) => {
+  if (isVertical.value || !scrollRef.value) return;
+  // If there's significant vertical delta but little horizontal, convert it
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+    e.preventDefault();
+    scrollRef.value.scrollLeft += e.deltaY;
+    onScroll();
+  }
+};
+
 onMounted(() => {
   scrollToActive();
   // Track viewport resizes
@@ -273,12 +288,22 @@ onMounted(() => {
       onScroll();
     });
     resizeObserver.observe(scrollRef.value);
+    // Attach wheel handler for horizontal scroll conversion
+    scrollRef.value.addEventListener('wheel', onHorizontalWheel, {
+      passive: false,
+    });
   }
 });
 
 let resizeObserver: ResizeObserver | null = null;
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
+  if (scrollRef.value) {
+    scrollRef.value.removeEventListener(
+      'wheel',
+      onHorizontalWheel as EventListener
+    );
+  }
 });
 </script>
 
@@ -370,7 +395,7 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   font-family: monospace;
   color: rgba(255, 255, 255, 0.9);
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));

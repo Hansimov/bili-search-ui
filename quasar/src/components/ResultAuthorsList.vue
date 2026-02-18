@@ -37,6 +37,7 @@ export default {
     const contentElement = ref(null);
     const isOpen = ref(true);
     let resizeObserver = null;
+    let animationCleanup = null; // cleanup function for in-progress animation
 
     const authors = computed(() => {
       // Backend now returns authors as a LIST (not dict) to preserve order
@@ -92,40 +93,81 @@ export default {
       const content = contentElement.value;
       if (!details || !content) return;
 
+      // Cancel any in-progress animation
+      if (animationCleanup) {
+        animationCleanup();
+        animationCleanup = null;
+      }
+
+      // Helper: attach transitionend with a safety timeout fallback
+      const onTransitionEnd = (el, callback, timeoutMs = 350) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          el.removeEventListener('transitionend', handler);
+          clearTimeout(timer);
+          callback();
+        };
+        const handler = (e) => {
+          if (e.target === el) finish();
+        };
+        el.addEventListener('transitionend', handler);
+        const timer = setTimeout(finish, timeoutMs);
+        // Return cleanup that skips the callback
+        return () => {
+          if (!done) {
+            done = true;
+            el.removeEventListener('transitionend', handler);
+            clearTimeout(timer);
+          }
+        };
+      };
+
       if (isOpen.value) {
         // Collapse: animate max-height from scrollHeight to 0
         const height = content.scrollHeight;
+        content.style.transition = 'none';
         content.style.maxHeight = `${height}px`;
-        // Force reflow so the browser sees the starting value
-        content.offsetHeight; // eslint-disable-line no-unused-expressions
-        content.style.maxHeight = '0px';
-        const onEnd = () => {
-          content.removeEventListener('transitionend', onEnd);
-          details.removeAttribute('open');
-          isOpen.value = false;
-          layoutStore.setAuthorsListHeight(details.offsetHeight);
-        };
-        content.addEventListener('transitionend', onEnd, { once: true });
+        // Force reflow so browser registers the starting value
+        void content.offsetHeight; // eslint-disable-line no-unused-expressions
+        content.style.transition = '';
+        // Use rAF to ensure the starting value is painted before animating
+        requestAnimationFrame(() => {
+          content.style.maxHeight = '0px';
+          animationCleanup = onTransitionEnd(content, () => {
+            animationCleanup = null;
+            details.removeAttribute('open');
+            isOpen.value = false;
+            layoutStore.setAuthorsListHeight(details.offsetHeight);
+          });
+        });
       } else {
         // Expand: open first, then animate max-height from 0 to scrollHeight
         details.setAttribute('open', '');
         isOpen.value = true;
+        content.style.transition = 'none';
         content.style.maxHeight = '0px';
-        // Force reflow
-        content.offsetHeight; // eslint-disable-line no-unused-expressions
+        void content.offsetHeight; // eslint-disable-line no-unused-expressions
+        content.style.transition = '';
         const targetHeight = content.scrollHeight;
-        content.style.maxHeight = `${targetHeight}px`;
-        const onEnd = () => {
-          content.removeEventListener('transitionend', onEnd);
-          // Remove inline max-height so content can reflow naturally
-          content.style.maxHeight = '';
-          layoutStore.setAuthorsListHeight(details.offsetHeight);
-        };
-        content.addEventListener('transitionend', onEnd, { once: true });
+        requestAnimationFrame(() => {
+          content.style.maxHeight = `${targetHeight}px`;
+          animationCleanup = onTransitionEnd(content, () => {
+            animationCleanup = null;
+            // Remove inline max-height so content can reflow naturally
+            content.style.maxHeight = '';
+            layoutStore.setAuthorsListHeight(details.offsetHeight);
+          });
+        });
       }
     };
 
     onUnmounted(() => {
+      if (animationCleanup) {
+        animationCleanup();
+        animationCleanup = null;
+      }
       if (resizeObserver) {
         resizeObserver.disconnect();
         resizeObserver = null;

@@ -78,7 +78,7 @@ export const INITIAL_SHEETS_LIMIT = 3;
 export const MAX_RETRIES = 2;
 
 /** 重试间隔（毫秒） */
-export const RETRY_DELAY_MS = 3000;
+export const RETRY_DELAY_MS = 1000;
 
 // ============================================================================
 // Image URL Utilities

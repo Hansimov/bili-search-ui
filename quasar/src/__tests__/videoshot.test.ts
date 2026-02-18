@@ -151,7 +151,7 @@ describe('service constants', () => {
     it('should have sensible default limits', () => {
         expect(INITIAL_SHEETS_LIMIT).toBe(3);
         expect(MAX_RETRIES).toBe(2);
-        expect(RETRY_DELAY_MS).toBe(3000);
+        expect(RETRY_DELAY_MS).toBe(1000);
     });
 });
 
