@@ -35,6 +35,10 @@ export const useLayoutStore = defineStore('layout', {
         isSidebarExpanded: JSON.parse(localStorage.getItem('isSidebarExpanded') || 'true') as boolean,
         /** 移动端侧边栏是否打开（overlay 模式） */
         isMobileSidebarOpen: false,
+        /** 建议列表中当前选中项索引，-1 表示无选中 */
+        suggestSelectedIndex: -1 as number,
+        /** 箭头导航前的原始查询文本（用于返回时恢复） */
+        preNavQuery: null as string | null,
     }),
     actions: {
         /** 是否为移动端模式（< 570px）：无侧边栏，汉堡菜单 */
@@ -163,6 +167,21 @@ export const useLayoutStore = defineStore('layout', {
         resetLoadedPages() {
             this.loadedPages = new Set([1]);
             this.currentPage = 1;
+        },
+        /** 设置当前建议选中索引 */
+        setSuggestSelectedIndex(index: number) {
+            this.suggestSelectedIndex = index;
+        },
+        /** 重置建议导航状态 */
+        resetSuggestNavigation() {
+            this.suggestSelectedIndex = -1;
+            this.preNavQuery = null;
+        },
+        /** 保存导航前的查询文本（仅在首次导航时保存） */
+        savePreNavQuery(query: string) {
+            if (this.preNavQuery === null) {
+                this.preNavQuery = query;
+            }
         },
     },
 });

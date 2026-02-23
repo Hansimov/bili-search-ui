@@ -7,6 +7,7 @@
         clickable
         v-ripple
         class="smart-suggestion-item"
+        :class="{ 'smart-suggestion-active': index === suggestSelectedIndex }"
         @click="selectSuggestion(item)"
       >
         <q-item-section avatar class="smart-suggestion-icon">
@@ -38,12 +39,12 @@
 
 <script lang="ts">
 import { computed } from 'vue';
-import { useRouter } from 'vue-router';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { explore } from 'src/functions/explore';
 import {
   getSmartSuggestService,
+  suggestIndexVersion,
   type SmartSuggestion,
   type SuggestionType,
 } from 'src/services/smartSuggestService';
@@ -53,10 +54,15 @@ export default {
   setup() {
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
-    const router = useRouter();
     const smartService = getSmartSuggestService();
 
+    const suggestSelectedIndex = computed(
+      () => layoutStore.suggestSelectedIndex
+    );
+
     const smartSuggestions = computed<SmartSuggestion[]>(() => {
+      // 依赖 suggestIndexVersion 以在索引更新时自动刷新建议
+      void suggestIndexVersion.value;
       const q = queryStore.query;
       if (!q || !q.trim()) return [];
       return smartService.suggest(q);
@@ -134,6 +140,7 @@ export default {
 
     return {
       smartSuggestions,
+      suggestSelectedIndex,
       selectSuggestion,
       getTypeIcon,
       getTypeColor,
@@ -189,7 +196,8 @@ export default {
 }
 
 body.body--light {
-  .smart-suggestion-item:hover {
+  .smart-suggestion-item:hover,
+  .smart-suggestion-active {
     background-color: #f0f0f0;
   }
   .smart-suggestions-list::-webkit-scrollbar-thumb {
@@ -198,7 +206,8 @@ body.body--light {
 }
 
 body.body--dark {
-  .smart-suggestion-item:hover {
+  .smart-suggestion-item:hover,
+  .smart-suggestion-active {
     background-color: #333;
   }
   .smart-suggestions-list::-webkit-scrollbar-thumb {

@@ -315,4 +315,87 @@ describe('SmartSuggestService', () => {
             expect(results.length).toBeGreaterThan(0);
         });
     });
+
+    describe('中文→拼音匹配', () => {
+        it('同音中文应互相匹配（李思维 → 李四维）', () => {
+            service.addFromHistory([
+                { query: '李四维', timestamp: Date.now() },
+            ]);
+            const results = service.suggest('李思维');
+            expect(results.length).toBeGreaterThan(0);
+            expect(results[0].text).toBe('李四维');
+        });
+
+        it('同音中文应高亮匹配到的字符', () => {
+            service.addFromHistory([
+                { query: '李四维', timestamp: Date.now() },
+            ]);
+            const results = service.suggest('李思维');
+            expect(results.length).toBeGreaterThan(0);
+            expect(results[0].highlightedText).toContain('suggest-highlight');
+        });
+
+        it('部分同音中文应匹配', () => {
+            service.addFromHistory([
+                { query: '影视飓风', timestamp: Date.now() },
+            ]);
+            // "映世" 拼音 yingshi 应匹配 "影视飓风" 的 yingshi
+            const results = service.suggest('映世');
+            expect(results.length).toBeGreaterThan(0);
+        });
+
+        it('不相关的中文不应匹配', () => {
+            service.addFromHistory([
+                { query: '影视飓风', timestamp: Date.now() },
+            ]);
+            const results = service.suggest('天气预报');
+            expect(results.length).toBe(0);
+        });
+    });
+
+    describe('历史去重', () => {
+        it('重复 query 的历史应只保留一条', () => {
+            const now = Date.now();
+            service.addFromHistory([
+                { query: '原神', timestamp: now - 3000 },
+                { query: '原神', timestamp: now - 2000 },
+                { query: '原神', timestamp: now - 1000 },
+                { query: '原神', timestamp: now },
+            ]);
+            // 索引中只应有1条 history 类型条目
+            expect(service.getSize()).toBe(1);
+        });
+
+        it('getRecentHistory 不应有重复文本', () => {
+            service.addFromHistory([
+                { query: '原神', timestamp: Date.now() },
+                { query: '明日方舟', timestamp: Date.now() - 1000 },
+            ]);
+            const history = service.getRecentHistory();
+            const texts = history.map((h) => h.text);
+            const uniqueTexts = [...new Set(texts)];
+            expect(texts.length).toBe(uniqueTexts.length);
+        });
+    });
+
+    describe('拼音高亮', () => {
+        it('拼音首字母应高亮对应汉字 (ysjf → 影视飓风)', () => {
+            service.addFromHistory([
+                { query: '影视飓风', timestamp: Date.now() },
+            ]);
+            const results = service.suggest('ysjf');
+            expect(results.length).toBeGreaterThan(0);
+            // 高亮文本应包含 suggest-highlight 标记
+            expect(results[0].highlightedText).toContain('suggest-highlight');
+        });
+
+        it('全拼应高亮对应汉字', () => {
+            service.addFromHistory([
+                { query: '影视飓风', timestamp: Date.now() },
+            ]);
+            const results = service.suggest('yingshi');
+            expect(results.length).toBeGreaterThan(0);
+            expect(results[0].highlightedText).toContain('suggest-highlight');
+        });
+    });
 });

@@ -31,9 +31,9 @@
           color="blue-5"
           class="send-btn"
           size="sm"
+          title="发送"
           @click="submitQuery"
         >
-          <q-tooltip>发送</q-tooltip>
         </q-btn>
       </div>
 
@@ -51,11 +51,11 @@
               'mode-btn': true,
               'mode-btn-active': currentMode === mode.value,
             }"
+            :title="mode.description"
             @click="selectMode(mode.value)"
           >
             <q-icon :name="mode.icon" size="14px" class="q-mr-xs" />
             <span class="mode-label">{{ mode.label }}</span>
-            <q-tooltip>{{ mode.description }}</q-tooltip>
           </q-btn>
         </div>
       </div>
@@ -101,7 +101,7 @@ const MODE_ICON_COLORS: Record<SearchMode, string> = {
 };
 
 /** textarea 单行高度 & 最大行数 */
-const TEXTAREA_LINE_HEIGHT = 22; // px, matches CSS line-height
+const TEXTAREA_LINE_HEIGHT = 24; // px, matches CSS line-height
 const TEXTAREA_MAX_ROWS = 6;
 
 export default {
@@ -164,20 +164,73 @@ export default {
 
     // ====== 事件处理 ======
 
-    /** 处理输入 — 更新 store + 触发自动调整 */
+    /** 处理输入 — 更新 store + 触发自动调整 + 重置建议导航 */
     const handleInput = (event: Event) => {
       const target = event.target as HTMLTextAreaElement;
       queryModel.value = target.value;
       autoResize();
+      // 用户输入新内容时重置建议导航状态
+      layoutStore.resetSuggestNavigation();
     };
 
-    /** Keydown 处理：Enter 提交, Shift+Enter 换行 */
+    /** Keydown 处理：Enter 提交, Shift+Enter 换行, 上下箭头导航建议 */
     const handleKeydown = (event: KeyboardEvent) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
+        layoutStore.resetSuggestNavigation();
         submitQuery();
+        return;
+      }
+      // 上下箭头导航建议列表
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        navigateSuggestion(event.key === 'ArrowDown' ? 1 : -1);
+        return;
+      }
+      // Escape: 恢复原始查询并关闭建议
+      if (event.key === 'Escape') {
+        if (layoutStore.preNavQuery !== null) {
+          queryModel.value = layoutStore.preNavQuery;
+        }
+        layoutStore.resetSuggestNavigation();
+        layoutStore.setIsSuggestVisible(false);
+        return;
       }
       // Shift+Enter: 默认行为（插入换行）
+    };
+
+    /** 导航建议列表（direction: 1=下, -1=上） */
+    const navigateSuggestion = (direction: number) => {
+      const smartService = getSmartSuggestService();
+      // 使用导航前的原始查询来获取建议列表
+      const queryForSuggest = layoutStore.preNavQuery ?? queryModel.value;
+      if (!queryForSuggest || !queryForSuggest.trim()) return;
+
+      const suggestions = smartService.suggest(queryForSuggest);
+      if (suggestions.length === 0) return;
+
+      // 保存导航前的查询（仅首次）
+      layoutStore.savePreNavQuery(queryModel.value);
+
+      const current = layoutStore.suggestSelectedIndex;
+      let newIndex: number;
+
+      if (direction === 1) {
+        // 向下：-1 → 0, 0 → 1, ..., last → -1（回到原始）
+        newIndex = current >= suggestions.length - 1 ? -1 : current + 1;
+      } else {
+        // 向上：-1 → last, 0 → -1（回到原始）, 1 → 0, ...
+        newIndex = current <= -1 ? suggestions.length - 1 : current - 1;
+      }
+
+      layoutStore.setSuggestSelectedIndex(newIndex);
+
+      if (newIndex === -1) {
+        // 回到原始输入
+        queryModel.value = layoutStore.preNavQuery ?? '';
+      } else {
+        queryModel.value = suggestions[newIndex].text;
+      }
     };
 
     const handleBlur = () => {
@@ -199,11 +252,12 @@ export default {
       }
     };
 
-    /** 初始化智能补全服务：从搜索历史加载数据 */
+    /** 初始化智能补全服务：确保搜索历史已加载到索引中 */
     const initSmartSuggest = async () => {
       const smartService = getSmartSuggestService();
-      if (smartService.getSize() === 0) {
-        await searchHistoryStore.loadHistory();
+      await searchHistoryStore.loadHistory();
+      // 每次都刷新历史到索引（addFromHistory 内部会去重）
+      if (searchHistoryStore.items.length > 0) {
         smartService.addFromHistory(searchHistoryStore.items);
       }
     };
@@ -338,25 +392,25 @@ export default {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 15px;
-  line-height: 22px;
+  font-size: 16px;
+  line-height: 24px;
   color: inherit;
   min-width: 0;
   resize: none;
   overflow-y: auto;
   font-family: inherit;
-  min-height: 22px;
-  max-height: calc(22px * 6);
+  min-height: 24px;
+  max-height: calc(24px * 6);
   padding: 0;
 
   &::placeholder {
     color: #999;
-    font-size: 13px;
+    font-size: 14px;
   }
 }
 
 .search-input-box-dense .search-native-input {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .send-btn {

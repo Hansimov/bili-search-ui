@@ -13,6 +13,10 @@
  */
 
 import { pinyin } from 'pinyin';
+import { ref } from 'vue';
+
+/** 响应式版本号：每次索引变更时递增，供 Vue computed 追踪依赖 */
+export const suggestIndexVersion = ref(0);
 
 /** 建议类型，对应前端三种行为：文本/视频/用户 */
 export type SuggestionType = 'history' | 'title' | 'author' | 'tag' | 'keyword';
@@ -149,6 +153,13 @@ function isPossiblyPinyin(input: string): boolean {
     return /^[a-z0-9]+$/.test(input) && /[a-z]/.test(input) && input.length >= 1;
 }
 
+/**
+ * 检测文本是否包含中文字符
+ */
+function hasChinese(text: string): boolean {
+    return /[\u4E00-\u9FFF]/.test(text);
+}
+
 // ==================== 文本处理工具 ====================
 
 /**
@@ -174,14 +185,14 @@ function extractKeywords(text: string): string[] {
 }
 
 /**
- * 对文本进行高亮处理
+ * 对文本进行高亮处理（支持拼音匹配高亮）
  */
 function highlightMatch(text: string, query: string): string {
     if (!query) return escapeHtml(text);
     const lowerText = text.toLowerCase();
     const lowerQuery = query.toLowerCase();
 
-    // 查找所有匹配位置
+    // 1. 尝试直接文本匹配
     const positions: Array<[number, number]> = [];
     let searchFrom = 0;
     while (searchFrom < lowerText.length) {
@@ -191,31 +202,210 @@ function highlightMatch(text: string, query: string): string {
         searchFrom = idx + 1;
     }
 
-    if (positions.length === 0) {
-        // 尝试逐字匹配
-        searchFrom = 0;
-        for (let i = 0; i < lowerQuery.length; i++) {
-            const charIdx = lowerText.indexOf(lowerQuery[i], searchFrom);
-            if (charIdx !== -1) {
-                positions.push([charIdx, charIdx + 1]);
-                searchFrom = charIdx + 1;
+    if (positions.length > 0) {
+        return buildHighlightHtml(text, positions);
+    }
+
+    // 2. 尝试拼音匹配高亮（仅当查询可能是拼音时）
+    if (isPossiblyPinyin(lowerQuery)) {
+        const pinyinPositions = matchPinyinPositions(text, lowerQuery);
+        if (pinyinPositions.length > 0) {
+            return buildHighlightHtml(text, pinyinPositions);
+        }
+    }
+
+    // 2b. 中文输入 → 拼音匹配高亮（如"李思维"匹配"李四维"）
+    if (hasChinese(lowerQuery)) {
+        const queryPy = getPinyinInfo(lowerQuery);
+        const fullQueryPy = queryPy.full.replace(/\s+/g, '');
+        if (fullQueryPy.length >= 2) {
+            const pinyinPositions = matchPinyinPositions(text, fullQueryPy);
+            if (pinyinPositions.length > 0) {
+                return buildHighlightHtml(text, pinyinPositions);
             }
         }
     }
 
-    if (positions.length === 0) return escapeHtml(text);
+    // 3. 尝试逐字匹配（子序列）
+    searchFrom = 0;
+    for (let i = 0; i < lowerQuery.length; i++) {
+        const charIdx = lowerText.indexOf(lowerQuery[i], searchFrom);
+        if (charIdx !== -1) {
+            positions.push([charIdx, charIdx + 1]);
+            searchFrom = charIdx + 1;
+        }
+    }
 
-    // 构建高亮 HTML
+    if (positions.length === 0) return escapeHtml(text);
+    return buildHighlightHtml(text, positions);
+}
+
+/**
+ * 根据位置数组构建高亮 HTML
+ */
+function buildHighlightHtml(text: string, positions: Array<[number, number]>): string {
     let result = '';
     let lastEnd = 0;
     for (const [start, end] of positions) {
-        if (start < lastEnd) continue; // skip overlapping
+        if (start < lastEnd) continue;
         result += escapeHtml(text.slice(lastEnd, start));
         result += `<em class="suggest-highlight">${escapeHtml(text.slice(start, end))}</em>`;
         lastEnd = end;
     }
     result += escapeHtml(text.slice(lastEnd));
     return result;
+}
+
+/**
+ * 拼音匹配定位：查找查询字符串在文本中通过拼音匹配到的字符位置
+ *
+ * 支持三种匹配方式：
+ * - 首字母缩写匹配：如 "ysjf" → "影视飓风"
+ * - 全拼前缀匹配：如 "yingshi" → "影视"
+ * - 混合匹配：如 "yingsjf" → "影视飓风"
+ *
+ * @returns 匹配的字符位置数组 [start, end]
+ */
+function matchPinyinPositions(text: string, queryLower: string): Array<[number, number]> {
+    const chars = Array.from(text);
+    // 为每个字符生成拼音信息
+    const charPinyins: Array<{ char: string; pinyin: string; initial: string; isChinese: boolean }> = [];
+
+    // 收集连续中文段一起处理以利用词组拼音
+    let chineseBuf = '';
+    const flushChinese = () => {
+        if (!chineseBuf) return;
+        try {
+            const result = pinyin(chineseBuf, { style: 'normal' });
+            const bufChars = Array.from(chineseBuf);
+            for (let i = 0; i < bufChars.length; i++) {
+                const py = result[i]?.[0] || '';
+                charPinyins.push({
+                    char: bufChars[i],
+                    pinyin: py,
+                    initial: py.charAt(0),
+                    isChinese: true,
+                });
+            }
+        } catch {
+            for (const c of Array.from(chineseBuf)) {
+                charPinyins.push({
+                    char: c,
+                    pinyin: c.toLowerCase(),
+                    initial: c.toLowerCase(),
+                    isChinese: true,
+                });
+            }
+        }
+        chineseBuf = '';
+    };
+
+    for (let i = 0; i < chars.length; i++) {
+        const ch = chars[i];
+        const code = ch.charCodeAt(0);
+        if (code >= 0x4E00 && code <= 0x9FFF) {
+            chineseBuf += ch;
+        } else {
+            flushChinese();
+            const lower = ch.toLowerCase();
+            if (/[a-z0-9]/.test(lower)) {
+                charPinyins.push({
+                    char: ch,
+                    pinyin: lower,
+                    initial: lower,
+                    isChinese: false,
+                });
+            } else {
+                // 标点、空格等
+                charPinyins.push({
+                    char: ch,
+                    pinyin: '',
+                    initial: '',
+                    isChinese: false,
+                });
+            }
+        }
+    }
+    flushChinese();
+
+    // 尝试从每个字符位置开始匹配
+    for (let startCharIdx = 0; startCharIdx < charPinyins.length; startCharIdx++) {
+        const positions = tryMatchFromPosition(charPinyins, startCharIdx, queryLower);
+        if (positions.length > 0) {
+            // 将 charPinyins 索引映射回原文本的字符索引
+            // 由于使用 Array.from(text)，需要映射回字节偏移
+            const result: Array<[number, number]> = [];
+            let textOffset = 0;
+            for (let ci = 0; ci < charPinyins.length; ci++) {
+                const charLen = charPinyins[ci].char.length; // UTF-16 code unit count
+                if (positions.includes(ci)) {
+                    // 合并连续位置
+                    const lastPos = result[result.length - 1];
+                    if (lastPos && lastPos[1] === textOffset) {
+                        lastPos[1] = textOffset + charLen;
+                    } else {
+                        result.push([textOffset, textOffset + charLen]);
+                    }
+                }
+                textOffset += charLen;
+            }
+            return result;
+        }
+    }
+
+    return [];
+}
+
+/**
+ * 从指定位置开始，尝试用查询匹配文本字符的拼音
+ * @returns 匹配到的字符索引数组
+ */
+function tryMatchFromPosition(
+    charPinyins: Array<{ char: string; pinyin: string; initial: string; isChinese: boolean }>,
+    startIdx: number,
+    queryLower: string,
+): number[] {
+    let qi = 0; // query index
+    const matchedIndices: number[] = [];
+
+    for (let ci = startIdx; ci < charPinyins.length && qi < queryLower.length; ci++) {
+        const cp = charPinyins[ci];
+        if (!cp.pinyin) continue; // 跳过无拼音字符（标点等）
+
+        if (cp.isChinese) {
+            // 尝试匹配全拼（贪心匹配尽可能多的查询字符）
+            let fullMatchLen = 0;
+            for (let pi = 0; pi < cp.pinyin.length && qi + pi < queryLower.length; pi++) {
+                if (cp.pinyin[pi] === queryLower[qi + pi]) {
+                    fullMatchLen = pi + 1;
+                } else {
+                    break;
+                }
+            }
+
+            if (fullMatchLen > 0) {
+                matchedIndices.push(ci);
+                qi += fullMatchLen;
+            } else {
+                // 如果未从此字符开始匹配到任何，跳出
+                break;
+            }
+        } else {
+            // 非中文字符：直接比对
+            if (cp.pinyin === queryLower[qi]) {
+                matchedIndices.push(ci);
+                qi++;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // 必须消耗完整个查询才算匹配成功
+    if (qi === queryLower.length && matchedIndices.length > 0) {
+        return matchedIndices;
+    }
+    return [];
 }
 
 function escapeHtml(text: string): string {
@@ -328,6 +518,26 @@ function calculateMatchScore(
     else if (queryIsPinyin && entry.pinyinInitials) {
         score = matchPinyin(queryLower, entry.pinyinFull, entry.pinyinInitials);
     }
+    // 4b. 中文输入 → 拼音匹配（如"李思维"匹配"李四维"）
+    if (score === 0 && hasChinese(query) && entry.pinyinInitials) {
+        const queryPy = getPinyinInfo(query);
+        if (queryPy.initials.length >= 2) {
+            // 尝试全拼匹配
+            const fullQueryPy = queryPy.full.replace(/\s+/g, '');
+            const pyScore = matchPinyin(fullQueryPy, entry.pinyinFull, entry.pinyinInitials);
+            if (pyScore > 0) {
+                // 中文→拼音匹配略低于直接拼音匹配
+                score = Math.max(pyScore - 5, 30);
+            }
+            // 尝试首字母匹配
+            if (score === 0) {
+                const initialsScore = matchPinyin(queryPy.initials, entry.pinyinFull, entry.pinyinInitials);
+                if (initialsScore > 0) {
+                    score = Math.max(initialsScore - 8, 25);
+                }
+            }
+        }
+    }
     // 5. 多词匹配
     if (score === 0) {
         const queryWords = queryLower.split(/\s+/).filter(Boolean);
@@ -395,6 +605,7 @@ export class SmartSuggestService {
 
     /**
      * 从搜索历史导入数据
+     * 对相同 query 文本的多条记录进行合并，仅保留最新的一条
      */
     addFromHistory(items: Array<{
         query: string;
@@ -402,7 +613,17 @@ export class SmartSuggestService {
         resultCount?: number;
         displayName?: string;
     }>): void {
+        // 先按 query 去重，保留最新的记录
+        const seen = new Map<string, typeof items[0]>();
         for (const item of items) {
+            const key = (item.displayName || item.query).toLowerCase();
+            const existing = seen.get(key);
+            if (!existing || item.timestamp > existing.timestamp) {
+                seen.set(key, item);
+            }
+        }
+
+        for (const item of seen.values()) {
             const text = item.displayName || item.query;
             const py = getPinyinInfo(text);
             this.addEntry({
@@ -416,6 +637,8 @@ export class SmartSuggestService {
                 resultCount: item.resultCount,
             });
         }
+        // 批量添加完成后一次性触发响应式更新
+        suggestIndexVersion.value++;
     }
 
     /**
@@ -488,6 +711,8 @@ export class SmartSuggestService {
                 });
             }
         }
+        // 批量添加完成后一次性触发响应式更新
+        suggestIndexVersion.value++;
     }
 
     /**
@@ -583,9 +808,15 @@ export class SmartSuggestService {
      * 获取搜索历史建议（无输入时使用）
      */
     getRecentHistory(limit = 10): SmartSuggestion[] {
+        const seen = new Set<string>();
         return this.index
             .filter((e) => e.type === 'history')
             .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+            .filter((entry) => {
+                if (seen.has(entry.lower)) return false;
+                seen.add(entry.lower);
+                return true;
+            })
             .slice(0, limit)
             .map((entry) => ({
                 text: entry.text,

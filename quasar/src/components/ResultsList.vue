@@ -483,11 +483,12 @@ export default {
     const dynamicResultsListStyle = computed(() => {
       const authorsListHeight = layoutStore.authorsListHeight || 0;
       // 86px = header (~50px) + results stats bar (~36px)
+      // 48px = pagination bar height (button + padding)
       // --search-bar-total-height = search input wrapper + sticky padding (set by SearchInput)
       const topFixedHeight = 86 + authorsListHeight;
       return {
         maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
-        maxHeight: `calc(100vh - ${topFixedHeight}px - var(--search-bar-total-height, 96px))`,
+        maxHeight: `calc(100vh - ${topFixedHeight}px - var(--search-bar-total-height, 120px) - 48px)`,
       };
     });
 
@@ -607,7 +608,7 @@ export default {
 .results-paginate-bottom {
   padding-top: 8px;
   /* 给固定在底部的搜索栏留出空间 */
-  padding-bottom: var(--search-bar-total-height, 96px);
+  padding-bottom: calc(var(--search-bar-total-height, 120px) + 12px);
 }
 .q-btn {
   padding: 6px 5px 6px 6px;

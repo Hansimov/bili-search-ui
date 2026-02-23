@@ -77,8 +77,26 @@ export default {
     });
 
     const hasHistory = computed(() => historyStore.items.length > 0);
-    const pinnedItems = computed(() => historyStore.pinnedItems);
-    const recentItems = computed(() => historyStore.recentItems);
+    const pinnedItems = computed(() => {
+      // 按显示名称/query去重，仅保留最新的一条
+      const seen = new Set<string>();
+      return historyStore.pinnedItems.filter((item) => {
+        const key = (item.displayName || item.query).toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    });
+    const recentItems = computed(() => {
+      // 按显示名称/query去重，仅保留最新的一条（已按时间倒序）
+      const seen = new Set<string>();
+      return historyStore.recentItems.filter((item) => {
+        const key = (item.displayName || item.query).toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    });
 
     const searchFromHistory = async (item: SearchHistoryItem) => {
       const query = item.query;
