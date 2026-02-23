@@ -4,6 +4,7 @@ import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { cacheService, STORE_NAMES, EXPLORE_CACHE_TTL } from 'src/services/cacheService';
+import { getSmartSuggestService } from 'src/services/smartSuggestService';
 import type { ExploreResponse, ExploreStepResult } from 'src/stores/resultStore';
 
 let exploreAbortController = new AbortController();
@@ -116,6 +117,14 @@ export const explore = async ({
 
             // 缓存搜索结果到 IndexedDB
             cacheExploreResults(queryValue, exploreResult.data).catch(console.error);
+
+            // 将搜索结果索引到智能补全服务
+            const smartService = getSmartSuggestService();
+            for (const step of exploreResult.data) {
+                if (step.output?.hits && Array.isArray(step.output.hits)) {
+                    smartService.addFromSearchResults(step.output.hits);
+                }
+            }
 
             // 记录搜索历史
             const totalHits = exploreResult.data.reduce(

@@ -57,13 +57,6 @@ export interface SuggestResultCache {
     [key: string]: SuggestResultResponse;
 }
 
-export interface AiSuggestResultResponse {
-    choices: DictList;
-}
-export interface AiSuggestResultCache {
-    [key: string]: AiSuggestResultResponse;
-}
-
 export interface SearchResultResponse {
     detail_level: number;
     return_hits: number;

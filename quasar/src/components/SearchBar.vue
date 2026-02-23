@@ -1,55 +1,48 @@
 <template>
   <div class="search-bar" @mouseenter="mouseEnter" @mouseleave="mouseLeave">
     <div class="search-container">
-      <SearchInput v-show="!isEnableAiSearch" />
-      <AiSearchInput v-show="isEnableAiSearch" />
-      <AiSearchToggle class="ai-search-toggle-item" />
+      <SearchInput />
     </div>
     <div
       class="search-sub-container"
       :class="{
         'search-sub-top': isIndexRoute,
         'search-sub-bottom': !isIndexRoute,
-        'search-sub-bordered':
-          (isSuggestVisible && !isEnableAiSearch) ||
-          (isAiChatVisible && isEnableAiSearch),
+        'search-sub-bordered': isSuggestVisible && hasSuggestContent,
       }"
     >
       <div
         class="suggest-container"
-        v-show="!isEnableAiSearch && isSuggestVisible"
+        v-show="isSuggestVisible && hasSuggestContent"
         :class="{
           'suggest-container-reverse': !isIndexRoute,
         }"
       >
         <div class="search-sub-space-top"></div>
-        <SearchOptionsBar />
+
+        <!-- 智能补全建议（输入内容时显示） -->
+        <SmartSuggestions v-if="!isQueryEmpty" />
+
+        <!-- 纠错建议 -->
         <SuggestReplace />
+
         <q-separator
           inset
           class="suggest-component-sep"
           v-if="isSuggestAuthorsListVisible"
         />
         <SuggestAuthorsList />
+
         <q-separator
           inset
           class="suggest-component-sep"
           v-if="isSuggestionsListVisible"
         />
         <SuggestionsList />
-        <div class="search-sub-space-bottom"></div>
-      </div>
 
-      <div
-        class="aichat-container"
-        v-show="isEnableAiSearch && isAiChatVisible"
-        :class="{
-          'aichat-container-reverse': !isIndexRoute,
-        }"
-      >
-        <div class="search-sub-space-top"></div>
-        <AiSearchOptionsBar />
-        <AiChat />
+        <!-- 搜索历史（无输入时显示） -->
+        <SearchHistoryPanel v-if="isQueryEmpty" />
+
         <div class="search-sub-space-bottom"></div>
       </div>
     </div>
@@ -62,32 +55,25 @@ import { useRoute } from 'vue-router';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import SearchInput from './SearchInput.vue';
-import SearchOptionsBar from './SearchOptionsBar.vue';
 import SuggestAuthorsList from './SuggestAuthorsList.vue';
 import SuggestionsList from './SuggestionsList.vue';
 import SuggestReplace from './SuggestReplace.vue';
-import AiSearchInput from './AiSearchInput.vue';
-import AiSearchToggle from './AiSearchToggle.vue';
-import AiChat from './AiChat.vue';
-import AiSearchOptionsBar from './AiSearchOptionsBar.vue';
+import SmartSuggestions from './SmartSuggestions.vue';
+import SearchHistoryPanel from './SearchHistoryPanel.vue';
 
 export default {
   components: {
     SearchInput,
-    SearchOptionsBar,
     SuggestAuthorsList,
     SuggestionsList,
     SuggestReplace,
-    AiSearchInput,
-    AiSearchOptionsBar,
-    AiChat,
-    AiSearchToggle,
+    SmartSuggestions,
+    SearchHistoryPanel,
   },
   setup() {
     const searchStore = useSearchStore();
     const layoutStore = useLayoutStore();
     const isQueryEmpty = computed(() => searchStore.isQueryEmpty);
-    const isEnableAiSearch = computed(() => searchStore.isEnableAiSearch);
     const isSuggestVisible = computed(() => layoutStore.isSuggestVisible);
     const isSuggestionsListVisible = computed(
       () => searchStore.isSuggestionsListVisible
@@ -98,7 +84,11 @@ export default {
     const isSuggestAuthorsListVisible = computed(
       () => searchStore.isSuggestAuthorsListVisible
     );
-    const isAiChatVisible = computed(() => layoutStore.isAiChatVisible);
+    // 有任何下拉内容要显示
+    const hasSuggestContent = computed(() => {
+      if (!isQueryEmpty.value) return true; // SmartSuggestions will show
+      return true; // SearchHistoryPanel will show
+    });
     const $route = useRoute();
     const isIndexRoute = computed(() => $route.path === '/');
     const mouseEnter = () => {
@@ -112,11 +102,10 @@ export default {
       mouseLeave,
       isQueryEmpty,
       isSuggestVisible,
+      hasSuggestContent,
       isSuggestionsListVisible,
       isSuggestRepaceVisible,
       isSuggestAuthorsListVisible,
-      isAiChatVisible,
-      isEnableAiSearch,
       isIndexRoute,
     };
   },
@@ -144,10 +133,10 @@ export default {
   max-width: var(--search-input-max-width);
 }
 .search-sub-top {
-  top: 65px;
+  top: calc(100% + 8px);
 }
 .search-sub-bottom {
-  bottom: 48px;
+  bottom: calc(100% + 8px);
 }
 
 .search-sub-space-top {
@@ -181,22 +170,11 @@ body.body--dark {
   }
 }
 
-.ai-search-toggle-item {
-  transform: translateX(-60px);
-  width: 0px;
-}
 .suggest-container {
   display: flex;
   flex-direction: column;
 }
 .suggest-container-reverse {
-  flex-direction: column-reverse;
-}
-.aichat-container {
-  display: flex;
-  flex-direction: column;
-}
-.aichat-container-reverse {
   flex-direction: column-reverse;
 }
 </style>

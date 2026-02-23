@@ -8,8 +8,6 @@ import {
     defaultSearchResultResponse,
     SuggestResultResponse,
     SuggestResultCache,
-    AiSuggestResultResponse,
-    AiSuggestResultCache,
     ResultsSortMethod,
     defaultResultsSortMethod,
 } from 'src/stores/resultStore';
@@ -29,14 +27,10 @@ export const sortAuthors = (a: RelatedAuthorsListItem, b: RelatedAuthorsListItem
 
 export const useSearchStore = defineStore('search', {
     state: () => ({
-        aiQuery: '',
         suggestQuery: '',
         suggestResultCache: {} as SuggestResultCache,
-        aiSuggestResultCache: {} as AiSuggestResultCache,
         suggestions: [] as DictList,
-        aiSuggestions: [] as DictList,
         searchResultDict: defaultSearchResultResponse(),
-        isEnableAiSearch: JSON.parse(localStorage.getItem('isEnableAiSearch') || 'true'),
         resultsSortMethod: defaultResultsSortMethod(),
     }),
     getters: {
@@ -86,26 +80,12 @@ export const useSearchStore = defineStore('search', {
             this.suggestResultCache[query] = newSuggestResult;
             console.log('Suggest result:', newSuggestResult);
         },
-        setAiSuggestResultCache(query: string, newAiSuggestResult: AiSuggestResultResponse) {
-            this.aiSuggestResultCache[query] = newAiSuggestResult;
-            console.log('Ai suggest result:', newAiSuggestResult);
-        },
         setSuggestions(newSuggestions: DictList) {
             this.suggestions = newSuggestions;
-        },
-        setAiSuggestions(newAiSuggestions: DictList) {
-            this.aiSuggestions = newAiSuggestions;
-        },
-        setAiQuery(newAiQuery: string) {
-            this.aiQuery = newAiQuery;
         },
         setSearchResult(newSearchResult: SearchResultResponse) {
             this.searchResultDict = newSearchResult;
             console.log('Search results:', newSearchResult);
-        },
-        setIsEnableAiSearch(newIsEnableAiSearch: boolean) {
-            this.isEnableAiSearch = newIsEnableAiSearch;
-            localStorage.setItem('isEnableAiSearch', JSON.stringify(newIsEnableAiSearch));
         },
         setResultsSortMethod(newResultsSortMethod: ResultsSortMethod) {
             this.resultsSortMethod = newResultsSortMethod;

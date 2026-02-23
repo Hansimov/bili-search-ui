@@ -11,9 +11,6 @@
         <q-tab-panel name="videos">
           <ResultsList />
         </q-tab-panel>
-        <q-tab-panel name="ai">
-          <div class="q-gutter-xs ai-results-list"></div>
-        </q-tab-panel>
         <q-tab-panel name="graph">
           <div class="q-gutter-xs graph-results-list"></div>
         </q-tab-panel>
@@ -54,7 +51,6 @@ body.body--dark .search-bar-row {
   justify-content: center;
   overflow-x: hidden;
 }
-.ai-results-list,
 .graph-results-list {
   grid-template-columns: repeat(
     auto-fill,

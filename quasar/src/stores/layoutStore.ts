@@ -25,11 +25,7 @@ export const useLayoutStore = defineStore('layout', {
         screenWidth: window.innerWidth,
         searchRecordsListWidth: 300,
         isMouseInSearchBar: false,
-        isMouseInAiSearchToggle: false,
         isSuggestVisible: false,
-        isAiSuggestVisible: false,
-        isAiChatVisible: false,
-        isSearchOptionsBarVisible: true,
         activeTab: 'videos',
         currentPage: 1 as number,
         itemsPerPage: 20 as number,
@@ -146,20 +142,8 @@ export const useLayoutStore = defineStore('layout', {
         setIsMouseInSearchBar(newIsMouseInSearchBar: boolean) {
             this.isMouseInSearchBar = newIsMouseInSearchBar;
         },
-        setIsMouseInAiSearchToggle(newIsMouseInAiSearchToggle: boolean) {
-            this.isMouseInAiSearchToggle = newIsMouseInAiSearchToggle;
-        },
         setIsSuggestVisible(newVisibility: boolean) {
             this.isSuggestVisible = newVisibility;
-        },
-        setIsAiSuggestVisible(newVisibility: boolean) {
-            this.isAiSuggestVisible = newVisibility;
-        },
-        setIsAiChatVisible(newVisibility: boolean) {
-            this.isAiChatVisible = newVisibility;
-        },
-        toggleSearchOptionsBarVisibility() {
-            this.isSearchOptionsBarVisible = !this.isSearchOptionsBarVisible;
         },
         setActiveTab(newActiveTab: string) {
             this.activeTab = newActiveTab;
