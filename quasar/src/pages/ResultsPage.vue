@@ -50,6 +50,7 @@ body.body--dark .search-bar-row {
   display: flex;
   justify-content: center;
   overflow-x: hidden;
+  overflow-y: hidden;
 }
 .graph-results-list {
   grid-template-columns: repeat(

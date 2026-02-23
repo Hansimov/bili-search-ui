@@ -484,11 +484,12 @@ export default {
       const authorsListHeight = layoutStore.authorsListHeight || 0;
       // 86px = header (~50px) + results stats bar (~36px)
       // 48px = pagination bar height (button + padding)
-      // --search-bar-total-height = search input wrapper + sticky padding (set by SearchInput)
+      // searchBarTotalHeight = search input wrapper + sticky padding (set by SearchInput)
       const topFixedHeight = 86 + authorsListHeight;
+      const searchBarHeight = layoutStore.searchBarTotalHeight || 96;
       return {
         maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
-        maxHeight: `calc(100vh - ${topFixedHeight}px - var(--search-bar-total-height, 120px) - 48px)`,
+        maxHeight: `calc(100vh - ${topFixedHeight}px - ${searchBarHeight}px - 16px)`,
       };
     });
 
@@ -562,6 +563,9 @@ export default {
   display: flex;
   align-items: center;
 }
+.results-list-info-top {
+  min-height: 42px;
+}
 .results-stats-text {
   padding-left: 4px;
   display: flex;
@@ -606,9 +610,9 @@ export default {
 }
 
 .results-paginate-bottom {
-  padding-top: 8px;
+  padding-top: 9px;
   /* 给固定在底部的搜索栏留出空间 */
-  padding-bottom: calc(var(--search-bar-total-height, 120px) + 12px);
+  padding-bottom: calc(var(--search-bar-total-height, 96px) - 9px);
 }
 .q-btn {
   padding: 6px 5px 6px 6px;

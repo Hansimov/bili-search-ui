@@ -8,14 +8,23 @@
         v-ripple
         class="smart-suggestion-item"
         :class="{ 'smart-suggestion-active': index === suggestSelectedIndex }"
+        :title="item.text"
         @click="selectSuggestion(item)"
       >
-        <q-item-section avatar class="smart-suggestion-icon">
-          <q-icon
-            :name="getTypeIcon(item.type)"
-            :color="getTypeColor(item.type)"
-            size="18px"
-          />
+        <q-item-section side class="smart-suggestion-left">
+          <div class="suggestion-type-info">
+            <q-icon
+              :name="getTypeIcon(item.type)"
+              :color="getTypeColor(item.type)"
+              size="18px"
+            />
+            <q-badge
+              :label="getTypeLabel(item.type)"
+              :color="getTypeBadgeColor(item.type)"
+              text-color="white"
+              class="type-badge"
+            />
+          </div>
         </q-item-section>
         <q-item-section>
           <!-- 用 div 代替 q-item-label 避免 vue/no-v-text-v-html-on-component -->
@@ -23,14 +32,6 @@
             class="smart-suggestion-text"
             v-html="item.highlightedText"
           ></div>
-        </q-item-section>
-        <q-item-section side>
-          <q-badge
-            :label="getTypeLabel(item.type)"
-            :color="getTypeBadgeColor(item.type)"
-            text-color="white"
-            class="type-badge"
-          />
         </q-item-section>
       </q-item>
     </q-list>
@@ -178,8 +179,15 @@ export default {
   margin: 0 4px;
 }
 
-.smart-suggestion-icon {
-  min-width: 28px;
+.smart-suggestion-left {
+  min-width: auto !important;
+  padding-right: 8px;
+}
+
+.suggestion-type-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .smart-suggestion-text {

@@ -398,4 +398,104 @@ describe('SmartSuggestService', () => {
             expect(results[0].highlightedText).toContain('suggest-highlight');
         });
     });
+
+    describe('UP主匹配增强', () => {
+        it('搜索结果中的UP主名称应出现在建议中', () => {
+            service.addFromSearchResults([
+                {
+                    title: '2024年度总结视频',
+                    bvid: 'BV123',
+                    owner: { name: '影视飓风', mid: 12345 },
+                    tags: '年度总结',
+                },
+            ]);
+            const results = service.suggest('影视');
+            const authorResult = results.find((r) => r.type === 'author');
+            expect(authorResult).toBeDefined();
+            expect(authorResult?.text).toBe('影视飓风');
+            expect(authorResult?.meta?.uid).toBe(12345);
+        });
+
+        it('UP主名称应能通过拼音匹配', () => {
+            service.addFromSearchResults([
+                {
+                    title: '测试视频',
+                    bvid: 'BV456',
+                    owner: { name: '老番茄', mid: 67890 },
+                    tags: '',
+                },
+            ]);
+            const results = service.suggest('lfq');
+            const authorResult = results.find((r) => r.type === 'author');
+            expect(authorResult).toBeDefined();
+            expect(authorResult?.text).toBe('老番茄');
+        });
+
+        it('多个视频的同一UP主应通过权重累积提升排名', () => {
+            const hits = [];
+            for (let i = 0; i < 5; i++) {
+                hits.push({
+                    title: `视频${i + 1}`,
+                    bvid: `BV${i}`,
+                    owner: { name: '频道主', mid: 11111 },
+                    tags: '',
+                });
+            }
+            service.addFromSearchResults(hits);
+            // 索引中 author 类型应只有 1 条（去重），但权重应已累积
+            const results = service.suggest('频道');
+            const authorResult = results.find((r) => r.type === 'author');
+            expect(authorResult).toBeDefined();
+            expect(authorResult?.score).toBeGreaterThan(30);
+        });
+    });
+
+    describe('短语提取', () => {
+        it('应从标题中提取括号分割的短语', () => {
+            service.addFromSearchResults([
+                {
+                    title: '【影视飓风】2024年最值得看的10部电影推荐',
+                    bvid: 'BV789',
+                    owner: { name: '测试', mid: 1 },
+                    tags: '',
+                },
+            ]);
+            // 搜索"电影"应该匹配到提取出来的短语
+            const results = service.suggest('电影');
+            expect(results.length).toBeGreaterThan(0);
+            // 应有 keyword 类型的短语匹配
+            const kwResults = results.filter((r) => r.type === 'keyword');
+            expect(kwResults.length).toBeGreaterThan(0);
+        });
+
+        it('应从标题中提取有意义的中文子串', () => {
+            service.addFromSearchResults([
+                {
+                    title: '为什么你的视频没有人看？自媒体运营全攻略',
+                    bvid: 'BV111',
+                    owner: { name: '博主A', mid: 2 },
+                    tags: '',
+                },
+            ]);
+            const results = service.suggest('自媒体');
+            expect(results.length).toBeGreaterThan(0);
+        });
+
+        it('短语不应与完整标题重复', () => {
+            const title = '测试标题';
+            service.addFromSearchResults([
+                {
+                    title,
+                    bvid: 'BV222',
+                    owner: { name: 'X', mid: 3 },
+                    tags: '',
+                },
+            ]);
+            const results = service.suggest('测试');
+            // 不应出现两个完全相同的文本
+            const texts = results.map((r) => r.text);
+            const unique = [...new Set(texts)];
+            expect(texts.length).toBe(unique.length);
+        });
+    });
 });

@@ -16,11 +16,12 @@
           ref="textareaRef"
           class="search-native-input"
           :placeholder="searchInputPlaceholder"
-          :value="queryModel"
+          :value="displayValue"
           @input="handleInput"
           @focus="handleFocus"
           @blur="handleBlur"
           @keydown="handleKeydown"
+          @click="handleClick"
           rows="1"
         ></textarea>
         <q-btn
@@ -82,7 +83,11 @@ import {
 } from 'src/stores/searchModeStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { explore } from 'src/functions/explore';
-import { getSmartSuggestService } from 'src/services/smartSuggestService';
+import {
+  getSmartSuggestService,
+  suggestIndexVersion,
+  type SmartSuggestion,
+} from 'src/services/smartSuggestService';
 
 /** 各模式的 placeholder 文本 */
 const MODE_PLACEHOLDERS: Record<SearchMode, string> = {
@@ -124,6 +129,21 @@ export default {
         }),
     });
 
+    /**
+     * 箭头导航时的显示覆盖文本。
+     * 当用户用 ↑/↓ 导航建议时，textarea 显示此文本而不修改 queryStore。
+     * 仅在 Tab/Enter 确认时才提交到 queryModel。
+     */
+    const displayOverride = ref<string | null>(null);
+
+    /** 跟踪 textarea 是否处于聚焦状态（比 document.activeElement 更可靠） */
+    const isInputFocused = ref(false);
+
+    /** textarea 实际显示的值：优先显示 displayOverride，否则显示 queryModel */
+    const displayValue = computed(
+      () => displayOverride.value ?? queryModel.value
+    );
+
     const isDense = computed(() => route.path !== '/');
     const currentMode = computed(() => searchModeStore.currentMode);
     const modeOptions = computed(() => searchModeStore.modeOptions);
@@ -150,16 +170,18 @@ export default {
       el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
     };
 
-    /** 更新 --search-bar-total-height CSS 变量 */
+    /** 更新 --search-bar-total-height CSS 变量 + layoutStore */
     const updateSearchBarHeight = () => {
       const el = wrapperRef.value;
       if (!el) return;
       const height = el.offsetHeight;
       // 加上 sticky 容器 padding (16px * 2 = 32px)
+      const totalHeight = height + 32;
       document.documentElement.style.setProperty(
         '--search-bar-total-height',
-        `${height + 32}px`
+        `${totalHeight}px`
       );
+      layoutStore.setSearchBarTotalHeight(totalHeight);
     };
 
     // ====== 事件处理 ======
@@ -168,17 +190,55 @@ export default {
     const handleInput = (event: Event) => {
       const target = event.target as HTMLTextAreaElement;
       queryModel.value = target.value;
+      displayOverride.value = null;
       autoResize();
       // 用户输入新内容时重置建议导航状态
       layoutStore.resetSuggestNavigation();
+      // 用户输入时重新打开建议（如 Esc 关闭后再输入）
+      if (!layoutStore.isSuggestVisible && target.value.trim()) {
+        layoutStore.setIsSuggestVisible(true);
+      }
     };
 
-    /** Keydown 处理：Enter 提交, Shift+Enter 换行, 上下箭头导航建议 */
+    /** Keydown 处理：Enter 提交, Shift+Enter 换行, Tab 确认建议, 上下箭头导航建议 */
     const handleKeydown = (event: KeyboardEvent) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
+        const selectedIdx = layoutStore.suggestSelectedIndex;
+        if (selectedIdx >= 0) {
+          // 有建议选中 → 按类型执行不同操作
+          const smartService = getSmartSuggestService();
+          const suggestions = smartService.suggest(queryModel.value);
+          const selected = suggestions[selectedIdx];
+          if (selected) {
+            displayOverride.value = null;
+            layoutStore.resetSuggestNavigation();
+            executeSuggestionAction(selected);
+            return;
+          }
+        }
+        // 无建议选中，正常提交
+        if (displayOverride.value !== null) {
+          queryModel.value = displayOverride.value;
+          displayOverride.value = null;
+        }
         layoutStore.resetSuggestNavigation();
         submitQuery();
+        return;
+      }
+      // Tab: 确认当前预览建议到输入框并刷新建议列表（不触发搜索）
+      if (event.key === 'Tab') {
+        if (displayOverride.value !== null) {
+          event.preventDefault();
+          queryModel.value = displayOverride.value;
+          displayOverride.value = null;
+          layoutStore.resetSuggestNavigation();
+          autoResize();
+          // 确保建议列表可见，以新文本刷新补全
+          if (!layoutStore.isSuggestVisible) {
+            layoutStore.setIsSuggestVisible(true);
+          }
+        }
         return;
       }
       // 上下箭头导航建议列表
@@ -187,11 +247,9 @@ export default {
         navigateSuggestion(event.key === 'ArrowDown' ? 1 : -1);
         return;
       }
-      // Escape: 恢复原始查询并关闭建议
+      // Escape: 取消预览，关闭建议
       if (event.key === 'Escape') {
-        if (layoutStore.preNavQuery !== null) {
-          queryModel.value = layoutStore.preNavQuery;
-        }
+        displayOverride.value = null;
         layoutStore.resetSuggestNavigation();
         layoutStore.setIsSuggestVisible(false);
         return;
@@ -199,18 +257,38 @@ export default {
       // Shift+Enter: 默认行为（插入换行）
     };
 
-    /** 导航建议列表（direction: 1=下, -1=上） */
+    /**
+     * 执行建议的类型特定操作（与 SmartSuggestions.selectSuggestion 逻辑一致）：
+     * - title (视频) → 搜索 bv=... 语句
+     * - author (用户) → 搜索 uid=... 语句
+     * - 其他 → 搜索建议文本
+     */
+    const executeSuggestionAction = (item: SmartSuggestion) => {
+      layoutStore.setIsSuggestVisible(false);
+      let searchQuery = item.text;
+      if (item.type === 'title' && item.meta?.bvid) {
+        searchQuery = `bv=${item.meta.bvid}`;
+      } else if (item.type === 'author' && item.meta?.uid) {
+        searchQuery = `uid=${item.meta.uid}`;
+      }
+      queryModel.value = searchQuery;
+      explore({
+        queryValue: searchQuery,
+        setQuery: true,
+        setRoute: true,
+      });
+      layoutStore.setCurrentPage(1);
+    };
+
+    /** 导航建议列表（direction: 1=下, -1=上） — 仅预览，不修改 queryStore */
     const navigateSuggestion = (direction: number) => {
       const smartService = getSmartSuggestService();
-      // 使用导航前的原始查询来获取建议列表
-      const queryForSuggest = layoutStore.preNavQuery ?? queryModel.value;
-      if (!queryForSuggest || !queryForSuggest.trim()) return;
+      // 始终使用实际查询（queryModel）来获取建议，而非预览文本
+      const q = queryModel.value;
+      if (!q || !q.trim()) return;
 
-      const suggestions = smartService.suggest(queryForSuggest);
+      const suggestions = smartService.suggest(q);
       if (suggestions.length === 0) return;
-
-      // 保存导航前的查询（仅首次）
-      layoutStore.savePreNavQuery(queryModel.value);
 
       const current = layoutStore.suggestSelectedIndex;
       let newIndex: number;
@@ -227,23 +305,32 @@ export default {
 
       if (newIndex === -1) {
         // 回到原始输入
-        queryModel.value = layoutStore.preNavQuery ?? '';
+        displayOverride.value = null;
       } else {
-        queryModel.value = suggestions[newIndex].text;
+        displayOverride.value = suggestions[newIndex].text;
       }
     };
 
     const handleBlur = () => {
+      isInputFocused.value = false;
       if (!layoutStore.isMouseInSearchBar) {
         layoutStore.setIsSuggestVisible(false);
       }
     };
 
     const handleFocus = async () => {
+      isInputFocused.value = true;
       if (!layoutStore.isSuggestVisible) {
         layoutStore.setIsSuggestVisible(true);
       }
       await initSmartSuggest();
+    };
+
+    /** 点击输入框 — 确保建议列表可见（处理已聚焦但建议被隐藏的情况） */
+    const handleClick = () => {
+      if (!layoutStore.isSuggestVisible) {
+        layoutStore.setIsSuggestVisible(true);
+      }
     };
 
     const handleGlobalClick = () => {
@@ -316,13 +403,21 @@ export default {
       { immediate: true }
     );
 
-    // 当 store 中的 query 被外部修改时同步 textarea 高度
+    // 当 store 中的 query 被外部修改时同步 textarea 高度 + 清除导航预览
     watch(
       () => queryStore.query,
       () => {
+        displayOverride.value = null;
         nextTick(() => autoResize());
       }
     );
+
+    // 当索引更新时（如搜索结果返回后），若输入框仍聚焦则自动显示建议
+    watch(suggestIndexVersion, () => {
+      if (isInputFocused.value && !layoutStore.isSuggestVisible) {
+        layoutStore.setIsSuggestVisible(true);
+      }
+    });
 
     const searchInputPlaceholder = computed(
       () => MODE_PLACEHOLDERS[searchModeStore.currentMode]
@@ -331,7 +426,7 @@ export default {
     return {
       textareaRef,
       wrapperRef,
-      queryModel,
+      displayValue,
       isDense,
       currentMode,
       currentModeIcon,
@@ -342,6 +437,7 @@ export default {
       handleBlur,
       handleInput,
       handleKeydown,
+      handleClick,
       submitQuery,
       searchInputPlaceholder,
     };

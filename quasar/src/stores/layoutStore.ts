@@ -39,6 +39,8 @@ export const useLayoutStore = defineStore('layout', {
         suggestSelectedIndex: -1 as number,
         /** 箭头导航前的原始查询文本（用于返回时恢复） */
         preNavQuery: null as string | null,
+        /** 搜索栏总高度（含 sticky padding），由 SearchInput 设置，用于结果列表 maxHeight 计算 */
+        searchBarTotalHeight: 96 as number,
     }),
     actions: {
         /** 是否为移动端模式（< 570px）：无侧边栏，汉堡菜单 */
@@ -182,6 +184,10 @@ export const useLayoutStore = defineStore('layout', {
             if (this.preNavQuery === null) {
                 this.preNavQuery = query;
             }
+        },
+        /** 设置搜索栏总高度 */
+        setSearchBarTotalHeight(height: number) {
+            this.searchBarTotalHeight = height;
         },
     },
 });

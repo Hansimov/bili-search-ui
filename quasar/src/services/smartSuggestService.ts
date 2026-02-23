@@ -185,6 +185,57 @@ function extractKeywords(text: string): string[] {
 }
 
 /**
+ * 从标题中提取有意义的短语片段
+ * 例如"【影视飓风】2024年最值得看的10部电影" → ["影视飓风", "2024年最值得看的10部电影", "最值得看的", "10部电影"]
+ */
+function extractPhrases(text: string): string[] {
+    if (!text) return [];
+    const normalized = normalizeText(text);
+    const phrases: string[] = [];
+    const seen = new Set<string>();
+
+    const addPhrase = (p: string) => {
+        const t = p.trim();
+        if (t.length >= 2 && t.length <= 30 && !seen.has(t)) {
+            seen.add(t);
+            phrases.push(t);
+        }
+    };
+
+    // 1. 按常见标题分隔符切割（括号、竖线、破折号等）
+    const segments = normalized.split(/[【】\[\]()（）｜|—\-·《》「」『』]+/);
+    for (const seg of segments) {
+        const trimmed = seg.trim();
+        if (trimmed.length >= 2) {
+            addPhrase(trimmed);
+        }
+    }
+
+    // 2. 从每个段中提取子短语：按标点和空格进一步切割
+    for (const seg of segments) {
+        const subParts = seg.split(/[,，。、；;：:！!？?\s]+/);
+        for (const sub of subParts) {
+            if (sub.trim().length >= 2) {
+                addPhrase(sub.trim());
+            }
+        }
+    }
+
+    // 3. 提取连续中文片段（至少 2 个字符）
+    const chineseRuns = normalized.match(/[\u4E00-\u9FFF]{2,}/g);
+    if (chineseRuns) {
+        for (const run of chineseRuns) {
+            // 对较长的连续中文，提取窗口短语
+            if (run.length >= 4 && run.length <= 30) {
+                addPhrase(run);
+            }
+        }
+    }
+
+    return phrases;
+}
+
+/**
  * 对文本进行高亮处理（支持拼音匹配高亮）
  */
 function highlightMatch(text: string, query: string): string {
@@ -564,12 +615,17 @@ function calculateMatchScore(
     // 类型权重调整
     const typeBonus: Record<SuggestionType, number> = {
         history: 15,
-        author: 10,
+        author: 15,
         title: 8,
         tag: 6,
         keyword: 4,
     };
     score += typeBonus[type] || 0;
+
+    // 短文本加成：越短的匹配越精准（如UP主名称通常很短）
+    if (lower.length <= 10 && score >= 25) {
+        score += Math.max(0, 8 - lower.length);
+    }
 
     // 频次/权重加成（最多 +10）
     score += Math.min(10, Math.log2(weight + 1) * 2);
@@ -663,19 +719,20 @@ export class SmartSuggestService {
                 });
             }
 
-            // 索引 UP 主名称
+            // 索引 UP 主名称（提高权重，确保出现在建议中）
             const owner = hit.owner as Record<string, unknown> | undefined;
             const ownerName = (owner?.name as string) || '';
             const ownerMid = owner?.mid as number | undefined;
             if (ownerName) {
-                const py = getPinyinInfo(ownerName);
+                const normalizedName = normalizeText(ownerName);
+                const py = getPinyinInfo(normalizedName);
                 this.addEntry({
                     text: ownerName,
-                    lower: ownerName.toLowerCase(),
+                    lower: normalizedName,
                     pinyinFull: py.full,
                     pinyinInitials: py.initials,
                     type: 'author',
-                    weight: 3,
+                    weight: 8,
                     meta: ownerMid ? { uid: ownerMid } : undefined,
                 });
             }
@@ -697,7 +754,7 @@ export class SmartSuggestService {
                 }
             }
 
-            // 从标题中提取关键词
+            // 从标题中提取关键词（单词级别）
             const keywords = extractKeywords(title);
             for (const kw of keywords) {
                 const py = getPinyinInfo(kw);
@@ -708,6 +765,22 @@ export class SmartSuggestService {
                     pinyinInitials: py.initials,
                     type: 'keyword',
                     weight: 1,
+                });
+            }
+
+            // 从标题中提取有意义的短语（phrase 级别）
+            const phrases = extractPhrases(title);
+            for (const phrase of phrases) {
+                // 跳过与完整标题相同的短语
+                if (phrase === normalizeText(title)) continue;
+                const py = getPinyinInfo(phrase);
+                this.addEntry({
+                    text: phrase,
+                    lower: phrase.toLowerCase(),
+                    pinyinFull: py.full,
+                    pinyinInitials: py.initials,
+                    type: 'keyword',
+                    weight: 3,
                 });
             }
         }

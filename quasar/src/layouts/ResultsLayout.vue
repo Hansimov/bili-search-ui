@@ -15,16 +15,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, onBeforeUnmount } from 'vue';
 import TitleToolbar from 'components/TitleToolbar.vue';
 import SearchBar from 'src/components/SearchBar.vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { useExploreStore } from 'src/stores/exploreStore';
 
 defineOptions({
   name: 'ResultsLayout',
 });
 
 const layoutStore = useLayoutStore();
+const exploreStore = useExploreStore();
 
 const headerStyle = computed(() => {
   if (layoutStore.hasSidebar()) {
@@ -47,6 +49,26 @@ const searchBarStickyStyle = computed(() => {
     left: '0',
     width: '100%',
   };
+});
+
+/** Alt+← / Alt+→ 切换 explore 会话 */
+const handleGlobalKeydown = (event: KeyboardEvent) => {
+  if (!event.altKey) return;
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    exploreStore.toPrevSession();
+  } else if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    exploreStore.toNextSession();
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalKeydown);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown);
 });
 </script>
 
