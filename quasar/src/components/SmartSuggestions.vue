@@ -1,5 +1,9 @@
 <template>
-  <div class="smart-suggestions" v-if="smartSuggestions.length > 0">
+  <div
+    class="smart-suggestions"
+    v-if="smartSuggestions.length > 0"
+    ref="suggestionsRef"
+  >
     <q-list dense class="smart-suggestions-list">
       <q-item
         v-for="(item, index) in smartSuggestions"
@@ -39,7 +43,7 @@
 </template>
 
 <script lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { explore } from 'src/functions/explore';
@@ -57,6 +61,8 @@ export default {
     const layoutStore = useLayoutStore();
     const smartService = getSmartSuggestService();
 
+    const suggestionsRef = ref<HTMLElement | null>(null);
+
     const suggestSelectedIndex = computed(
       () => layoutStore.suggestSelectedIndex
     );
@@ -67,6 +73,23 @@ export default {
       const q = queryStore.query;
       if (!q || !q.trim()) return [];
       return smartService.suggest(q);
+    });
+
+    /**
+     * 箭头键导航时滚动选中项到可见区域
+     */
+    watch(suggestSelectedIndex, (newIdx) => {
+      if (newIdx >= 0) {
+        nextTick(() => {
+          const el = suggestionsRef.value;
+          if (!el) return;
+          const items = el.querySelectorAll('.smart-suggestion-item');
+          const activeItem = items[newIdx] as HTMLElement | undefined;
+          if (activeItem) {
+            activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
+        });
+      }
     });
 
     /**
@@ -101,7 +124,7 @@ export default {
         title: 'movie',
         author: 'person',
         tag: 'label',
-        keyword: 'text_fields',
+        phrase: 'text_fields',
       };
       return icons[type] || 'search';
     };
@@ -112,7 +135,7 @@ export default {
         title: 'pink-5',
         author: 'teal-5',
         tag: 'orange-5',
-        keyword: 'grey-6',
+        phrase: 'grey-6',
       };
       return colors[type] || 'grey';
     };
@@ -123,7 +146,7 @@ export default {
         title: '视频',
         author: 'UP主',
         tag: '标签',
-        keyword: '关键词',
+        phrase: '短语',
       };
       return labels[type] || '';
     };
@@ -134,12 +157,13 @@ export default {
         title: 'pink-4',
         author: 'teal-4',
         tag: 'orange-4',
-        keyword: 'grey-5',
+        phrase: 'grey-5',
       };
       return colors[type] || 'grey';
     };
 
     return {
+      suggestionsRef,
       smartSuggestions,
       suggestSelectedIndex,
       selectSuggestion,

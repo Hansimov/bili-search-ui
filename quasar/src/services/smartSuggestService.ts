@@ -18,8 +18,8 @@ import { ref } from 'vue';
 /** 响应式版本号：每次索引变更时递增，供 Vue computed 追踪依赖 */
 export const suggestIndexVersion = ref(0);
 
-/** 建议类型，对应前端三种行为：文本/视频/用户 */
-export type SuggestionType = 'history' | 'title' | 'author' | 'tag' | 'keyword';
+/** 建议类型：历史/视频/UP主/标签/短语 */
+export type SuggestionType = 'history' | 'title' | 'author' | 'tag' | 'phrase';
 
 /** 建议元数据（bvid/uid 供不同类型的点击行为使用） */
 export interface SuggestionMeta {
@@ -196,9 +196,25 @@ function extractKeywords(text: string): string[] {
     return words.filter((w) => w.length >= 2);
 }
 
+// ==================== 短语提取工具 ====================
+
+/** CJK 虚词/助词/语气词，用作短语切分边界 */
+const CJK_BOUNDARY_PATTERN = /[的了着过吗吧呢啊呀哦啦嗯么呗嘛哇]/g;
+
+/** 常见无意义单字前缀（代词、副词等） */
+const CJK_NOISE_PREFIX = /^[我你他她它这那其某就才又再还]/;
+
+/**
+ * 清理 CJK 短语：去除无意义前缀
+ */
+function cleanCjkPhrase(phrase: string): string {
+    return phrase.replace(CJK_NOISE_PREFIX, '');
+}
+
 /**
  * 从标题中提取有意义的短语片段
- * 例如"【影视飓风】2024年最值得看的10部电影" → ["影视飓风", "2024年最值得看的10部电影", "最值得看的", "10部电影"]
+ * 以标点符号和虚词（的/了/着/过等）为界进行切分，
+ * 去除无意义前后缀，保留 2-8 个 CJK 字符的干净短语。
  */
 function extractPhrases(text: string): string[] {
     if (!text) return [];
@@ -233,22 +249,26 @@ function extractPhrases(text: string): string[] {
         }
     }
 
-    // 3. 提取连续中文片段（至少 2 个字符）
-    const chineseRuns = normalized.match(/[\u4E00-\u9FFF]{2,}/g);
-    if (chineseRuns) {
-        for (const run of chineseRuns) {
-            // 对较长的连续中文，提取窗口短语
-            if (run.length >= 4 && run.length <= 30) {
-                addPhrase(run);
-            }
-            // 提取 2-5 字的子片段（滑动窗口）
-            if (run.length >= 4) {
-                for (let winLen = 2; winLen <= Math.min(5, run.length - 1); winLen++) {
-                    for (let start = 0; start <= run.length - winLen; start++) {
-                        addPhrase(run.substring(start, start + winLen));
-                    }
+    // 3. CJK 虚词边界切分：按 的/了/着/过 等虚词拆分，去除噪声前缀
+    const cjkRuns = normalized.match(/[\u4E00-\u9FFF]{2,}/g);
+    if (cjkRuns) {
+        for (const run of cjkRuns) {
+            // 按虚词边界切分
+            const subPhrases = run.split(CJK_BOUNDARY_PATTERN).filter(Boolean);
+            for (const sp of subPhrases) {
+                const cleaned = cleanCjkPhrase(sp);
+                if (cleaned.length >= 2 && cleaned.length <= 8) {
+                    addPhrase(cleaned);
                 }
             }
+        }
+    }
+
+    // 4. 提取英文/字母数字 token（允许连字符）
+    const engRuns = normalized.match(/[a-z][a-z0-9]*(?:-[a-z0-9]+)*/g);
+    if (engRuns) {
+        for (const run of engRuns) {
+            if (run.length >= 2) addPhrase(run);
         }
     }
 
@@ -256,12 +276,8 @@ function extractPhrases(text: string): string[] {
 }
 
 /**
- * 从文档中提取有意义的 token（用于共现分析和短语组合）
- * 提取规则：
- * - 括号内的内容作为独立 token
- * - 连续的英文/数字序列（长度>=2）
- * - 连续的中文片段（2-5 字滑动窗口）
- * - 按标点和空格切分的子段
+ * 从文档中提取有意义的 token（用于共现分析）
+ * 使用虚词边界切分，去除噪声，保留干净的短语 token。
  */
 function extractDocTokens(text: string): string[] {
     if (!text) return [];
@@ -277,7 +293,7 @@ function extractDocTokens(text: string): string[] {
     };
 
     // 提取括号内容
-    const bracketMatches = text.match(/[【\[（(]([^【\]）)】\[（(]+)[】\]）)]/g);
+    const bracketMatches = text.match(/[【\[（(]([^】\]）)]+)[】\]）)]/g);
     if (bracketMatches) {
         for (const m of bracketMatches) {
             const inner = m.slice(1, -1).trim();
@@ -295,23 +311,23 @@ function extractDocTokens(text: string): string[] {
         if (part.length < 2) continue;
         addToken(part);
 
-        // 提取连续中文子片段 (2-5 字)
+        // 提取 CJK 子短语（虚词边界切分 + 噪声清理）
         const cjkRuns = part.match(/[\u4E00-\u9FFF]{2,}/g);
         if (cjkRuns) {
             for (const run of cjkRuns) {
-                if (run.length >= 2) addToken(run);
-                if (run.length >= 4) {
-                    for (let winLen = 2; winLen <= Math.min(5, run.length - 1); winLen++) {
-                        for (let start = 0; start <= run.length - winLen; start++) {
-                            addToken(run.substring(start, start + winLen));
-                        }
+                addToken(run);
+                const subPhrases = run.split(CJK_BOUNDARY_PATTERN).filter(Boolean);
+                for (const sp of subPhrases) {
+                    const cjkCleaned = cleanCjkPhrase(sp);
+                    if (cjkCleaned.length >= 2 && cjkCleaned.length <= 8) {
+                        addToken(cjkCleaned);
                     }
                 }
             }
         }
 
-        // 提取连续英文/数字序列
-        const alphaRuns = part.match(/[a-zA-Z][a-zA-Z0-9]+/g);
+        // 提取英文/数字序列（允许连字符）
+        const alphaRuns = part.match(/[a-zA-Z][a-zA-Z0-9]*(?:-[a-zA-Z0-9]+)*/g);
         if (alphaRuns) {
             for (const run of alphaRuns) {
                 addToken(run);
@@ -721,10 +737,10 @@ function calculateMatchScore(
     // 类型权重调整
     const typeBonus: Record<SuggestionType, number> = {
         history: 15,
-        author: 15,
-        title: 8,
-        tag: 6,
-        keyword: 4,
+        author: 12,
+        tag: 10,
+        phrase: 8,
+        title: 5,
     };
     score += typeBonus[type] || 0;
 
@@ -736,8 +752,8 @@ function calculateMatchScore(
     // 频次/权重加成（最多 +10）
     score += Math.min(10, Math.log2(weight + 1) * 2);
 
-    // 视频数据加成（UP 主根据其视频的综合数据评分获得额外加分）
-    if (entry.videoScore && entry.videoScore > 0) {
+    // 视频数据加成（仅 UP 主根据其视频的综合数据评分获得额外加分）
+    if (type === 'author' && entry.videoScore && entry.videoScore > 0) {
         score += Math.min(15, entry.videoScore * 0.3);
     }
 
@@ -874,9 +890,9 @@ export class SmartSuggestService {
                 }
             }
 
-            // ---- 索引标签 ----
+            // ---- 索引标签（以半角逗号分隔，短标签直接添加，无需噪声过滤） ----
             if (tags) {
-                const tagList = tags.split(/[,，\s]+/).filter((t: string) => t.length >= 2);
+                const tagList = tags.split(',').map((t: string) => t.trim()).filter((t: string) => t.length >= 2 && t.length <= 16);
                 for (const tag of tagList) {
                     const py = getPinyinInfo(tag);
                     this.addEntry({
@@ -885,21 +901,24 @@ export class SmartSuggestService {
                         pinyinFull: py.full,
                         pinyinInitials: py.initials,
                         type: 'tag',
-                        weight: 2,
+                        weight: 3,
                     });
                 }
             }
 
             // ---- 从标题中提取关键词（单词级别）----
+            const normalizedTitle = title ? normalizeText(title) : '';
             const keywords = extractKeywords(title);
             for (const kw of keywords) {
+                // 跳过与完整标题文本相同的关键词（避免与 title 条目重复）
+                if (kw.toLowerCase() === normalizedTitle) continue;
                 const py = getPinyinInfo(kw);
                 this.addEntry({
                     text: kw,
                     lower: kw.toLowerCase(),
                     pinyinFull: py.full,
                     pinyinInitials: py.initials,
-                    type: 'keyword',
+                    type: 'phrase',
                     weight: 1,
                 });
             }
@@ -914,8 +933,8 @@ export class SmartSuggestService {
                     lower: phrase.toLowerCase(),
                     pinyinFull: py.full,
                     pinyinInitials: py.initials,
-                    type: 'keyword',
-                    weight: 3,
+                    type: 'phrase',
+                    weight: 2,
                 });
             }
 
@@ -930,9 +949,6 @@ export class SmartSuggestService {
                 }
             }
             this.updateCoOccurrence(docTokens);
-
-            // ---- 生成短语组合（UP主 + 关键词）----
-            this.generatePhraseCombos(title, ownerName, tags);
         }
 
         // 批量添加完成后生成共现推荐并触发响应式更新
@@ -980,9 +996,9 @@ export class SmartSuggestService {
 
         for (const [token, coMap] of this.coOccurrenceMap.entries()) {
             if (token.length < 2) continue;
-            // 取共现次数最高的 top-5 搭配词
+            // 取共现次数最高的 top-5 搭配词（阈值 >= 2，避免偶然共现噪声）
             const sorted = [...coMap.entries()]
-                .filter(([, count]) => count >= 1)
+                .filter(([, count]) => count >= 2)
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 5);
 
@@ -999,58 +1015,6 @@ export class SmartSuggestService {
                     text: comboText,
                     tokens: [token, partner],
                     count,
-                });
-            }
-        }
-    }
-
-    /**
-     * 生成短语组合（UP主名 + 标题关键词）
-     */
-    private generatePhraseCombos(title: string, ownerName: string, tags: string): void {
-        if (!title) return;
-        const titleTokens = extractDocTokens(title);
-        const tagTokens = tags ? extractDocTokens(tags) : [];
-        const allTokens = [...new Set([...titleTokens, ...tagTokens])];
-
-        // UP 主 + 关键词 组合
-        if (ownerName && ownerName.length >= 2) {
-            const ownerLower = ownerName.toLowerCase();
-            for (const token of allTokens) {
-                if (token === ownerLower) continue;
-                if (token.includes(ownerLower) || ownerLower.includes(token)) continue;
-                if (token.length < 2) continue;
-                const comboText = `${ownerLower} ${token}`;
-                if (comboText.length > 30) continue;
-                const py = getPinyinInfo(comboText);
-                this.addEntry({
-                    text: comboText,
-                    lower: comboText,
-                    pinyinFull: py.full,
-                    pinyinInitials: py.initials,
-                    type: 'keyword',
-                    weight: 2,
-                });
-            }
-        }
-
-        // 关键词之间的两两组合（限制数量，仅取前 6 个 token）
-        const limitTokens = allTokens.filter((t) => t.length >= 2).slice(0, 6);
-        for (let i = 0; i < limitTokens.length; i++) {
-            for (let j = i + 1; j < limitTokens.length; j++) {
-                const a = limitTokens[i];
-                const b = limitTokens[j];
-                if (a.includes(b) || b.includes(a)) continue;
-                const comboText = `${a} ${b}`;
-                if (comboText.length > 30) continue;
-                const py = getPinyinInfo(comboText);
-                this.addEntry({
-                    text: comboText,
-                    lower: comboText,
-                    pinyinFull: py.full,
-                    pinyinInitials: py.initials,
-                    type: 'keyword',
-                    weight: 1.5,
                 });
             }
         }
@@ -1140,7 +1104,7 @@ export class SmartSuggestService {
                 lower: comboLower,
                 pinyinFull: py.full,
                 pinyinInitials: py.initials,
-                type: 'keyword',
+                type: 'phrase',
                 weight: 2 + combo.count * 0.5,
             };
 
@@ -1156,27 +1120,77 @@ export class SmartSuggestService {
 
         scored.sort((a, b) => b.score - a.score);
 
-        const seen = new Set<string>();
+        // 构建历史文本集，用于将 tag/phrase 提升为 history 类型
+        const historyTexts = new Set<string>();
+        for (const entry of this.index) {
+            if (entry.type === 'history') {
+                historyTexts.add(entry.lower);
+            }
+        }
+
+        // 去重逻辑：
+        // - history/tag/phrase（文本搜索类型）：按文本去重，若与历史重复则提升为 history
+        // - title（视频）：单独去重，允许与文本搜索类型共存
+        // - author（UP主）：单独去重
+        const textSearchSeen = new Set<string>();
+        const titleSeen = new Set<string>();
+        const authorSeen = new Set<string>();
         const unique: SmartSuggestion[] = [];
 
         for (const { entry, score } of scored) {
-            const dedupeKey = entry.lower;
-            if (seen.has(dedupeKey)) continue;
-            seen.add(dedupeKey);
+            const { type, lower } = entry;
 
-            unique.push({
-                text: entry.text,
-                type: entry.type,
-                score,
-                highlightedText: highlightMatch(entry.text, trimmed),
-                meta: entry.meta,
-                source: entry.source,
-                timestamp: entry.timestamp,
-                resultCount: entry.resultCount,
-            });
+            if (type === 'history' || type === 'tag' || type === 'phrase') {
+                if (textSearchSeen.has(lower)) continue;
+                textSearchSeen.add(lower);
+                // tag/phrase 与历史文本重复时提升为 history 类型
+                let displayType: SuggestionType = type;
+                if ((type === 'tag' || type === 'phrase') && historyTexts.has(lower)) {
+                    displayType = 'history';
+                }
+                unique.push({
+                    text: entry.text,
+                    type: displayType,
+                    score: displayType === 'history' && type !== 'history' ? score + 10 : score,
+                    highlightedText: highlightMatch(entry.text, trimmed),
+                    meta: entry.meta,
+                    source: entry.source,
+                    timestamp: entry.timestamp,
+                    resultCount: entry.resultCount,
+                });
+            } else if (type === 'title') {
+                if (titleSeen.has(lower)) continue;
+                titleSeen.add(lower);
+                unique.push({
+                    text: entry.text,
+                    type: 'title',
+                    score,
+                    highlightedText: highlightMatch(entry.text, trimmed),
+                    meta: entry.meta,
+                    source: entry.source,
+                    timestamp: entry.timestamp,
+                    resultCount: entry.resultCount,
+                });
+            } else if (type === 'author') {
+                if (authorSeen.has(lower)) continue;
+                authorSeen.add(lower);
+                unique.push({
+                    text: entry.text,
+                    type: 'author',
+                    score,
+                    highlightedText: highlightMatch(entry.text, trimmed),
+                    meta: entry.meta,
+                    source: entry.source,
+                    timestamp: entry.timestamp,
+                    resultCount: entry.resultCount,
+                });
+            }
 
             if (unique.length >= this.maxSuggestions) break;
         }
+
+        // 最终排序：确保 promoted-to-history 的条目排在正确位置
+        unique.sort((a, b) => b.score - a.score);
 
         return unique;
     }

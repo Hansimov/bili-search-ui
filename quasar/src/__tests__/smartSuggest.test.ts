@@ -186,7 +186,7 @@ describe('SmartSuggestService', () => {
             }
         });
 
-        it('相同文本应该去重', () => {
+        it('相同文本同类型应该去重', () => {
             service.addFromHistory([
                 { query: '原神', timestamp: Date.now() },
             ]);
@@ -194,9 +194,17 @@ describe('SmartSuggestService', () => {
                 { title: '原神', owner: { name: 'test' } },
             ]);
             const results = service.suggest('原神');
-            const texts = results.map((r: { text: string }) => r.text);
-            const uniqueTexts = [...new Set(texts)];
-            expect(texts.length).toBe(uniqueTexts.length);
+            // 历史和视频可以共存（不同类型），但同类型不应重复
+            const historyResults = results.filter((r) => r.type === 'history');
+            const titleResults = results.filter((r) => r.type === 'title');
+            expect(historyResults.length).toBeLessThanOrEqual(1);
+            expect(titleResults.length).toBeLessThanOrEqual(1);
+            // 历史条目应排在前面
+            if (historyResults.length > 0 && titleResults.length > 0) {
+                const histIdx = results.indexOf(historyResults[0]);
+                const titleIdx = results.indexOf(titleResults[0]);
+                expect(histIdx).toBeLessThan(titleIdx);
+            }
         });
     });
 
@@ -463,8 +471,8 @@ describe('SmartSuggestService', () => {
             // 搜索"电影"应该匹配到提取出来的短语
             const results = service.suggest('电影');
             expect(results.length).toBeGreaterThan(0);
-            // 应有 keyword 类型的短语匹配
-            const kwResults = results.filter((r) => r.type === 'keyword');
+            // 应有 phrase 类型的短语匹配
+            const kwResults = results.filter((r) => r.type === 'phrase');
             expect(kwResults.length).toBeGreaterThan(0);
         });
 
@@ -481,21 +489,23 @@ describe('SmartSuggestService', () => {
             expect(results.length).toBeGreaterThan(0);
         });
 
-        it('短语不应与完整标题重复', () => {
+        it('短语和视频标题相同时，短语应在视频前面', () => {
             const title = '测试标题';
             service.addFromSearchResults([
                 {
                     title,
                     bvid: 'BV222',
                     owner: { name: 'X', mid: 3 },
-                    tags: '',
+                    tags: '测试标题',
                 },
             ]);
             const results = service.suggest('测试');
-            // 不应出现两个完全相同的文本
-            const texts = results.map((r) => r.text);
-            const unique = [...new Set(texts)];
-            expect(texts.length).toBe(unique.length);
+            // 标签/短语类型应在视频类型之前
+            const textIdx = results.findIndex((r) => r.type === 'tag' || r.type === 'phrase');
+            const titleIdx = results.findIndex((r) => r.type === 'title');
+            if (textIdx >= 0 && titleIdx >= 0) {
+                expect(textIdx).toBeLessThan(titleIdx);
+            }
         });
     });
 });

@@ -22,6 +22,8 @@
           @blur="handleBlur"
           @keydown="handleKeydown"
           @click="handleClick"
+          @compositionstart="onCompositionStart"
+          @compositionend="onCompositionEnd"
           rows="1"
         ></textarea>
         <q-btn
@@ -139,6 +141,16 @@ export default {
     /** 跟踪 textarea 是否处于聚焦状态（比 document.activeElement 更可靠） */
     const isInputFocused = ref(false);
 
+    /** 跟踪 IME 输入法是否正在进行组合输入 */
+    const isComposing = ref(false);
+
+    const onCompositionStart = () => {
+      isComposing.value = true;
+    };
+    const onCompositionEnd = () => {
+      isComposing.value = false;
+    };
+
     /** textarea 实际显示的值：优先显示 displayOverride，否则显示 queryModel */
     const displayValue = computed(
       () => displayOverride.value ?? queryModel.value
@@ -202,6 +214,9 @@ export default {
 
     /** Keydown 处理：Enter 提交, Shift+Enter 换行, Tab 确认建议, 上下箭头导航建议 */
     const handleKeydown = (event: KeyboardEvent) => {
+      // IME 输入法组合输入期间，跳过所有快捷键处理
+      if (event.isComposing || isComposing.value) return;
+
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         const selectedIdx = layoutStore.suggestSelectedIndex;
@@ -213,6 +228,7 @@ export default {
           if (selected) {
             displayOverride.value = null;
             layoutStore.resetSuggestNavigation();
+            textareaRef.value?.blur();
             executeSuggestionAction(selected);
             return;
           }
@@ -223,6 +239,7 @@ export default {
           displayOverride.value = null;
         }
         layoutStore.resetSuggestNavigation();
+        textareaRef.value?.blur();
         submitQuery();
         return;
       }
@@ -282,6 +299,11 @@ export default {
 
     /** 导航建议列表（direction: 1=下, -1=上） — 仅预览，不修改 queryStore */
     const navigateSuggestion = (direction: number) => {
+      // 确保建议列表可见
+      if (!layoutStore.isSuggestVisible) {
+        layoutStore.setIsSuggestVisible(true);
+      }
+
       const smartService = getSmartSuggestService();
       // 始终使用实际查询（queryModel）来获取建议，而非预览文本
       const q = queryModel.value;
@@ -290,7 +312,12 @@ export default {
       const suggestions = smartService.suggest(q);
       if (suggestions.length === 0) return;
 
-      const current = layoutStore.suggestSelectedIndex;
+      let current = layoutStore.suggestSelectedIndex;
+      // 防止 index 越界（suggestions 可能因索引变化而长度改变）
+      if (current >= suggestions.length) {
+        current = suggestions.length - 1;
+      }
+
       let newIndex: number;
 
       if (direction === 1) {
@@ -438,6 +465,8 @@ export default {
       handleInput,
       handleKeydown,
       handleClick,
+      onCompositionStart,
+      onCompositionEnd,
       submitQuery,
       searchInputPlaceholder,
     };
