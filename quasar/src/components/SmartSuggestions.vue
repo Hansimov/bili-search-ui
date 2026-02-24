@@ -19,21 +19,23 @@
           <div class="suggestion-type-info">
             <q-icon
               :name="getTypeIcon(item.type)"
-              :color="getTypeColor(item.type)"
               size="18px"
+              class="type-icon"
+              :class="[
+                { 'tag-icon-flip': item.type === 'tag' },
+                'icon-' + item.type,
+              ]"
             />
-            <q-badge
-              :label="getTypeLabel(item.type)"
-              :color="getTypeBadgeColor(item.type)"
-              text-color="white"
-              class="type-badge"
-            />
+            <span class="type-badge" :class="getTypeBadgeClass(item.type)">{{
+              getTypeLabel(item.type)
+            }}</span>
           </div>
         </q-item-section>
         <q-item-section>
           <!-- 用 div 代替 q-item-label 避免 vue/no-v-text-v-html-on-component -->
           <div
             class="smart-suggestion-text"
+            :class="'text-' + item.type"
             v-html="item.highlightedText"
           ></div>
         </q-item-section>
@@ -121,45 +123,34 @@ export default {
     const getTypeIcon = (type: SuggestionType): string => {
       const icons: Record<SuggestionType, string> = {
         history: 'history',
-        title: 'movie',
+        title: 'live_tv',
         author: 'person',
-        tag: 'label',
+        tag: 'sell',
         phrase: 'text_fields',
       };
       return icons[type] || 'search';
-    };
-
-    const getTypeColor = (type: SuggestionType): string => {
-      const colors: Record<SuggestionType, string> = {
-        history: 'blue-5',
-        title: 'pink-5',
-        author: 'teal-5',
-        tag: 'orange-5',
-        phrase: 'grey-6',
-      };
-      return colors[type] || 'grey';
     };
 
     const getTypeLabel = (type: SuggestionType): string => {
       const labels: Record<SuggestionType, string> = {
         history: '历史',
         title: '视频',
-        author: 'UP主',
+        author: 'UP',
         tag: '标签',
         phrase: '短语',
       };
       return labels[type] || '';
     };
 
-    const getTypeBadgeColor = (type: SuggestionType): string => {
-      const colors: Record<SuggestionType, string> = {
-        history: 'blue-4',
-        title: 'pink-4',
-        author: 'teal-4',
-        tag: 'orange-4',
-        phrase: 'grey-5',
+    const getTypeBadgeClass = (type: SuggestionType): string => {
+      const classes: Record<SuggestionType, string> = {
+        history: 'badge-history',
+        title: 'badge-title',
+        author: 'badge-author',
+        tag: 'badge-tag',
+        phrase: 'badge-phrase',
       };
-      return colors[type] || 'grey';
+      return classes[type] || '';
     };
 
     return {
@@ -168,9 +159,8 @@ export default {
       suggestSelectedIndex,
       selectSuggestion,
       getTypeIcon,
-      getTypeColor,
       getTypeLabel,
-      getTypeBadgeColor,
+      getTypeBadgeClass,
     };
   },
 };
@@ -201,17 +191,39 @@ export default {
   transition: background-color 0.15s ease;
   border-radius: 4px;
   margin: 0 4px;
+  align-items: center;
 }
 
 .smart-suggestion-left {
   min-width: auto !important;
   padding-right: 8px;
+  align-self: center;
 }
 
 .suggestion-type-info {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.type-icon {
+  width: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-tag {
+  font-size: 16px !important;
+}
+
+.icon-title {
+  margin-top: -1px;
+}
+
+.tag-icon-flip {
+  transform: scaleX(-1);
 }
 
 .smart-suggestion-text {
@@ -222,9 +234,20 @@ export default {
 }
 
 .type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 10px;
-  padding: 1px 6px;
+  padding: 0 6px;
   border-radius: 8px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  line-height: 18px;
+  height: 18px;
+  white-space: nowrap;
+  min-width: 32px;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 body.body--light {
@@ -234,6 +257,67 @@ body.body--light {
   }
   .smart-suggestions-list::-webkit-scrollbar-thumb {
     background: #ccc;
+  }
+  /* 历史 - 白色/浅灰 */
+  .icon-history,
+  .badge-history,
+  .text-history {
+    color: #757575;
+  }
+  .badge-history {
+    background-color: rgba(117, 117, 117, 0.08);
+  }
+  /* 视频 - 蓝色 */
+  .icon-title,
+  .badge-title,
+  .text-title {
+    color: #1565c0;
+  }
+  .badge-title {
+    background-color: rgba(25, 118, 210, 0.1);
+  }
+  /* UP - 品红/粉色 */
+  .icon-author,
+  .badge-author,
+  .text-author {
+    color: #ad1457;
+  }
+  .badge-author {
+    background-color: rgba(173, 20, 87, 0.1);
+  }
+  /* 标签 - teal */
+  .icon-tag,
+  .badge-tag,
+  .text-tag {
+    color: #00695c;
+  }
+  .badge-tag {
+    background-color: rgba(0, 105, 92, 0.1);
+  }
+  /* 短语 - 灰色 */
+  .icon-phrase,
+  .badge-phrase,
+  .text-phrase {
+    color: #616161;
+  }
+  .badge-phrase {
+    background-color: rgba(97, 97, 97, 0.08);
+  }
+  /* 高亮加深 */
+  .text-history .suggest-highlight {
+    color: #424242;
+  }
+  .text-title .suggest-highlight {
+    color: #0d47a1;
+  }
+  .text-author .suggest-highlight {
+    color: #880e4f;
+  }
+  .text-tag .suggest-highlight {
+    color: #004d40;
+  }
+  .text-phrase .suggest-highlight {
+    color: #212121;
   }
 }
 
@@ -245,17 +329,75 @@ body.body--dark {
   .smart-suggestions-list::-webkit-scrollbar-thumb {
     background: #555;
   }
+  /* 历史 - 白色/浅灰 */
+  .icon-history,
+  .badge-history,
+  .text-history {
+    color: #bdbdbd;
+  }
+  .badge-history {
+    background-color: rgba(189, 189, 189, 0.1);
+  }
+  /* 视频 - 蓝色 */
+  .icon-title,
+  .badge-title,
+  .text-title {
+    color: #64b5f6;
+  }
+  .badge-title {
+    background-color: rgba(100, 181, 246, 0.12);
+  }
+  /* UP - 品红/粉色 */
+  .icon-author,
+  .badge-author,
+  .text-author {
+    color: #f48fb1;
+  }
+  .badge-author {
+    background-color: rgba(244, 143, 177, 0.12);
+  }
+  /* 标签 - teal */
+  .icon-tag,
+  .badge-tag,
+  .text-tag {
+    color: #4db6ac;
+  }
+  .badge-tag {
+    background-color: rgba(77, 182, 172, 0.12);
+  }
+  /* 短语 - 灰色 */
+  .icon-phrase,
+  .badge-phrase,
+  .text-phrase {
+    color: #9e9e9e;
+  }
+  .badge-phrase {
+    background-color: rgba(158, 158, 158, 0.1);
+  }
+  /* 高亮加深 */
+  .text-history .suggest-highlight {
+    color: #e0e0e0;
+  }
+  .text-title .suggest-highlight {
+    color: #90caf9;
+  }
+  .text-author .suggest-highlight {
+    color: #fce4ec;
+  }
+  .text-tag .suggest-highlight {
+    color: #b2dfdb;
+  }
+  .text-phrase .suggest-highlight {
+    color: #e0e0e0;
+  }
 }
 </style>
 
 <style lang="scss">
 /* 高亮样式（非 scoped，供 v-html 使用） */
 .suggest-highlight {
-  color: #1976d2;
   font-style: normal;
-  font-weight: 600;
-}
-body.body--dark .suggest-highlight {
-  color: #64b5f6;
+  font-weight: 700;
+  color: inherit;
 }
 </style>

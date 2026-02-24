@@ -198,6 +198,16 @@ function extractKeywords(text: string): string[] {
 
 // ==================== 短语提取工具 ====================
 
+/** 清除所有标点符号（中英文标点、特殊符号），用于标签/短语提取前的预处理 */
+const PUNCTUATION_PATTERN = /[,，。、；;：:！!？?.·\-_|/\\~…“”‘’《》〈〉『』【】\[\]()\(\)（）｜—「」#@&%^*+=<>{}"'`～…–•●○■□★☆♡❤♪♫]+/g;
+
+/**
+ * 去除字符串中的所有标点符号
+ */
+function stripPunctuation(text: string): string {
+    return text.replace(PUNCTUATION_PATTERN, '').trim();
+}
+
 /** CJK 虚词/助词/语气词，用作短语切分边界 */
 const CJK_BOUNDARY_PATTERN = /[的了着过吗吧呢啊呀哦啦嗯么呗嘛哇]/g;
 
@@ -219,6 +229,7 @@ function cleanCjkPhrase(phrase: string): string {
 function extractPhrases(text: string): string[] {
     if (!text) return [];
     const normalized = normalizeText(text);
+    const stripped = stripPunctuation(normalized);
     const phrases: string[] = [];
     const seen = new Set<string>();
 
@@ -233,7 +244,7 @@ function extractPhrases(text: string): string[] {
     // 1. 按常见标题分隔符切割（括号、竖线、破折号等）
     const segments = normalized.split(/[【】\[\]()（）｜|—\-·《》「」『』]+/);
     for (const seg of segments) {
-        const trimmed = seg.trim();
+        const trimmed = stripPunctuation(seg.trim());
         if (trimmed.length >= 2) {
             addPhrase(trimmed);
         }
@@ -243,14 +254,15 @@ function extractPhrases(text: string): string[] {
     for (const seg of segments) {
         const subParts = seg.split(/[,，。、；;：:！!？?\s]+/);
         for (const sub of subParts) {
-            if (sub.trim().length >= 2) {
-                addPhrase(sub.trim());
+            const trimmed = stripPunctuation(sub.trim());
+            if (trimmed.length >= 2) {
+                addPhrase(trimmed);
             }
         }
     }
 
     // 3. CJK 虚词边界切分：按 的/了/着/过 等虚词拆分，去除噪声前缀
-    const cjkRuns = normalized.match(/[\u4E00-\u9FFF]{2,}/g);
+    const cjkRuns = stripped.match(/[\u4E00-\u9FFF]{2,}/g);
     if (cjkRuns) {
         for (const run of cjkRuns) {
             // 按虚词边界切分
@@ -265,7 +277,7 @@ function extractPhrases(text: string): string[] {
     }
 
     // 4. 提取英文/字母数字 token（允许连字符）
-    const engRuns = normalized.match(/[a-z][a-z0-9]*(?:-[a-z0-9]+)*/g);
+    const engRuns = stripped.match(/[a-z][a-z0-9]*(?:-[a-z0-9]+)*/g);
     if (engRuns) {
         for (const run of engRuns) {
             if (run.length >= 2) addPhrase(run);
@@ -285,7 +297,7 @@ function extractDocTokens(text: string): string[] {
     const seen = new Set<string>();
 
     const addToken = (t: string) => {
-        const trimmed = t.trim().toLowerCase();
+        const trimmed = stripPunctuation(t.trim()).toLowerCase();
         if (trimmed.length >= 2 && !seen.has(trimmed)) {
             seen.add(trimmed);
             tokens.push(trimmed);
@@ -892,7 +904,7 @@ export class SmartSuggestService {
 
             // ---- 索引标签（以半角逗号分隔，短标签直接添加，无需噪声过滤） ----
             if (tags) {
-                const tagList = tags.split(',').map((t: string) => t.trim()).filter((t: string) => t.length >= 2 && t.length <= 16);
+                const tagList = tags.split(',').map((t: string) => stripPunctuation(t.trim())).filter((t: string) => t.length >= 2 && t.length <= 16);
                 for (const tag of tagList) {
                     const py = getPinyinInfo(tag);
                     this.addEntry({

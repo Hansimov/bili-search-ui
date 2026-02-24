@@ -27,11 +27,22 @@
           rows="1"
         ></textarea>
         <q-btn
+          v-if="displayValue.trim()"
+          flat
+          round
+          dense
+          icon="close"
+          class="clear-btn"
+          size="xs"
+          title="清除"
+          @click="clearQuery"
+        />
+        <q-btn
           flat
           round
           dense
           icon="north_east"
-          color="blue-5"
+          :color="currentModeIconColor"
           class="send-btn"
           size="sm"
           title="发送"
@@ -53,12 +64,15 @@
             :class="{
               'mode-btn': true,
               'mode-btn-active': currentMode === mode.value,
+              [`mode-btn-${mode.value}`]: true,
             }"
             :title="mode.description"
             @click="selectMode(mode.value)"
+            @mouseenter="hoveredMode = mode.value"
+            @mouseleave="hoveredMode = null"
           >
             <q-icon :name="mode.icon" size="14px" class="q-mr-xs" />
-            <span class="mode-label">{{ mode.label }}</span>
+            <span class="mode-label">{{ getModeDisplayLabel(mode) }}</span>
           </q-btn>
         </div>
       </div>
@@ -144,6 +158,9 @@ export default {
     /** 跟踪 IME 输入法是否正在进行组合输入 */
     const isComposing = ref(false);
 
+    /** 提交后抑制建议显示，直到用户再次输入或重新聚焦 */
+    const suppressSuggest = ref(false);
+
     const onCompositionStart = () => {
       isComposing.value = true;
     };
@@ -168,6 +185,31 @@ export default {
 
     const selectMode = (mode: SearchMode) => {
       searchModeStore.setMode(mode);
+    };
+
+    /** 模式简短标签（未选中未悬浮时显示） */
+    const SHORT_MODE_LABELS: Record<SearchMode, string> = {
+      direct: '查找',
+      smart: '问答',
+      think: '思考',
+      research: '研究',
+    };
+
+    /** 当前鼠标悬浮的模式按钮 */
+    const hoveredMode = ref<SearchMode | null>(null);
+
+    /** 获取模式按钮显示标签（选中或悬浮时显示完整标签，否则显示简短标签） */
+    const getModeDisplayLabel = (mode: {
+      value: SearchMode;
+      label: string;
+    }) => {
+      if (
+        currentMode.value === mode.value ||
+        hoveredMode.value === mode.value
+      ) {
+        return mode.label;
+      }
+      return SHORT_MODE_LABELS[mode.value];
     };
 
     // ====== Textarea auto-resize ======
@@ -200,6 +242,7 @@ export default {
 
     /** 处理输入 — 更新 store + 触发自动调整 + 重置建议导航 */
     const handleInput = (event: Event) => {
+      suppressSuggest.value = false;
       const target = event.target as HTMLTextAreaElement;
       queryModel.value = target.value;
       displayOverride.value = null;
@@ -228,7 +271,7 @@ export default {
           if (selected) {
             displayOverride.value = null;
             layoutStore.resetSuggestNavigation();
-            textareaRef.value?.blur();
+            suppressSuggest.value = true;
             executeSuggestionAction(selected);
             return;
           }
@@ -239,7 +282,8 @@ export default {
           displayOverride.value = null;
         }
         layoutStore.resetSuggestNavigation();
-        textareaRef.value?.blur();
+        suppressSuggest.value = true;
+        layoutStore.setIsSuggestVisible(false);
         submitQuery();
         return;
       }
@@ -347,6 +391,7 @@ export default {
 
     const handleFocus = async () => {
       isInputFocused.value = true;
+      suppressSuggest.value = false;
       if (!layoutStore.isSuggestVisible) {
         layoutStore.setIsSuggestVisible(true);
       }
@@ -355,6 +400,7 @@ export default {
 
     /** 点击输入框 — 确保建议列表可见（处理已聚焦但建议被隐藏的情况） */
     const handleClick = () => {
+      if (suppressSuggest.value) return;
       if (!layoutStore.isSuggestVisible) {
         layoutStore.setIsSuggestVisible(true);
       }
@@ -374,6 +420,19 @@ export default {
       if (searchHistoryStore.items.length > 0) {
         smartService.addFromHistory(searchHistoryStore.items);
       }
+    };
+
+    /** 清除输入框内容 */
+    const clearQuery = () => {
+      queryModel.value = '';
+      displayOverride.value = null;
+      layoutStore.resetSuggestNavigation();
+      layoutStore.setIsSuggestVisible(false);
+      suppressSuggest.value = false;
+      nextTick(() => {
+        autoResize();
+        textareaRef.value?.focus();
+      });
     };
 
     onMounted(() => {
@@ -441,7 +500,11 @@ export default {
 
     // 当索引更新时（如搜索结果返回后），若输入框仍聚焦则自动显示建议
     watch(suggestIndexVersion, () => {
-      if (isInputFocused.value && !layoutStore.isSuggestVisible) {
+      if (
+        !suppressSuggest.value &&
+        isInputFocused.value &&
+        !layoutStore.isSuggestVisible
+      ) {
         layoutStore.setIsSuggestVisible(true);
       }
     });
@@ -469,6 +532,9 @@ export default {
       onCompositionEnd,
       submitQuery,
       searchInputPlaceholder,
+      clearQuery,
+      hoveredMode,
+      getModeDisplayLabel,
     };
   },
 };
@@ -538,6 +604,16 @@ export default {
   font-size: 15px;
 }
 
+.clear-btn {
+  flex-shrink: 0;
+  margin-top: 2px;
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+  &:hover {
+    opacity: 0.75;
+  }
+}
+
 .send-btn {
   flex-shrink: 0;
   margin-top: 0px;
@@ -588,15 +664,41 @@ body.body--light {
   }
   .mode-btn {
     color: #888;
-    &:hover {
-      color: #333;
-      background-color: #f0f0f0;
-    }
   }
   .mode-btn-active {
-    color: #1976d2 !important;
-    background-color: #e3f2fd !important;
     font-weight: 500;
+  }
+  .mode-btn-direct.mode-btn-active {
+    color: #1976d2 !important;
+    background-color: rgba(25, 118, 210, 0.1) !important;
+  }
+  .mode-btn-smart.mode-btn-active {
+    color: #00897b !important;
+    background-color: rgba(0, 137, 123, 0.1) !important;
+  }
+  .mode-btn-think.mode-btn-active {
+    color: #8e24aa !important;
+    background-color: rgba(142, 36, 170, 0.1) !important;
+  }
+  .mode-btn-research.mode-btn-active {
+    color: #e64a19 !important;
+    background-color: rgba(230, 74, 25, 0.1) !important;
+  }
+  .mode-btn-direct:hover:not(.mode-btn-active) {
+    color: #1976d2;
+    background-color: rgba(25, 118, 210, 0.06);
+  }
+  .mode-btn-smart:hover:not(.mode-btn-active) {
+    color: #00897b;
+    background-color: rgba(0, 137, 123, 0.06);
+  }
+  .mode-btn-think:hover:not(.mode-btn-active) {
+    color: #8e24aa;
+    background-color: rgba(142, 36, 170, 0.06);
+  }
+  .mode-btn-research:hover:not(.mode-btn-active) {
+    color: #e64a19;
+    background-color: rgba(230, 74, 25, 0.06);
   }
 }
 
@@ -614,15 +716,41 @@ body.body--dark {
   }
   .mode-btn {
     color: #888;
-    &:hover {
-      color: #ccc;
-      background-color: #333;
-    }
   }
   .mode-btn-active {
-    color: #64b5f6 !important;
-    background-color: #1a3a5c !important;
     font-weight: 500;
+  }
+  .mode-btn-direct.mode-btn-active {
+    color: #64b5f6 !important;
+    background-color: rgba(33, 150, 243, 0.18) !important;
+  }
+  .mode-btn-smart.mode-btn-active {
+    color: #4db6ac !important;
+    background-color: rgba(0, 150, 136, 0.18) !important;
+  }
+  .mode-btn-think.mode-btn-active {
+    color: #ce93d8 !important;
+    background-color: rgba(156, 39, 176, 0.18) !important;
+  }
+  .mode-btn-research.mode-btn-active {
+    color: #ff8a65 !important;
+    background-color: rgba(255, 87, 34, 0.18) !important;
+  }
+  .mode-btn-direct:hover:not(.mode-btn-active) {
+    color: #64b5f6;
+    background-color: rgba(33, 150, 243, 0.1);
+  }
+  .mode-btn-smart:hover:not(.mode-btn-active) {
+    color: #4db6ac;
+    background-color: rgba(0, 150, 136, 0.1);
+  }
+  .mode-btn-think:hover:not(.mode-btn-active) {
+    color: #ce93d8;
+    background-color: rgba(156, 39, 176, 0.1);
+  }
+  .mode-btn-research:hover:not(.mode-btn-active) {
+    color: #ff8a65;
+    background-color: rgba(255, 87, 34, 0.1);
   }
 }
 </style>
