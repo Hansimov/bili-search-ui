@@ -69,6 +69,18 @@ interface IndexEntry {
     timestamp?: number;
     /** 关联结果数 */
     resultCount?: number;
+    /** 视频数据评分（用于 UP 主排序） */
+    videoScore?: number;
+}
+
+/** 共现词组合条目 */
+interface CoOccurrenceEntry {
+    /** 组合文本 */
+    text: string;
+    /** 组成 token 列表 */
+    tokens: string[];
+    /** 出现次数 */
+    count: number;
 }
 
 // ==================== 拼音工具 ====================
@@ -229,10 +241,104 @@ function extractPhrases(text: string): string[] {
             if (run.length >= 4 && run.length <= 30) {
                 addPhrase(run);
             }
+            // 提取 2-5 字的子片段（滑动窗口）
+            if (run.length >= 4) {
+                for (let winLen = 2; winLen <= Math.min(5, run.length - 1); winLen++) {
+                    for (let start = 0; start <= run.length - winLen; start++) {
+                        addPhrase(run.substring(start, start + winLen));
+                    }
+                }
+            }
         }
     }
 
     return phrases;
+}
+
+/**
+ * 从文档中提取有意义的 token（用于共现分析和短语组合）
+ * 提取规则：
+ * - 括号内的内容作为独立 token
+ * - 连续的英文/数字序列（长度>=2）
+ * - 连续的中文片段（2-5 字滑动窗口）
+ * - 按标点和空格切分的子段
+ */
+function extractDocTokens(text: string): string[] {
+    if (!text) return [];
+    const tokens: string[] = [];
+    const seen = new Set<string>();
+
+    const addToken = (t: string) => {
+        const trimmed = t.trim().toLowerCase();
+        if (trimmed.length >= 2 && !seen.has(trimmed)) {
+            seen.add(trimmed);
+            tokens.push(trimmed);
+        }
+    };
+
+    // 提取括号内容
+    const bracketMatches = text.match(/[【\[（(]([^【\]）)】\[（(]+)[】\]）)]/g);
+    if (bracketMatches) {
+        for (const m of bracketMatches) {
+            const inner = m.slice(1, -1).trim();
+            if (inner.length >= 2) addToken(inner);
+        }
+    }
+
+    // 按分隔符切分
+    const cleaned = text
+        .replace(/<[^>]*>/g, '')
+        .replace(/[【】\[\]()（）｜|—·《》「」『』,，。、；;：:！!？?]+/g, ' ');
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+
+    for (const part of parts) {
+        if (part.length < 2) continue;
+        addToken(part);
+
+        // 提取连续中文子片段 (2-5 字)
+        const cjkRuns = part.match(/[\u4E00-\u9FFF]{2,}/g);
+        if (cjkRuns) {
+            for (const run of cjkRuns) {
+                if (run.length >= 2) addToken(run);
+                if (run.length >= 4) {
+                    for (let winLen = 2; winLen <= Math.min(5, run.length - 1); winLen++) {
+                        for (let start = 0; start <= run.length - winLen; start++) {
+                            addToken(run.substring(start, start + winLen));
+                        }
+                    }
+                }
+            }
+        }
+
+        // 提取连续英文/数字序列
+        const alphaRuns = part.match(/[a-zA-Z][a-zA-Z0-9]+/g);
+        if (alphaRuns) {
+            for (const run of alphaRuns) {
+                addToken(run);
+            }
+        }
+    }
+
+    return tokens;
+}
+
+/**
+ * 计算视频数据评分（用于 UP 主权重）
+ * 综合考虑播放量、点赞、弹幕、收藏等数据
+ */
+function calculateVideoScore(hit: Record<string, unknown>): number {
+    const view = (hit.view as number) || (hit.play as number) || 0;
+    const like = (hit.like as number) || 0;
+    const danmaku = (hit.danmaku as number) || (hit.video_review as number) || 0;
+    const favorite = (hit.favorite as number) || (hit.favorites as number) || 0;
+    const reply = (hit.reply as number) || 0;
+
+    // 对数缩放，避免大数值主导
+    return Math.log2(view + 1) * 2
+        + Math.log2(like + 1) * 1.5
+        + Math.log2(danmaku + 1) * 1
+        + Math.log2(favorite + 1) * 1.5
+        + Math.log2(reply + 1) * 0.5;
 }
 
 /**
@@ -630,6 +736,11 @@ function calculateMatchScore(
     // 频次/权重加成（最多 +10）
     score += Math.min(10, Math.log2(weight + 1) * 2);
 
+    // 视频数据加成（UP 主根据其视频的综合数据评分获得额外加分）
+    if (entry.videoScore && entry.videoScore > 0) {
+        score += Math.min(15, entry.videoScore * 0.3);
+    }
+
     // 时效性加成
     if (entry.timestamp) {
         const ageHours = (Date.now() - entry.timestamp) / (1000 * 60 * 60);
@@ -648,8 +759,14 @@ export class SmartSuggestService {
     private index: IndexEntry[] = [];
     /** 文本去重集合 */
     private textSet: Set<string> = new Set();
+    /** 共现词索引：token → 共同出现的其他 token 集合 */
+    private coOccurrenceMap: Map<string, Map<string, number>> = new Map();
+    /** 共现组合缓存 */
+    private coOccurrenceCombos: CoOccurrenceEntry[] = [];
+    /** UP 主累计视频数据评分 */
+    private authorVideoScores: Map<string, number> = new Map();
     /** 最大索引条目数 */
-    private maxIndexSize = 5000;
+    private maxIndexSize = 8000;
     /** 最大返回建议数 */
     private maxSuggestions = 12;
 
@@ -702,9 +819,18 @@ export class SmartSuggestService {
      */
     addFromSearchResults(hits: Array<Record<string, unknown>>): void {
         for (const hit of hits) {
-            // 索引标题
             const title = (hit.title as string) || '';
             const bvid = (hit.bvid as string) || '';
+            const owner = hit.owner as Record<string, unknown> | undefined;
+            const ownerName = (owner?.name as string) || '';
+            const ownerMid = owner?.mid as number | undefined;
+            const tags = (hit.tags as string) || (hit.tag as string) || '';
+            const desc = (hit.desc as string) || (hit.description as string) || '';
+
+            // 计算该视频的数据评分
+            const videoScore = calculateVideoScore(hit);
+
+            // ---- 索引标题 ----
             if (title) {
                 const normalized = normalizeText(title);
                 const py = getPinyinInfo(normalized);
@@ -714,17 +840,19 @@ export class SmartSuggestService {
                     pinyinFull: py.full,
                     pinyinInitials: py.initials,
                     type: 'title',
-                    weight: 5,
+                    weight: 5 + Math.min(5, videoScore * 0.1),
                     meta: bvid ? { bvid } : undefined,
                 });
             }
 
-            // 索引 UP 主名称（提高权重，确保出现在建议中）
-            const owner = hit.owner as Record<string, unknown> | undefined;
-            const ownerName = (owner?.name as string) || '';
-            const ownerMid = owner?.mid as number | undefined;
+            // ---- 索引 UP 主名称 ----
             if (ownerName) {
                 const normalizedName = normalizeText(ownerName);
+                // 累计该 UP 主的视频数据评分
+                const prevScore = this.authorVideoScores.get(normalizedName) || 0;
+                this.authorVideoScores.set(normalizedName, prevScore + videoScore);
+                const totalVideoScore = prevScore + videoScore;
+
                 const py = getPinyinInfo(normalizedName);
                 this.addEntry({
                     text: ownerName,
@@ -732,13 +860,21 @@ export class SmartSuggestService {
                     pinyinFull: py.full,
                     pinyinInitials: py.initials,
                     type: 'author',
-                    weight: 8,
+                    weight: 8 + Math.min(10, totalVideoScore * 0.2),
                     meta: ownerMid ? { uid: ownerMid } : undefined,
+                    videoScore: totalVideoScore,
                 });
+                // 更新已有条目的 videoScore
+                const existing = this.index.find(
+                    (e) => e.type === 'author' && e.lower === normalizedName
+                );
+                if (existing) {
+                    existing.videoScore = totalVideoScore;
+                    existing.weight = Math.max(existing.weight, 8 + Math.min(10, totalVideoScore * 0.2));
+                }
             }
 
-            // 索引标签
-            const tags = (hit.tags as string) || (hit.tag as string) || '';
+            // ---- 索引标签 ----
             if (tags) {
                 const tagList = tags.split(/[,，\s]+/).filter((t: string) => t.length >= 2);
                 for (const tag of tagList) {
@@ -754,7 +890,7 @@ export class SmartSuggestService {
                 }
             }
 
-            // 从标题中提取关键词（单词级别）
+            // ---- 从标题中提取关键词（单词级别）----
             const keywords = extractKeywords(title);
             for (const kw of keywords) {
                 const py = getPinyinInfo(kw);
@@ -768,10 +904,9 @@ export class SmartSuggestService {
                 });
             }
 
-            // 从标题中提取有意义的短语（phrase 级别）
+            // ---- 从标题中提取有意义的短语（phrase 级别）----
             const phrases = extractPhrases(title);
             for (const phrase of phrases) {
-                // 跳过与完整标题相同的短语
                 if (phrase === normalizeText(title)) continue;
                 const py = getPinyinInfo(phrase);
                 this.addEntry({
@@ -783,9 +918,142 @@ export class SmartSuggestService {
                     weight: 3,
                 });
             }
+
+            // ---- 共现分析：从文档的多个字段提取 token，建立共现关系 ----
+            const docText = [title, tags, ownerName, desc].filter(Boolean).join(' ');
+            const docTokens = extractDocTokens(docText);
+            // 添加 UP 主名称作为 token（如果不在列表中）
+            if (ownerName) {
+                const ownerLower = ownerName.toLowerCase();
+                if (!docTokens.includes(ownerLower)) {
+                    docTokens.push(ownerLower);
+                }
+            }
+            this.updateCoOccurrence(docTokens);
+
+            // ---- 生成短语组合（UP主 + 关键词）----
+            this.generatePhraseCombos(title, ownerName, tags);
         }
-        // 批量添加完成后一次性触发响应式更新
+
+        // 批量添加完成后生成共现推荐并触发响应式更新
+        this.buildCoOccurrenceSuggestions();
         suggestIndexVersion.value++;
+    }
+
+    /**
+     * 更新共现关系图
+     */
+    private updateCoOccurrence(tokens: string[]): void {
+        // 只取前 15 个 token 避免过多组合
+        const limited = tokens.slice(0, 15);
+        for (let i = 0; i < limited.length; i++) {
+            for (let j = i + 1; j < limited.length; j++) {
+                const a = limited[i];
+                const b = limited[j];
+                // 跳过过短的 token 或完全包含关系
+                if (a.length < 2 || b.length < 2) continue;
+                if (a.includes(b) || b.includes(a)) continue;
+
+                // a → b
+                if (!this.coOccurrenceMap.has(a)) {
+                    this.coOccurrenceMap.set(a, new Map());
+                }
+                const aMap = this.coOccurrenceMap.get(a);
+                if (aMap) aMap.set(b, (aMap.get(b) || 0) + 1);
+
+                // b → a
+                if (!this.coOccurrenceMap.has(b)) {
+                    this.coOccurrenceMap.set(b, new Map());
+                }
+                const bMap = this.coOccurrenceMap.get(b);
+                if (bMap) bMap.set(a, (bMap.get(a) || 0) + 1);
+            }
+        }
+    }
+
+    /**
+     * 从共现关系中构建组合建议
+     */
+    private buildCoOccurrenceSuggestions(): void {
+        this.coOccurrenceCombos = [];
+        const seen = new Set<string>();
+
+        for (const [token, coMap] of this.coOccurrenceMap.entries()) {
+            if (token.length < 2) continue;
+            // 取共现次数最高的 top-5 搭配词
+            const sorted = [...coMap.entries()]
+                .filter(([, count]) => count >= 1)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            for (const [partner, count] of sorted) {
+                // 规范化 key 以去重（按字典序）
+                const key = token < partner ? `${token}|${partner}` : `${partner}|${token}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+
+                const comboText = `${token} ${partner}`;
+                if (comboText.length > 30) continue;
+
+                this.coOccurrenceCombos.push({
+                    text: comboText,
+                    tokens: [token, partner],
+                    count,
+                });
+            }
+        }
+    }
+
+    /**
+     * 生成短语组合（UP主名 + 标题关键词）
+     */
+    private generatePhraseCombos(title: string, ownerName: string, tags: string): void {
+        if (!title) return;
+        const titleTokens = extractDocTokens(title);
+        const tagTokens = tags ? extractDocTokens(tags) : [];
+        const allTokens = [...new Set([...titleTokens, ...tagTokens])];
+
+        // UP 主 + 关键词 组合
+        if (ownerName && ownerName.length >= 2) {
+            const ownerLower = ownerName.toLowerCase();
+            for (const token of allTokens) {
+                if (token === ownerLower) continue;
+                if (token.includes(ownerLower) || ownerLower.includes(token)) continue;
+                if (token.length < 2) continue;
+                const comboText = `${ownerLower} ${token}`;
+                if (comboText.length > 30) continue;
+                const py = getPinyinInfo(comboText);
+                this.addEntry({
+                    text: comboText,
+                    lower: comboText,
+                    pinyinFull: py.full,
+                    pinyinInitials: py.initials,
+                    type: 'keyword',
+                    weight: 2,
+                });
+            }
+        }
+
+        // 关键词之间的两两组合（限制数量，仅取前 6 个 token）
+        const limitTokens = allTokens.filter((t) => t.length >= 2).slice(0, 6);
+        for (let i = 0; i < limitTokens.length; i++) {
+            for (let j = i + 1; j < limitTokens.length; j++) {
+                const a = limitTokens[i];
+                const b = limitTokens[j];
+                if (a.includes(b) || b.includes(a)) continue;
+                const comboText = `${a} ${b}`;
+                if (comboText.length > 30) continue;
+                const py = getPinyinInfo(comboText);
+                this.addEntry({
+                    text: comboText,
+                    lower: comboText,
+                    pinyinFull: py.full,
+                    pinyinInitials: py.initials,
+                    type: 'keyword',
+                    weight: 1.5,
+                });
+            }
+        }
     }
 
     /**
@@ -805,6 +1073,10 @@ export class SmartSuggestService {
                 // 补充 meta
                 if (entry.meta && !existing.meta) {
                     existing.meta = entry.meta;
+                }
+                // 合并 videoScore（取较大值）
+                if (entry.videoScore && (!existing.videoScore || entry.videoScore > existing.videoScore)) {
+                    existing.videoScore = entry.videoScore;
                 }
             }
             return;
@@ -848,6 +1120,38 @@ export class SmartSuggestService {
             if (score > 0) {
                 scored.push({ entry, score });
             }
+        }
+
+        // 共现组合匹配：当用户输入匹配某个 token 时，推荐该 token 的共现组合
+        for (const combo of this.coOccurrenceCombos) {
+            const comboLower = combo.text.toLowerCase();
+            // 检查是否查询词匹配组合中的某个 token
+            const matchesToken = combo.tokens.some((t) =>
+                t.includes(queryLower) || queryLower.includes(t)
+            );
+            if (!matchesToken && !comboLower.includes(queryLower)) continue;
+
+            // 避免推荐与查询完全相同的组合
+            if (comboLower === queryLower) continue;
+
+            const py = getPinyinInfo(combo.text);
+            const syntheticEntry: IndexEntry = {
+                text: combo.text,
+                lower: comboLower,
+                pinyinFull: py.full,
+                pinyinInitials: py.initials,
+                type: 'keyword',
+                weight: 2 + combo.count * 0.5,
+            };
+
+            // 给共现组合一个基础分
+            let comboScore = 35 + Math.min(15, combo.count * 3);
+            // 若 token 精确匹配则加分
+            if (combo.tokens.some((t) => t === queryLower)) {
+                comboScore += 15;
+            }
+
+            scored.push({ entry: syntheticEntry, score: comboScore });
         }
 
         scored.sort((a, b) => b.score - a.score);
@@ -908,6 +1212,9 @@ export class SmartSuggestService {
     clear(): void {
         this.index = [];
         this.textSet.clear();
+        this.coOccurrenceMap.clear();
+        this.coOccurrenceCombos = [];
+        this.authorVideoScores.clear();
         pinyinCache.clear();
     }
 

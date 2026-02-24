@@ -91,10 +91,10 @@ import {
 
 /** 各模式的 placeholder 文本 */
 const MODE_PLACEHOLDERS: Record<SearchMode, string> = {
-  direct: '直接查找 · 输入关键词，返回视频匹配结果',
-  smart: '智能回答 · 输入问题，返回 AI 的回答',
-  think: '深度思考 · 输入问题，返回 AI 的回答（开启思考模式）',
-  research: '深度研究 · 输入研究目标，返回深度研究报告',
+  direct: '直接查找 · 输入关键词，直接返回匹配视频',
+  smart: '快速问答 · 输入问题，AI 快速回答',
+  think: '智能思考 · 输入问题，返回 AI 思考过程和回答',
+  research: '深度研究 · 输入研究计划，返回 AI 深度研究报告',
 };
 
 /** 各模式的 icon color */

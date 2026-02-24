@@ -68,7 +68,7 @@ describe('SearchModeStore', () => {
             const store = useSearchModeStore();
             store.setMode('think');
             expect(store.currentModeOption.value).toBe('think');
-            expect(store.currentModeOption.label).toBe('深度思考');
+            expect(store.currentModeOption.label).toBe('智能思考');
         });
 
         it('isDirectMode 应该正确判断', () => {

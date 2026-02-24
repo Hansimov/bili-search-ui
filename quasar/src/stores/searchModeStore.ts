@@ -3,8 +3,8 @@
  *
  * 管理搜索输入框的模式选择：
  * - direct: 直接查找（默认），使用 explore 接口
- * - smart: 智能回答，使用 LLM chat 接口
- * - think: 深度思考，使用 LLM chat + thinking 模式
+ * - smart: 快速问答，使用 LLM chat 接口
+ * - think: 智能思考，使用 LLM chat + thinking 模式
  * - research: 深度研究，使用 LLM chat + research prompt
  */
 
@@ -38,22 +38,22 @@ export const SEARCH_MODES: SearchModeOption[] = [
         value: 'direct',
         label: '直接查找',
         icon: 'search',
-        description: '搜索视频和内容',
+        description: '直接查找，返回匹配视频',
         apiType: 'explore',
     },
     {
         value: 'smart',
-        label: '智能回答',
+        label: '快速问答',
         icon: 'auto_awesome',
-        description: 'AI 智能回答问题',
+        description: '快速提问，AI 快速回答',
         apiType: 'chat',
         chatParams: {},
     },
     {
         value: 'think',
-        label: '深度思考',
+        label: '智能思考',
         icon: 'psychology',
-        description: 'AI 深度思考分析',
+        description: '智能思考，AI 先思考再回答',
         apiType: 'chat',
         chatParams: { thinking: true },
     },
@@ -61,7 +61,7 @@ export const SEARCH_MODES: SearchModeOption[] = [
         value: 'research',
         label: '深度研究',
         icon: 'biotech',
-        description: 'AI 深入研究探索',
+        description: '深度研究，AI 生成深度研究报告',
         apiType: 'chat',
         chatParams: { researchMode: true },
     },
@@ -89,7 +89,7 @@ export const useSearchModeStore = defineStore('searchMode', {
             return this.currentMode === 'direct';
         },
 
-        /** 是否为 LLM 聊天模式（智能回答/深度思考/深度研究） */
+        /** 是否为 LLM 聊天模式（快速问答/智能思考/深度研究） */
         isChatMode(): boolean {
             return this.currentModeOption.apiType === 'chat';
         },
