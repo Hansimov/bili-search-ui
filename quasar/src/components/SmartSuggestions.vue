@@ -69,13 +69,24 @@ export default {
       () => layoutStore.suggestSelectedIndex
     );
 
-    const smartSuggestions = computed<SmartSuggestion[]>(() => {
-      // 依赖 suggestIndexVersion 以在索引更新时自动刷新建议
-      void suggestIndexVersion.value;
-      const q = queryStore.query;
-      if (!q || !q.trim()) return [];
-      return smartService.suggest(q);
-    });
+    /**
+     * 使用 ref + watch 代替 computed，确保在索引更新（如新搜索结果返回）后
+     * 或用户输入变化时，建议列表总是及时刷新。
+     * computed 在某些场景下可能因 lazy 求值导致更新延迟。
+     */
+    const smartSuggestions = ref<SmartSuggestion[]>([]);
+
+    watch(
+      [() => queryStore.query, suggestIndexVersion],
+      ([q]) => {
+        if (!q || !q.trim()) {
+          smartSuggestions.value = [];
+          return;
+        }
+        smartSuggestions.value = smartService.suggest(q);
+      },
+      { immediate: true }
+    );
 
     /**
      * 箭头键导航时滚动选中项到可见区域

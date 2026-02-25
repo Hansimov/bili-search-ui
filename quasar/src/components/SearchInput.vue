@@ -499,13 +499,14 @@ export default {
     );
 
     // 当索引更新时（如搜索结果返回后），若输入框仍聚焦则自动显示建议
+    // 同时重置 suppressSuggest，允许建议在用户继续输入时及时更新
     watch(suggestIndexVersion, () => {
-      if (
-        !suppressSuggest.value &&
-        isInputFocused.value &&
-        !layoutStore.isSuggestVisible
-      ) {
-        layoutStore.setIsSuggestVisible(true);
+      if (isInputFocused.value) {
+        // 索引更新表示有新数据可用，解除建议抑制
+        suppressSuggest.value = false;
+        if (!layoutStore.isSuggestVisible) {
+          layoutStore.setIsSuggestVisible(true);
+        }
       }
     });
 

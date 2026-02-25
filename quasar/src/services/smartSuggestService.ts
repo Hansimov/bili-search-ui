@@ -187,13 +187,44 @@ function normalizeText(text: string): string {
 }
 
 /**
+ * 去除文本开头的无意义特殊字符前缀（@、#、￥等）
+ * 这些字符在社交媒体中常见，但在搜索建议中是噪声
+ */
+function stripLeadingNoise(text: string): string {
+    return text.replace(/^[@#＠＃￥$]+/, '').trim();
+}
+
+/**
+ * 判断短语是否为 CJK 为主（CJK 字符占比 > 50%）
+ */
+function isCjkDominant(text: string): boolean {
+    const cjkCount = (text.match(/[\u4E00-\u9FFF]/g) || []).length;
+    return cjkCount > text.length * 0.5;
+}
+
+/**
+ * 验证短语长度是否在合理范围内：
+ * - CJK 为主的短语：2-8 个字符
+ * - 英文/数字为主的短语：2-25 个字符
+ */
+function isValidPhraseLength(text: string): boolean {
+    if (!text || text.length < 2) return false;
+    if (isCjkDominant(text)) {
+        return text.length <= 8;
+    }
+    return text.length <= 25;
+}
+
+/**
  * 提取文本中的关键词
  */
 function extractKeywords(text: string): string[] {
     if (!text) return [];
     const normalized = normalizeText(text);
     const words = normalized.split(/[\s,，。、；;：:！!？?·\-_|/\\]+/);
-    return words.filter((w) => w.length >= 2);
+    return words
+        .map((w) => stripLeadingNoise(stripPunctuation(w)))
+        .filter((w) => w.length >= 2 && isValidPhraseLength(w));
 }
 
 // ==================== 短语提取工具 ====================
@@ -224,7 +255,8 @@ function cleanCjkPhrase(phrase: string): string {
 /**
  * 从标题中提取有意义的短语片段
  * 以标点符号和虚词（的/了/着/过等）为界进行切分，
- * 去除无意义前后缀，保留 2-8 个 CJK 字符的干净短语。
+ * 去除无意义前后缀和 @/# 噪声。
+ * CJK 短语限制 2-8 个字符，英文短语限制 2-25 个字符。
  */
 function extractPhrases(text: string): string[] {
     if (!text) return [];
@@ -234,11 +266,14 @@ function extractPhrases(text: string): string[] {
     const seen = new Set<string>();
 
     const addPhrase = (p: string) => {
-        const t = p.trim();
-        if (t.length >= 2 && t.length <= 30 && !seen.has(t)) {
-            seen.add(t);
-            phrases.push(t);
-        }
+        // 清理噪声前缀和标点
+        let t = stripLeadingNoise(stripPunctuation(p.trim()));
+        t = t.trim();
+        if (t.length < 2 || seen.has(t)) return;
+        // 按 CJK/英文 分别限制长度
+        if (!isValidPhraseLength(t)) return;
+        seen.add(t);
+        phrases.push(t);
     };
 
     // 1. 按常见标题分隔符切割（括号、竖线、破折号等）
@@ -265,7 +300,6 @@ function extractPhrases(text: string): string[] {
     const cjkRuns = stripped.match(/[\u4E00-\u9FFF]{2,}/g);
     if (cjkRuns) {
         for (const run of cjkRuns) {
-            // 按虚词边界切分
             const subPhrases = run.split(CJK_BOUNDARY_PATTERN).filter(Boolean);
             for (const sp of subPhrases) {
                 const cleaned = cleanCjkPhrase(sp);
@@ -276,11 +310,11 @@ function extractPhrases(text: string): string[] {
         }
     }
 
-    // 4. 提取英文/字母数字 token（允许连字符）
-    const engRuns = stripped.match(/[a-z][a-z0-9]*(?:-[a-z0-9]+)*/g);
+    // 4. 提取英文/字母数字短语（允许连字符和空格组成的多单词短语）
+    const engRuns = stripped.match(/[a-z][a-z0-9]*(?:[\s-][a-z0-9]+)*/g);
     if (engRuns) {
         for (const run of engRuns) {
-            if (run.length >= 2) addPhrase(run);
+            if (run.length >= 2 && run.length <= 25) addPhrase(run);
         }
     }
 
@@ -297,11 +331,12 @@ function extractDocTokens(text: string): string[] {
     const seen = new Set<string>();
 
     const addToken = (t: string) => {
-        const trimmed = stripPunctuation(t.trim()).toLowerCase();
-        if (trimmed.length >= 2 && !seen.has(trimmed)) {
-            seen.add(trimmed);
-            tokens.push(trimmed);
-        }
+        let trimmed = stripLeadingNoise(stripPunctuation(t.trim())).toLowerCase();
+        trimmed = trimmed.trim();
+        if (trimmed.length < 2 || seen.has(trimmed)) return;
+        if (!isValidPhraseLength(trimmed)) return;
+        seen.add(trimmed);
+        tokens.push(trimmed);
     };
 
     // 提取括号内容
@@ -902,9 +937,11 @@ export class SmartSuggestService {
                 }
             }
 
-            // ---- 索引标签（以半角逗号分隔，短标签直接添加，无需噪声过滤） ----
+            // ---- 索引标签（以半角逗号分隔，清除 @/# 噪声前缀） ----
             if (tags) {
-                const tagList = tags.split(',').map((t: string) => stripPunctuation(t.trim())).filter((t: string) => t.length >= 2 && t.length <= 16);
+                const tagList = tags.split(',')
+                    .map((t: string) => stripLeadingNoise(stripPunctuation(t.trim())))
+                    .filter((t: string) => t.length >= 2 && isValidPhraseLength(t));
                 for (const tag of tagList) {
                     const py = getPinyinInfo(tag);
                     this.addEntry({
@@ -1033,6 +1070,107 @@ export class SmartSuggestService {
     }
 
     /**
+     * 跨文档多词组合补全：
+     * 当用户输入包含多个词（空格分隔）时，将前面的词作为已确认词，
+     * 最后一个词作为待补全前缀，从索引中查找匹配的补全项，
+     * 然后将已确认词和补全结果组合成新的建议短语。
+     *
+     * 例如：用户输入 "donk ni"
+     * - 已确认词: ["donk"]
+     * - 待补全前缀: "ni"
+     * - 从索引中找到 "niko" 匹配 "ni"
+     * - 生成建议: "donk niko"
+     */
+    private addCrossDocCombinations(
+        query: string,
+        queryLower: string,
+        scored: Array<{ entry: IndexEntry; score: number }>,
+    ): void {
+        const words = queryLower.split(/\s+/).filter(Boolean);
+        if (words.length < 2) return;
+
+        const confirmedWords = words.slice(0, -1);
+        const lastWord = words[words.length - 1];
+
+        if (!lastWord || lastWord.length < 1) return;
+
+        // 验证已确认的词在索引中存在（至少能找到包含它的条目）
+        const confirmedValid = confirmedWords.every((word) =>
+            this.index.some((e) =>
+                e.lower.includes(word) || e.lower === word
+            )
+        );
+        if (!confirmedValid) return;
+
+        const lastWordIsPinyin = isPossiblyPinyin(lastWord);
+        const seenCombos = new Set<string>();
+
+        // 在索引中查找 lastWord 的补全候选
+        const completions: Array<{ text: string; score: number }> = [];
+        for (const entry of this.index) {
+            // 跳过历史类型（避免循环推荐自身历史）
+            if (entry.type === 'history') continue;
+            // 跳过已确认词本身
+            if (confirmedWords.includes(entry.lower)) continue;
+
+            let matchScore = 0;
+
+            // 精确前缀匹配
+            if (entry.lower.startsWith(lastWord)) {
+                matchScore = 60 + (lastWord.length / entry.lower.length) * 20;
+            }
+            // 包含匹配
+            else if (entry.lower.includes(lastWord)) {
+                matchScore = 40;
+            }
+            // 拼音前缀匹配
+            else if (lastWordIsPinyin && entry.pinyinInitials) {
+                const pyScore = matchPinyin(lastWord, entry.pinyinFull, entry.pinyinInitials);
+                if (pyScore > 0) {
+                    matchScore = pyScore * 0.8;
+                }
+            }
+
+            if (matchScore > 0) {
+                completions.push({ text: entry.lower, score: matchScore });
+            }
+        }
+
+        // 按匹配分排序，取 top completions
+        completions.sort((a, b) => b.score - a.score);
+        const topCompletions = completions.slice(0, 8);
+
+        // 组合已确认词和补全词
+        const confirmedStr = confirmedWords.join(' ');
+        for (const comp of topCompletions) {
+            const comboText = `${confirmedStr} ${comp.text}`;
+            const comboLower = comboText.toLowerCase();
+
+            // 去重：跳过已有的结果
+            if (seenCombos.has(comboLower)) continue;
+            seenCombos.add(comboLower);
+
+            // 跳过与完整查询相同的组合
+            if (comboLower === queryLower) continue;
+
+            const py = getPinyinInfo(comboText);
+            const syntheticEntry: IndexEntry = {
+                text: comboText,
+                lower: comboLower,
+                pinyinFull: py.full,
+                pinyinInitials: py.initials,
+                type: 'phrase',
+                weight: 3,
+            };
+
+            // 组合评分：基于 lastWord 匹配质量
+            const comboScore = 30 + comp.score * 0.5;
+
+            scored.push({ entry: syntheticEntry, score: comboScore });
+        }
+    }
+
+    /**
      * 添加单条索引条目
      */
     private addEntry(entry: IndexEntry): void {
@@ -1129,6 +1267,11 @@ export class SmartSuggestService {
 
             scored.push({ entry: syntheticEntry, score: comboScore });
         }
+
+        // 跨文档多词组合补全：当用户输入多个空格分隔的词时，
+        // 尝试将每个词分别匹配索引条目，把最后一个词作为前缀进行补全，
+        // 然后组合成新的建议短语
+        this.addCrossDocCombinations(trimmed, queryLower, scored);
 
         scored.sort((a, b) => b.score - a.score);
 

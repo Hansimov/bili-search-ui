@@ -1,5 +1,5 @@
 <template>
-  <div class="search-history-panel" v-if="hasHistory">
+  <div class="search-history-panel" v-if="hasHistory && !isDismissed">
     <div class="history-header">
       <span class="history-title">
         <q-icon name="history" size="14px" class="q-mr-xs" />
@@ -13,7 +13,8 @@
         label="清除"
         icon="delete_outline"
         class="clear-btn"
-        @click="clearHistory"
+        title="隐藏搜索历史面板（不影响侧边栏历史记录）"
+        @click="dismissPanel"
       />
     </div>
 
@@ -37,9 +38,9 @@
         {{ item.displayName || item.query }}
       </q-chip>
 
-      <!-- 最近搜索 -->
+      <!-- 最近搜索（显示全部，超出 4 行时滚动） -->
       <q-chip
-        v-for="item in recentItems.slice(0, 12)"
+        v-for="item in recentItems"
         :key="item.id"
         clickable
         dense
@@ -56,7 +57,7 @@
 </template>
 
 <script lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import {
   useSearchHistoryStore,
   type SearchHistoryItem,
@@ -71,6 +72,12 @@ export default {
     const historyStore = useSearchHistoryStore();
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
+
+    /**
+     * 本地"隐藏"状态：点击清除后只隐藏面板，不删除实际历史数据。
+     * 组件重新挂载（如用户输入后清空输入）时会自动重置为 false。
+     */
+    const isDismissed = ref(false);
 
     onMounted(async () => {
       await historyStore.loadHistory();
@@ -114,17 +121,22 @@ export default {
       await historyStore.removeRecord(id);
     };
 
-    const clearHistory = async () => {
-      await historyStore.clearUnpinned();
+    /**
+     * 仅隐藏搜索输入框中的历史面板，不影响侧边栏的历史记录。
+     * 组件重新挂载时 isDismissed 会自动重置为 false。
+     */
+    const dismissPanel = () => {
+      isDismissed.value = true;
     };
 
     return {
       hasHistory,
+      isDismissed,
       pinnedItems,
       recentItems,
       searchFromHistory,
       removeItem,
-      clearHistory,
+      dismissPanel,
     };
   },
 };
@@ -158,13 +170,14 @@ export default {
   }
 }
 
-/* 紧凑 chip 布局：flex-wrap 多行排列 */
+/* 紧凑 chip 布局：flex-wrap 多行排列，最多 4 行后出现滚动条 */
 .history-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   padding: 4px 6px;
-  max-height: min(160px, calc(100vh - 220px));
+  /* 每行高度约 28-30px (含 gap)，4 行约 128px */
+  max-height: 128px;
   overflow-y: auto;
   overflow-x: hidden;
 

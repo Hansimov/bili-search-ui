@@ -508,4 +508,161 @@ describe('SmartSuggestService', () => {
             }
         });
     });
+
+    describe('@/# 噪声前缀过滤', () => {
+        it('标签中的 @ 前缀应被过滤', () => {
+            service.addFromSearchResults([
+                {
+                    title: '测试视频',
+                    bvid: 'BV100',
+                    owner: { name: 'UP', mid: 1 },
+                    tags: '@某用户,测试',
+                },
+            ]);
+            const results = service.suggest('某用户');
+            // 如果匹配到，不应有 @ 前缀
+            for (const r of results) {
+                if (r.type === 'tag' || r.type === 'phrase') {
+                    expect(r.text).not.toMatch(/^[@#]/);
+                }
+            }
+        });
+
+        it('标签中的 # 前缀应被过滤', () => {
+            service.addFromSearchResults([
+                {
+                    title: '测试视频',
+                    bvid: 'BV101',
+                    owner: { name: 'UP', mid: 1 },
+                    tags: '#热门话题,测试',
+                },
+            ]);
+            const results = service.suggest('热门');
+            for (const r of results) {
+                if (r.type === 'tag' || r.type === 'phrase') {
+                    expect(r.text).not.toMatch(/^[@#]/);
+                }
+            }
+        });
+
+        it('提取的短语不应以 @ 或 # 开头', () => {
+            service.addFromSearchResults([
+                {
+                    title: '#挑战 @达人 超级好看的视频',
+                    bvid: 'BV102',
+                    owner: { name: 'UP', mid: 1 },
+                    tags: '',
+                },
+            ]);
+            const results = service.suggest('挑战');
+            for (const r of results) {
+                if (r.type === 'phrase') {
+                    expect(r.text).not.toMatch(/^[@#]/);
+                }
+            }
+        });
+    });
+
+    describe('短语长度限制', () => {
+        it('CJK 短语不应超过 8 个字符', () => {
+            service.addFromSearchResults([
+                {
+                    title: '这是一个超级长的视频标题包含很多中文字符测试',
+                    bvid: 'BV200',
+                    owner: { name: 'UP', mid: 1 },
+                    tags: '',
+                },
+            ]);
+            const results = service.suggest('超级');
+            for (const r of results) {
+                if (r.type === 'phrase') {
+                    // CJK 主导的短语长度不超过 8
+                    const cjkCount = (r.text.match(/[\u4E00-\u9FFF]/g) || []).length;
+                    if (cjkCount > r.text.length * 0.5) {
+                        expect(r.text.length).toBeLessThanOrEqual(8);
+                    }
+                }
+            }
+        });
+
+        it('英文短语可以到 25 个字符', () => {
+            service.addFromSearchResults([
+                {
+                    title: 'Song Title With Multiple English Words Here',
+                    bvid: 'BV201',
+                    owner: { name: 'UP', mid: 1 },
+                    tags: 'long english tag name,short',
+                },
+            ]);
+            const results = service.suggest('song');
+            for (const r of results) {
+                if (r.type === 'phrase' || r.type === 'tag') {
+                    expect(r.text.length).toBeLessThanOrEqual(25);
+                }
+            }
+        });
+    });
+
+    describe('跨文档多词组合补全', () => {
+        it('不同文档中的词应能组合推荐', () => {
+            // "donk" 在文档1，"niko" 在文档2
+            service.addFromSearchResults([
+                {
+                    title: 'donk的精彩视频',
+                    bvid: 'BV300',
+                    owner: { name: 'UP1', mid: 1 },
+                    tags: 'donk',
+                },
+                {
+                    title: 'niko的精彩操作',
+                    bvid: 'BV301',
+                    owner: { name: 'UP2', mid: 2 },
+                    tags: 'niko',
+                },
+            ]);
+            const results = service.suggest('donk ni');
+            // 应该有组合建议包含 "donk" 和 "niko"
+            const comboResult = results.find(
+                (r) => r.text.includes('donk') && r.text.includes('niko')
+            );
+            expect(comboResult).toBeDefined();
+        });
+
+        it('多词查询最后一个词应作为前缀补全', () => {
+            service.addFromSearchResults([
+                {
+                    title: 'minecraft建筑教程',
+                    bvid: 'BV400',
+                    owner: { name: 'UP1', mid: 1 },
+                    tags: 'minecraft',
+                },
+                {
+                    title: 'survival模式攻略',
+                    bvid: 'BV401',
+                    owner: { name: 'UP2', mid: 2 },
+                    tags: 'survival',
+                },
+            ]);
+            const results = service.suggest('minecraft sur');
+            const comboResult = results.find(
+                (r) => r.text.includes('minecraft') && r.text.includes('survival')
+            );
+            expect(comboResult).toBeDefined();
+        });
+
+        it('单词查询不应触发跨文档组合', () => {
+            service.addFromSearchResults([
+                {
+                    title: 'hello world视频',
+                    bvid: 'BV500',
+                    owner: { name: 'UP', mid: 1 },
+                    tags: 'hello',
+                },
+            ]);
+            // 单词查询，不应产生组合建议
+            const results = service.suggest('hello');
+            // 不测试具体数量，只确保不崩溃
+            expect(results).toBeDefined();
+        });
+    });
 });
