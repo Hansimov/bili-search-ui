@@ -56,6 +56,7 @@
         <q-icon
           :name="thinkingExpanded ? 'expand_less' : 'expand_more'"
           size="18px"
+          class="thinking-expand-icon"
         />
         <span class="thinking-header-text">{{ thinkingHeaderLabel }}</span>
         <span v-if="isThinkingPhase" class="thinking-active-badge"
@@ -81,8 +82,16 @@
     <ToolCallDisplay
       v-if="allToolCalls.length > 0"
       :toolCalls="allToolCalls"
+      :isAborted="isAborted"
       @viewAllResults="handleViewCurrentResults"
     />
+
+    <!-- 流式光标（工具调用完成后、内容生成前，显示在工具调用下方） -->
+    <span
+      v-if="isLoading && !hasContent && allToolCalls.length > 0"
+      class="chat-cursor tool-after-cursor"
+      >▊</span
+    >
 
     <!-- Markdown 内容渲染 -->
     <div
@@ -503,7 +512,7 @@ export default defineComponent({
 .chat-thinking-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 6px 10px;
   cursor: pointer;
   font-size: 13px;
@@ -512,6 +521,8 @@ export default defineComponent({
   transition: background 0.15s ease;
   /* 保持稳定高度，避免内容变化时跳动 */
   min-height: 32px;
+  /* 浅灰色背景，使 bar 位置更清晰 */
+  background: rgba(128, 128, 128, 0.04);
 
   &:hover {
     background: rgba(128, 128, 128, 0.08);
@@ -543,13 +554,25 @@ export default defineComponent({
 }
 
 .chat-thinking-content {
-  padding: 8px 14px;
-  margin: 0 4px;
+  /* 文本与 "思" 字左对齐；border-left 与展开箭头对齐 */
+  padding: 8px 14px 8px 13px;
+  margin: 0;
+  margin-top: 6px;
   font-size: 13px;
-  line-height: 1.65;
-  border-left: 3px solid rgba(142, 36, 170, 0.3);
+  line-height: 1.25;
+  border-left: 2px solid rgba(142, 36, 170, 0.3);
+  margin-left: 18px;
   opacity: 0.75;
-  font-style: italic;
+
+  /* 去除 Markdown 渲染产生的末尾空行 */
+  :deep(> div > :last-child) {
+    margin-bottom: 0;
+  }
+}
+
+.thinking-expand-icon {
+  opacity: 0.45;
+  flex-shrink: 0;
 }
 
 .thinking-cursor {
@@ -581,6 +604,11 @@ export default defineComponent({
   animation: chat-cursor-blink 0.8s infinite;
   opacity: 0.6;
   font-size: 14px;
+}
+
+.tool-after-cursor {
+  display: block;
+  margin-top: 6px;
 }
 
 @keyframes chat-cursor-blink {

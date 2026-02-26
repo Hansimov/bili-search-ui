@@ -12,8 +12,14 @@
       <!-- 工具图标和名称 -->
       <div class="tool-call-header" @click="toggleExpand(idx)">
         <div class="tool-call-left">
+          <q-icon
+            v-if="isAborted && call.status === 'pending'"
+            name="block"
+            size="14px"
+            class="tool-call-icon tool-call-aborted-icon"
+          />
           <q-spinner-dots
-            v-if="call.status === 'pending'"
+            v-else-if="call.status === 'pending'"
             size="14px"
             class="tool-call-spinner"
           />
@@ -35,12 +41,40 @@
         </div>
         <div class="tool-call-right">
           <span
-            v-if="call.status === 'pending'"
+            v-if="isAborted && call.status === 'pending'"
+            class="tool-call-status-aborted"
+          >
+            已中止
+          </span>
+          <span
+            v-else-if="call.status === 'pending'"
             class="tool-call-status-pending"
           >
             执行中...
           </span>
-          <span v-else-if="hasResults(call)" class="tool-call-status-completed">
+          <q-btn
+            v-if="
+              call.type === 'search_videos' &&
+              call.status === 'completed' &&
+              hasResults(call)
+            "
+            flat
+            dense
+            no-caps
+            size="sm"
+            icon="open_in_new"
+            :label="`在新窗口中查看 ${getResultCount(call)}`"
+            class="tool-view-all-btn"
+            @click.stop="$emit('viewAllResults', call)"
+          />
+          <span
+            v-else-if="
+              call.status === 'completed' &&
+              hasResults(call) &&
+              call.type !== 'search_videos'
+            "
+            class="tool-call-status-completed"
+          >
             {{ getResultCount(call) }}
           </span>
           <q-icon
@@ -144,20 +178,16 @@
                   </div>
                 </div>
               </div>
-              <!-- 操作按钮：查看全部 -->
+              <!-- 底部收起栏：整个 bar 可点击收起 -->
               <div
                 v-if="getAllVideoHits(call).length > 0"
-                class="tool-result-actions"
+                class="tool-result-collapse-bar"
+                @click.stop="collapseAndScroll(idx)"
               >
-                <q-btn
-                  flat
-                  dense
-                  no-caps
-                  size="sm"
-                  icon="open_in_new"
-                  :label="`查看全部 ${getAllVideoHits(call).length} 条`"
-                  class="tool-view-all-btn"
-                  @click.stop="$emit('viewAllResults', call)"
+                <q-icon
+                  name="expand_less"
+                  size="18px"
+                  class="collapse-bar-icon"
                 />
               </div>
             </div>
@@ -183,7 +213,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch, PropType } from 'vue';
+import { defineComponent, ref, watch, nextTick, PropType } from 'vue';
 import type { ToolCall } from 'src/services/chatService';
 
 /** Video hit from search result */
@@ -227,6 +257,11 @@ export default defineComponent({
     },
     /** Whether this is displaying historical tool calls (from past conversation turns) */
     isHistorical: {
+      type: Boolean,
+      default: false,
+    },
+    /** Whether the current request has been aborted by the user */
+    isAborted: {
       type: Boolean,
       default: false,
     },
@@ -396,9 +431,41 @@ export default defineComponent({
       }
     };
 
+    /**
+     * 收起结果，保持底部收起栏在视口中的位置不变。
+     * 原理：记录收起前 tool-call-item 底部相对视口的 Y 坐标，
+     * 收起后计算高度差，调整页面 scrollTop 使该位置不跳动。
+     */
+    const collapseAndScroll = (idx: number) => {
+      const container = document.querySelector('.tool-call-container');
+      if (!container) {
+        expanded.value[idx] = false;
+        return;
+      }
+      const items = container.querySelectorAll('.tool-call-item');
+      const el = items[idx] as HTMLElement | undefined;
+      if (!el) {
+        expanded.value[idx] = false;
+        return;
+      }
+      // 记录收起前 item 底部在视口中的位置
+      const rectBefore = el.getBoundingClientRect();
+      const bottomBefore = rectBefore.bottom;
+      expanded.value[idx] = false;
+      nextTick(() => {
+        const rectAfter = el.getBoundingClientRect();
+        const bottomAfter = rectAfter.bottom;
+        const delta = bottomAfter - bottomBefore;
+        // 将页面滚动恢复，使底部位置在视口中不变
+        const scrollEl = document.documentElement;
+        scrollEl.scrollTop += delta;
+      });
+    };
+
     return {
       expanded,
       toggleExpand,
+      collapseAndScroll,
       getToolLabel,
       getToolIcon,
       getQueryList,
@@ -525,6 +592,16 @@ export default defineComponent({
   font-size: 11px;
   color: var(--q-primary);
   opacity: 0.8;
+}
+
+.tool-call-status-aborted {
+  font-size: 11px;
+  opacity: 0.5;
+  color: inherit;
+}
+
+.tool-call-aborted-icon {
+  opacity: 0.45;
 }
 
 .tool-call-status-completed {
@@ -699,20 +776,38 @@ export default defineComponent({
   font-style: italic;
 }
 
-/* 操作按钮区域 */
-.tool-result-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 8px;
-  margin-top: 4px;
-  border-top: 1px dashed rgba(128, 128, 128, 0.12);
+/* 在新窗口中查看按钮（header 中） */
+.tool-view-all-btn {
+  font-size: 11px !important;
+  opacity: 0.55;
+  &:hover {
+    opacity: 0.85;
+  }
 }
 
-.tool-view-all-btn {
-  font-size: 12px !important;
-  opacity: 0.7;
+/* 底部收起栏 */
+.tool-result-collapse-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0;
+  margin-top: 4px;
+  border-top: 1px dashed rgba(128, 128, 128, 0.12);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-radius: 0 0 6px 6px;
+
   &:hover {
-    opacity: 1;
+    background: rgba(128, 128, 128, 0.08);
+  }
+}
+
+.collapse-bar-icon {
+  opacity: 0.35;
+  transition: opacity 0.15s ease;
+
+  .tool-result-collapse-bar:hover & {
+    opacity: 0.6;
   }
 }
 

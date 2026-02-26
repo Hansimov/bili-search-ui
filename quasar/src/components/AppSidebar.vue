@@ -763,7 +763,7 @@ const navigateToSearch = async () => {
   queryStore.setQuery({ newQuery: '' });
   exploreStore.clearStepResults();
   exploreStore.setSubmittedQuery('');
-  searchModeStore.setMode('direct');
+  // 保留用户上次使用的搜索模式（已通过 localStorage 持久化）
   searchModeStore.resetInitialSessionMode();
   await router.push('/');
   if (isOverlayMode.value) layoutStore.closeMobileSidebar();
@@ -775,7 +775,7 @@ const onNavigate = () => {
   queryStore.setQuery({ newQuery: '' });
   exploreStore.clearStepResults();
   exploreStore.setSubmittedQuery('');
-  searchModeStore.setMode('direct');
+  // 保留用户上次使用的搜索模式（已通过 localStorage 持久化）
   searchModeStore.resetInitialSessionMode();
   if (isOverlayMode.value) layoutStore.closeMobileSidebar();
 };
