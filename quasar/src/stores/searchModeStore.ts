@@ -76,6 +76,8 @@ export const useSearchModeStore = defineStore('searchMode', {
     state: () => ({
         /** 当前搜索模式 */
         currentMode: (localStorage.getItem('searchMode') as SearchMode) || 'direct' as SearchMode,
+        /** 首次会话提交时的模式（用于决定布局方式） */
+        initialSessionMode: null as SearchMode | null,
     }),
 
     getters: {
@@ -98,6 +100,13 @@ export const useSearchModeStore = defineStore('searchMode', {
         modeOptions(): SearchModeOption[] {
             return SEARCH_MODES;
         },
+
+        /** 布局是否应该使用 inline 模式（首次会话为 chat 模式时） */
+        shouldUseInlineLayout(): boolean {
+            if (this.initialSessionMode === null) return false;
+            const initialOption = getSearchMode(this.initialSessionMode);
+            return initialOption.apiType === 'chat';
+        },
     },
 
     actions: {
@@ -105,6 +114,18 @@ export const useSearchModeStore = defineStore('searchMode', {
         setMode(mode: SearchMode) {
             this.currentMode = mode;
             localStorage.setItem('searchMode', mode);
+        },
+
+        /** 记录首次会话的模式 */
+        setInitialSessionMode(mode: SearchMode) {
+            if (this.initialSessionMode === null) {
+                this.initialSessionMode = mode;
+            }
+        },
+
+        /** 重置首次会话模式（开始新对话时调用） */
+        resetInitialSessionMode() {
+            this.initialSessionMode = null;
         },
     },
 });

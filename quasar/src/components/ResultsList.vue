@@ -60,7 +60,7 @@
       </q-btn>
     </div>
 
-    <!-- === 内联模式：简化头部（排序按钮 + 展开/收起 / 查看全部） === -->
+    <!-- === 内联模式：简化头部（排序按钮 + 查看全部） === -->
     <div v-if="isInline && hasResults" class="inline-results-header">
       <div class="inline-header-left">
         <span class="inline-results-count">{{ sortedHits.length }} 条结果</span>
@@ -93,17 +93,6 @@
         </q-btn>
       </div>
       <div class="inline-header-right">
-        <q-btn
-          v-if="sortedHits.length > INLINE_INITIAL_LIMIT"
-          flat
-          dense
-          no-caps
-          size="sm"
-          :icon="inlineExpanded ? 'unfold_less' : 'unfold_more'"
-          :label="inlineExpanded ? '收起' : '展开'"
-          class="inline-expand-btn"
-          @click="toggleInlineExpand"
-        />
         <q-btn
           flat
           dense
@@ -521,16 +510,8 @@ function _setup(props) {
   const isDialog = computed(() => props.displayMode === 'dialog');
   const isNormal = computed(() => props.displayMode === 'normal');
 
-  // Inline mode: expand/collapse state
-  const INLINE_INITIAL_LIMIT = 6; // Items shown when collapsed
-  const INLINE_COLLAPSED_HEIGHT = '200px'; // Height when collapsed
-  const INLINE_EXPANDED_HEIGHT = '500px'; // Height when expanded
-  const inlineExpanded = ref(false);
-
-  /** Toggle inline expand/collapse */
-  const toggleInlineExpand = () => {
-    inlineExpanded.value = !inlineExpanded.value;
-  };
+  // Inline mode: fixed item limit
+  const INLINE_DISPLAY_LIMIT = 6; // Items shown in inline mode
 
   // Submitted query for loading display (not the live input value)
   const submittedQuery = computed(() => exploreStore.submittedQuery || '');
@@ -620,11 +601,8 @@ function _setup(props) {
   /** 实际展示的结果 */
   const displayedResults = computed(() => {
     if (isInline.value) {
-      // 内联模式：展开时显示所有，收起时显示有限数量
-      if (inlineExpanded.value) {
-        return sorting.sortedHits.value;
-      }
-      return sorting.sortedHits.value.slice(0, INLINE_INITIAL_LIMIT);
+      // 内联模式：显示固定数量
+      return sorting.sortedHits.value.slice(0, INLINE_DISPLAY_LIMIT);
     }
     const all = pagination.loadedResults.value;
     if (props.maxItems > 0) {
@@ -675,12 +653,10 @@ function _setup(props) {
 
   const gridStyle = computed(() => {
     if (isInline.value) {
-      // 内联模式：根据展开状态调整高度
+      // 内联模式：固定高度，自动显示滚动条
       return {
-        maxHeight: inlineExpanded.value
-          ? INLINE_EXPANDED_HEIGHT
-          : INLINE_COLLAPSED_HEIGHT,
-        overflowY: inlineExpanded.value ? 'auto' : 'hidden',
+        maxHeight: '240px',
+        overflowY: 'auto',
       };
     }
     if (isDialog.value) {
@@ -720,10 +696,6 @@ function _setup(props) {
     loadedResults: pagination.loadedResults,
     displayedResults,
     isCollapsed,
-    // Inline expand/collapse
-    INLINE_INITIAL_LIMIT,
-    inlineExpanded,
-    toggleInlineExpand,
     // UI visibility
     showStatsBar,
     showAuthorsSection,
@@ -841,26 +813,24 @@ function _setup(props) {
   }
 }
 
-/* 内联模式：固定宽度网格，左对齐 */
+/* 内联模式：自适应宽度网格，居中对齐 */
 .results-list--inline {
-  grid-template-columns: repeat(auto-fill, 160px);
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   max-width: 100%;
   overflow-x: hidden;
-  justify-content: start;
-  justify-items: start;
+  justify-content: center;
   contain: none;
-  gap: 8px;
+  gap: 10px;
 }
 
-/* 对话框模式：固定宽度网格，左对齐 */
+/* 对话框模式：自适应宽度网格，居中对齐 */
 .results-list--dialog {
-  grid-template-columns: repeat(auto-fill, 180px);
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   max-width: 100%;
   overflow-x: hidden;
-  justify-content: start;
-  justify-items: start;
+  justify-content: center;
   contain: none;
-  gap: 8px;
+  gap: 12px;
 }
 
 /* 内联/对话框模式下，解除 result-item 的固定宽度限制 */

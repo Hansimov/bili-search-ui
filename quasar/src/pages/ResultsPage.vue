@@ -6,14 +6,6 @@
         @retry="retryChat"
         @showResults="showResultsDialog = true"
       />
-
-      <!-- 聊天模式：搜索结果内联预览（交互式） -->
-      <div v-if="hasSearchResults" class="chat-results-inline">
-        <ResultsList
-          displayMode="inline"
-          @openDialog="showResultsDialog = true"
-        />
-      </div>
     </div>
 
     <!-- 直接查找模式：正常显示搜索结果 -->
@@ -34,11 +26,11 @@
       </q-tab-panels>
     </div>
 
-    <!-- 搜索结果对话框（非全屏，可点击外部关闭） -->
+    <!-- 搜索结果对话框（非全屏，页面中间淡入） -->
     <q-dialog
       v-model="showResultsDialog"
-      transition-show="slide-up"
-      transition-hide="slide-down"
+      transition-show="fade"
+      transition-hide="fade"
     >
       <q-card class="results-dialog-card">
         <q-toolbar class="results-dialog-toolbar">
@@ -91,19 +83,25 @@ export default {
     const chatStore = useChatStore();
     const exploreStore = useExploreStore();
 
+    /**
+     * 是否显示聊天面板（inline 布局）
+     * 基于首次会话的模式决定，而非当前选择的模式
+     * 这样在对话过程中切换模式不会导致布局跳变
+     */
     const isChatMode = computed(() => {
-      return (
-        searchModeStore.isChatMode &&
-        (chatStore.isLoading || chatStore.hasContent || chatStore.hasError)
-      );
+      // 如果首次会话是 chat 模式，一直显示 inline 布局
+      if (searchModeStore.shouldUseInlineLayout) {
+        return (
+          chatStore.isLoading || chatStore.hasContent || chatStore.hasError
+        );
+      }
+      // 否则不显示聊天面板（使用全屏结果列表）
+      return false;
     });
-
-    /** 是否有搜索结果可展示 */
-    const hasSearchResults = computed(() => exploreStore.hasResults);
 
     /** 搜索结果摘要文本 */
     const resultsSummaryText = computed(() => {
-      const total = exploreStore.currentStepResult?.output?.hits?.length || 0;
+      const total = exploreStore.latestHitsResult?.output?.hits?.length || 0;
       if (total > 0) return `${total} 条`;
       return '';
     });
@@ -126,7 +124,6 @@ export default {
     return {
       activeTab: computed(() => layoutStore.activeTab || 'videos'),
       showChatPanel: isChatMode,
-      hasSearchResults,
       resultsSummaryText,
       showResultsDialog,
       retryChat,
@@ -161,7 +158,7 @@ body.body--dark .search-bar-row {
   background: transparent;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch; /* Fill width instead of centering */
   width: 100%;
   overflow-x: hidden;
   overflow-y: auto;

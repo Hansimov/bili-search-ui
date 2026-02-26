@@ -39,6 +39,8 @@ export const chat = async ({
         return;
     }
 
+    // NOTE: initialSessionMode 现在由 SearchInput.submitQuery 在调用前设置
+
     if (setQuery) {
         queryStore.setQuery({ newQuery: queryValue, setRoute, mode });
     }

@@ -9,6 +9,13 @@ import type { ExploreResponse, ExploreStepResult } from 'src/stores/resultStore'
 
 let exploreAbortController = new AbortController();
 
+/** 中止当前的 explore 请求 */
+export const abortExplore = () => {
+    exploreAbortController.abort();
+    const exploreStore = useExploreStore();
+    exploreStore.setExploreLoading(false);
+};
+
 /** 缓存搜索结果到 IndexedDB */
 const cacheExploreResults = async (query: string, stepResults: ExploreStepResult[]): Promise<void> => {
     try {
@@ -82,6 +89,8 @@ export const explore = async ({
     if (!queryValue) {
         return;
     }
+
+    // NOTE: initialSessionMode 现在由 SearchInput.submitQuery 在调用前设置
 
     // Set loading state and submitted query BEFORE route change to ensure UI shows correct query
     exploreStore.setExploreLoading(true);

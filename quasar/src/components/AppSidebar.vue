@@ -654,6 +654,8 @@ import {
 import type { SearchHistoryItem } from 'src/stores/searchHistoryStore';
 import { explore, restoreExploreFromCache } from 'src/functions/explore';
 import { useChatStore } from 'src/stores/chatStore';
+import { useQueryStore } from 'src/stores/queryStore';
+import { useExploreStore } from 'src/stores/exploreStore';
 
 const router = useRouter();
 const layoutStore = useLayoutStore();
@@ -661,6 +663,8 @@ const accountStore = useAccountStore();
 const authStore = useAuthStore();
 const searchHistoryStore = useSearchHistoryStore();
 const chatStore = useChatStore();
+const queryStore = useQueryStore();
+const exploreStore = useExploreStore();
 
 // State
 const showHistoryList = ref(true);
@@ -751,6 +755,8 @@ const qrCodeOptions = computed(() => ({
 // Navigation
 const navigateToSearch = () => {
   chatStore.startNewChat();
+  queryStore.setQuery({ newQuery: '' });
+  exploreStore.clearStepResults();
   router.push('/');
   if (isOverlayMode.value) layoutStore.closeMobileSidebar();
 };

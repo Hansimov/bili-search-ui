@@ -20,6 +20,7 @@ import {
     type ToolCall,
 } from 'src/services/chatService';
 import { useExploreStore } from './exploreStore';
+import { useSearchModeStore } from './searchModeStore';
 
 /** 多轮对话中的单条消息 */
 export interface ConversationMessage {
@@ -27,6 +28,10 @@ export interface ConversationMessage {
     content: string;
     /** Tool events for this assistant message (only for assistant role) */
     toolEvents?: ToolEvent[];
+    /** Performance stats for this assistant message (only for assistant role) */
+    perfStats?: PerfStats;
+    /** Token usage for this assistant message (only for assistant role) */
+    usage?: Usage;
 }
 
 /** 上下文管理：最多保留的对话轮数（每轮 = 1 user + 1 assistant） */
@@ -180,6 +185,9 @@ export const useChatStore = defineStore('chat', {
         startNewChat() {
             this.clearConversation();
             this.resetSession();
+            // 重置首次会话模式，让下次提交可以重新决定布局
+            const searchModeStore = useSearchModeStore();
+            searchModeStore.resetInitialSessionMode();
         },
 
         /**
@@ -223,10 +231,27 @@ export const useChatStore = defineStore('chat', {
             if (toolCall.type !== 'search_videos' || toolCall.status !== 'completed') {
                 return;
             }
-            const result = toolCall.result as { hits?: unknown[] } | undefined;
-            if (!result?.hits || !Array.isArray(result.hits)) {
-                return;
+            const result = toolCall.result as {
+                hits?: unknown[];
+                results?: Array<{ hits?: unknown[] }>;
+            } | undefined;
+
+            let allHits: unknown[] = [];
+            // Single query format
+            if (result?.hits && Array.isArray(result.hits)) {
+                allHits = result.hits;
             }
+            // Multi-query format
+            else if (result?.results && Array.isArray(result.results)) {
+                for (const r of result.results) {
+                    if (r.hits && Array.isArray(r.hits)) {
+                        allHits.push(...r.hits);
+                    }
+                }
+            }
+
+            if (allHits.length === 0) return;
+
             const exploreStore = useExploreStore();
             // 更新 exploreStore 的最新搜索结果
             exploreStore.updateLatestHitsResult({
@@ -238,9 +263,9 @@ export const useChatStore = defineStore('chat', {
                 output_type: 'hits',
                 comment: '',
                 output: {
-                    hits: result.hits,
-                    return_hits: result.hits.length,
-                    total_hits: result.hits.length,
+                    hits: allHits,
+                    return_hits: allHits.length,
+                    total_hits: allHits.length,
                 },
             });
         },
@@ -311,12 +336,8 @@ export const useChatStore = defineStore('chat', {
                                     event,
                                 ];
                             }
-                            // Sync completed search results to exploreStore
-                            if (event.calls) {
-                                for (const call of event.calls) {
-                                    this._syncSearchResultsToExploreStore(call);
-                                }
-                            }
+                            // NOTE: 不自动同步结果到 exploreStore，避免覆盖之前的结果
+                            // 用户点击 "查看全部" 时才会同步特定 tool call 的结果
                         },
                         onDone: (perfStats, usage) => {
                             this.currentSession.isLoading = false;
@@ -337,6 +358,8 @@ export const useChatStore = defineStore('chat', {
                                     toolEvents: this.currentSession.toolEvents.length > 0
                                         ? [...this.currentSession.toolEvents]
                                         : undefined,
+                                    perfStats: this.currentSession.perfStats || undefined,
+                                    usage: this.currentSession.usage || undefined,
                                 }
                             );
                             // 修剪历史以控制上下文大小

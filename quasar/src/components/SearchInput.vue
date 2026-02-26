@@ -38,6 +38,20 @@
           @click="clearQuery"
         />
         <q-btn
+          v-if="isRequestInProgress"
+          flat
+          round
+          dense
+          icon="stop"
+          color="negative"
+          class="send-btn stop-btn"
+          size="sm"
+          title="停止"
+          @click="stopRequest"
+        >
+        </q-btn>
+        <q-btn
+          v-else
           flat
           round
           dense
@@ -114,12 +128,13 @@ import { useRoute } from 'vue-router';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useExploreStore } from 'src/stores/exploreStore';
+import { useChatStore } from 'src/stores/chatStore';
 import {
   useSearchModeStore,
   type SearchMode,
 } from 'src/stores/searchModeStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
-import { explore } from 'src/functions/explore';
+import { explore, abortExplore } from 'src/functions/explore';
 import { chat } from 'src/functions/chat';
 import {
   getSmartSuggestService,
@@ -152,6 +167,7 @@ export default {
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
     const exploreStore = useExploreStore();
+    const chatStore = useChatStore();
     const searchModeStore = useSearchModeStore();
     const searchHistoryStore = useSearchHistoryStore();
     const route = useRoute();
@@ -480,25 +496,47 @@ export default {
     const submitQuery = async () => {
       if (!queryModel.value || !queryModel.value.trim()) return;
       const mode = searchModeStore.currentMode;
+
+      // 首次提交时记录模式，用于锁定布局（必须在调用 explore/chat 之前设置）
+      searchModeStore.setInitialSessionMode(mode);
+
       if (mode === 'smart' || mode === 'think') {
-        // LLM 模式：同时触发搜索和聊天
         const submittedQuery = queryModel.value;
-        queryStore.setQuery({
-          newQuery: submittedQuery,
-          setRoute: true,
-          mode,
-        });
-        explore({
-          queryValue: submittedQuery,
-          setQuery: false,
-          setRoute: false,
-        });
-        chat({
-          queryValue: submittedQuery,
-          mode,
-          setQuery: false,
-          setRoute: false,
-        });
+
+        // 判断是否为多轮对话续接（已有对话历史且布局已锁定为 chat 模式）
+        const isContinuation =
+          chatStore.conversationHistory.length > 0 &&
+          searchModeStore.shouldUseInlineLayout;
+
+        if (isContinuation) {
+          // 多轮续接：只发送聊天请求，不改路由、不重新 explore
+          // 避免 route watcher 二次触发 explore 和输入框闪烁
+          chat({
+            queryValue: submittedQuery,
+            mode,
+            setQuery: false,
+            setRoute: false,
+          });
+        } else {
+          // 首次提交：设置路由并同时触发搜索和聊天
+          queryStore.setQuery({
+            newQuery: submittedQuery,
+            setRoute: true,
+            mode,
+          });
+          explore({
+            queryValue: submittedQuery,
+            setQuery: false,
+            setRoute: false,
+          });
+          chat({
+            queryValue: submittedQuery,
+            mode,
+            setQuery: false,
+            setRoute: false,
+          });
+        }
+
         layoutStore.setCurrentPage(1);
         // 提交后清空输入框
         queryModel.value = '';
@@ -512,6 +550,17 @@ export default {
         });
         layoutStore.setCurrentPage(1);
       }
+    };
+
+    /** 是否有请求正在进行中（搜索或聊天） */
+    const isRequestInProgress = computed(() => {
+      return exploreStore.isExploreLoading || chatStore.isLoading;
+    });
+
+    /** 中止当前请求（搜索和聊天） */
+    const stopRequest = () => {
+      abortExplore();
+      chatStore.abortCurrentRequest();
     };
 
     // URL 驱动的搜索 (route.query.q 变化时)
@@ -592,6 +641,8 @@ export default {
       onCompositionStart,
       onCompositionEnd,
       submitQuery,
+      isRequestInProgress,
+      stopRequest,
       searchInputPlaceholder,
       clearQuery,
       hoveredMode,
@@ -680,6 +731,14 @@ export default {
   margin-top: 0px;
   opacity: 0.6;
   transition: opacity 0.2s ease;
+  &:hover {
+    opacity: 1;
+  }
+}
+
+/* 停止按钮（方形图标，红色提示） */
+.stop-btn {
+  opacity: 0.9;
   &:hover {
     opacity: 1;
   }

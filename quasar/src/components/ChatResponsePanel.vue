@@ -13,12 +13,16 @@
           v-if="getHistoryToolCalls(msg).length > 0"
           :toolCalls="getHistoryToolCalls(msg)"
           isHistorical
-          @viewAllResults="handleViewHistoricalResults($event, msg)"
+          @viewAllResults="handleViewHistoricalResults"
         />
         <div
           class="chat-content markdown-body"
           v-html="renderMd(msg.content)"
         ></div>
+        <!-- 历史消息的性能统计 -->
+        <div v-if="getHistoryPerfStats(msg)" class="chat-perf-stats">
+          <span class="perf-text">{{ getHistoryPerfStats(msg) }}</span>
+        </div>
       </div>
     </template>
 
@@ -27,7 +31,7 @@
       <span class="user-query-text">{{ userQuery }}</span>
     </div>
 
-    <!-- 加载状态：等待 LLM 响应（无思考内容、无回答内容、无工具调用时显示） -->
+    <!-- 加载状态：等待 LLM 响应（小巧提示，左对齐） -->
     <div
       v-if="
         isLoading &&
@@ -38,7 +42,7 @@
       class="chat-loading"
     >
       <div class="chat-loading-indicator">
-        <q-spinner-dots size="24px" :color="modeColor" />
+        <q-spinner-dots size="16px" :color="modeColor" />
         <span class="chat-loading-text">{{ loadingText }}</span>
       </div>
     </div>
@@ -58,11 +62,18 @@
           >思考中…</span
         >
       </div>
-      <div v-show="thinkingExpanded" class="chat-thinking-content">
-        <div v-html="renderedThinkingContent"></div>
-        <span v-if="isThinkingPhase" class="chat-cursor thinking-cursor"
-          >▊</span
-        >
+      <div
+        class="chat-thinking-collapse-wrapper"
+        :class="{ expanded: thinkingExpanded }"
+      >
+        <div class="chat-thinking-collapse-inner">
+          <div class="chat-thinking-content">
+            <div v-html="renderedThinkingContent"></div>
+            <span v-if="isThinkingPhase" class="chat-cursor thinking-cursor"
+              >▊</span
+            >
+          </div>
+        </div>
       </div>
     </div>
 
@@ -111,7 +122,12 @@ import { computed, defineComponent, ref } from 'vue';
 import { useChatStore, type ConversationMessage } from 'src/stores/chatStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useExploreStore } from 'src/stores/exploreStore';
-import type { ToolEvent, ToolCall } from 'src/services/chatService';
+import type {
+  ToolEvent,
+  ToolCall,
+  PerfStats,
+  Usage,
+} from 'src/services/chatService';
 import { renderMarkdown } from 'src/utils/markdown';
 import ToolCallDisplay from './ToolCallDisplay.vue';
 
@@ -218,8 +234,19 @@ export default defineComponent({
       const ps = perfStats.value;
       const u = usage.value;
       if (!ps) return '';
+      return formatPerfStatsString(ps, u);
+    });
 
-      // 格式化时间：从 total_elapsed_ms 计算 min/s
+    /** 格式化 token 数量：超过 1000 显示为 XX.Xk */
+    const formatTokenCount = (count: number): string => {
+      if (count >= 1000) {
+        return (count / 1000).toFixed(1) + 'k';
+      }
+      return String(count);
+    };
+
+    /** 格式化性能统计（可复用：当前会话 + 历史消息） */
+    const formatPerfStatsString = (ps: PerfStats, u?: Usage | null) => {
       const totalMs = ps.total_elapsed_ms || 0;
       const parts: string[] = [];
 
@@ -232,18 +259,25 @@ export default defineComponent({
         parts.push(`用时 ${sec} s`);
       }
 
-      if (u?.prompt_tokens) {
-        parts.push(`输入 ${u.prompt_tokens} tokens`);
+      // Token usage: "输入 XX tokens，输出 XX tokens"
+      if (u?.prompt_tokens && u?.completion_tokens) {
+        parts.push(
+          `输入 ${formatTokenCount(
+            u.prompt_tokens
+          )} tokens，输出 ${formatTokenCount(u.completion_tokens)} tokens`
+        );
+      } else if (u?.prompt_tokens) {
+        parts.push(`输入 ${formatTokenCount(u.prompt_tokens)} tokens`);
+      } else if (u?.completion_tokens) {
+        parts.push(`输出 ${formatTokenCount(u.completion_tokens)} tokens`);
       }
-      if (u?.completion_tokens) {
-        parts.push(`输出 ${u.completion_tokens} tokens`);
-      }
+
       if (ps.tokens_per_second) {
         parts.push(`${ps.tokens_per_second} tokens/s`);
       }
 
       return parts.join(' · ');
-    });
+    };
 
     /** 格式化工具事件显示 */
     const formatToolEvent = (event: ToolEvent): string => {
@@ -273,11 +307,14 @@ export default defineComponent({
       return calls;
     };
 
+    /** 获取历史消息的格式化性能统计 */
+    const getHistoryPerfStats = (msg: ConversationMessage): string => {
+      if (!msg.perfStats) return '';
+      return formatPerfStatsString(msg.perfStats, msg.usage);
+    };
+
     /** 查看历史消息中某个 tool call 的搜索结果 */
-    const handleViewHistoricalResults = (
-      call: ToolCall,
-      _msg: ConversationMessage
-    ) => {
+    const handleViewHistoricalResults = (call: ToolCall) => {
       syncToolCallToExploreStore(call);
       emit('showResults');
     };
@@ -291,8 +328,26 @@ export default defineComponent({
     /** 同步 tool call 的搜索结果到 exploreStore */
     const syncToolCallToExploreStore = (call: ToolCall) => {
       if (call.type === 'search_videos' && call.result) {
-        const result = call.result as { hits?: unknown[] };
+        const result = call.result as {
+          hits?: unknown[];
+          results?: Array<{ hits?: unknown[] }>;
+        };
+        let allHits: unknown[] = [];
+
+        // Single query format: {hits: [...]}
         if (result.hits && Array.isArray(result.hits)) {
+          allHits = result.hits;
+        }
+        // Multi-query format: {results: [{hits: [...]}, ...]}
+        else if (result.results && Array.isArray(result.results)) {
+          for (const r of result.results) {
+            if (r.hits && Array.isArray(r.hits)) {
+              allHits.push(...r.hits);
+            }
+          }
+        }
+
+        if (allHits.length > 0) {
           exploreStore.updateLatestHitsResult({
             step: 0,
             name: 'search_videos',
@@ -302,9 +357,9 @@ export default defineComponent({
             output_type: 'hits',
             comment: '',
             output: {
-              hits: result.hits,
-              return_hits: result.hits.length,
-              total_hits: result.hits.length,
+              hits: allHits,
+              return_hits: allHits.length,
+              total_hits: allHits.length,
             },
           });
         }
@@ -337,6 +392,7 @@ export default defineComponent({
       hasSearchTool,
       renderMd,
       getHistoryToolCalls,
+      getHistoryPerfStats,
       handleViewHistoricalResults,
       handleViewCurrentResults,
     };
@@ -348,6 +404,11 @@ export default defineComponent({
 .chat-response-panel {
   max-width: min(800px, 90vw);
   width: 100%;
+  min-width: min(
+    800px,
+    90vw
+  ); /* Ensure stable width even when content is minimal */
+  box-sizing: border-box;
   margin: 0 auto;
   padding: 16px 20px;
   font-size: 15px;
@@ -425,6 +486,22 @@ export default defineComponent({
   width: 100%;
 }
 
+/* 思考内容折叠动画容器 */
+.chat-thinking-collapse-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+
+.chat-thinking-collapse-wrapper.expanded {
+  grid-template-rows: 1fr;
+}
+
+.chat-thinking-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
 .chat-thinking-header {
   display: flex;
   align-items: center;
@@ -481,23 +558,23 @@ export default defineComponent({
   color: #8e24aa;
 }
 
-/* 加载状态 */
+/* 加载状态（小巧、左对齐） */
 .chat-loading {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 32px 0;
+  justify-content: flex-start;
+  padding: 8px 0;
 }
 
 .chat-loading-indicator {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .chat-loading-text {
-  font-size: 14px;
-  opacity: 0.7;
+  font-size: 13px;
+  opacity: 0.6;
 }
 
 /* 流式光标 */

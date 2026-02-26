@@ -24,7 +24,14 @@
             class="tool-call-icon"
           />
           <span class="tool-call-name">{{ getToolLabel(call.type) }}</span>
-          <span class="tool-call-args">{{ formatToolArgs(call) }}</span>
+          <span v-if="call.type !== 'search_videos'" class="tool-call-args">{{
+            formatToolArgs(call)
+          }}</span>
+          <span
+            v-else-if="getQueryList(call).length <= 1"
+            class="tool-call-args-full"
+            >{{ getQueryList(call)[0] || '' }}</span
+          >
         </div>
         <div class="tool-call-right">
           <span
@@ -44,59 +51,121 @@
           />
         </div>
       </div>
-
-      <!-- 搜索结果预览（可折叠） -->
+      <!-- 多 query 子列表（search_videos 有 2+ queries 时显示） -->
       <div
-        v-if="call.status === 'completed' && hasResults(call) && expanded[idx]"
-        class="tool-call-results"
+        v-if="call.type === 'search_videos' && getQueryList(call).length > 1"
+        class="tool-query-list"
       >
-        <div v-if="call.type === 'search_videos'" class="tool-results-grid">
-          <div
-            v-for="(hit, hidx) in getVideoHits(call).slice(0, maxPreviewItems)"
-            :key="hit.bvid || hidx"
-            class="tool-result-item"
-          >
-            <img
-              v-if="hit.pic"
-              :src="hit.pic"
-              class="tool-result-cover"
-              loading="lazy"
-            />
-            <div class="tool-result-info">
-              <span class="tool-result-title" :title="hit.title">{{
-                hit.title
-              }}</span>
-              <span class="tool-result-author">{{
-                hit.owner?.name || ''
-              }}</span>
+        <div
+          v-for="(query, qidx) in getQueryList(call)"
+          :key="qidx"
+          class="tool-query-item"
+        >
+          <q-icon name="search" size="12px" class="tool-query-icon" />
+          <span class="tool-query-text">{{ query }}</span>
+        </div>
+      </div>
+
+      <!-- 搜索结果预览（可折叠，带动画） -->
+      <div
+        v-if="call.status === 'completed' && hasResults(call)"
+        class="tool-call-results-wrapper"
+        :class="{ expanded: expanded[idx] }"
+      >
+        <div class="tool-call-results-inner">
+          <div class="tool-call-results">
+            <div v-if="call.type === 'search_videos'">
+              <!-- 多 query 分组显示 -->
+              <template v-if="getPerQueryResults(call).length > 1">
+                <div
+                  v-for="(qr, qridx) in getPerQueryResults(call)"
+                  :key="qridx"
+                  class="per-query-section"
+                >
+                  <div class="per-query-header">
+                    <q-icon name="search" size="12px" class="per-query-icon" />
+                    <span class="per-query-text">{{ qr.query }}</span>
+                    <span class="per-query-count">{{ qr.hits.length }} 条</span>
+                  </div>
+                  <div class="tool-results-grid">
+                    <div
+                      v-for="(hit, hidx) in qr.hits"
+                      :key="hit.bvid || hidx"
+                      class="tool-result-item"
+                    >
+                      <img
+                        v-if="hit.pic"
+                        :src="hit.pic"
+                        class="tool-result-cover"
+                        loading="lazy"
+                      />
+                      <div class="tool-result-info">
+                        <span class="tool-result-title" :title="hit.title">{{
+                          hit.title
+                        }}</span>
+                        <span class="tool-result-author">{{
+                          hit.owner?.name || ''
+                        }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <!-- 单 query 扁平显示 -->
+              <div v-else class="tool-results-grid">
+                <div
+                  v-for="(hit, hidx) in getAllVideoHits(call)"
+                  :key="hit.bvid || hidx"
+                  class="tool-result-item"
+                >
+                  <img
+                    v-if="hit.pic"
+                    :src="hit.pic"
+                    class="tool-result-cover"
+                    loading="lazy"
+                  />
+                  <div class="tool-result-info">
+                    <span class="tool-result-title" :title="hit.title">{{
+                      hit.title
+                    }}</span>
+                    <span class="tool-result-author">{{
+                      hit.owner?.name || ''
+                    }}</span>
+                  </div>
+                </div>
+              </div>
+              <!-- 操作按钮：查看全部 -->
+              <div
+                v-if="getAllVideoHits(call).length > 0"
+                class="tool-result-actions"
+              >
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  size="sm"
+                  icon="open_in_new"
+                  :label="`查看全部 ${getAllVideoHits(call).length} 条`"
+                  class="tool-view-all-btn"
+                  @click.stop="$emit('viewAllResults', call)"
+                />
+              </div>
+            </div>
+            <div
+              v-else-if="call.type === 'check_author'"
+              class="tool-result-author-info"
+            >
+              <div v-if="getAuthorResult(call).found" class="author-found">
+                <span class="author-name">{{
+                  getAuthorResult(call).name
+                }}</span>
+                <span class="author-mid"
+                  >mid: {{ getAuthorResult(call).mid }}</span
+                >
+              </div>
+              <div v-else class="author-not-found">未找到该作者</div>
             </div>
           </div>
-        </div>
-        <!-- 操作按钮：查看全部 -->
-        <div
-          v-if="call.type === 'search_videos' && getVideoHits(call).length > 0"
-          class="tool-result-actions"
-        >
-          <q-btn
-            flat
-            dense
-            no-caps
-            size="sm"
-            icon="open_in_new"
-            :label="`查看全部 ${getVideoHits(call).length} 条`"
-            class="tool-view-all-btn"
-            @click.stop="$emit('viewAllResults', call)"
-          />
-        </div>
-        <div
-          v-else-if="call.type === 'check_author'"
-          class="tool-result-author-info"
-        >
-          <div v-if="getAuthorResult(call).found" class="author-found">
-            <span class="author-name">{{ getAuthorResult(call).name }}</span>
-            <span class="author-mid">mid: {{ getAuthorResult(call).mid }}</span>
-          </div>
-          <div v-else class="author-not-found">未找到该作者</div>
         </div>
       </div>
     </div>
@@ -104,7 +173,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, PropType } from 'vue';
+import { defineComponent, ref, watch, PropType } from 'vue';
 import type { ToolCall } from 'src/services/chatService';
 
 /** Video hit from search result */
@@ -146,10 +215,6 @@ export default defineComponent({
       type: Array as PropType<ToolCall[]>,
       required: true,
     },
-    maxPreviewItems: {
-      type: Number,
-      default: 4,
-    },
     /** Whether this is displaying historical tool calls (from past conversation turns) */
     isHistorical: {
       type: Boolean,
@@ -159,6 +224,24 @@ export default defineComponent({
   emits: ['viewAllResults'],
   setup(props) {
     const expanded = ref<Record<number, boolean>>({});
+
+    // Auto-expand completed search_videos calls so inline results are visible
+    watch(
+      () => props.toolCalls,
+      (calls) => {
+        calls.forEach((call, idx) => {
+          if (
+            call.type === 'search_videos' &&
+            call.status === 'completed' &&
+            hasResults(call) &&
+            expanded.value[idx] === undefined
+          ) {
+            expanded.value[idx] = true;
+          }
+        });
+      },
+      { immediate: true, deep: true }
+    );
 
     const toggleExpand = (idx: number) => {
       const call = props.toolCalls[idx];
@@ -170,19 +253,15 @@ export default defineComponent({
     const getToolLabel = (type: string) => TOOL_LABELS[type] || type;
     const getToolIcon = (type: string) => TOOL_ICONS[type] || 'build';
 
+    /** Extract query list from search_videos tool call args */
+    const getQueryList = (call: ToolCall): string[] => {
+      if (call.type !== 'search_videos') return [];
+      const queries = call.args?.queries as string[] | undefined;
+      return queries && Array.isArray(queries) ? queries : [];
+    };
+
     const formatToolArgs = (call: ToolCall) => {
-      if (call.type === 'search_videos') {
-        const queries = call.args?.queries as string[] | undefined;
-        if (queries && queries.length > 0) {
-          const preview = queries
-            .slice(0, 2)
-            .map((q) => `"${q}"`)
-            .join(', ');
-          return queries.length > 2
-            ? `${preview} +${queries.length - 2}`
-            : preview;
-        }
-      } else if (call.type === 'check_author') {
+      if (call.type === 'check_author') {
         const name = call.args?.name as string | undefined;
         return name ? `"${name}"` : '';
       }
@@ -192,9 +271,20 @@ export default defineComponent({
     const hasResults = (call: ToolCall) => {
       if (!call.result) return false;
       if (call.type === 'search_videos') {
-        const hits = (call.result as Record<string, unknown>)
-          ?.hits as unknown[];
-        return Array.isArray(hits) && hits.length > 0;
+        const result = call.result as Record<string, unknown>;
+        // Single query format: {hits: [...]}
+        if (
+          Array.isArray(result?.hits) &&
+          (result.hits as unknown[]).length > 0
+        )
+          return true;
+        // Multi-query format: {results: [{hits: [...]}, ...]}
+        if (Array.isArray(result?.results)) {
+          return (result.results as Array<Record<string, unknown>>).some(
+            (r) => Array.isArray(r.hits) && (r.hits as unknown[]).length > 0
+          );
+        }
+        return false;
       }
       if (call.type === 'check_author') {
         return true; // Always show author result
@@ -204,16 +294,60 @@ export default defineComponent({
 
     const getResultCount = (call: ToolCall) => {
       if (call.type === 'search_videos') {
-        const hits = (call.result as Record<string, unknown>)
-          ?.hits as unknown[];
-        const count = Array.isArray(hits) ? hits.length : 0;
-        return `${count} 条结果`;
+        const total = getAllVideoHits(call).length;
+        return `${total} 条结果`;
       }
       if (call.type === 'check_author') {
         const found = (call.result as Record<string, unknown>)?.found;
         return found ? '已找到' : '未找到';
       }
       return '';
+    };
+
+    /** 获取所有视频结果（合并所有 query 的结果） */
+    const getAllVideoHits = (call: ToolCall): VideoHit[] => {
+      if (call.type !== 'search_videos' || !call.result) return [];
+      const result = call.result as Record<string, unknown>;
+      // Single query format
+      if (Array.isArray(result.hits)) {
+        return result.hits as VideoHit[];
+      }
+      // Multi-query format: merge all hits
+      if (Array.isArray(result.results)) {
+        const allHits: VideoHit[] = [];
+        for (const r of result.results as Array<Record<string, unknown>>) {
+          if (Array.isArray(r.hits)) {
+            allHits.push(...(r.hits as VideoHit[]));
+          }
+        }
+        return allHits;
+      }
+      return [];
+    };
+
+    /** 获取按 query 分组的搜索结果 */
+    const getPerQueryResults = (
+      call: ToolCall
+    ): Array<{ query: string; hits: VideoHit[] }> => {
+      if (call.type !== 'search_videos' || !call.result) return [];
+      const result = call.result as Record<string, unknown>;
+      // Multi-query format
+      if (Array.isArray(result.results)) {
+        return (result.results as Array<Record<string, unknown>>).map((r) => ({
+          query: String(r.query || ''),
+          hits: Array.isArray(r.hits) ? (r.hits as VideoHit[]) : [],
+        }));
+      }
+      // Single query format
+      if (Array.isArray(result.hits)) {
+        return [
+          {
+            query: String(result.query || ''),
+            hits: result.hits as VideoHit[],
+          },
+        ];
+      }
+      return [];
     };
 
     const getVideoHits = (call: ToolCall): VideoHit[] => {
@@ -232,10 +366,13 @@ export default defineComponent({
       toggleExpand,
       getToolLabel,
       getToolIcon,
+      getQueryList,
       formatToolArgs,
       hasResults,
       getResultCount,
       getVideoHits,
+      getAllVideoHits,
+      getPerQueryResults,
       getAuthorResult,
     };
   },
@@ -310,6 +447,37 @@ export default defineComponent({
   max-width: 200px;
 }
 
+.tool-call-args-full {
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+/* 多 query 子列表 */
+.tool-query-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 12px 6px 34px;
+}
+
+.tool-query-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tool-query-icon {
+  opacity: 0.35;
+  flex-shrink: 0;
+}
+
+.tool-query-text {
+  font-size: 12px;
+  opacity: 0.55;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
 .tool-call-right {
   display: flex;
   align-items: center;
@@ -331,16 +499,68 @@ export default defineComponent({
   opacity: 0.4;
 }
 
+/* 搜索结果折叠动画 */
+.tool-call-results-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+
+.tool-call-results-wrapper.expanded {
+  grid-template-rows: 1fr;
+}
+
+.tool-call-results-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
 /* 搜索结果预览 */
 .tool-call-results {
   padding: 8px 12px 12px;
   border-top: 1px solid rgba(128, 128, 128, 0.08);
 }
 
+/* 按 query 分组的搜索结果 */
+.per-query-section {
+  margin-bottom: 10px;
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.per-query-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+  padding: 4px 0;
+}
+
+.per-query-icon {
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.per-query-text {
+  font-size: 12px;
+  opacity: 0.6;
+  font-weight: 500;
+}
+
+.per-query-count {
+  font-size: 11px;
+  opacity: 0.4;
+  margin-left: 4px;
+}
+
 .tool-results-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .tool-result-item {
