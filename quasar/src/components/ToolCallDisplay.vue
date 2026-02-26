@@ -62,7 +62,7 @@
             dense
             no-caps
             size="sm"
-            icon="open_in_new"
+            icon="tab"
             :label="`在新窗口中查看 ${getResultCount(call)}`"
             class="tool-view-all-btn"
             @click.stop="$emit('viewAllResults', call)"
@@ -432,9 +432,10 @@ export default defineComponent({
     };
 
     /**
-     * 收起结果，保持底部收起栏在视口中的位置不变。
-     * 原理：记录收起前 tool-call-item 底部相对视口的 Y 坐标，
-     * 收起后计算高度差，调整页面 scrollTop 使该位置不跳动。
+     * 收起结果，保持底部 bar 正下方在视口中的位置不变。
+     * 锚点：tool-call-item 底部（即收起栏的正下方）。
+     * 收起前记录该锚点在视口中的 Y 坐标，收起后调整 scrollTop
+     * 使锚点恢复到完全相同的视口位置，实现零跳动。
      */
     const collapseAndScroll = (idx: number) => {
       const container = document.querySelector('.tool-call-container');
@@ -448,17 +449,17 @@ export default defineComponent({
         expanded.value[idx] = false;
         return;
       }
-      // 记录收起前 item 底部在视口中的位置
-      const rectBefore = el.getBoundingClientRect();
-      const bottomBefore = rectBefore.bottom;
+      // 记录收起前锚点（item 底部）在视口中的 Y 坐标
+      const anchorViewportY = el.getBoundingClientRect().bottom;
       expanded.value[idx] = false;
       nextTick(() => {
-        const rectAfter = el.getBoundingClientRect();
-        const bottomAfter = rectAfter.bottom;
-        const delta = bottomAfter - bottomBefore;
-        // 将页面滚动恢复，使底部位置在视口中不变
-        const scrollEl = document.documentElement;
-        scrollEl.scrollTop += delta;
+        // 收起后锚点（item 底部）在视口中的新 Y 坐标
+        const newAnchorViewportY = el.getBoundingClientRect().bottom;
+        // 调整 scrollTop 使锚点恢复到原来的视口位置
+        const delta = newAnchorViewportY - anchorViewportY;
+        if (Math.abs(delta) > 1) {
+          document.documentElement.scrollTop += delta;
+        }
       });
     };
 

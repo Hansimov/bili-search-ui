@@ -10,7 +10,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed } from 'vue';
 import TitleToolbar from 'components/TitleToolbar.vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
 
@@ -28,14 +28,5 @@ const headerStyle = computed(() => {
     };
   }
   return {};
-});
-
-onMounted(() => {
-  layoutStore.addWindowResizeListener();
-  layoutStore.updateSearchInputMaxWidth();
-});
-
-onUnmounted(() => {
-  layoutStore.removeWindowResizeListener();
 });
 </script>

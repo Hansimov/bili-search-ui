@@ -59,9 +59,12 @@
           class="thinking-expand-icon"
         />
         <span class="thinking-header-text">{{ thinkingHeaderLabel }}</span>
-        <span v-if="isThinkingPhase" class="thinking-active-badge"
-          >思考中…</span
-        >
+        <span v-if="isThinkingPhase" class="thinking-active-indicator">
+          <span class="thinking-header-text">思考中</span>
+          <span class="thinking-dots"
+            ><span>.</span><span>.</span><span>.</span></span
+          >
+        </span>
       </div>
       <div
         class="chat-thinking-collapse-wrapper"
@@ -70,7 +73,9 @@
         <div class="chat-thinking-collapse-inner">
           <div class="chat-thinking-content">
             <div v-html="renderedThinkingContent"></div>
-            <span v-if="isThinkingPhase" class="chat-cursor thinking-cursor"
+            <span
+              v-if="isThinkingPhase && allToolCalls.length === 0"
+              class="chat-cursor thinking-cursor"
               >▊</span
             >
           </div>
@@ -207,8 +212,7 @@ export default defineComponent({
     });
 
     const loadingText = computed(() => {
-      if (isThinking.value) return 'AI 正在深度思考...';
-      return 'AI 正在回答...';
+      return '思考中';
     });
 
     /** 思考标题：思考中时不显示 "思考过程"，完成后才显示 */
@@ -257,7 +261,11 @@ export default defineComponent({
       if (totalMs >= 60000) {
         const min = Math.floor(totalMs / 60000);
         const sec = Math.round((totalMs % 60000) / 1000);
-        parts.push(`用时 ${min} min ${sec} s`);
+        if (sec > 0) {
+          parts.push(`用时 ${min} min ${sec} s`);
+        } else {
+          parts.push(`用时 ${min} min`);
+        }
       } else {
         const sec = (totalMs / 1000).toFixed(1);
         parts.push(`用时 ${sec} s`);
@@ -409,12 +417,9 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .chat-response-panel {
-  max-width: min(800px, 90vw);
-  width: 100%;
-  min-width: min(
-    800px,
-    90vw
-  ); /* Ensure stable width even when content is minimal */
+  max-width: var(--search-input-max-width, 95vw);
+  width: var(--search-input-width);
+  min-width: 0; /* allow shrinking in flex/grid layouts */
   box-sizing: border-box;
   margin: 0 auto;
   padding: 16px 20px;
@@ -422,7 +427,7 @@ export default defineComponent({
   line-height: 1.7;
 }
 
-/* 用户提问（弱化样式） */
+/* 用户提问（渐变背景区分） */
 .chat-user-query {
   display: flex;
   align-items: flex-start;
@@ -431,7 +436,12 @@ export default defineComponent({
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 14px;
-  opacity: 0.6;
+  opacity: 0.8;
+  background: linear-gradient(
+    135deg,
+    rgba(142, 36, 170, 0.06) 0%,
+    rgba(100, 181, 246, 0.06) 100%
+  );
 }
 
 .user-query-text {
@@ -521,7 +531,6 @@ export default defineComponent({
   transition: background 0.15s ease;
   /* 保持稳定高度，避免内容变化时跳动 */
   min-height: 32px;
-  /* 浅灰色背景，使 bar 位置更清晰 */
   background: rgba(128, 128, 128, 0.04);
 
   &:hover {
@@ -534,22 +543,40 @@ export default defineComponent({
   font-weight: 500;
 }
 
-.thinking-active-badge {
-  font-size: 11px;
-  padding: 1px 8px;
-  border-radius: 10px;
-  background: rgba(142, 36, 170, 0.12);
-  color: #8e24aa;
-  animation: thinking-pulse 1.5s ease-in-out infinite;
+.thinking-active-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
 }
 
-@keyframes thinking-pulse {
-  0%,
-  100% {
-    opacity: 1;
+.thinking-dots {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  opacity: 0.7;
+  margin-left: 1px;
+
+  span {
+    animation: thinking-dot-bounce 1.4s ease-in-out infinite;
+    &:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    &:nth-child(3) {
+      animation-delay: 0.4s;
+    }
   }
-  50% {
-    opacity: 0.5;
+}
+
+@keyframes thinking-dot-bounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.2;
+  }
+  30% {
+    opacity: 1;
   }
 }
 
@@ -560,7 +587,7 @@ export default defineComponent({
   margin-top: 6px;
   font-size: 13px;
   line-height: 1.25;
-  border-left: 2px solid rgba(142, 36, 170, 0.3);
+  border-left: 2px solid rgba(128, 128, 128, 0.25);
   margin-left: 18px;
   opacity: 0.75;
 
@@ -576,7 +603,7 @@ export default defineComponent({
 }
 
 .thinking-cursor {
-  color: #8e24aa;
+  opacity: 0.5;
 }
 
 /* 加载状态（小巧、左对齐） */
@@ -671,20 +698,17 @@ export default defineComponent({
   :deep(h1),
   :deep(h2),
   :deep(h3),
-  :deep(h4) {
-    margin-top: 16px;
-    margin-bottom: 8px;
+  :deep(h4),
+  :deep(h5),
+  :deep(h6) {
+    margin-top: 12px;
+    margin-bottom: 6px;
     font-weight: 600;
+    font-size: inherit;
   }
 
   :deep(h1) {
-    font-size: 1.4em;
-  }
-  :deep(h2) {
-    font-size: 1.2em;
-  }
-  :deep(h3) {
-    font-size: 1.1em;
+    font-size: calc(1em + 2px);
   }
 
   :deep(p) {
@@ -766,7 +790,11 @@ body.body--light {
   }
 
   .chat-user-query {
-    background: rgba(0, 0, 0, 0.03);
+    background: linear-gradient(
+      135deg,
+      rgba(142, 36, 170, 0.06) 0%,
+      rgba(25, 118, 210, 0.05) 100%
+    );
     color: #555;
   }
 
@@ -812,7 +840,11 @@ body.body--dark {
   }
 
   .chat-user-query {
-    background: rgba(255, 255, 255, 0.04);
+    background: linear-gradient(
+      135deg,
+      rgba(206, 147, 216, 0.08) 0%,
+      rgba(100, 181, 246, 0.06) 100%
+    );
     color: #aaa;
   }
 
@@ -859,31 +891,11 @@ body.body--dark {
   }
 }
 
-/* 思考模式额外样式 */
-.chat-thinking {
-  .chat-loading-text {
-    color: #8e24aa;
-  }
-}
-
-body.body--dark .chat-thinking {
-  .chat-loading-text {
-    color: #ce93d8;
-  }
-}
+/* 思考模式暗色补充 */
 
 body.body--dark {
-  .thinking-active-badge {
-    background: rgba(206, 147, 216, 0.15);
-    color: #ce93d8;
-  }
-
   .chat-thinking-content {
-    border-left-color: rgba(206, 147, 216, 0.3);
-  }
-
-  .thinking-cursor {
-    color: #ce93d8;
+    border-left-color: rgba(160, 160, 160, 0.25);
   }
 }
 </style>

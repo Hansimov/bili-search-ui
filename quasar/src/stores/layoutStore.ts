@@ -131,7 +131,22 @@ export const useLayoutStore = defineStore('layout', {
             if (resizeRAFId !== null) cancelAnimationFrame(resizeRAFId);
             resizeRAFId = requestAnimationFrame(() => {
                 resizeRAFId = null;
+                const prevWidth = this.screenWidth;
                 this.screenWidth = window.innerWidth;
+
+                // Auto-collapse sidebar when screen narrows past desktop breakpoint
+                if (prevWidth >= DESKTOP_BREAKPOINT && this.screenWidth < DESKTOP_BREAKPOINT) {
+                    // Entering tablet/mobile range: collapse expanded sidebar
+                    if (this.isSidebarExpanded) {
+                        this.isSidebarExpanded = false;
+                        localStorage.setItem('isSidebarExpanded', JSON.stringify(false));
+                    }
+                }
+                // Close overlay sidebar when entering mobile range
+                if (prevWidth >= MOBILE_BREAKPOINT && this.screenWidth < MOBILE_BREAKPOINT) {
+                    this.isMobileSidebarOpen = false;
+                }
+
                 this.updateSearchInputMaxWidth();
             });
         },

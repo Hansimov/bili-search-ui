@@ -151,6 +151,7 @@ body.body--dark .search-bar-row {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  width: 100%; /* fill q-page flex row so children can center properly, very important for auto-resize */
   overflow-x: hidden;
   overflow-y: hidden;
 }
@@ -165,7 +166,7 @@ body.body--dark .search-bar-row {
   background: transparent;
   display: flex;
   flex-direction: column;
-  align-items: stretch; /* Fill width instead of centering */
+  align-items: center; /* Center chat panel horizontally */
   width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
@@ -177,8 +178,8 @@ body.body--dark .search-bar-row {
 
 /* 聊天模式：内联搜索结果区域 */
 .chat-results-inline {
-  max-width: min(800px, 90vw);
-  width: 100%;
+  max-width: var(--search-input-max-width, 95vw);
+  width: var(--search-input-width);
   margin: 0 auto;
   padding: 8px 12px 12px;
   border-radius: 10px;
