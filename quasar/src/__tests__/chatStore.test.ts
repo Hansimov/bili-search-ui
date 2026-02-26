@@ -220,6 +220,165 @@ describe('ChatStore', () => {
         });
     });
 
+    describe('多轮对话', () => {
+        it('conversationHistory 默认为空', () => {
+            const store = useChatStore();
+            expect(store.conversationHistory).toEqual([]);
+            expect(store.conversationTurns).toBe(0);
+        });
+
+        it('sendChat 完成后应该追加到对话历史', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callbacks.onContent?.('回答1');
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('问题1', 'smart');
+
+            expect(store.conversationHistory).toHaveLength(2);
+            expect(store.conversationHistory[0]).toEqual({
+                role: 'user',
+                content: '问题1',
+            });
+            expect(store.conversationHistory[1]).toEqual({
+                role: 'assistant',
+                content: '回答1',
+            });
+            expect(store.conversationTurns).toBe(1);
+        });
+
+        it('多轮对话应累积历史', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            let callIdx = 0;
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callIdx++;
+                callbacks.onContent?.(`回答${callIdx}`);
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('问题1', 'smart');
+            await store.sendChat('问题2', 'smart');
+
+            expect(store.conversationHistory).toHaveLength(4);
+            expect(store.conversationTurns).toBe(2);
+        });
+
+        it('多轮对话应将历史消息传给后端', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            const sentMessages: Array<Array<{ role: string; content: string }>> = [];
+            mockStream.mockImplementation(async (params, callbacks) => {
+                sentMessages.push([...params.messages]);
+                callbacks.onContent?.('回答');
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('问题1', 'smart');
+            await store.sendChat('问题2', 'smart');
+
+            // 第一轮：只有当前消息
+            expect(sentMessages[0]).toHaveLength(1);
+            expect(sentMessages[0][0].content).toBe('问题1');
+
+            // 第二轮：历史 + 当前消息
+            expect(sentMessages[1]).toHaveLength(3);
+            expect(sentMessages[1][0].content).toBe('问题1');
+            expect(sentMessages[1][1].content).toBe('回答');
+            expect(sentMessages[1][2].content).toBe('问题2');
+        });
+
+        it('对话历史应自动修剪（超过最大轮数）', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            let callIdx = 0;
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callIdx++;
+                callbacks.onContent?.(`回答${callIdx}`);
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            // 发送 7 轮（超过 MAX_CONVERSATION_TURNS=5）
+            for (let i = 1; i <= 7; i++) {
+                await store.sendChat(`问题${i}`, 'smart');
+            }
+
+            // 应该被修剪到最多 10 条消息（5 轮 × 2）
+            expect(store.conversationHistory.length).toBeLessThanOrEqual(10);
+            expect(store.conversationTurns).toBeLessThanOrEqual(5);
+        });
+
+        it('clearConversation 应清除对话历史', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callbacks.onContent?.('回答');
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('问题', 'smart');
+            expect(store.conversationHistory.length).toBe(2);
+
+            store.clearConversation();
+            expect(store.conversationHistory).toEqual([]);
+        });
+
+        it('clearHistory 也应清除对话历史', () => {
+            const store = useChatStore();
+            store.conversationHistory.push(
+                { role: 'user', content: '问题' },
+                { role: 'assistant', content: '回答' }
+            );
+            store.clearHistory();
+            expect(store.conversationHistory).toEqual([]);
+        });
+
+        it('startNewChat 应重置会话并清除对话历史', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callbacks.onContent?.('回答');
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('问题', 'smart');
+            expect(store.conversationHistory.length).toBe(2);
+            expect(store.currentSession.content).toBe('回答');
+
+            store.startNewChat();
+            expect(store.conversationHistory).toEqual([]);
+            expect(store.currentSession.content).toBe('');
+            expect(store.currentSession.query).toBe('');
+            expect(store.currentSession.isLoading).toBe(false);
+        });
+    });
+
     describe('sendChat 集成', () => {
         it('sendChat 应该初始化正确的 session 状态', async () => {
             const { chatCompletionStream } = await import(

@@ -7,7 +7,6 @@
 
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
-import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { useChatStore } from 'src/stores/chatStore';
 import type { SearchMode } from 'src/stores/searchModeStore';
 
@@ -32,7 +31,6 @@ export const chat = async ({
 }) => {
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
-    const searchHistoryStore = useSearchHistoryStore();
     const chatStore = useChatStore();
 
     layoutStore.setIsSuggestVisible(false);
@@ -45,8 +43,7 @@ export const chat = async ({
         queryStore.setQuery({ newQuery: queryValue, setRoute, mode });
     }
 
-    // 记录搜索历史
-    searchHistoryStore.addRecord(queryValue, 0).catch(console.error);
+    // 注意：搜索历史由 explore() 负责记录，chat 不重复记录
 
     // 发送聊天请求（流式）
     await chatStore.sendChat(queryValue, mode);

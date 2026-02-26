@@ -2,6 +2,7 @@
  * ChatStore - LLM 聊天状态管理
  *
  * 管理 "快速问答" 和 "智能思考" 模式下的 LLM 对话状态：
+ * - 多轮对话上下文管理
  * - 流式响应内容累积
  * - 加载/错误状态
  * - 性能统计
@@ -16,7 +17,18 @@ import {
     type PerfStats,
     type Usage,
     type ToolEvent,
+    type ToolCall,
 } from 'src/services/chatService';
+import { useExploreStore } from './exploreStore';
+
+/** 多轮对话中的单条消息 */
+export interface ConversationMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+/** 上下文管理：最多保留的对话轮数（每轮 = 1 user + 1 assistant） */
+const MAX_CONVERSATION_TURNS = 5;
 
 /** 单条聊天会话 */
 export interface ChatSession {
@@ -70,6 +82,8 @@ export const useChatStore = defineStore('chat', {
     state: () => ({
         /** 当前活跃的聊天会话 */
         currentSession: defaultSession() as ChatSession,
+        /** 多轮对话历史（user/assistant 消息对） */
+        conversationHistory: [] as ConversationMessage[],
         /** 历史会话列表 */
         sessions: [] as ChatSession[],
         /** 当前会话在历史列表中的索引 */
@@ -133,6 +147,11 @@ export const useChatStore = defineStore('chat', {
         toolEvents(): ToolEvent[] {
             return this.currentSession.toolEvents;
         },
+
+        /** 多轮对话的总轮数 */
+        conversationTurns(): number {
+            return Math.floor(this.conversationHistory.length / 2);
+        },
     },
 
     actions: {
@@ -144,14 +163,88 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        /** 重置当前会话状态 */
+        /** 重置当前会话状态（不清除对话历史） */
         resetSession() {
             this.abortCurrentRequest();
             this.currentSession = defaultSession();
         },
 
+        /** 清除对话历史（开始全新对话） */
+        clearConversation() {
+            this.conversationHistory = [];
+        },
+
+        /** 开始全新对话：重置当前会话 + 清除对话历史 */
+        startNewChat() {
+            this.clearConversation();
+            this.resetSession();
+        },
+
         /**
-         * 发送聊天请求（流式）
+         * 修剪对话历史以控制上下文大小
+         * 保留最近的 MAX_CONVERSATION_TURNS 轮对话
+         */
+        _trimConversationHistory() {
+            const maxMessages = MAX_CONVERSATION_TURNS * 2;
+            if (this.conversationHistory.length > maxMessages) {
+                // 从开头删除最早的消息对
+                const excess = this.conversationHistory.length - maxMessages;
+                // 确保删除偶数条（完整的对话轮次）
+                const toRemove = excess % 2 === 0 ? excess : excess + 1;
+                this.conversationHistory.splice(0, toRemove);
+            }
+        },
+
+        /**
+         * 构建发送给后端的完整消息列表
+         * 包含对话历史 + 当前用户消息
+         */
+        _buildMessages(query: string): ChatMessage[] {
+            const messages: ChatMessage[] = [];
+            // 添加历史消息
+            for (const msg of this.conversationHistory) {
+                messages.push({
+                    role: msg.role,
+                    content: msg.content,
+                });
+            }
+            // 添加当前用户消息
+            messages.push({ role: 'user', content: query });
+            return messages;
+        },
+
+        /**
+         * 从工具调用中同步搜索结果到 exploreStore
+         * 这样 ResultsList 组件可以正常显示聊天模式下的搜索结果
+         */
+        _syncSearchResultsToExploreStore(toolCall: ToolCall) {
+            if (toolCall.type !== 'search_videos' || toolCall.status !== 'completed') {
+                return;
+            }
+            const result = toolCall.result as { hits?: unknown[] } | undefined;
+            if (!result?.hits || !Array.isArray(result.hits)) {
+                return;
+            }
+            const exploreStore = useExploreStore();
+            // 更新 exploreStore 的最新搜索结果
+            exploreStore.updateLatestHitsResult({
+                step: 0,
+                name: 'search_videos',
+                name_zh: '搜索视频',
+                status: 'finished',
+                input: {},
+                output_type: 'hits',
+                comment: '',
+                output: {
+                    hits: result.hits,
+                    return_hits: result.hits.length,
+                    total_hits: result.hits.length,
+                },
+            });
+        },
+
+        /**
+         * 发送聊天请求（流式、多轮）
          *
          * @param query - 用户查询文本
          * @param mode - 搜索模式 ('smart' | 'think')
@@ -173,9 +266,8 @@ export const useChatStore = defineStore('chat', {
             const abortController = new AbortController();
             this._abortController = abortController;
 
-            const messages: ChatMessage[] = [
-                { role: 'user', content: query },
-            ];
+            // 构建含历史的完整消息列表
+            const messages = this._buildMessages(query);
 
             try {
                 await chatCompletionStream(
@@ -185,7 +277,6 @@ export const useChatStore = defineStore('chat', {
                     },
                     {
                         onStart: (chunk) => {
-                            // 接收到首个 chunk，记录 thinking 状态
                             if (chunk.thinking !== undefined) {
                                 this.currentSession.thinking = chunk.thinking;
                             }
@@ -199,10 +290,31 @@ export const useChatStore = defineStore('chat', {
                             this.currentSession.isThinkingPhase = false;
                         },
                         onToolEvent: (event) => {
-                            this.currentSession.toolEvents = [
-                                ...this.currentSession.toolEvents,
-                                event,
-                            ];
+                            // Merge tool events: if same iteration exists, update it
+                            // (pending → completed transition)
+                            const existingIdx = this.currentSession.toolEvents.findIndex(
+                                (e) => e.iteration === event.iteration
+                            );
+                            if (existingIdx >= 0) {
+                                // Update existing event (e.g., pending → completed)
+                                this.currentSession.toolEvents = [
+                                    ...this.currentSession.toolEvents.slice(0, existingIdx),
+                                    event,
+                                    ...this.currentSession.toolEvents.slice(existingIdx + 1),
+                                ];
+                            } else {
+                                // Add new event
+                                this.currentSession.toolEvents = [
+                                    ...this.currentSession.toolEvents,
+                                    event,
+                                ];
+                            }
+                            // Sync completed search results to exploreStore
+                            if (event.calls) {
+                                for (const call of event.calls) {
+                                    this._syncSearchResultsToExploreStore(call);
+                                }
+                            }
                         },
                         onDone: (perfStats, usage) => {
                             this.currentSession.isLoading = false;
@@ -214,7 +326,14 @@ export const useChatStore = defineStore('chat', {
                             if (usage) {
                                 this.currentSession.usage = usage;
                             }
-                            // 保存到历史列表
+                            // 将当前轮次追加到对话历史
+                            this.conversationHistory.push(
+                                { role: 'user', content: query },
+                                { role: 'assistant', content: this.currentSession.content }
+                            );
+                            // 修剪历史以控制上下文大小
+                            this._trimConversationHistory();
+                            // 保存到会话历史列表
                             this._saveToHistory();
                         },
                         onError: (error) => {
@@ -237,7 +356,6 @@ export const useChatStore = defineStore('chat', {
 
         /** 保存当前会话到历史 */
         _saveToHistory() {
-            // 如果用户从历史中分叉，截断后续会话
             if (this.currentSessionIdx < this.sessions.length - 1) {
                 this.sessions.splice(this.currentSessionIdx + 1);
             }
@@ -257,6 +375,7 @@ export const useChatStore = defineStore('chat', {
         clearHistory() {
             this.sessions = [];
             this.currentSessionIdx = -1;
+            this.conversationHistory = [];
             this.resetSession();
         },
     },

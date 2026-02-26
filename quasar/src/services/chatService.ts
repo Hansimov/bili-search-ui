@@ -17,10 +17,19 @@ export interface ChatMessage {
     content: string;
 }
 
+/** Tool call details - includes request args and results */
+export interface ToolCall {
+    type: string;          // tool name: 'search_videos' | 'check_author'
+    args: Record<string, unknown>;  // tool arguments
+    status: 'pending' | 'completed';
+    result?: unknown;      // tool result (only when status === 'completed')
+}
+
 /** Tool event from backend (which tools were called per iteration) */
 export interface ToolEvent {
     iteration: number;
-    tools: string[];
+    tools: string[];       // legacy: tool names array
+    calls?: ToolCall[];    // new: detailed tool calls with args and results
 }
 
 /** Performance stats from the backend (timing/rate metrics only) */

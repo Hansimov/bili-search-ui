@@ -2,11 +2,22 @@
   <q-card flat class="results-tabs-card">
     <!-- LLM 聊天面板：显示在搜索结果上方（smart/think 模式） -->
     <div v-if="showChatPanel" class="chat-results-container">
-      <ChatResponsePanel @retry="retryChat" />
+      <ChatResponsePanel
+        @retry="retryChat"
+        @showResults="showResultsDialog = true"
+      />
+
+      <!-- 聊天模式：搜索结果内联预览（交互式） -->
+      <div v-if="hasSearchResults" class="chat-results-inline">
+        <ResultsList
+          displayMode="inline"
+          @openDialog="showResultsDialog = true"
+        />
+      </div>
     </div>
 
-    <!-- 搜索结果列表：始终显示 -->
-    <div class="results-panels-card">
+    <!-- 直接查找模式：正常显示搜索结果 -->
+    <div v-if="!showChatPanel" class="results-panels-card">
       <q-tab-panels
         keep-alive
         v-model="activeTab"
@@ -22,14 +33,49 @@
         </q-tab-panel>
       </q-tab-panels>
     </div>
+
+    <!-- 搜索结果对话框（非全屏，可点击外部关闭） -->
+    <q-dialog
+      v-model="showResultsDialog"
+      transition-show="slide-up"
+      transition-hide="slide-down"
+    >
+      <q-card class="results-dialog-card">
+        <q-toolbar class="results-dialog-toolbar">
+          <q-icon
+            name="search"
+            size="20px"
+            class="q-mr-sm"
+            style="opacity: 0.5"
+          />
+          <q-toolbar-title class="results-dialog-title">
+            搜索结果
+            <span v-if="resultsSummaryText" class="results-dialog-count">{{
+              resultsSummaryText
+            }}</span>
+          </q-toolbar-title>
+          <q-btn
+            flat
+            round
+            dense
+            icon="close"
+            @click="showResultsDialog = false"
+          />
+        </q-toolbar>
+        <q-card-section class="results-dialog-body">
+          <ResultsList displayMode="dialog" />
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-card>
 </template>
 
 <script>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useChatStore } from 'src/stores/chatStore';
+import { useExploreStore } from 'src/stores/exploreStore';
 import { chat } from 'src/functions/chat';
 import ResultsList from 'src/components/ResultsList.vue';
 import ChatResponsePanel from 'src/components/ChatResponsePanel.vue';
@@ -43,14 +89,27 @@ export default {
     const layoutStore = useLayoutStore();
     const searchModeStore = useSearchModeStore();
     const chatStore = useChatStore();
+    const exploreStore = useExploreStore();
 
     const isChatMode = computed(() => {
-      // 显示聊天面板条件：当前为聊天模式 且 有正在进行或已完成的聊天
       return (
         searchModeStore.isChatMode &&
         (chatStore.isLoading || chatStore.hasContent || chatStore.hasError)
       );
     });
+
+    /** 是否有搜索结果可展示 */
+    const hasSearchResults = computed(() => exploreStore.hasResults);
+
+    /** 搜索结果摘要文本 */
+    const resultsSummaryText = computed(() => {
+      const total = exploreStore.currentStepResult?.output?.hits?.length || 0;
+      if (total > 0) return `${total} 条`;
+      return '';
+    });
+
+    /** 结果对话框 */
+    const showResultsDialog = ref(false);
 
     const retryChat = () => {
       const session = chatStore.currentSession;
@@ -67,6 +126,9 @@ export default {
     return {
       activeTab: computed(() => layoutStore.activeTab || 'videos'),
       showChatPanel: isChatMode,
+      hasSearchResults,
+      resultsSummaryText,
+      showResultsDialog,
       retryChat,
     };
   },
@@ -98,12 +160,64 @@ body.body--dark .search-bar-row {
 .chat-results-container {
   background: transparent;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-bottom: 80px; /* 为底部搜索栏留空间 */
+  /* Add padding at the bottom for the fixed search bar */
+  padding-bottom: calc(var(--search-bar-total-height, 96px) + 24px);
+  /* Set max height to fill available space minus header */
+  max-height: calc(100vh - 50px);
 }
+
+/* 聊天模式：内联搜索结果区域 */
+.chat-results-inline {
+  max-width: min(800px, 90vw);
+  width: 100%;
+  margin: 0 auto;
+  padding: 8px 12px 12px;
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+/* 搜索结果对话框（非全屏） */
+.results-dialog-card {
+  display: flex;
+  flex-direction: column;
+  width: 90vw;
+  max-width: 1100px;
+  height: 80vh;
+  max-height: 80vh;
+  border-radius: 12px;
+}
+
+.results-dialog-toolbar {
+  flex-shrink: 0;
+  min-height: 48px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+}
+
+.results-dialog-title {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.results-dialog-count {
+  font-size: 12px;
+  opacity: 0.5;
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+.results-dialog-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 12px;
+}
+
 .graph-results-list {
   grid-template-columns: repeat(
     auto-fill,
@@ -117,5 +231,23 @@ body.body--dark .q-tab-panels {
 }
 .q-tab-panel {
   padding: 0px;
+}
+
+/* 主题适配 */
+body.body--light {
+  .chat-results-inline {
+    background: rgba(0, 0, 0, 0.015);
+  }
+  .results-dialog-card {
+    background: #fff;
+  }
+}
+body.body--dark {
+  .chat-results-inline {
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .results-dialog-card {
+    background: var(--q-dark-page);
+  }
 }
 </style>

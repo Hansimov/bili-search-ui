@@ -1,5 +1,7 @@
 <template>
+  <!-- === 正常模式 / 对话框模式：完整统计栏 === -->
   <div
+    v-if="showStatsBar"
     class="row results-list-info-top justify-between"
     v-show="hasResults || isExploreLoading"
   >
@@ -56,21 +58,88 @@
       </q-menu>
     </q-btn>
   </div>
-  <ResultAuthorsList />
-  <ResultAuthorFilters v-show="isHasAuthorFilter" />
+
+  <!-- === 内联模式：简化头部（排序按钮 + 加载更多 / 查看全部） === -->
+  <div v-if="isInline && hasResults" class="inline-results-header">
+    <div class="inline-header-left">
+      <span class="inline-results-count">{{ sortedHits.length }} 条结果</span>
+      <q-btn
+        flat
+        dense
+        size="sm"
+        :icon-right="resultsSortMethod.icon"
+        :label="resultsSortMethod.label"
+        class="inline-sort-btn"
+      >
+        <q-menu>
+          <q-list dense>
+            <q-item
+              v-for="(method, index) in resultsSortMethods"
+              :key="index"
+              clickable
+              v-close-popup
+              @click="sortResults(method)"
+            >
+              <q-item-section>
+                <span>
+                  {{ method.label }}&nbsp;
+                  <q-icon :name="method.icon"></q-icon>
+                </span>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-menu>
+      </q-btn>
+    </div>
+    <div class="inline-header-right">
+      <q-btn
+        v-if="canLoadMoreInline"
+        flat
+        dense
+        no-caps
+        size="sm"
+        icon="expand_more"
+        label="加载更多"
+        class="inline-more-btn"
+        @click="loadMoreInline"
+      />
+      <q-btn
+        flat
+        dense
+        no-caps
+        size="sm"
+        icon="open_in_new"
+        label="查看全部"
+        class="inline-view-all-btn"
+        @click="$emit('openDialog')"
+      />
+    </div>
+  </div>
+
+  <!-- 作者列表/筛选：仅正常模式和对话框模式 -->
+  <ResultAuthorsList v-show="showAuthorsSection" />
+  <ResultAuthorFilters v-show="showAuthorFilters" />
+
+  <!-- 结果网格 -->
   <div
     ref="resultsListDiv"
-    :class="dynamicResultsListClass"
-    :style="dynamicResultsListStyle"
+    :class="gridClass"
+    :style="gridStyle"
     @scroll="handleScroll"
   >
     <ResultItem
-      v-for="(result, index) in loadedResults"
+      v-for="(result, index) in displayedResults"
       :key="result.bvid || index"
       :result="result"
     />
   </div>
-  <div class="flex flex-center q-pt-xs results-paginate-bottom">
+
+  <!-- 分页：仅正常模式和对话框模式 -->
+  <div
+    v-show="showPagination"
+    class="flex flex-center q-pt-xs results-paginate-bottom"
+    :class="{ 'results-paginate-dialog': isDialog }"
+  >
     <ResultsPagination
       :currentPage="currentPage"
       :totalPages="totalPages"
@@ -91,6 +160,32 @@ import ResultsPagination from './ResultsPagination.vue';
 import ResultAuthorsList from 'src/components/ResultAuthorsList.vue';
 import ResultAuthorFilters from './ResultAuthorFilters.vue';
 import ExploreSessionSwitch from './ExploreSessionSwitch.vue';
+
+export default {
+  props: {
+    /** 最多显示的结果数量（0 表示不限制，仅 normal 模式有效） */
+    maxItems: { type: Number, default: 0 },
+    /**
+     * 显示模式：
+     * - 'normal': 正常模式（直接查找，全功能）
+     * - 'inline': 内联模式（聊天面板中缩略显示，带排序和加载更多）
+     * - 'dialog': 对话框模式（弹窗中显示，类似正常但适配对话框尺寸）
+     */
+    displayMode: { type: String, default: 'normal' },
+  },
+  emits: ['openDialog'],
+  components: {
+    ResultItem,
+    ResultsPagination,
+    ResultAuthorsList,
+    ResultAuthorFilters,
+    ExploreSessionSwitch,
+  },
+  setup(props) {
+    // Forward to the main setup logic
+    return _setup(props);
+  },
+};
 
 // Composable: Step result status
 function useStepResultStatus(exploreStore) {
@@ -414,144 +509,220 @@ function usePageChange(
   };
 }
 
-export default {
-  components: {
-    ResultItem,
-    ResultsPagination,
-    ResultAuthorsList,
-    ResultAuthorFilters,
-    ExploreSessionSwitch,
-  },
-  setup() {
-    const searchStore = useSearchStore();
-    const exploreStore = useExploreStore();
-    const layoutStore = useLayoutStore();
+function _setup(props) {
+  const searchStore = useSearchStore();
+  const exploreStore = useExploreStore();
+  const layoutStore = useLayoutStore();
 
-    // Submitted query for loading display (not the live input value)
-    const submittedQuery = computed(() => exploreStore.submittedQuery || '');
+  // Display mode helpers
+  const isInline = computed(() => props.displayMode === 'inline');
+  const isDialog = computed(() => props.displayMode === 'dialog');
+  const isNormal = computed(() => props.displayMode === 'normal');
 
-    // Use composables
-    const stepStatus = useStepResultStatus(exploreStore);
-    const hitsData = useHitsData(exploreStore);
-    const sorting = useSorting(searchStore, layoutStore, hitsData.filteredHits);
-    const pagination = usePagination(layoutStore, sorting.sortedHits);
+  // Inline mode: progressive loading
+  const INLINE_INITIAL = 3;
+  const INLINE_STEP = 6;
+  const inlineLimit = ref(INLINE_INITIAL);
 
-    // DOM refs
-    const resultsListDiv = ref(null);
-    const resultItemRefs = ref({});
+  // Submitted query for loading display (not the live input value)
+  const submittedQuery = computed(() => exploreStore.submittedQuery || '');
 
-    // Page change handling
-    const pageChange = usePageChange(
-      layoutStore,
-      resultsListDiv,
-      pagination.loadedPages,
-      pagination.totalPages,
-      ref(false), // will be replaced by scroll's isUpdatingFromScroll
-      pagination.getPageIndexInLoadedResults
-    );
+  // Use composables
+  const stepStatus = useStepResultStatus(exploreStore);
+  const hitsData = useHitsData(exploreStore);
+  const sorting = useSorting(searchStore, layoutStore, hitsData.filteredHits);
+  const pagination = usePagination(layoutStore, sorting.sortedHits);
 
-    // Infinite scroll handling
-    const scroll = useInfiniteScroll(
-      layoutStore,
-      resultsListDiv,
-      pagination.loadedPages,
-      pagination.loadedResults,
-      pagination.itemsPerPage,
-      pagination.totalPages,
-      sorting.currentPage,
-      pageChange.isUpdatingFromPage
-    );
+  // DOM refs
+  const resultsListDiv = ref(null);
+  const resultItemRefs = ref({});
 
-    // Update the isUpdatingFromScroll ref in pageChange
-    pageChange.isUpdatingFromPage = pageChange.isUpdatingFromPage;
+  // Page change handling
+  const pageChange = usePageChange(
+    layoutStore,
+    resultsListDiv,
+    pagination.loadedPages,
+    pagination.totalPages,
+    ref(false), // will be replaced by scroll's isUpdatingFromScroll
+    pagination.getPageIndexInLoadedResults
+  );
 
-    // Computed properties
-    const isShowResultsStats = computed(
-      () =>
-        stepStatus.currentStepStatus.value === 'finished' &&
-        isNonEmptyArray(hitsData.allHits.value)
-    );
+  // Infinite scroll handling
+  const scroll = useInfiniteScroll(
+    layoutStore,
+    resultsListDiv,
+    pagination.loadedPages,
+    pagination.loadedResults,
+    pagination.itemsPerPage,
+    pagination.totalPages,
+    sorting.currentPage,
+    pageChange.isUpdatingFromPage
+  );
 
-    const isCollapsePaginate = computed(() => layoutStore.isCollapsePaginate());
+  // Update the isUpdatingFromScroll ref in pageChange
+  pageChange.isUpdatingFromPage = pageChange.isUpdatingFromPage;
 
-    const dynamicResultsListClass = computed(() =>
-      layoutStore.isSmallScreen()
-        ? 'results-list q-gutter-none'
-        : 'results-list q-gutter-xs'
-    );
+  // Computed properties
+  const isShowResultsStats = computed(
+    () =>
+      stepStatus.currentStepStatus.value === 'finished' &&
+      isNonEmptyArray(hitsData.allHits.value)
+  );
 
-    const dynamicResultsListStyle = computed(() => {
-      const authorsListHeight = layoutStore.authorsListHeight || 0;
-      // 86px = header (~50px) + results stats bar (~36px)
-      // 48px = pagination bar height (button + padding)
-      // searchBarTotalHeight = search input wrapper + sticky padding (set by SearchInput)
-      const topFixedHeight = 86 + authorsListHeight;
-      const searchBarHeight = layoutStore.searchBarTotalHeight || 96;
-      return {
-        maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
-        maxHeight: `calc(100vh - ${topFixedHeight}px - ${searchBarHeight}px - 16px)`,
-      };
-    });
-
-    const isExploreSessionVisible = computed(() =>
-      exploreStore.isSessionSwitchVisible()
-    );
-
-    const hasResults = computed(() => exploreStore.hasResults);
-    const isExploreLoading = computed(() => exploreStore.isExploreLoading);
-
-    // Watch for results changes
-    watch([() => sorting.sortedHits.value], () => {
-      layoutStore.resetLoadedPages();
-      if (resultsListDiv.value) {
-        resultsListDiv.value.scrollTop = 0;
-      }
-    });
-
-    // Lifecycle hooks
-    onMounted(() => {
-      layoutStore.addWindowResizeListener();
-    });
-
-    onUnmounted(() => {
-      layoutStore.removeWindowResizeListener();
-    });
-
+  const dynamicResultsListStyle = computed(() => {
+    const authorsListHeight = layoutStore.authorsListHeight || 0;
+    // 86px = header (~50px) + results stats bar (~36px)
+    // 48px = pagination bar height (button + padding)
+    // searchBarTotalHeight = search input wrapper + sticky padding (set by SearchInput)
+    const topFixedHeight = 86 + authorsListHeight;
+    const searchBarHeight = layoutStore.searchBarTotalHeight || 96;
     return {
-      // Step status
-      ...stepStatus,
-      // Hits data
-      returnHits: hitsData.returnHits,
-      totalHits: hitsData.totalHits,
-      isReturnResultsLessThanTotal: hitsData.isReturnResultsLessThanTotal,
-      isHasAuthorFilter: hitsData.isHasAuthorFilter,
-      // Sorting
-      resultsSortMethods,
-      resultsSortMethod: sorting.resultsSortMethod,
-      sortResults: sorting.sortResults,
-      sortedHits: sorting.sortedHits,
-      currentPage: sorting.currentPage,
-      // Pagination
-      totalPages: pagination.totalPages,
-      loadedResults: pagination.loadedResults,
-      // UI
-      isShowResultsStats,
-      isCollapsePaginate,
-      dynamicResultsListClass,
-      dynamicResultsListStyle,
-      isExploreSessionVisible,
-      hasResults,
-      isExploreLoading,
-      submittedQuery,
-      // DOM refs
-      resultsListDiv,
-      resultItemRefs,
-      // Handlers
-      handleScroll: scroll.handleScroll,
-      handlePageChange: pageChange.handlePageChange,
+      maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
+      maxHeight: `calc(100vh - ${topFixedHeight}px - ${searchBarHeight}px - 16px)`,
     };
-  },
-};
+  });
+
+  const isExploreSessionVisible = computed(() =>
+    exploreStore.isSessionSwitchVisible()
+  );
+
+  const hasResults = computed(() => exploreStore.hasResults);
+  const isExploreLoading = computed(() => exploreStore.isExploreLoading);
+
+  // Watch for results changes
+  watch([() => sorting.sortedHits.value], () => {
+    layoutStore.resetLoadedPages();
+    if (resultsListDiv.value) {
+      resultsListDiv.value.scrollTop = 0;
+    }
+  });
+
+  // Lifecycle hooks
+  onMounted(() => {
+    layoutStore.addWindowResizeListener();
+  });
+
+  onUnmounted(() => {
+    layoutStore.removeWindowResizeListener();
+  });
+
+  /** 是否处于折叠模式（maxItems > 0，仅 normal 模式） */
+  const isCollapsed = computed(() => isNormal.value && props.maxItems > 0);
+
+  /** 实际展示的结果 */
+  const displayedResults = computed(() => {
+    if (isInline.value) {
+      // 内联模式：从 sortedHits 中取前 N 条
+      return sorting.sortedHits.value.slice(0, inlineLimit.value);
+    }
+    const all = pagination.loadedResults.value;
+    if (props.maxItems > 0) {
+      return all.slice(0, props.maxItems);
+    }
+    return all;
+  });
+
+  /** 内联模式：是否还能加载更多 */
+  const canLoadMoreInline = computed(
+    () => isInline.value && inlineLimit.value < sorting.sortedHits.value.length
+  );
+
+  /** 内联模式：加载更多 */
+  const loadMoreInline = () => {
+    inlineLimit.value += INLINE_STEP;
+  };
+
+  // UI visibility helpers based on display mode
+  const showStatsBar = computed(() => !isInline.value);
+  const showAuthorsSection = computed(
+    () => (isNormal.value || isDialog.value) && !isCollapsed.value
+  );
+  const showAuthorFilters = computed(
+    () =>
+      hitsData.isHasAuthorFilter.value &&
+      (isNormal.value || isDialog.value) &&
+      !isCollapsed.value
+  );
+  const showPagination = computed(
+    () => (isNormal.value || isDialog.value) && !isCollapsed.value
+  );
+
+  // Grid class & style per mode
+  const gridClass = computed(() => {
+    if (isInline.value) {
+      return layoutStore.isSmallScreen()
+        ? 'results-list results-list--inline q-gutter-none'
+        : 'results-list results-list--inline q-gutter-xs';
+    }
+    if (isDialog.value) {
+      return layoutStore.isSmallScreen()
+        ? 'results-list results-list--dialog q-gutter-none'
+        : 'results-list results-list--dialog q-gutter-xs';
+    }
+    return layoutStore.isSmallScreen()
+      ? 'results-list q-gutter-none'
+      : 'results-list q-gutter-xs';
+  });
+
+  const gridStyle = computed(() => {
+    if (isInline.value) {
+      return {
+        maxHeight: '400px',
+      };
+    }
+    if (isDialog.value) {
+      return {};
+    }
+    // Normal mode: full dynamic calculation
+    return dynamicResultsListStyle.value;
+  });
+
+  return {
+    // Display mode
+    isInline,
+    isDialog,
+    isNormal,
+    // Step status
+    ...stepStatus,
+    // Hits data
+    returnHits: hitsData.returnHits,
+    totalHits: hitsData.totalHits,
+    isReturnResultsLessThanTotal: hitsData.isReturnResultsLessThanTotal,
+    isHasAuthorFilter: hitsData.isHasAuthorFilter,
+    // Sorting
+    resultsSortMethods,
+    resultsSortMethod: sorting.resultsSortMethod,
+    sortResults: sorting.sortResults,
+    sortedHits: sorting.sortedHits,
+    currentPage: sorting.currentPage,
+    // Pagination
+    totalPages: pagination.totalPages,
+    loadedResults: pagination.loadedResults,
+    displayedResults,
+    isCollapsed,
+    // Inline
+    canLoadMoreInline,
+    loadMoreInline,
+    // UI visibility
+    showStatsBar,
+    showAuthorsSection,
+    showAuthorFilters,
+    showPagination,
+    isShowResultsStats,
+    gridClass,
+    gridStyle,
+    isExploreSessionVisible,
+    hasResults,
+    isExploreLoading,
+    submittedQuery,
+    // DOM refs
+    resultsListDiv,
+    resultItemRefs,
+    // Handlers
+    handleScroll: scroll.handleScroll,
+    handlePageChange: pageChange.handlePageChange,
+  };
+}
 </script>
 
 <style lang="scss" scoped>
@@ -614,6 +785,9 @@ export default {
   /* 给固定在底部的搜索栏留出空间 */
   padding-bottom: calc(var(--search-bar-total-height, 96px) - 9px);
 }
+.results-paginate-dialog {
+  padding-bottom: 12px;
+}
 .q-btn {
   padding: 6px 5px 6px 6px;
   min-height: 28px;
@@ -634,10 +808,90 @@ export default {
     background: transparent;
   }
 }
+
+/* 内联模式：自适应宽度网格，左对齐填充 */
+.results-list--inline {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  max-width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  justify-content: start;
+  contain: none;
+  gap: 8px;
+}
+
+/* 对话框模式：自适应宽度网格，左对齐填充 */
+.results-list--dialog {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  max-width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  justify-content: start;
+  contain: none;
+  gap: 8px;
+}
+
+/* 内联/对话框模式下，解除 result-item 的固定宽度限制 */
+.results-list--inline :deep(.result-item),
+.results-list--inline :deep(.result-item-cover),
+.results-list--dialog :deep(.result-item),
+.results-list--dialog :deep(.result-item-cover) {
+  max-width: 100%;
+}
 @media (max-width: 569px) {
   .results-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin: auto;
+  }
+}
+
+/* === 内联模式样式 === */
+.inline-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px 8px;
+  font-size: 12px;
+}
+
+.inline-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.65;
+}
+
+.inline-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inline-results-count {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.inline-sort-btn {
+  font-size: 11px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 2px 6px !important;
+  opacity: 0.7;
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.inline-more-btn,
+.inline-view-all-btn {
+  font-size: 12px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 2px 10px !important;
+  opacity: 0.6;
+  &:hover {
+    opacity: 1;
   }
 }
 </style>

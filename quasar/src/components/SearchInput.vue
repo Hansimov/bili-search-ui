@@ -67,19 +67,12 @@
                 'mode-btn-disabled': true,
                 [`mode-btn-${mode.value}`]: true,
               }"
+              title="正在测试，即将推出：生成深度研究报告"
               @mouseenter="hoveredMode = mode.value"
               @mouseleave="hoveredMode = null"
             >
               <q-icon :name="mode.icon" size="14px" class="q-mr-xs" />
               <span class="mode-label">{{ getModeDisplayLabel(mode) }}</span>
-              <q-tooltip
-                anchor="top middle"
-                self="bottom middle"
-                :offset="[0, 8]"
-                class="research-tooltip"
-              >
-                正在测试，即将推出
-              </q-tooltip>
             </q-btn>
             <!-- 其他模式按钮：正常交互 -->
             <q-btn
@@ -489,23 +482,27 @@ export default {
       const mode = searchModeStore.currentMode;
       if (mode === 'smart' || mode === 'think') {
         // LLM 模式：同时触发搜索和聊天
+        const submittedQuery = queryModel.value;
         queryStore.setQuery({
-          newQuery: queryModel.value,
+          newQuery: submittedQuery,
           setRoute: true,
           mode,
         });
         explore({
-          queryValue: queryModel.value,
+          queryValue: submittedQuery,
           setQuery: false,
           setRoute: false,
         });
         chat({
-          queryValue: queryModel.value,
+          queryValue: submittedQuery,
           mode,
           setQuery: false,
           setRoute: false,
         });
         layoutStore.setCurrentPage(1);
+        // 提交后清空输入框
+        queryModel.value = '';
+        nextTick(() => autoResize());
       } else {
         // 直接查找模式：仅触发 explore
         await explore({
@@ -564,12 +561,9 @@ export default {
       }
     );
 
-    // 当索引更新时（如搜索结果返回后），若输入框仍聚焦则自动显示建议
-    // 同时重置 suppressSuggest，允许建议在用户继续输入时及时更新
+    // 当索引更新时（如搜索结果返回后），若输入框仍聚焦且未被抑制则自动显示建议
     watch(suggestIndexVersion, () => {
-      if (isInputFocused.value) {
-        // 索引更新表示有新数据可用，解除建议抑制
-        suppressSuggest.value = false;
+      if (isInputFocused.value && !suppressSuggest.value) {
         if (!layoutStore.isSuggestVisible) {
           layoutStore.setIsSuggestVisible(true);
         }
@@ -724,11 +718,7 @@ export default {
 .mode-btn-disabled {
   cursor: not-allowed !important;
   opacity: 0.45 !important;
-  pointer-events: auto; /* 保留 hover 事件以显示 tooltip */
-}
-
-.research-tooltip {
-  font-size: 12px;
+  pointer-events: auto; /* 保留 hover 事件以显示 title */
 }
 
 /* Light theme */

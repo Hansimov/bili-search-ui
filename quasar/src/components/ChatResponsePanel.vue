@@ -1,22 +1,33 @@
 <template>
   <div class="chat-response-panel" :class="{ 'chat-thinking': isThinking }">
-    <!-- 工具调用状态指示（实时流式更新） -->
-    <div v-if="toolEvents.length > 0" class="chat-tool-events">
-      <div
-        v-for="(event, idx) in toolEvents"
-        :key="idx"
-        class="tool-event-item"
-      >
-        <q-icon name="build" size="14px" class="tool-event-icon" />
-        <span class="tool-event-text">
-          {{ formatToolEvent(event) }}
-        </span>
+    <!-- 多轮对话：历史消息 -->
+    <template v-for="(msg, idx) in chatHistory" :key="idx">
+      <!-- 用户消息 -->
+      <div v-if="msg.role === 'user'" class="chat-user-query">
+        <span class="user-query-text">{{ msg.content }}</span>
       </div>
+      <!-- 助手消息（历史） -->
+      <div v-else-if="msg.role === 'assistant'" class="chat-history-assistant">
+        <div
+          class="chat-content markdown-body"
+          v-html="renderMd(msg.content)"
+        ></div>
+      </div>
+    </template>
+
+    <!-- 当前回合：用户提问 -->
+    <div v-if="userQuery" class="chat-user-query">
+      <span class="user-query-text">{{ userQuery }}</span>
     </div>
 
-    <!-- 加载状态：等待 LLM 响应（无思考内容、无回答内容时显示） -->
+    <!-- 加载状态：等待 LLM 响应（无思考内容、无回答内容、无工具调用时显示） -->
     <div
-      v-if="isLoading && !hasContent && !hasThinkingContent"
+      v-if="
+        isLoading &&
+        !hasContent &&
+        !hasThinkingContent &&
+        toolEvents.length === 0
+      "
       class="chat-loading"
     >
       <div class="chat-loading-indicator">
@@ -35,8 +46,7 @@
           :name="thinkingExpanded ? 'expand_less' : 'expand_more'"
           size="18px"
         />
-        <q-icon name="psychology" size="16px" class="thinking-icon" />
-        <span class="thinking-header-text">思考过程</span>
+        <span class="thinking-header-text">{{ thinkingHeaderLabel }}</span>
         <span v-if="isThinkingPhase" class="thinking-active-badge"
           >思考中…</span
         >
@@ -48,6 +58,13 @@
         >
       </div>
     </div>
+
+    <!-- 工具调用状态（新组件：详细展示每个工具调用） -->
+    <ToolCallDisplay
+      v-if="allToolCalls.length > 0"
+      :toolCalls="allToolCalls"
+      @viewAllResults="$emit('showResults')"
+    />
 
     <!-- Markdown 内容渲染 -->
     <div
@@ -63,14 +80,7 @@
 
     <!-- 性能统计 -->
     <div v-if="isDone && perfStats" class="chat-perf-stats">
-      <q-icon name="speed" size="14px" class="perf-icon" />
-      <span class="perf-text">
-        {{ perfStats.total_elapsed }}
-        · {{ perfStats.tokens_per_second }} tokens/s
-        <template v-if="usage">
-          · {{ usage.completion_tokens ?? 0 }} tokens
-        </template>
-      </span>
+      <span class="perf-text">{{ formattedPerfStats }}</span>
     </div>
 
     <!-- 错误信息 -->
@@ -93,8 +103,9 @@
 import { computed, defineComponent, ref } from 'vue';
 import { useChatStore } from 'src/stores/chatStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
-import type { ToolEvent } from 'src/services/chatService';
+import type { ToolEvent, ToolCall } from 'src/services/chatService';
 import { renderMarkdown } from 'src/utils/markdown';
+import ToolCallDisplay from './ToolCallDisplay.vue';
 
 /** 工具名称中英对照 */
 const TOOL_LABELS: Record<string, string> = {
@@ -105,7 +116,10 @@ const TOOL_LABELS: Record<string, string> = {
 
 export default defineComponent({
   name: 'ChatResponsePanel',
-  emits: ['retry'],
+  components: {
+    ToolCallDisplay,
+  },
+  emits: ['retry', 'showResults'],
   setup() {
     const chatStore = useChatStore();
     const searchModeStore = useSearchModeStore();
@@ -125,6 +139,37 @@ export default defineComponent({
     const errorMessage = computed(
       () => chatStore.currentSession.error || '请求失败'
     );
+    const userQuery = computed(() => chatStore.currentSession.query || '');
+
+    /** 从所有 tool events 中提取扁平的 tool calls 列表 */
+    const allToolCalls = computed((): ToolCall[] => {
+      const calls: ToolCall[] = [];
+      for (const event of toolEvents.value) {
+        if (event.calls && event.calls.length > 0) {
+          calls.push(...event.calls);
+        }
+      }
+      return calls;
+    });
+
+    /**
+     * 多轮对话历史（不含当前回合）
+     * onDone 后当前轮次会被追加到 conversationHistory，
+     * 但当前轮次已经由下方的 userQuery / renderedContent 显示，
+     * 所以需要去掉最后一轮以避免重复。
+     */
+    const chatHistory = computed(() => {
+      const history = chatStore.conversationHistory;
+      // 当前会话已完成且内容已追加到 history 时，排除最后一轮
+      if (
+        chatStore.isDone &&
+        history.length >= 2 &&
+        history[history.length - 2]?.content === chatStore.currentSession.query
+      ) {
+        return history.slice(0, -2);
+      }
+      return history;
+    });
 
     const modeColor = computed(() => {
       const mode = searchModeStore.currentMode;
@@ -137,6 +182,12 @@ export default defineComponent({
       return 'AI 正在回答...';
     });
 
+    /** 思考标题：思考中时不显示 "思考过程"，完成后才显示 */
+    const thinkingHeaderLabel = computed(() => {
+      if (isThinkingPhase.value) return '';
+      return '思考过程';
+    });
+
     /** 渲染 Markdown 内容为 HTML */
     const renderedContent = computed(() => {
       const raw = chatStore.content;
@@ -144,18 +195,62 @@ export default defineComponent({
       return renderMarkdown(raw);
     });
 
-    /** 渲染思考内容为 HTML */
+    /** 渲染思考内容为 HTML（去除末尾空行） */
     const renderedThinkingContent = computed(() => {
-      const raw = chatStore.thinkingContent;
+      let raw = chatStore.thinkingContent;
       if (!raw) return '';
+      // 去除末尾空行
+      raw = raw.replace(/\n+$/, '');
       return renderMarkdown(raw);
+    });
+
+    /** 格式化性能统计为完整字符串 */
+    const formattedPerfStats = computed(() => {
+      const ps = perfStats.value;
+      const u = usage.value;
+      if (!ps) return '';
+
+      // 格式化时间：从 total_elapsed_ms 计算 min/s
+      const totalMs = ps.total_elapsed_ms || 0;
+      const parts: string[] = [];
+
+      if (totalMs >= 60000) {
+        const min = Math.floor(totalMs / 60000);
+        const sec = Math.round((totalMs % 60000) / 1000);
+        parts.push(`用时 ${min} min ${sec} s`);
+      } else {
+        const sec = (totalMs / 1000).toFixed(1);
+        parts.push(`用时 ${sec} s`);
+      }
+
+      if (u?.prompt_tokens) {
+        parts.push(`输入 ${u.prompt_tokens} tokens`);
+      }
+      if (u?.completion_tokens) {
+        parts.push(`输出 ${u.completion_tokens} tokens`);
+      }
+      if (ps.tokens_per_second) {
+        parts.push(`${ps.tokens_per_second} tokens/s`);
+      }
+
+      return parts.join(' · ');
     });
 
     /** 格式化工具事件显示 */
     const formatToolEvent = (event: ToolEvent): string => {
       const toolNames = event.tools.map((t) => TOOL_LABELS[t] || t).join('、');
-      return `第 ${event.iteration} 轮：${toolNames}`;
+      return toolNames;
     };
+
+    /** 判断工具事件是否包含搜索类工具（可以查看结果） */
+    const hasSearchTool = (event: ToolEvent): boolean => {
+      return event.tools.some(
+        (t) => t === 'search_videos' || t === 'check_author'
+      );
+    };
+
+    /** 暴露 renderMarkdown 给模板用于历史消息渲染 */
+    const renderMd = (text: string) => renderMarkdown(text);
 
     return {
       thinkingExpanded,
@@ -168,13 +263,20 @@ export default defineComponent({
       perfStats,
       usage,
       toolEvents,
+      allToolCalls,
       isThinking,
       errorMessage,
+      userQuery,
+      chatHistory,
       modeColor,
       loadingText,
+      thinkingHeaderLabel,
       renderedContent,
       renderedThinkingContent,
+      formattedPerfStats,
       formatToolEvent,
+      hasSearchTool,
+      renderMd,
     };
   },
 });
@@ -183,35 +285,73 @@ export default defineComponent({
 <style lang="scss" scoped>
 .chat-response-panel {
   max-width: min(800px, 90vw);
+  width: 100%;
   margin: 0 auto;
   padding: 16px 20px;
   font-size: 15px;
   line-height: 1.7;
 }
 
-/* 工具调用事件 */
-.chat-tool-events {
+/* 用户提问（弱化样式） */
+.chat-user-query {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.user-query-text {
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 历史助手消息 */
+.chat-history-assistant {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+/* 内联工具调用状态 */
+.chat-tool-inline {
+  margin-bottom: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.tool-event-item {
+.tool-inline-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
+  gap: 3px;
+  font-size: 11px;
+  opacity: 0.45;
 }
 
-.tool-event-icon {
+.tool-inline-icon {
   opacity: 0.6;
 }
 
-.tool-event-text {
+.tool-inline-text {
+  font-style: italic;
+}
+
+.tool-inline-link {
+  font-size: 11px;
+  color: #1976d2;
+  cursor: pointer;
+  margin-left: 4px;
   opacity: 0.7;
+  transition: opacity 0.15s ease;
+  &:hover {
+    opacity: 1;
+    text-decoration: underline;
+  }
 }
 
 /* 思考/推理内容区域 */
@@ -219,6 +359,8 @@ export default defineComponent({
   margin-bottom: 14px;
   border-radius: 8px;
   overflow: hidden;
+  /* 占满父容器宽度，折叠时保持稳定 */
+  width: 100%;
 }
 
 .chat-thinking-header {
@@ -231,14 +373,12 @@ export default defineComponent({
   user-select: none;
   border-radius: 8px;
   transition: background 0.15s ease;
+  /* 保持稳定高度，避免内容变化时跳动 */
+  min-height: 32px;
 
   &:hover {
     background: rgba(128, 128, 128, 0.08);
   }
-}
-
-.thinking-icon {
-  opacity: 0.6;
 }
 
 .thinking-header-text {
@@ -325,11 +465,7 @@ export default defineComponent({
   padding-top: 12px;
   border-top: 1px solid rgba(128, 128, 128, 0.15);
   font-size: 12px;
-  opacity: 0.5;
-}
-
-.perf-icon {
-  opacity: 0.7;
+  opacity: 0.45;
 }
 
 /* 错误信息 */
@@ -447,8 +583,8 @@ body.body--light {
     color: #333;
   }
 
-  .tool-event-item {
-    background: rgba(0, 0, 0, 0.05);
+  .chat-user-query {
+    background: rgba(0, 0, 0, 0.03);
     color: #555;
   }
 
@@ -493,13 +629,17 @@ body.body--dark {
     color: #ddd;
   }
 
-  .tool-event-item {
-    background: rgba(255, 255, 255, 0.07);
+  .chat-user-query {
+    background: rgba(255, 255, 255, 0.04);
     color: #aaa;
   }
 
   .chat-error {
     background: rgba(244, 67, 54, 0.1);
+  }
+
+  .tool-inline-link {
+    color: #64b5f6;
   }
 
   .chat-content {
