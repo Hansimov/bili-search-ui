@@ -54,26 +54,54 @@
       <!-- 底部工具栏（在边框内） -->
       <div class="search-toolbar">
         <div class="toolbar-modes">
-          <q-btn
-            v-for="mode in modeOptions"
-            :key="mode.value"
-            dense
-            flat
-            no-caps
-            size="sm"
-            :class="{
-              'mode-btn': true,
-              'mode-btn-active': currentMode === mode.value,
-              [`mode-btn-${mode.value}`]: true,
-            }"
-            :title="mode.description"
-            @click="selectMode(mode.value)"
-            @mouseenter="hoveredMode = mode.value"
-            @mouseleave="hoveredMode = null"
-          >
-            <q-icon :name="mode.icon" size="14px" class="q-mr-xs" />
-            <span class="mode-label">{{ getModeDisplayLabel(mode) }}</span>
-          </q-btn>
+          <template v-for="mode in modeOptions" :key="mode.value">
+            <!-- 深度研究按钮：禁用但保持动效 -->
+            <q-btn
+              v-if="mode.value === 'research'"
+              dense
+              flat
+              no-caps
+              size="sm"
+              :class="{
+                'mode-btn': true,
+                'mode-btn-disabled': true,
+                [`mode-btn-${mode.value}`]: true,
+              }"
+              @mouseenter="hoveredMode = mode.value"
+              @mouseleave="hoveredMode = null"
+            >
+              <q-icon :name="mode.icon" size="14px" class="q-mr-xs" />
+              <span class="mode-label">{{ getModeDisplayLabel(mode) }}</span>
+              <q-tooltip
+                anchor="top middle"
+                self="bottom middle"
+                :offset="[0, 8]"
+                class="research-tooltip"
+              >
+                正在测试，即将推出
+              </q-tooltip>
+            </q-btn>
+            <!-- 其他模式按钮：正常交互 -->
+            <q-btn
+              v-else
+              dense
+              flat
+              no-caps
+              size="sm"
+              :class="{
+                'mode-btn': true,
+                'mode-btn-active': currentMode === mode.value,
+                [`mode-btn-${mode.value}`]: true,
+              }"
+              :title="mode.description"
+              @click="selectMode(mode.value)"
+              @mouseenter="hoveredMode = mode.value"
+              @mouseleave="hoveredMode = null"
+            >
+              <q-icon :name="mode.icon" size="14px" class="q-mr-xs" />
+              <span class="mode-label">{{ getModeDisplayLabel(mode) }}</span>
+            </q-btn>
+          </template>
         </div>
       </div>
     </div>
@@ -99,6 +127,7 @@ import {
 } from 'src/stores/searchModeStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { explore } from 'src/functions/explore';
+import { chat } from 'src/functions/chat';
 import {
   getSmartSuggestService,
   suggestIndexVersion,
@@ -333,6 +362,7 @@ export default {
         searchQuery = `uid=${item.meta.uid}`;
       }
       queryModel.value = searchQuery;
+      // 建议操作始终使用 explore（直接查找）模式
       explore({
         queryValue: searchQuery,
         setQuery: true,
@@ -456,21 +486,51 @@ export default {
 
     const submitQuery = async () => {
       if (!queryModel.value || !queryModel.value.trim()) return;
-      await explore({
-        queryValue: queryModel.value,
-        setQuery: true,
-        setRoute: true,
-      });
-      layoutStore.setCurrentPage(1);
+      const mode = searchModeStore.currentMode;
+      if (mode === 'smart' || mode === 'think') {
+        // LLM 模式：同时触发搜索和聊天
+        queryStore.setQuery({
+          newQuery: queryModel.value,
+          setRoute: true,
+          mode,
+        });
+        explore({
+          queryValue: queryModel.value,
+          setQuery: false,
+          setRoute: false,
+        });
+        chat({
+          queryValue: queryModel.value,
+          mode,
+          setQuery: false,
+          setRoute: false,
+        });
+        layoutStore.setCurrentPage(1);
+      } else {
+        // 直接查找模式：仅触发 explore
+        await explore({
+          queryValue: queryModel.value,
+          setQuery: true,
+          setRoute: true,
+        });
+        layoutStore.setCurrentPage(1);
+      }
     };
 
     // URL 驱动的搜索 (route.query.q 变化时)
+    // 注意：URL 导航只触发 explore，不触发 LLM 聊天
+    // LLM 聊天仅在用户显式提交（回车/点击发送）时触发
     watch(
       () => route.query.q,
       (newQuery, oldQuery) => {
         if (newQuery && newQuery !== oldQuery) {
           if (exploreStore.isRestoringSession) {
             return;
+          }
+          // 从 URL 恢复搜索模式
+          const urlMode = route.query.mode as string | undefined;
+          if (urlMode && ['smart', 'think', 'direct'].includes(urlMode)) {
+            searchModeStore.setMode(urlMode as SearchMode);
           }
           const currentQuery = queryStore.query;
           if (newQuery !== currentQuery || !exploreStore.isExploreLoading) {
@@ -481,7 +541,13 @@ export default {
               !exploreStore.hasResults ||
               exploreStore.isExploreLoading === false
             ) {
-              submitQuery();
+              // URL 导航只触发搜索，不触发 LLM 聊天
+              explore({
+                queryValue: String(newQuery),
+                setQuery: false,
+                setRoute: false,
+              });
+              layoutStore.setCurrentPage(1);
             }
           }
         }
@@ -652,6 +718,17 @@ export default {
     font-size: 11px;
     line-height: 1;
   }
+}
+
+/* 禁用模式按钮（深度研究）：保持动效但不可点击 */
+.mode-btn-disabled {
+  cursor: not-allowed !important;
+  opacity: 0.45 !important;
+  pointer-events: auto; /* 保留 hover 事件以显示 tooltip */
+}
+
+.research-tooltip {
+  font-size: 12px;
 }
 
 /* Light theme */
