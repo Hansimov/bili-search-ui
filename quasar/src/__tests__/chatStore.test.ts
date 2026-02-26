@@ -155,6 +155,29 @@ describe('ChatStore', () => {
             expect(abortSpy).toHaveBeenCalled();
         });
 
+        it('abortCurrentRequest 应该调用 /chat/abort 端点', async () => {
+            const store = useChatStore();
+            const controller = new AbortController();
+            store._abortController = controller;
+            store._streamId = 'test-stream-123';
+
+            // Mock fetch for the abort call
+            const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+                new Response(JSON.stringify({ status: 'aborted' }))
+            );
+
+            store.abortCurrentRequest();
+
+            expect(store._streamId).toBeNull();
+            expect(fetchSpy).toHaveBeenCalledWith('/api/chat/abort', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stream_id: 'test-stream-123' }),
+            });
+
+            fetchSpy.mockRestore();
+        });
+
         it('_saveToHistory 应该追加会话', () => {
             const store = useChatStore();
             store.currentSession.query = '测试1';
@@ -433,6 +456,26 @@ describe('ChatStore', () => {
             ]);
             expect(store.currentSession.perfStats?.tokens_per_second).toBe(50);
             expect(store.currentSession.usage?.completion_tokens).toBe(100);
+        });
+
+        it('sendChat 应该保存 stream_id 用于中止', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                // Backend sends stream_id as the very first event
+                callbacks.onStreamId?.('abc123');
+                callbacks.onContent?.('回答');
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('测试', 'smart');
+
+            // After onDone, _streamId should be cleared
+            expect(store._streamId).toBeNull();
         });
 
         it('sendChat think 模式应该设置 thinking=true', async () => {
@@ -714,6 +757,7 @@ describe('ChatStore 扩展功能', () => {
                     isLoading: false,
                     isThinkingPhase: false,
                     isDone: true,
+                    isAborted: false,
                     error: null,
                     perfStats: null,
                     usage: null,
@@ -748,6 +792,7 @@ describe('ChatStore 扩展功能', () => {
                     isLoading: false,
                     isThinkingPhase: false,
                     isDone: true,
+                    isAborted: false,
                     error: null,
                     perfStats: null,
                     usage: null,

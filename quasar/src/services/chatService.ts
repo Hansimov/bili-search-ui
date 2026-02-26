@@ -70,6 +70,8 @@ export interface ChatStreamChunk {
 
 /** Callbacks for streaming response handling */
 export interface ChatStreamCallbacks {
+    /** Called when the backend sends the stream_id (for explicit abort) */
+    onStreamId?: (streamId: string) => void;
     /** Called when streaming starts (first chunk with role) */
     onStart?: (chunk: ChatStreamChunk) => void;
     /** Called for each content delta */
@@ -182,6 +184,12 @@ export async function chatCompletionStream(
                     if (parsed.error) {
                         callbacks.onError?.(new Error(parsed.error));
                         return;
+                    }
+
+                    // Stream ID event (first event from backend, for explicit abort)
+                    if (parsed.stream_id && !parsed.choices) {
+                        callbacks.onStreamId?.(parsed.stream_id);
+                        continue;
                     }
 
                     const chunk = parsed as ChatStreamChunk;

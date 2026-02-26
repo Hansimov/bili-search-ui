@@ -42,17 +42,17 @@
             :class="{ 'bar-visible': coverLoaded }"
           ></span>
           <span class="text-caption absolute-top text-left result-score">
-            {{ result?.score.toFixed(1) }}
+            {{ result?.score != null ? result.score.toFixed(1) : '' }}
           </span>
           <span class="text-caption absolute-top text-right result-tname">
             {{ getRegionName() }}
           </span>
           <span class="text-caption absolute-bottom text-left result-view">
             <q-icon name="fa-regular fa-play-circle"></q-icon>
-            {{ humanReadableNumber(result?.stat.view) }}
+            {{ humanReadableNumber(result?.stat?.view) }}
           </span>
           <span class="text-caption absolute-bottom text-right result-duration">
-            {{ secondsToDuration(result?.duration) }}
+            {{ result?.duration ? secondsToDuration(result.duration) : '' }}
           </span>
         </q-img>
       </a>
@@ -73,7 +73,7 @@
     <q-item class="q-px-xs q-pt-none q-pb-xs result-bottom">
       <q-item-section side class="result-owner-name">
         <a
-          :href="`https://space.bilibili.com/${result.owner.mid}/video`"
+          :href="`https://space.bilibili.com/${result.owner?.mid || 0}/video`"
           target="_blank"
         >
           <div v-html="highlightedOwnerName()"></div>
@@ -114,8 +114,8 @@ export default {
   },
   setup(props) {
     const coverPicSuffix = constants.coverPicSuffix;
-    const { cachedSrc: coverSrc } = useCachedImage(
-      () => props.result.pic + coverPicSuffix
+    const { cachedSrc: coverSrc } = useCachedImage(() =>
+      props.result.pic ? props.result.pic + coverPicSuffix : ''
     );
     const coverLoaded = ref(false);
     const showSnapshotViewer = ref(false);
@@ -168,7 +168,7 @@ export default {
       ) {
         return this.result.highlights?.merged['owner.name'][0];
       } else {
-        return this.result.owner.name;
+        return this.result.owner?.name || '';
       }
     },
     highlightedPubdateStr() {

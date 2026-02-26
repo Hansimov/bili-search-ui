@@ -231,7 +231,7 @@ function useHitsData(exploreStore) {
     if (isHasAuthorFilter.value) {
       return allHits.value.filter((hit) =>
         authorFilters.value.some(
-          (authorFilter) => hit.owner.mid === authorFilter.mid
+          (authorFilter) => hit.owner?.mid === authorFilter.mid
         )
       );
     }

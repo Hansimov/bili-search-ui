@@ -95,7 +95,11 @@
     <span v-if="isLoading && hasContent && !isThinkingPhase" class="chat-cursor"
       >▊</span
     >
-
+    <!-- 中止提示 -->
+    <div v-if="isAborted" class="chat-aborted">
+      <q-icon name="stop_circle" size="15px" />
+      <span class="chat-aborted-text">已中止生成</span>
+    </div>
     <!-- 性能统计 -->
     <div v-if="isDone && perfStats" class="chat-perf-stats">
       <span class="perf-text">{{ formattedPerfStats }}</span>
@@ -158,6 +162,7 @@ export default defineComponent({
     const hasThinkingContent = computed(() => chatStore.hasThinkingContent);
     const isThinkingPhase = computed(() => chatStore.isThinkingPhase);
     const isDone = computed(() => chatStore.isDone);
+    const isAborted = computed(() => chatStore.isAborted);
     const hasError = computed(() => chatStore.hasError);
     const perfStats = computed(() => chatStore.perfStats);
     const usage = computed(() => chatStore.usage);
@@ -365,6 +370,7 @@ export default defineComponent({
       hasThinkingContent,
       isThinkingPhase,
       isDone,
+      isAborted,
       hasError,
       perfStats,
       usage,
@@ -597,6 +603,23 @@ export default defineComponent({
   border-top: 1px solid rgba(128, 128, 128, 0.15);
   font-size: 12px;
   opacity: 0.45;
+}
+
+/* 中止提示 */
+.chat-aborted {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(128, 128, 128, 0.1);
+  font-size: 12px;
+  opacity: 0.5;
+  color: inherit;
+}
+
+.chat-aborted-text {
+  font-size: 12px;
 }
 
 /* 错误信息 */

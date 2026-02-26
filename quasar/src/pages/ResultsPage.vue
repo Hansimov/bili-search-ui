@@ -92,7 +92,8 @@ export default {
           chatStore.isLoading ||
           chatStore.hasContent ||
           chatStore.hasError ||
-          chatStore.isDone
+          chatStore.isDone ||
+          chatStore.isAborted
         );
       }
       // 否则不显示聊天面板（使用全屏结果列表）

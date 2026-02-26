@@ -62,6 +62,8 @@ export interface ChatSession {
     isThinkingPhase: boolean;
     /** 是否已完成 */
     isDone: boolean;
+    /** 是否被用户中止 */
+    isAborted: boolean;
     /** 错误信息 */
     error: string | null;
     /** 性能统计 */
@@ -85,6 +87,7 @@ function defaultSession(): ChatSession {
         isLoading: false,
         isThinkingPhase: false,
         isDone: false,
+        isAborted: false,
         error: null,
         perfStats: null,
         usage: null,
@@ -106,6 +109,8 @@ export const useChatStore = defineStore('chat', {
         currentSessionIdx: -1,
         /** 用于取消当前请求的 AbortController */
         _abortController: null as AbortController | null,
+        /** 当前流式请求的 stream_id（用于主动通知后端中止） */
+        _streamId: null as string | null,
         /** 当前历史记录 ID（用于更新 chat 快照） */
         _currentHistoryRecordId: null as string | null,
         /** 当前回合开始前的 conversationHistory 长度，用于分离历史消息和当前回合 */
@@ -136,6 +141,11 @@ export const useChatStore = defineStore('chat', {
         /** 当前会话是否已完成 */
         isDone(): boolean {
             return this.currentSession.isDone;
+        },
+
+        /** 当前会话是否被用户中止 */
+        isAborted(): boolean {
+            return this.currentSession.isAborted;
         },
 
         /** 当前会话是否有错误 */
@@ -187,9 +197,29 @@ export const useChatStore = defineStore('chat', {
     actions: {
         /** 中止当前正在进行的请求 */
         abortCurrentRequest() {
+            const wasLoading = this.currentSession.isLoading;
             if (this._abortController) {
                 this._abortController.abort();
                 this._abortController = null;
+            }
+            // Explicitly notify backend to stop processing
+            if (this._streamId) {
+                const streamId = this._streamId;
+                this._streamId = null;
+                fetch('/api/chat/abort', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ stream_id: streamId }),
+                }).catch(() => {
+                    // fire-and-forget: backend may already be done
+                });
+                console.log(`[ChatStore] Abort sent for stream ${streamId}`);
+            }
+            // Immediately update UI state so animations stop
+            if (wasLoading) {
+                this.currentSession.isLoading = false;
+                this.currentSession.isThinkingPhase = false;
+                this.currentSession.isAborted = true;
             }
         },
 
@@ -330,6 +360,9 @@ export const useChatStore = defineStore('chat', {
                         thinking: mode === 'think',
                     },
                     {
+                        onStreamId: (streamId) => {
+                            this._streamId = streamId;
+                        },
                         onStart: (chunk) => {
                             if (chunk.thinking !== undefined) {
                                 this.currentSession.thinking = chunk.thinking;
@@ -374,8 +407,9 @@ export const useChatStore = defineStore('chat', {
                             if (usage) {
                                 this.currentSession.usage = usage;
                             }
-                            // 清除 abort controller（请求已完成）
+                            // 清除 abort controller 和 stream_id（请求已完成）
                             this._abortController = null;
+                            this._streamId = null;
                             // 将当前轮次追加到对话历史，包含 tool events
                             this.conversationHistory.push(
                                 { id: nextMsgId(), role: 'user', content: query },
@@ -402,6 +436,7 @@ export const useChatStore = defineStore('chat', {
                             this.currentSession.isLoading = false;
                             this.currentSession.error = error.message;
                             this._abortController = null;
+                            this._streamId = null;
                             console.error('[ChatStore] Stream error:', error);
                         },
                     },
@@ -413,6 +448,7 @@ export const useChatStore = defineStore('chat', {
                 if (this.currentSession.isLoading && this.currentSession.query === query) {
                     console.warn('[ChatStore] Stream ended without onDone, cleaning up');
                     this.currentSession.isLoading = false;
+                    this.currentSession.isThinkingPhase = false;
                     this.currentSession.isDone = true;
                     this._abortController = null;
                     // 仍然保存已接收到的内容到对话历史

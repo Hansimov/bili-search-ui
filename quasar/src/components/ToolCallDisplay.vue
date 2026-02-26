@@ -183,7 +183,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch, nextTick, PropType } from 'vue';
+import { defineComponent, ref, watch, PropType } from 'vue';
 import type { ToolCall } from 'src/services/chatService';
 
 /** Video hit from search result */
@@ -381,19 +381,8 @@ export default defineComponent({
             hasResults(call) &&
             expanded.value[idx] === undefined
           ) {
-            // 历史模式或首次渲染：直接展开（无需动画）
-            if (props.isHistorical) {
-              expanded.value[idx] = true;
-            } else {
-              // 实时模式：先标记为 false 触发 DOM 渲染 0fr，再动画展开
-              expanded.value[idx] = false;
-              nextTick(() => {
-                // 再等一帧确保浏览器已渲染 0fr 状态
-                requestAnimationFrame(() => {
-                  expanded.value[idx] = true;
-                });
-              });
-            }
+            // 默认收起，用户可点击展开
+            expanded.value[idx] = false;
           }
         });
       },
