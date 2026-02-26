@@ -92,13 +92,18 @@
                       v-for="(hit, hidx) in qr.hits"
                       :key="hit.bvid || hidx"
                       class="tool-result-item"
+                      @click="openVideoPage(hit)"
                     >
                       <img
                         v-if="hit.pic"
-                        :src="hit.pic"
+                        :src="normalizePicUrl(hit.pic)"
                         class="tool-result-cover"
                         loading="lazy"
+                        referrerpolicy="no-referrer"
                       />
+                      <div v-else class="tool-result-cover-placeholder">
+                        <q-icon name="smart_display" size="20px" />
+                      </div>
                       <div class="tool-result-info">
                         <span class="tool-result-title" :title="hit.title">{{
                           hit.title
@@ -117,13 +122,18 @@
                   v-for="(hit, hidx) in getAllVideoHits(call)"
                   :key="hit.bvid || hidx"
                   class="tool-result-item"
+                  @click="openVideoPage(hit)"
                 >
                   <img
                     v-if="hit.pic"
-                    :src="hit.pic"
+                    :src="normalizePicUrl(hit.pic)"
                     class="tool-result-cover"
                     loading="lazy"
+                    referrerpolicy="no-referrer"
                   />
+                  <div v-else class="tool-result-cover-placeholder">
+                    <q-icon name="smart_display" size="20px" />
+                  </div>
                   <div class="tool-result-info">
                     <span class="tool-result-title" :title="hit.title">{{
                       hit.title
@@ -173,7 +183,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch, PropType } from 'vue';
+import { defineComponent, ref, watch, nextTick, PropType } from 'vue';
 import type { ToolCall } from 'src/services/chatService';
 
 /** Video hit from search result */
@@ -225,30 +235,7 @@ export default defineComponent({
   setup(props) {
     const expanded = ref<Record<number, boolean>>({});
 
-    // Auto-expand completed search_videos calls so inline results are visible
-    watch(
-      () => props.toolCalls,
-      (calls) => {
-        calls.forEach((call, idx) => {
-          if (
-            call.type === 'search_videos' &&
-            call.status === 'completed' &&
-            hasResults(call) &&
-            expanded.value[idx] === undefined
-          ) {
-            expanded.value[idx] = true;
-          }
-        });
-      },
-      { immediate: true, deep: true }
-    );
-
-    const toggleExpand = (idx: number) => {
-      const call = props.toolCalls[idx];
-      if (call?.status === 'completed' && hasResults(call)) {
-        expanded.value[idx] = !expanded.value[idx];
-      }
-    };
+    // ── Helper functions (must be declared BEFORE the watch to avoid TDZ) ──
 
     const getToolLabel = (type: string) => TOOL_LABELS[type] || type;
     const getToolIcon = (type: string) => TOOL_ICONS[type] || 'build';
@@ -268,7 +255,8 @@ export default defineComponent({
       return '';
     };
 
-    const hasResults = (call: ToolCall) => {
+    /** Check if a tool call has displayable results */
+    const hasResults = (call: ToolCall): boolean => {
       if (!call.result) return false;
       if (call.type === 'search_videos') {
         const result = call.result as Record<string, unknown>;
@@ -290,18 +278,6 @@ export default defineComponent({
         return true; // Always show author result
       }
       return false;
-    };
-
-    const getResultCount = (call: ToolCall) => {
-      if (call.type === 'search_videos') {
-        const total = getAllVideoHits(call).length;
-        return `${total} 条结果`;
-      }
-      if (call.type === 'check_author') {
-        const found = (call.result as Record<string, unknown>)?.found;
-        return found ? '已找到' : '未找到';
-      }
-      return '';
     };
 
     /** 获取所有视频结果（合并所有 query 的结果） */
@@ -350,6 +326,18 @@ export default defineComponent({
       return [];
     };
 
+    const getResultCount = (call: ToolCall) => {
+      if (call.type === 'search_videos') {
+        const total = getAllVideoHits(call).length;
+        return `${total} 条结果`;
+      }
+      if (call.type === 'check_author') {
+        const found = (call.result as Record<string, unknown>)?.found;
+        return found ? '已找到' : '未找到';
+      }
+      return '';
+    };
+
     const getVideoHits = (call: ToolCall): VideoHit[] => {
       if (call.type !== 'search_videos') return [];
       const hits = (call.result as Record<string, unknown>)?.hits;
@@ -359,6 +347,64 @@ export default defineComponent({
     const getAuthorResult = (call: ToolCall): AuthorResult => {
       if (call.type !== 'check_author') return {};
       return (call.result as AuthorResult) || {};
+    };
+
+    /** Normalize bilibili pic URL to include https: protocol */
+    const normalizePicUrl = (pic: string): string => {
+      if (!pic) return '';
+      if (pic.startsWith('//')) return 'https:' + pic;
+      if (pic.startsWith('http://')) return pic.replace('http://', 'https://');
+      return pic;
+    };
+
+    /** Open video page on bilibili in new tab */
+    const openVideoPage = (hit: VideoHit) => {
+      if (hit.bvid) {
+        window.open(
+          `https://www.bilibili.com/video/${hit.bvid}`,
+          '_blank',
+          'noopener'
+        );
+      }
+    };
+
+    // ── Watch: Auto-expand completed search_videos calls with animation ──
+    // 先设置为 false（确保 DOM 渲染出 0fr 状态），再通过 nextTick 延迟设为 true
+    // 使 CSS grid-template-rows 过渡动画生效
+    watch(
+      () => props.toolCalls,
+      (calls) => {
+        calls.forEach((call, idx) => {
+          if (
+            call.type === 'search_videos' &&
+            call.status === 'completed' &&
+            hasResults(call) &&
+            expanded.value[idx] === undefined
+          ) {
+            // 历史模式或首次渲染：直接展开（无需动画）
+            if (props.isHistorical) {
+              expanded.value[idx] = true;
+            } else {
+              // 实时模式：先标记为 false 触发 DOM 渲染 0fr，再动画展开
+              expanded.value[idx] = false;
+              nextTick(() => {
+                // 再等一帧确保浏览器已渲染 0fr 状态
+                requestAnimationFrame(() => {
+                  expanded.value[idx] = true;
+                });
+              });
+            }
+          }
+        });
+      },
+      { immediate: true, deep: true }
+    );
+
+    const toggleExpand = (idx: number) => {
+      const call = props.toolCalls[idx];
+      if (call?.status === 'completed' && hasResults(call)) {
+        expanded.value[idx] = !expanded.value[idx];
+      }
     };
 
     return {
@@ -374,6 +420,8 @@ export default defineComponent({
       getAllVideoHits,
       getPerQueryResults,
       getAuthorResult,
+      normalizePicUrl,
+      openVideoPage,
     };
   },
 });
@@ -503,7 +551,7 @@ export default defineComponent({
 .tool-call-results-wrapper {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.25s ease;
+  transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .tool-call-results-wrapper.expanded {
@@ -571,6 +619,7 @@ export default defineComponent({
   border-radius: 6px;
   background: rgba(128, 128, 128, 0.03);
   transition: background 0.15s ease;
+  cursor: pointer;
 
   &:hover {
     background: rgba(128, 128, 128, 0.08);
@@ -582,6 +631,17 @@ export default defineComponent({
   aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: 4px;
+}
+
+.tool-result-cover-placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(128, 128, 128, 0.35);
 }
 
 .tool-result-info {

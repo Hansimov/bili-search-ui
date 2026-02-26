@@ -1,7 +1,7 @@
 <template>
   <div class="chat-response-panel" :class="{ 'chat-thinking': isThinking }">
     <!-- 多轮对话：历史消息 -->
-    <template v-for="(msg, idx) in chatHistory" :key="idx">
+    <template v-for="msg in historyMessages" :key="msg.id">
       <!-- 用户消息 -->
       <div v-if="msg.role === 'user'" class="chat-user-query">
         <span class="user-query-text">{{ msg.content }}</span>
@@ -122,6 +122,7 @@ import { computed, defineComponent, ref } from 'vue';
 import { useChatStore, type ConversationMessage } from 'src/stores/chatStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useExploreStore } from 'src/stores/exploreStore';
+import { useLayoutStore } from 'src/stores/layoutStore';
 import type {
   ToolEvent,
   ToolCall,
@@ -148,6 +149,7 @@ export default defineComponent({
     const chatStore = useChatStore();
     const searchModeStore = useSearchModeStore();
     const exploreStore = useExploreStore();
+    const layoutStore = useLayoutStore();
 
     const thinkingExpanded = ref(true);
 
@@ -179,22 +181,10 @@ export default defineComponent({
 
     /**
      * 多轮对话历史（不含当前回合）
-     * onDone 后当前轮次会被追加到 conversationHistory，
-     * 但当前轮次已经由下方的 userQuery / renderedContent 显示，
-     * 所以需要去掉最后一轮以避免重复。
+     * 使用 chatStore.historyMessages getter，基于 _conversationLengthBeforeCurrentRound 分离
+     * 避免内容匹配启发式导致的闪烁和 key 变化时的 instance.update 错误
      */
-    const chatHistory = computed(() => {
-      const history = chatStore.conversationHistory;
-      // 当前会话已完成且内容已追加到 history 时，排除最后一轮
-      if (
-        chatStore.isDone &&
-        history.length >= 2 &&
-        history[history.length - 2]?.content === chatStore.currentSession.query
-      ) {
-        return history.slice(0, -2);
-      }
-      return history;
-    });
+    const historyMessages = computed(() => chatStore.historyMessages);
 
     const modeColor = computed(() => {
       const mode = searchModeStore.currentMode;
@@ -362,6 +352,8 @@ export default defineComponent({
               total_hits: allHits.length,
             },
           });
+          // 确保分页状态正确，让 ResultsList 能显示第一页
+          layoutStore.resetLoadedPages();
         }
       }
     };
@@ -381,7 +373,7 @@ export default defineComponent({
       isThinking,
       errorMessage,
       userQuery,
-      chatHistory,
+      historyMessages,
       modeColor,
       loadingText,
       thinkingHeaderLabel,
@@ -490,7 +482,7 @@ export default defineComponent({
 .chat-thinking-collapse-wrapper {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.25s ease;
+  transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .chat-thinking-collapse-wrapper.expanded {

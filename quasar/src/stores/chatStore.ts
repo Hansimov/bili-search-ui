@@ -8,6 +8,7 @@
  * - 性能统计
  * - 工具调用事件追踪
  * - 会话历史管理
+ * - 对话快照导出/恢复（用于历史记录恢复）
  */
 
 import { defineStore } from 'pinia';
@@ -24,6 +25,8 @@ import { useSearchModeStore } from './searchModeStore';
 
 /** 多轮对话中的单条消息 */
 export interface ConversationMessage {
+    /** Unique ID for stable v-for keys */
+    id: string;
     role: 'user' | 'assistant';
     content: string;
     /** Tool events for this assistant message (only for assistant role) */
@@ -32,6 +35,12 @@ export interface ConversationMessage {
     perfStats?: PerfStats;
     /** Token usage for this assistant message (only for assistant role) */
     usage?: Usage;
+}
+
+/** Auto-incrementing message ID for stable v-for keys */
+let _msgIdCounter = 0;
+function nextMsgId(): string {
+    return `msg_${++_msgIdCounter}_${Date.now()}`;
 }
 
 /** 上下文管理：最多保留的对话轮数（每轮 = 1 user + 1 assistant） */
@@ -97,6 +106,10 @@ export const useChatStore = defineStore('chat', {
         currentSessionIdx: -1,
         /** 用于取消当前请求的 AbortController */
         _abortController: null as AbortController | null,
+        /** 当前历史记录 ID（用于更新 chat 快照） */
+        _currentHistoryRecordId: null as string | null,
+        /** 当前回合开始前的 conversationHistory 长度，用于分离历史消息和当前回合 */
+        _conversationLengthBeforeCurrentRound: 0,
     }),
 
     getters: {
@@ -159,6 +172,16 @@ export const useChatStore = defineStore('chat', {
         conversationTurns(): number {
             return Math.floor(this.conversationHistory.length / 2);
         },
+
+        /** 用于显示的历史消息（不含当前正在渲染的回合） */
+        historyMessages(): ConversationMessage[] {
+            return this.conversationHistory.slice(0, this._conversationLengthBeforeCurrentRound);
+        },
+
+        /** 当前关联的历史记录 ID */
+        currentHistoryRecordId(): string | null {
+            return this._currentHistoryRecordId;
+        },
     },
 
     actions: {
@@ -179,6 +202,7 @@ export const useChatStore = defineStore('chat', {
         /** 清除对话历史（开始全新对话） */
         clearConversation() {
             this.conversationHistory = [];
+            this._conversationLengthBeforeCurrentRound = 0;
         },
 
         /** 开始全新对话：重置当前会话 + 清除对话历史 */
@@ -280,7 +304,10 @@ export const useChatStore = defineStore('chat', {
             // 中止之前的请求
             this.abortCurrentRequest();
 
-            // 初始化新会话
+            // 记录当前回合开始前的历史长度，用于显示分离
+            this._conversationLengthBeforeCurrentRound = this.conversationHistory.length;
+
+            // 重置当前会话（保留对话历史）
             this.currentSession = {
                 ...defaultSession(),
                 query,
@@ -336,8 +363,6 @@ export const useChatStore = defineStore('chat', {
                                     event,
                                 ];
                             }
-                            // NOTE: 不自动同步结果到 exploreStore，避免覆盖之前的结果
-                            // 用户点击 "查看全部" 时才会同步特定 tool call 的结果
                         },
                         onDone: (perfStats, usage) => {
                             this.currentSession.isLoading = false;
@@ -349,10 +374,13 @@ export const useChatStore = defineStore('chat', {
                             if (usage) {
                                 this.currentSession.usage = usage;
                             }
+                            // 清除 abort controller（请求已完成）
+                            this._abortController = null;
                             // 将当前轮次追加到对话历史，包含 tool events
                             this.conversationHistory.push(
-                                { role: 'user', content: query },
+                                { id: nextMsgId(), role: 'user', content: query },
                                 {
+                                    id: nextMsgId(),
                                     role: 'assistant',
                                     content: this.currentSession.content,
                                     toolEvents: this.currentSession.toolEvents.length > 0
@@ -366,20 +394,50 @@ export const useChatStore = defineStore('chat', {
                             this._trimConversationHistory();
                             // 保存到会话历史列表
                             this._saveToHistory();
+                            // 更新搜索历史中的 chat 快照
+                            this._updateHistorySnapshot();
                         },
                         onError: (error) => {
                             if (error.name === 'AbortError') return;
                             this.currentSession.isLoading = false;
                             this.currentSession.error = error.message;
+                            this._abortController = null;
                             console.error('[ChatStore] Stream error:', error);
                         },
                     },
                     abortController.signal
                 );
+
+                // 安全兜底：如果流式响应结束但 onDone/onError 都未触发
+                // （例如连接中断、后端未发送 finish_reason），确保清除加载状态
+                if (this.currentSession.isLoading && this.currentSession.query === query) {
+                    console.warn('[ChatStore] Stream ended without onDone, cleaning up');
+                    this.currentSession.isLoading = false;
+                    this.currentSession.isDone = true;
+                    this._abortController = null;
+                    // 仍然保存已接收到的内容到对话历史
+                    if (this.currentSession.content) {
+                        this.conversationHistory.push(
+                            { id: nextMsgId(), role: 'user', content: query },
+                            {
+                                id: nextMsgId(),
+                                role: 'assistant',
+                                content: this.currentSession.content,
+                                toolEvents: this.currentSession.toolEvents.length > 0
+                                    ? [...this.currentSession.toolEvents]
+                                    : undefined,
+                            }
+                        );
+                        this._trimConversationHistory();
+                        this._saveToHistory();
+                        this._updateHistorySnapshot();
+                    }
+                }
             } catch (error) {
                 if ((error as Error).name !== 'AbortError') {
                     this.currentSession.isLoading = false;
                     this.currentSession.error = (error as Error).message;
+                    this._abortController = null;
                     console.error('[ChatStore] Request error:', error);
                 }
             }
@@ -394,6 +452,29 @@ export const useChatStore = defineStore('chat', {
             this.currentSessionIdx = this.sessions.length - 1;
         },
 
+        /** 更新搜索历史中的 chat 快照 */
+        async _updateHistorySnapshot() {
+            if (!this._currentHistoryRecordId) return;
+            try {
+                const { useSearchHistoryStore } = await import('./searchHistoryStore');
+                const searchHistoryStore = useSearchHistoryStore();
+                await searchHistoryStore.updateChatSnapshot(
+                    this._currentHistoryRecordId,
+                    {
+                        session: { ...this.currentSession },
+                        conversationHistory: this.conversationHistory.map(m => ({ ...m })),
+                    },
+                );
+            } catch (error) {
+                console.error('[ChatStore] Failed to update history snapshot:', error);
+            }
+        },
+
+        /** 设置当前关联的历史记录 ID */
+        setCurrentHistoryRecordId(id: string | null) {
+            this._currentHistoryRecordId = id;
+        },
+
         /** 切换到历史会话 */
         restoreSession(index: number) {
             if (index >= 0 && index < this.sessions.length) {
@@ -402,11 +483,39 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
+        /**
+         * 从历史记录快照恢复完整的对话状态
+         * 用于点击历史记录时恢复 chat 模式的页面、状态和样式
+         */
+        restoreFromSnapshot(snapshot: {
+            session: ChatSession;
+            conversationHistory: ConversationMessage[];
+        }) {
+            this.abortCurrentRequest();
+            // 恢复对话历史（确保所有消息都有 ID，兼容旧快照）
+            this.conversationHistory = snapshot.conversationHistory.map(m => ({
+                ...m,
+                id: m.id || nextMsgId(),
+            }));
+            // 当前会话是最后一轮，显示其他历史消息作为历史
+            this._conversationLengthBeforeCurrentRound = Math.max(0, this.conversationHistory.length - 2);
+            // 恢复当前会话状态（确保标记为已完成、非加载状态）
+            this.currentSession = {
+                ...snapshot.session,
+                isLoading: false,
+                isThinkingPhase: false,
+                isDone: true,
+                error: null,
+            };
+        },
+
         /** 清空所有会话历史 */
         clearHistory() {
             this.sessions = [];
             this.currentSessionIdx = -1;
             this.conversationHistory = [];
+            this._currentHistoryRecordId = null;
+            this._conversationLengthBeforeCurrentRound = 0;
             this.resetSession();
         },
     },

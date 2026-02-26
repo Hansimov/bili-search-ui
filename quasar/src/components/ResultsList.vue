@@ -267,8 +267,16 @@ function useSorting(searchStore, layoutStore, filteredHits) {
   const sortedHits = computed(() => {
     const method = resultsSortMethod.value;
     return [...filteredHits.value].sort((a, b) => {
-      const valueA = method.field.split('.').reduce((o, i) => o[i], a);
-      const valueB = method.field.split('.').reduce((o, i) => o[i], b);
+      // 安全地访问嵌套属性（如 "stat.view"），避免中间路径为 undefined 时抛出异常
+      const valueA = method.field
+        .split('.')
+        .reduce((o, i) => (o != null ? o[i] : undefined), a);
+      const valueB = method.field
+        .split('.')
+        .reduce((o, i) => (o != null ? o[i] : undefined), b);
+      if (valueA == null && valueB == null) return 0;
+      if (valueA == null) return 1;
+      if (valueB == null) return -1;
       if (method.order === 'asc') {
         return valueA > valueB ? 1 : -1;
       } else {

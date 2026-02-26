@@ -64,6 +64,8 @@ import {
 } from 'src/stores/searchHistoryStore';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { useSearchModeStore } from 'src/stores/searchModeStore';
+import { useChatStore } from 'src/stores/chatStore';
 import { explore } from 'src/functions/explore';
 
 export default {
@@ -72,6 +74,8 @@ export default {
     const historyStore = useSearchHistoryStore();
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
+    const searchModeStore = useSearchModeStore();
+    const chatStore = useChatStore();
 
     /**
      * 本地"隐藏"状态：点击清除后只隐藏面板，不删除实际历史数据。
@@ -107,12 +111,29 @@ export default {
 
     const searchFromHistory = async (item: SearchHistoryItem) => {
       const query = item.query;
-      queryStore.setQuery({ newQuery: query });
+      const mode = item.mode || 'direct';
+
       layoutStore.setIsSuggestVisible(false);
+      queryStore.setQuery({ newQuery: query, setRoute: true, mode });
+
+      // Chat 模式：恢复对话状态
+      if ((mode === 'smart' || mode === 'think') && item.chatSnapshot) {
+        chatStore.restoreFromSnapshot(item.chatSnapshot);
+        chatStore.setCurrentHistoryRecordId(item.id);
+        searchModeStore.setMode(mode);
+        searchModeStore.forceInitialSessionMode(mode);
+        return;
+      }
+
+      // 直接查找模式或无快照：走 explore 路径
+      searchModeStore.setMode(mode);
+      if (mode === 'direct') {
+        searchModeStore.forceInitialSessionMode(mode);
+      }
       await explore({
         queryValue: query,
-        setQuery: true,
-        setRoute: true,
+        setQuery: false,
+        setRoute: false,
       });
       layoutStore.setCurrentPage(1);
     };

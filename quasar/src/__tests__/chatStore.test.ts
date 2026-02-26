@@ -242,14 +242,16 @@ describe('ChatStore', () => {
             await store.sendChat('问题1', 'smart');
 
             expect(store.conversationHistory).toHaveLength(2);
-            expect(store.conversationHistory[0]).toEqual({
+            expect(store.conversationHistory[0]).toMatchObject({
                 role: 'user',
                 content: '问题1',
             });
-            expect(store.conversationHistory[1]).toEqual({
+            expect(store.conversationHistory[0].id).toBeTruthy();
+            expect(store.conversationHistory[1]).toMatchObject({
                 role: 'assistant',
                 content: '回答1',
             });
+            expect(store.conversationHistory[1].id).toBeTruthy();
             expect(store.conversationTurns).toBe(1);
         });
 
@@ -348,8 +350,8 @@ describe('ChatStore', () => {
         it('clearHistory 也应清除对话历史', () => {
             const store = useChatStore();
             store.conversationHistory.push(
-                { role: 'user', content: '问题' },
-                { role: 'assistant', content: '回答' }
+                { id: 'test-1', role: 'user', content: '问题' },
+                { id: 'test-2', role: 'assistant', content: '回答' }
             );
             store.clearHistory();
             expect(store.conversationHistory).toEqual([]);
@@ -624,5 +626,164 @@ describe('Markdown 渲染', () => {
         const html = renderMarkdown('# 标题\n\n正在生成中...\n\n- 列表项');
         expect(html).toContain('标题');
         expect(html).toContain('列表项');
+    });
+});
+
+describe('ChatStore 扩展功能', () => {
+    beforeEach(() => {
+        setActivePinia(createPinia());
+        localStorageMock.clear();
+        vi.restoreAllMocks();
+    });
+
+    describe('消息 ID 与历史分离', () => {
+        it('sendChat 完成后消息应有唯一 ID', async () => {
+            const { chatCompletionStream } = await import('src/services/chatService');
+            const mockStream = vi.mocked(chatCompletionStream);
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callbacks.onContent?.('回答');
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('问题', 'smart');
+
+            expect(store.conversationHistory).toHaveLength(2);
+            expect(store.conversationHistory[0].id).toBeTruthy();
+            expect(store.conversationHistory[1].id).toBeTruthy();
+            expect(store.conversationHistory[0].id).not.toBe(store.conversationHistory[1].id);
+        });
+
+        it('historyMessages 应排除当前回合', async () => {
+            const { chatCompletionStream } = await import('src/services/chatService');
+            const mockStream = vi.mocked(chatCompletionStream);
+            let callCount = 0;
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callCount++;
+                callbacks.onContent?.(`回答${callCount}`);
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+
+            // 第一轮
+            await store.sendChat('问题1', 'smart');
+            // 第一轮完成后 historyMessages 应该为空（最后一轮由 currentSession 显示）
+            expect(store.historyMessages).toHaveLength(0);
+            expect(store.conversationHistory).toHaveLength(2);
+
+            // 第二轮
+            await store.sendChat('问题2', 'smart');
+            // 第二轮完成后 historyMessages 应有第一轮的 2 条消息
+            expect(store.historyMessages).toHaveLength(2);
+            expect(store.historyMessages[0].content).toBe('问题1');
+            expect(store.historyMessages[1].content).toBe('回答1');
+            expect(store.conversationHistory).toHaveLength(4);
+        });
+
+        it('_conversationLengthBeforeCurrentRound 应在 sendChat 开始时更新', async () => {
+            const { chatCompletionStream } = await import('src/services/chatService');
+            const mockStream = vi.mocked(chatCompletionStream);
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callbacks.onContent?.('回答');
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            expect(store._conversationLengthBeforeCurrentRound).toBe(0);
+
+            await store.sendChat('问题1', 'smart');
+            // After first round, length was 0 when started, now has 2 messages
+            expect(store.conversationHistory).toHaveLength(2);
+
+            // Start second round - length before should now be 2
+            await store.sendChat('问题2', 'smart');
+            expect(store._conversationLengthBeforeCurrentRound).toBe(2);
+        });
+    });
+
+    describe('快照恢复', () => {
+        it('restoreFromSnapshot 应恢复对话状态', () => {
+            const store = useChatStore();
+            const snapshot = {
+                session: {
+                    query: '历史问题',
+                    mode: 'smart' as const,
+                    content: '历史回答',
+                    thinkingContent: '',
+                    isLoading: false,
+                    isThinkingPhase: false,
+                    isDone: true,
+                    error: null,
+                    perfStats: null,
+                    usage: null,
+                    toolEvents: [],
+                    thinking: false,
+                    createdAt: Date.now(),
+                },
+                conversationHistory: [
+                    { id: 'old-1', role: 'user' as const, content: '历史问题' },
+                    { id: 'old-2', role: 'assistant' as const, content: '历史回答' },
+                ],
+            };
+
+            store.restoreFromSnapshot(snapshot);
+
+            expect(store.currentSession.query).toBe('历史问题');
+            expect(store.currentSession.content).toBe('历史回答');
+            expect(store.currentSession.isDone).toBe(true);
+            expect(store.currentSession.isLoading).toBe(false);
+            expect(store.conversationHistory).toHaveLength(2);
+            expect(store.historyMessages).toHaveLength(0); // Last round excluded
+        });
+
+        it('restoreFromSnapshot 应为缺少 ID 的旧消息生成 ID', () => {
+            const store = useChatStore();
+            const snapshot = {
+                session: {
+                    query: '问题',
+                    mode: 'smart' as const,
+                    content: '回答',
+                    thinkingContent: '',
+                    isLoading: false,
+                    isThinkingPhase: false,
+                    isDone: true,
+                    error: null,
+                    perfStats: null,
+                    usage: null,
+                    toolEvents: [],
+                    thinking: false,
+                    createdAt: Date.now(),
+                },
+                conversationHistory: [
+                    { role: 'user' as const, content: '问题' },
+                    { role: 'assistant' as const, content: '回答' },
+                ] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+            };
+
+            store.restoreFromSnapshot(snapshot);
+            expect(store.conversationHistory[0].id).toBeTruthy();
+            expect(store.conversationHistory[1].id).toBeTruthy();
+        });
+    });
+
+    describe('currentHistoryRecordId getter', () => {
+        it('默认应为 null', () => {
+            const store = useChatStore();
+            expect(store.currentHistoryRecordId).toBeNull();
+        });
+
+        it('setCurrentHistoryRecordId 应更新值', () => {
+            const store = useChatStore();
+            store.setCurrentHistoryRecordId('test-id-123');
+            expect(store.currentHistoryRecordId).toBe('test-id-123');
+        });
+
+        it('clearHistory 应重置 recordId', () => {
+            const store = useChatStore();
+            store.setCurrentHistoryRecordId('test-id-123');
+            store.clearHistory();
+            expect(store.currentHistoryRecordId).toBeNull();
+        });
     });
 });

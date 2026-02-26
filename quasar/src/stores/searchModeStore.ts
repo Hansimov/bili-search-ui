@@ -123,6 +123,14 @@ export const useSearchModeStore = defineStore('searchMode', {
             }
         },
 
+        /**
+         * 强制设置首次会话模式（用于历史记录恢复时覆盖）
+         * 与 setInitialSessionMode 不同，此方法总是覆盖当前值
+         */
+        forceInitialSessionMode(mode: SearchMode) {
+            this.initialSessionMode = mode;
+        },
+
         /** 重置首次会话模式（开始新对话时调用） */
         resetInitialSessionMode() {
             this.initialSessionMode = null;

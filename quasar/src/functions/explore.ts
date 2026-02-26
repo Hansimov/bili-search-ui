@@ -3,6 +3,7 @@ import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
+import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { cacheService, STORE_NAMES, EXPLORE_CACHE_TTL } from 'src/services/cacheService';
 import { getSmartSuggestService } from 'src/services/smartSuggestService';
 import type { ExploreResponse, ExploreStepResult } from 'src/stores/resultStore';
@@ -135,15 +136,31 @@ export const explore = async ({
                 }
             }
 
-            // 记录搜索历史
+            // 记录搜索历史（仅限 direct 模式，chat 模式由 chat.ts 处理）
+            const searchModeStore = useSearchModeStore();
+            const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
             const totalHits = exploreResult.data.reduce(
                 (sum, step) => sum + (Array.isArray(step.output?.hits) ? step.output.hits.length : 0), 0
             );
-            searchHistoryStore.addRecord(queryValue, totalHits).catch(console.error);
+            if (currentMode === 'direct') {
+                searchHistoryStore.addRecord(
+                    queryValue,
+                    totalHits,
+                    currentMode,
+                ).catch(console.error);
+            }
         } else {
             console.warn('[EMPTY_DATA]: No step results in response');
-            // 即使无结果也记录搜索历史
-            searchHistoryStore.addRecord(queryValue, 0).catch(console.error);
+            // 即使无结果也记录搜索历史（仅限 direct 模式）
+            const searchModeStore = useSearchModeStore();
+            const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
+            if (currentMode === 'direct') {
+                searchHistoryStore.addRecord(
+                    queryValue,
+                    0,
+                    currentMode,
+                ).catch(console.error);
+            }
         }
 
         exploreStore.saveExploreSession();

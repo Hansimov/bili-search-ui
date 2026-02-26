@@ -131,12 +131,13 @@
                   :key="'pin-' + item.id"
                   class="history-item pinned"
                   :title="getItemTooltip(item)"
-                  @click="searchFromHistory(item.query)"
+                  @click="searchFromHistory(item)"
                 >
                   <q-icon
-                    name="push_pin"
+                    :name="getHistoryItemIcon(item)"
                     size="14px"
                     class="history-item-icon"
+                    :class="getHistoryItemIconClass(item)"
                   />
                   <span class="history-item-text">
                     {{ item.displayName || item.query }}
@@ -228,12 +229,13 @@
                   :key="'recent-' + item.id"
                   class="history-item"
                   :title="getItemTooltip(item)"
-                  @click="searchFromHistory(item.query)"
+                  @click="searchFromHistory(item)"
                 >
                   <q-icon
-                    name="schedule"
+                    :name="getHistoryItemIcon(item)"
                     size="14px"
                     class="history-item-icon"
+                    :class="getHistoryItemIconClass(item)"
                   />
                   <span class="history-item-text">
                     {{ item.displayName || item.query }}
@@ -656,6 +658,8 @@ import { explore, restoreExploreFromCache } from 'src/functions/explore';
 import { useChatStore } from 'src/stores/chatStore';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
+import { useSearchModeStore } from 'src/stores/searchModeStore';
+import type { SearchMode } from 'src/stores/searchModeStore';
 
 const router = useRouter();
 const layoutStore = useLayoutStore();
@@ -665,6 +669,7 @@ const searchHistoryStore = useSearchHistoryStore();
 const chatStore = useChatStore();
 const queryStore = useQueryStore();
 const exploreStore = useExploreStore();
+const searchModeStore = useSearchModeStore();
 
 // State
 const showHistoryList = ref(true);
@@ -753,24 +758,78 @@ const qrCodeOptions = computed(() => ({
 }));
 
 // Navigation
-const navigateToSearch = () => {
+const navigateToSearch = async () => {
   chatStore.startNewChat();
   queryStore.setQuery({ newQuery: '' });
   exploreStore.clearStepResults();
-  router.push('/');
+  exploreStore.setSubmittedQuery('');
+  searchModeStore.setMode('direct');
+  searchModeStore.resetInitialSessionMode();
+  await router.push('/');
   if (isOverlayMode.value) layoutStore.closeMobileSidebar();
 };
 
 const onNavigate = () => {
+  // Logo click navigates to /, clear all search state
+  chatStore.startNewChat();
+  queryStore.setQuery({ newQuery: '' });
+  exploreStore.clearStepResults();
+  exploreStore.setSubmittedQuery('');
+  searchModeStore.setMode('direct');
+  searchModeStore.resetInitialSessionMode();
   if (isOverlayMode.value) layoutStore.closeMobileSidebar();
 };
 
-const searchFromHistory = async (query: string) => {
-  // 尝试从缓存恢复搜索结果，避免重复的网络请求
-  const restored = await restoreExploreFromCache(query);
-  if (!restored) {
-    // 缓存未命中，执行新的搜索
-    await explore({ queryValue: query, setQuery: true, setRoute: true });
+const searchFromHistory = async (item: SearchHistoryItem) => {
+  const query = item.query;
+  const mode = item.mode || 'direct';
+  const isChatMode = mode === 'smart' || mode === 'think';
+
+  if (isChatMode && item.chatSnapshot) {
+    // Chat 模式 + 有快照：恢复完整的对话状态
+    chatStore.restoreFromSnapshot(item.chatSnapshot);
+    // 设置搜索模式和布局
+    searchModeStore.setMode(mode);
+    searchModeStore.forceInitialSessionMode(mode);
+    // 防止 URL watcher 触发 explore
+    exploreStore.setRestoringSession(true);
+    // 设置路由和标题
+    queryStore.setQuery({ newQuery: query, setRoute: true, mode });
+    exploreStore.setSubmittedQuery(query);
+    // 关联历史记录 ID 以便后续更新快照
+    chatStore.setCurrentHistoryRecordId(item.id);
+    setTimeout(() => exploreStore.setRestoringSession(false), 200);
+  } else if (isChatMode && !item.chatSnapshot) {
+    // Chat 模式 + 无快照：重新发起聊天
+    chatStore.startNewChat();
+    searchModeStore.setMode(mode);
+    searchModeStore.forceInitialSessionMode(mode);
+    // 防止 URL watcher 触发 explore
+    exploreStore.setRestoringSession(true);
+    queryStore.setQuery({ newQuery: query, setRoute: true, mode });
+    exploreStore.setSubmittedQuery(query);
+    // 预设历史记录 ID，避免 chat.ts 重复添加记录
+    chatStore.setCurrentHistoryRecordId(item.id);
+    setTimeout(() => exploreStore.setRestoringSession(false), 200);
+    // 重新发起聊天请求
+    const { chat: chatFn } = await import('src/functions/chat');
+    await chatFn({
+      queryValue: query,
+      mode: mode as 'smart' | 'think',
+      setQuery: false,
+      setRoute: false,
+    });
+  } else {
+    // Direct 模式：恢复搜索结果
+    searchModeStore.setMode(mode as SearchMode);
+    searchModeStore.resetInitialSessionMode();
+    chatStore.startNewChat();
+    // 尝试从缓存恢复搜索结果，避免重复的网络请求
+    const restored = await restoreExploreFromCache(query);
+    if (!restored) {
+      // 缓存未命中，执行新的搜索
+      await explore({ queryValue: query, setQuery: true, setRoute: true });
+    }
   }
   if (isOverlayMode.value) layoutStore.closeMobileSidebar();
 };
@@ -831,11 +890,50 @@ const clearHistory = () => {
 const getItemTooltip = (item: SearchHistoryItem): string => {
   const displayText = item.displayName || item.query;
   const timeText = formatFullTime(item.timestamp);
+  const modeLabels: Record<string, string> = {
+    direct: '直接查找',
+    smart: '快速问答',
+    think: '智能思考',
+    research: '深度研究',
+  };
+  const modeLabel = item.mode ? modeLabels[item.mode] || '' : '';
   if (item.displayName && item.displayName !== item.query) {
-    // 如果已重命名，显示显示名、原始查询、时间
-    return `${displayText}\n原始查询：${item.query}\n${timeText}`;
+    return `${displayText}\n原始查询：${item.query}${
+      modeLabel ? `\n模式：${modeLabel}` : ''
+    }\n${timeText}`;
   }
-  return `${displayText}\n${timeText}`;
+  return `${displayText}${
+    modeLabel ? `\n模式：${modeLabel}` : ''
+  }\n${timeText}`;
+};
+
+/** 根据搜索模式返回历史项图标 */
+const getHistoryItemIcon = (item: SearchHistoryItem): string => {
+  if (item.pinned) return 'push_pin';
+  switch (item.mode) {
+    case 'smart':
+      return 'auto_awesome';
+    case 'think':
+      return 'psychology';
+    case 'research':
+      return 'biotech';
+    default:
+      return 'schedule';
+  }
+};
+
+/** 根据搜索模式返回历史项图标颜色类 */
+const getHistoryItemIconClass = (item: SearchHistoryItem): string => {
+  switch (item.mode) {
+    case 'smart':
+      return 'history-icon-smart';
+    case 'think':
+      return 'history-icon-think';
+    case 'research':
+      return 'history-icon-research';
+    default:
+      return '';
+  }
 };
 
 // Rename
@@ -1268,6 +1366,29 @@ body.body--dark .history-item:hover {
 .history-item-icon {
   flex-shrink: 0;
   opacity: 0.5;
+}
+
+.history-icon-smart {
+  color: #00897b;
+  opacity: 0.7;
+}
+.history-icon-think {
+  color: #8e24aa;
+  opacity: 0.7;
+}
+.history-icon-research {
+  color: #e64a19;
+  opacity: 0.7;
+}
+
+body.body--dark .history-icon-smart {
+  color: #4db6ac;
+}
+body.body--dark .history-icon-think {
+  color: #ce93d8;
+}
+body.body--dark .history-icon-research {
+  color: #ff8a65;
 }
 
 .history-item-text {

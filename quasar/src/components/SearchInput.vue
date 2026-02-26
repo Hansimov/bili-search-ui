@@ -518,22 +518,12 @@ export default {
             setRoute: false,
           });
         } else {
-          // 首次提交：设置路由并同时触发搜索和聊天
-          queryStore.setQuery({
-            newQuery: submittedQuery,
-            setRoute: true,
-            mode,
-          });
-          explore({
-            queryValue: submittedQuery,
-            setQuery: false,
-            setRoute: false,
-          });
+          // 首次提交：设置路由并触发聊天（不调用 explore，LLM 工具调用会触发搜索）
           chat({
             queryValue: submittedQuery,
             mode,
-            setQuery: false,
-            setRoute: false,
+            setQuery: true,
+            setRoute: true,
           });
         }
 
@@ -578,6 +568,14 @@ export default {
           if (urlMode && ['smart', 'think', 'direct'].includes(urlMode)) {
             searchModeStore.setMode(urlMode as SearchMode);
           }
+
+          // Chat 模式下 (smart/think)，URL 变更不触发 explore
+          // 搜索由 LLM 工具调用处理
+          const effectiveMode = urlMode || searchModeStore.currentMode;
+          if (effectiveMode === 'smart' || effectiveMode === 'think') {
+            return;
+          }
+
           const currentQuery = queryStore.query;
           if (newQuery !== currentQuery || !exploreStore.isExploreLoading) {
             queryStore.setQuery({

@@ -176,7 +176,15 @@ export async function chatCompletionStream(
                 }
 
                 try {
-                    const chunk: ChatStreamChunk = JSON.parse(dataStr);
+                    const parsed = JSON.parse(dataStr);
+
+                    // 检测后端错误事件（tool loop 或 LLM 阶段的错误）
+                    if (parsed.error) {
+                        callbacks.onError?.(new Error(parsed.error));
+                        return;
+                    }
+
+                    const chunk = parsed as ChatStreamChunk;
                     const choice = chunk.choices?.[0];
                     if (!choice) continue;
 

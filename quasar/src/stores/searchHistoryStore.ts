@@ -7,10 +7,14 @@
  * - 支持固定（置顶）记录
  * - 按时间倒序排列，固定记录优先
  * - 导出/清除历史
+ * - 记录搜索模式（direct/smart/think），用于恢复正确的页面布局
+ * - 对于 chat 模式，存储完整的对话状态用于恢复
  */
 
 import { defineStore } from 'pinia';
 import { cacheService, STORE_NAMES, HISTORY_CACHE_TTL } from 'src/services/cacheService';
+import type { SearchMode } from './searchModeStore';
+import type { ConversationMessage, ChatSession } from './chatStore';
 
 /** 搜索历史记录条目 */
 export interface SearchHistoryItem {
@@ -26,6 +30,18 @@ export interface SearchHistoryItem {
     resultCount?: number;
     /** 显示名称（重命名后的文本，可选） */
     displayName?: string;
+    /** 搜索模式 (direct/smart/think/research)，用于恢复正确的页面布局 */
+    mode?: SearchMode;
+    /** Chat 模式下的对话历史快照（仅 smart/think 模式） */
+    chatSnapshot?: ChatHistorySnapshot;
+}
+
+/** Chat 模式的对话历史快照，用于恢复完整的对话状态 */
+export interface ChatHistorySnapshot {
+    /** 当前会话状态 */
+    session: ChatSession;
+    /** 多轮对话历史 */
+    conversationHistory: ConversationMessage[];
 }
 
 /** 生成唯一 ID */
@@ -197,9 +213,18 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
         /**
          * 添加搜索记录
          * 每次搜索都会创建新记录，允许重复 query
+         * @param query - 搜索关键词
+         * @param resultCount - 搜索结果数量
+         * @param mode - 搜索模式 (direct/smart/think/research)
+         * @param chatSnapshot - Chat 模式下的对话历史快照
          */
-        async addRecord(query: string, resultCount?: number): Promise<void> {
-            if (!query || query.trim() === '') return;
+        async addRecord(
+            query: string,
+            resultCount?: number,
+            mode?: SearchMode,
+            chatSnapshot?: ChatHistorySnapshot,
+        ): Promise<string> {
+            if (!query || query.trim() === '') return '';
 
             const trimmedQuery = query.trim();
             const now = Date.now();
@@ -209,6 +234,8 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
                 timestamp: now,
                 pinned: false,
                 resultCount,
+                mode,
+                chatSnapshot,
             };
             this.items.push(item);
 
@@ -219,6 +246,7 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
 
             // 持久化到 IndexedDB
             await this.persistItem(item);
+            return item.id;
         },
 
         /**
@@ -315,7 +343,12 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
                     pinned: item.pinned,
                     resultCount: item.resultCount,
                     displayName: item.displayName,
+                    mode: item.mode,
                 };
+                // Chat 快照需要深拷贝去除响应式代理
+                if (item.chatSnapshot) {
+                    plainItem.chatSnapshot = JSON.parse(JSON.stringify(item.chatSnapshot));
+                }
                 await cacheService.set(
                     STORE_NAMES.HISTORY,
                     `history:${item.id}`,
@@ -338,6 +371,33 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
             });
 
             this.items = sorted.slice(0, MAX_HISTORY_ITEMS);
+        },
+
+        /**
+         * 更新记录的 chat 快照（用于多轮对话结束后更新最新状态）
+         */
+        async updateChatSnapshot(
+            id: string,
+            chatSnapshot: ChatHistorySnapshot,
+        ): Promise<void> {
+            const index = this.items.findIndex((item) => item.id === id);
+            if (index < 0) return;
+
+            const updated = { ...this.items[index], chatSnapshot };
+            this.items.splice(index, 1, updated);
+            await this.persistItem(updated);
+        },
+
+        /**
+         * 获取最近一条匹配 query 和 mode 的记录
+         */
+        findLatestRecord(query: string, mode?: SearchMode): SearchHistoryItem | undefined {
+            const trimmed = query.trim().toLowerCase();
+            return this.sortedItems.find((item) => {
+                if (item.query.toLowerCase() !== trimmed) return false;
+                if (mode && item.mode && item.mode !== mode) return false;
+                return true;
+            });
         },
     },
 });

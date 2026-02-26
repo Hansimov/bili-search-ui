@@ -8,6 +8,8 @@
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useChatStore } from 'src/stores/chatStore';
+import { useExploreStore } from 'src/stores/exploreStore';
+import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import type { SearchMode } from 'src/stores/searchModeStore';
 
 /**
@@ -32,6 +34,8 @@ export const chat = async ({
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
     const chatStore = useChatStore();
+    const exploreStore = useExploreStore();
+    const searchHistoryStore = useSearchHistoryStore();
 
     layoutStore.setIsSuggestVisible(false);
 
@@ -39,13 +43,20 @@ export const chat = async ({
         return;
     }
 
-    // NOTE: initialSessionMode 现在由 SearchInput.submitQuery 在调用前设置
-
+    // 设置 submittedQuery 给 TitleToolbar 显示（仅新会话/首次提交时，多轮续接保持原始查询）
     if (setQuery) {
+        exploreStore.setSubmittedQuery(queryValue);
         queryStore.setQuery({ newQuery: queryValue, setRoute, mode });
     }
 
-    // 注意：搜索历史由 explore() 负责记录，chat 不重复记录
+    // 为 chat 模式记录搜索历史（仅首次，续接对话不重复记录）
+    // 且不在历史恢复时重复记录（已预设 recordId）
+    if (chatStore.conversationHistory.length === 0 && !chatStore.currentHistoryRecordId) {
+        const recordId = await searchHistoryStore.addRecord(queryValue, undefined, mode);
+        if (recordId) {
+            chatStore.setCurrentHistoryRecordId(recordId);
+        }
+    }
 
     // 发送聊天请求（流式）
     await chatStore.sendChat(queryValue, mode);

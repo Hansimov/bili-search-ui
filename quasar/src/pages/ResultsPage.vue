@@ -2,10 +2,7 @@
   <q-card flat class="results-tabs-card">
     <!-- LLM 聊天面板：显示在搜索结果上方（smart/think 模式） -->
     <div v-if="showChatPanel" class="chat-results-container">
-      <ChatResponsePanel
-        @retry="retryChat"
-        @showResults="showResultsDialog = true"
-      />
+      <ChatResponsePanel @retry="retryChat" @showResults="openResultsDialog" />
     </div>
 
     <!-- 直接查找模式：正常显示搜索结果 -->
@@ -92,7 +89,10 @@ export default {
       // 如果首次会话是 chat 模式，一直显示 inline 布局
       if (searchModeStore.shouldUseInlineLayout) {
         return (
-          chatStore.isLoading || chatStore.hasContent || chatStore.hasError
+          chatStore.isLoading ||
+          chatStore.hasContent ||
+          chatStore.hasError ||
+          chatStore.isDone
         );
       }
       // 否则不显示聊天面板（使用全屏结果列表）
@@ -108,6 +108,11 @@ export default {
 
     /** 结果对话框 */
     const showResultsDialog = ref(false);
+
+    /** 打开搜索结果对话框 */
+    const openResultsDialog = () => {
+      showResultsDialog.value = true;
+    };
 
     const retryChat = () => {
       const session = chatStore.currentSession;
@@ -126,6 +131,7 @@ export default {
       showChatPanel: isChatMode,
       resultsSummaryText,
       showResultsDialog,
+      openResultsDialog,
       retryChat,
     };
   },
