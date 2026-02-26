@@ -1,75 +1,43 @@
 <template>
-  <!-- === 正常模式 / 对话框模式：完整统计栏 === -->
-  <div
-    v-if="showStatsBar"
-    class="row results-list-info-top justify-between"
-    v-show="hasResults || isExploreLoading"
-  >
-    <span class="results-stats">
-      <ExploreSessionSwitch v-show="isExploreSessionVisible" />
-      <span class="results-stats-text">
-        <span v-if="isExploreLoading" class="loading-indicator">
-          <q-spinner-dots size="16px" class="q-mr-xs" />
-          <span>正在搜索：</span>
-          <span class="loading-query">{{ submittedQuery }}</span>
-          <span class="loading-dots"></span>
-        </span>
-        <span v-else-if="isShowResultsStats">
-          <span v-show="isReturnResultsLessThanTotal">
-            匹配：{{ totalHits }}，
-          </span>
-          <span>
-            {{ isReturnResultsLessThanTotal ? '返回' : '匹配' }}：{{
-              returnHits
-            }}
-          </span>
-          <span v-show="isHasAuthorFilter"
-            >，筛选：{{ sortedHits.length }}
-          </span>
-        </span>
-        <span v-else> {{ currentStepName }} {{ currentStepMark }}</span>
-      </span>
-    </span>
-
-    <q-btn
-      v-show="hasResults"
-      class="results-sort"
-      flat
-      :icon-right="resultsSortMethod.icon"
-      :label="resultsSortMethod.label"
+  <div :class="containerClass">
+    <!-- === 正常模式 / 对话框模式：完整统计栏 === -->
+    <div
+      v-if="showStatsBar"
+      class="row results-list-info-top justify-between"
+      v-show="hasResults || isExploreLoading"
     >
-      <q-menu>
-        <q-list dense>
-          <q-item
-            v-for="(method, index) in resultsSortMethods"
-            :key="index"
-            clickable
-            v-close-popup
-            @click="sortResults(method)"
-          >
-            <q-item-section>
-              <span>
-                {{ method.label }}&nbsp;
-                <q-icon :name="method.icon"></q-icon>
-              </span>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-menu>
-    </q-btn>
-  </div>
+      <span class="results-stats">
+        <ExploreSessionSwitch v-show="isExploreSessionVisible" />
+        <span class="results-stats-text">
+          <span v-if="isExploreLoading" class="loading-indicator">
+            <q-spinner-dots size="16px" class="q-mr-xs" />
+            <span>正在搜索：</span>
+            <span class="loading-query">{{ submittedQuery }}</span>
+            <span class="loading-dots"></span>
+          </span>
+          <span v-else-if="isShowResultsStats">
+            <span v-show="isReturnResultsLessThanTotal">
+              匹配：{{ totalHits }}，
+            </span>
+            <span>
+              {{ isReturnResultsLessThanTotal ? '返回' : '匹配' }}：{{
+                returnHits
+              }}
+            </span>
+            <span v-show="isHasAuthorFilter"
+              >，筛选：{{ sortedHits.length }}
+            </span>
+          </span>
+          <span v-else> {{ currentStepName }} {{ currentStepMark }}</span>
+        </span>
+      </span>
 
-  <!-- === 内联模式：简化头部（排序按钮 + 加载更多 / 查看全部） === -->
-  <div v-if="isInline && hasResults" class="inline-results-header">
-    <div class="inline-header-left">
-      <span class="inline-results-count">{{ sortedHits.length }} 条结果</span>
       <q-btn
+        v-show="hasResults"
+        class="results-sort"
         flat
-        dense
-        size="sm"
         :icon-right="resultsSortMethod.icon"
         :label="resultsSortMethod.label"
-        class="inline-sort-btn"
       >
         <q-menu>
           <q-list dense>
@@ -91,60 +59,94 @@
         </q-menu>
       </q-btn>
     </div>
-    <div class="inline-header-right">
-      <q-btn
-        v-if="canLoadMoreInline"
-        flat
-        dense
-        no-caps
-        size="sm"
-        icon="expand_more"
-        label="加载更多"
-        class="inline-more-btn"
-        @click="loadMoreInline"
-      />
-      <q-btn
-        flat
-        dense
-        no-caps
-        size="sm"
-        icon="open_in_new"
-        label="查看全部"
-        class="inline-view-all-btn"
-        @click="$emit('openDialog')"
+
+    <!-- === 内联模式：简化头部（排序按钮 + 展开/收起 / 查看全部） === -->
+    <div v-if="isInline && hasResults" class="inline-results-header">
+      <div class="inline-header-left">
+        <span class="inline-results-count">{{ sortedHits.length }} 条结果</span>
+        <q-btn
+          flat
+          dense
+          size="sm"
+          :icon-right="resultsSortMethod.icon"
+          :label="resultsSortMethod.label"
+          class="inline-sort-btn"
+        >
+          <q-menu>
+            <q-list dense>
+              <q-item
+                v-for="(method, index) in resultsSortMethods"
+                :key="index"
+                clickable
+                v-close-popup
+                @click="sortResults(method)"
+              >
+                <q-item-section>
+                  <span>
+                    {{ method.label }}&nbsp;
+                    <q-icon :name="method.icon"></q-icon>
+                  </span>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
+        </q-btn>
+      </div>
+      <div class="inline-header-right">
+        <q-btn
+          v-if="sortedHits.length > INLINE_INITIAL_LIMIT"
+          flat
+          dense
+          no-caps
+          size="sm"
+          :icon="inlineExpanded ? 'unfold_less' : 'unfold_more'"
+          :label="inlineExpanded ? '收起' : '展开'"
+          class="inline-expand-btn"
+          @click="toggleInlineExpand"
+        />
+        <q-btn
+          flat
+          dense
+          no-caps
+          size="sm"
+          icon="open_in_new"
+          label="查看全部"
+          class="inline-view-all-btn"
+          @click="$emit('openDialog')"
+        />
+      </div>
+    </div>
+
+    <!-- 作者列表/筛选：仅正常模式和对话框模式 -->
+    <ResultAuthorsList v-show="showAuthorsSection" />
+    <ResultAuthorFilters v-show="showAuthorFilters" />
+
+    <!-- 结果网格 -->
+    <div
+      ref="resultsListDiv"
+      :class="gridClass"
+      :style="gridStyle"
+      @scroll="handleScroll"
+    >
+      <ResultItem
+        v-for="(result, index) in displayedResults"
+        :key="result.bvid || index"
+        :result="result"
       />
     </div>
-  </div>
 
-  <!-- 作者列表/筛选：仅正常模式和对话框模式 -->
-  <ResultAuthorsList v-show="showAuthorsSection" />
-  <ResultAuthorFilters v-show="showAuthorFilters" />
-
-  <!-- 结果网格 -->
-  <div
-    ref="resultsListDiv"
-    :class="gridClass"
-    :style="gridStyle"
-    @scroll="handleScroll"
-  >
-    <ResultItem
-      v-for="(result, index) in displayedResults"
-      :key="result.bvid || index"
-      :result="result"
-    />
-  </div>
-
-  <!-- 分页：仅正常模式和对话框模式 -->
-  <div
-    v-show="showPagination"
-    class="flex flex-center q-pt-xs results-paginate-bottom"
-    :class="{ 'results-paginate-dialog': isDialog }"
-  >
-    <ResultsPagination
-      :currentPage="currentPage"
-      :totalPages="totalPages"
-      @update:currentPage="handlePageChange"
-    />
+    <!-- 分页：仅正常模式和对话框模式 -->
+    <div
+      v-show="showPagination"
+      class="flex flex-center q-pt-xs results-paginate-bottom"
+      :class="{ 'results-paginate-dialog': isDialog }"
+    >
+      <ResultsPagination
+        :currentPage="currentPage"
+        :totalPages="totalPages"
+        @update:currentPage="handlePageChange"
+      />
+    </div>
   </div>
 </template>
 
@@ -519,10 +521,16 @@ function _setup(props) {
   const isDialog = computed(() => props.displayMode === 'dialog');
   const isNormal = computed(() => props.displayMode === 'normal');
 
-  // Inline mode: progressive loading
-  const INLINE_INITIAL = 3;
-  const INLINE_STEP = 6;
-  const inlineLimit = ref(INLINE_INITIAL);
+  // Inline mode: expand/collapse state
+  const INLINE_INITIAL_LIMIT = 6; // Items shown when collapsed
+  const INLINE_COLLAPSED_HEIGHT = '200px'; // Height when collapsed
+  const INLINE_EXPANDED_HEIGHT = '500px'; // Height when expanded
+  const inlineExpanded = ref(false);
+
+  /** Toggle inline expand/collapse */
+  const toggleInlineExpand = () => {
+    inlineExpanded.value = !inlineExpanded.value;
+  };
 
   // Submitted query for loading display (not the live input value)
   const submittedQuery = computed(() => exploreStore.submittedQuery || '');
@@ -612,8 +620,11 @@ function _setup(props) {
   /** 实际展示的结果 */
   const displayedResults = computed(() => {
     if (isInline.value) {
-      // 内联模式：从 sortedHits 中取前 N 条
-      return sorting.sortedHits.value.slice(0, inlineLimit.value);
+      // 内联模式：展开时显示所有，收起时显示有限数量
+      if (inlineExpanded.value) {
+        return sorting.sortedHits.value;
+      }
+      return sorting.sortedHits.value.slice(0, INLINE_INITIAL_LIMIT);
     }
     const all = pagination.loadedResults.value;
     if (props.maxItems > 0) {
@@ -621,16 +632,6 @@ function _setup(props) {
     }
     return all;
   });
-
-  /** 内联模式：是否还能加载更多 */
-  const canLoadMoreInline = computed(
-    () => isInline.value && inlineLimit.value < sorting.sortedHits.value.length
-  );
-
-  /** 内联模式：加载更多 */
-  const loadMoreInline = () => {
-    inlineLimit.value += INLINE_STEP;
-  };
 
   // UI visibility helpers based on display mode
   const showStatsBar = computed(() => !isInline.value);
@@ -646,6 +647,14 @@ function _setup(props) {
   const showPagination = computed(
     () => (isNormal.value || isDialog.value) && !isCollapsed.value
   );
+
+  // Container class for dialog mode flex layout
+  const containerClass = computed(() => {
+    if (isDialog.value) {
+      return 'results-container results-container--dialog';
+    }
+    return 'results-container';
+  });
 
   // Grid class & style per mode
   const gridClass = computed(() => {
@@ -666,12 +675,21 @@ function _setup(props) {
 
   const gridStyle = computed(() => {
     if (isInline.value) {
+      // 内联模式：根据展开状态调整高度
       return {
-        maxHeight: '400px',
+        maxHeight: inlineExpanded.value
+          ? INLINE_EXPANDED_HEIGHT
+          : INLINE_COLLAPSED_HEIGHT,
+        overflowY: inlineExpanded.value ? 'auto' : 'hidden',
       };
     }
     if (isDialog.value) {
-      return {};
+      // Dialog mode: flex container handles height, grid takes remaining space
+      return {
+        flex: '1 1 0',
+        minHeight: '0',
+        overflowY: 'auto',
+      };
     }
     // Normal mode: full dynamic calculation
     return dynamicResultsListStyle.value;
@@ -682,6 +700,8 @@ function _setup(props) {
     isInline,
     isDialog,
     isNormal,
+    // Container class
+    containerClass,
     // Step status
     ...stepStatus,
     // Hits data
@@ -700,9 +720,10 @@ function _setup(props) {
     loadedResults: pagination.loadedResults,
     displayedResults,
     isCollapsed,
-    // Inline
-    canLoadMoreInline,
-    loadMoreInline,
+    // Inline expand/collapse
+    INLINE_INITIAL_LIMIT,
+    inlineExpanded,
+    toggleInlineExpand,
     // UI visibility
     showStatsBar,
     showAuthorsSection,
@@ -726,6 +747,17 @@ function _setup(props) {
 </script>
 
 <style lang="scss" scoped>
+/* Container styles */
+.results-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.results-container--dialog {
+  height: 100%;
+  min-height: 0;
+}
+
 .results-stats {
   padding: 7px 5px 7px 0px;
   z-index: 1000;
@@ -809,24 +841,24 @@ function _setup(props) {
   }
 }
 
-/* 内联模式：自适应宽度网格，左对齐填充 */
+/* 内联模式：固定宽度网格，左对齐 */
 .results-list--inline {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, 160px);
   max-width: 100%;
-  overflow-y: auto;
   overflow-x: hidden;
   justify-content: start;
+  justify-items: start;
   contain: none;
   gap: 8px;
 }
 
-/* 对话框模式：自适应宽度网格，左对齐填充 */
+/* 对话框模式：固定宽度网格，左对齐 */
 .results-list--dialog {
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, 180px);
   max-width: 100%;
-  overflow-y: auto;
   overflow-x: hidden;
   justify-content: start;
+  justify-items: start;
   contain: none;
   gap: 8px;
 }
@@ -883,7 +915,7 @@ function _setup(props) {
   }
 }
 
-.inline-more-btn,
+.inline-expand-btn,
 .inline-view-all-btn {
   font-size: 12px !important;
   height: 28px !important;

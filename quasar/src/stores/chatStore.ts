@@ -25,6 +25,8 @@ import { useExploreStore } from './exploreStore';
 export interface ConversationMessage {
     role: 'user' | 'assistant';
     content: string;
+    /** Tool events for this assistant message (only for assistant role) */
+    toolEvents?: ToolEvent[];
 }
 
 /** 上下文管理：最多保留的对话轮数（每轮 = 1 user + 1 assistant） */
@@ -326,10 +328,16 @@ export const useChatStore = defineStore('chat', {
                             if (usage) {
                                 this.currentSession.usage = usage;
                             }
-                            // 将当前轮次追加到对话历史
+                            // 将当前轮次追加到对话历史，包含 tool events
                             this.conversationHistory.push(
                                 { role: 'user', content: query },
-                                { role: 'assistant', content: this.currentSession.content }
+                                {
+                                    role: 'assistant',
+                                    content: this.currentSession.content,
+                                    toolEvents: this.currentSession.toolEvents.length > 0
+                                        ? [...this.currentSession.toolEvents]
+                                        : undefined,
+                                }
                             );
                             // 修剪历史以控制上下文大小
                             this._trimConversationHistory();

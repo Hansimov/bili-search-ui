@@ -8,6 +8,13 @@
       </div>
       <!-- 助手消息（历史） -->
       <div v-else-if="msg.role === 'assistant'" class="chat-history-assistant">
+        <!-- 历史工具调用显示 -->
+        <ToolCallDisplay
+          v-if="getHistoryToolCalls(msg).length > 0"
+          :toolCalls="getHistoryToolCalls(msg)"
+          isHistorical
+          @viewAllResults="handleViewHistoricalResults($event, msg)"
+        />
         <div
           class="chat-content markdown-body"
           v-html="renderMd(msg.content)"
@@ -63,7 +70,7 @@
     <ToolCallDisplay
       v-if="allToolCalls.length > 0"
       :toolCalls="allToolCalls"
-      @viewAllResults="$emit('showResults')"
+      @viewAllResults="handleViewCurrentResults"
     />
 
     <!-- Markdown 内容渲染 -->
@@ -101,8 +108,9 @@
 
 <script lang="ts">
 import { computed, defineComponent, ref } from 'vue';
-import { useChatStore } from 'src/stores/chatStore';
+import { useChatStore, type ConversationMessage } from 'src/stores/chatStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
+import { useExploreStore } from 'src/stores/exploreStore';
 import type { ToolEvent, ToolCall } from 'src/services/chatService';
 import { renderMarkdown } from 'src/utils/markdown';
 import ToolCallDisplay from './ToolCallDisplay.vue';
@@ -120,9 +128,10 @@ export default defineComponent({
     ToolCallDisplay,
   },
   emits: ['retry', 'showResults'],
-  setup() {
+  setup(_props, { emit }) {
     const chatStore = useChatStore();
     const searchModeStore = useSearchModeStore();
+    const exploreStore = useExploreStore();
 
     const thinkingExpanded = ref(true);
 
@@ -252,6 +261,56 @@ export default defineComponent({
     /** 暴露 renderMarkdown 给模板用于历史消息渲染 */
     const renderMd = (text: string) => renderMarkdown(text);
 
+    /** 从历史消息中提取扁平的 tool calls 列表 */
+    const getHistoryToolCalls = (msg: ConversationMessage): ToolCall[] => {
+      if (!msg.toolEvents || msg.toolEvents.length === 0) return [];
+      const calls: ToolCall[] = [];
+      for (const event of msg.toolEvents) {
+        if (event.calls && event.calls.length > 0) {
+          calls.push(...event.calls);
+        }
+      }
+      return calls;
+    };
+
+    /** 查看历史消息中某个 tool call 的搜索结果 */
+    const handleViewHistoricalResults = (
+      call: ToolCall,
+      _msg: ConversationMessage
+    ) => {
+      syncToolCallToExploreStore(call);
+      emit('showResults');
+    };
+
+    /** 查看当前会话中某个 tool call 的搜索结果 */
+    const handleViewCurrentResults = (call: ToolCall) => {
+      syncToolCallToExploreStore(call);
+      emit('showResults');
+    };
+
+    /** 同步 tool call 的搜索结果到 exploreStore */
+    const syncToolCallToExploreStore = (call: ToolCall) => {
+      if (call.type === 'search_videos' && call.result) {
+        const result = call.result as { hits?: unknown[] };
+        if (result.hits && Array.isArray(result.hits)) {
+          exploreStore.updateLatestHitsResult({
+            step: 0,
+            name: 'search_videos',
+            name_zh: '搜索视频',
+            status: 'finished',
+            input: {},
+            output_type: 'hits',
+            comment: '',
+            output: {
+              hits: result.hits,
+              return_hits: result.hits.length,
+              total_hits: result.hits.length,
+            },
+          });
+        }
+      }
+    };
+
     return {
       thinkingExpanded,
       isLoading,
@@ -277,6 +336,9 @@ export default defineComponent({
       formatToolEvent,
       hasSearchTool,
       renderMd,
+      getHistoryToolCalls,
+      handleViewHistoricalResults,
+      handleViewCurrentResults,
     };
   },
 });

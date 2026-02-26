@@ -213,9 +213,11 @@ body.body--dark .search-bar-row {
 
 .results-dialog-body {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 0 12px;
+  min-height: 0;
 }
 
 .graph-results-list {

@@ -71,13 +71,22 @@
               }}</span>
             </div>
           </div>
-          <div
-            v-if="getVideoHits(call).length > maxPreviewItems"
-            class="tool-result-more"
+        </div>
+        <!-- 操作按钮：查看全部 -->
+        <div
+          v-if="call.type === 'search_videos' && getVideoHits(call).length > 0"
+          class="tool-result-actions"
+        >
+          <q-btn
+            flat
+            dense
+            no-caps
+            size="sm"
+            icon="open_in_new"
+            :label="`查看全部 ${getVideoHits(call).length} 条`"
+            class="tool-view-all-btn"
             @click.stop="$emit('viewAllResults', call)"
-          >
-            +{{ getVideoHits(call).length - maxPreviewItems }} 更多
-          </div>
+          />
         </div>
         <div
           v-else-if="call.type === 'check_author'"
@@ -140,6 +149,11 @@ export default defineComponent({
     maxPreviewItems: {
       type: Number,
       default: 4,
+    },
+    /** Whether this is displaying historical tool calls (from past conversation turns) */
+    isHistorical: {
+      type: Boolean,
+      default: false,
     },
   },
   emits: ['viewAllResults'],
@@ -414,6 +428,23 @@ export default defineComponent({
   font-size: 12px;
   opacity: 0.5;
   font-style: italic;
+}
+
+/* 操作按钮区域 */
+.tool-result-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px dashed rgba(128, 128, 128, 0.12);
+}
+
+.tool-view-all-btn {
+  font-size: 12px !important;
+  opacity: 0.7;
+  &:hover {
+    opacity: 1;
+  }
 }
 
 /* Dark theme */
