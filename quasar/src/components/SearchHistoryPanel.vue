@@ -215,6 +215,13 @@ export default {
   font-size: 12px;
   max-width: 200px;
   cursor: pointer;
+  /* 确保长文本被截断并显示省略号，避免 chip 之间混叠 */
+  overflow: hidden;
+  :deep(.q-chip__content) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .pinned-chip {

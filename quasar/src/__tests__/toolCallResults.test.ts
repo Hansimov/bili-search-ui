@@ -158,3 +158,164 @@ describe('Tool call result field safety', () => {
         });
     });
 });
+
+/** ToolCall / ToolEvent interfaces (mirrors chatService) */
+interface ToolCall {
+    type: string;
+    args: Record<string, unknown>;
+    status: 'pending' | 'completed';
+    result?: unknown;
+}
+interface ToolEvent {
+    iteration: number;
+    tools: string[];
+    calls?: ToolCall[];
+}
+
+/**
+ * Deduplication logic extracted from ChatResponsePanel's allToolCalls computed.
+ * Deduplicates by type+args, keeping the latest version from the most recent iteration.
+ */
+function deduplicateToolCalls(events: ToolEvent[]): ToolCall[] {
+    const callMap = new Map<string, ToolCall>();
+    for (const event of events) {
+        if (event.calls && event.calls.length > 0) {
+            for (const call of event.calls) {
+                const key = `${call.type}:${JSON.stringify(call.args)}`;
+                callMap.set(key, call);
+            }
+        }
+    }
+    return Array.from(callMap.values());
+}
+
+describe('Tool call deduplication (allToolCalls)', () => {
+    it('should deduplicate identical search_videos across iterations', () => {
+        const events: ToolEvent[] = [
+            {
+                iteration: 1,
+                tools: ['search_videos'],
+                calls: [{ type: 'search_videos', args: { queries: ['黑神话'] }, status: 'completed', result: { hits: [{ bvid: 'BV1' }] } }],
+            },
+            {
+                iteration: 2,
+                tools: ['search_videos'],
+                calls: [{ type: 'search_videos', args: { queries: ['黑神话'] }, status: 'completed', result: { hits: [{ bvid: 'BV2' }] } }],
+            },
+        ];
+        const result = deduplicateToolCalls(events);
+        expect(result).toHaveLength(1);
+        // Should keep the latest (iteration 2) version
+        expect((result[0].result as { hits: { bvid: string }[] }).hits[0].bvid).toBe('BV2');
+    });
+
+    it('should keep different tool calls from different iterations', () => {
+        const events: ToolEvent[] = [
+            {
+                iteration: 1,
+                tools: ['search_videos'],
+                calls: [{ type: 'search_videos', args: { queries: ['黑神话'] }, status: 'completed' }],
+            },
+            {
+                iteration: 2,
+                tools: ['search_videos'],
+                calls: [{ type: 'search_videos', args: { queries: ['原神'] }, status: 'completed' }],
+            },
+        ];
+        const result = deduplicateToolCalls(events);
+        expect(result).toHaveLength(2);
+    });
+
+    it('should replace pending with completed for same iteration', () => {
+        // Simulates: pending event arrives, then completed event replaces it
+        const events: ToolEvent[] = [
+            {
+                iteration: 1,
+                tools: ['search_videos'],
+                calls: [{ type: 'search_videos', args: { queries: ['测试'] }, status: 'completed', result: { hits: [] } }],
+            },
+        ];
+        const result = deduplicateToolCalls(events);
+        expect(result).toHaveLength(1);
+        expect(result[0].status).toBe('completed');
+    });
+
+    it('should handle mixed tool types across iterations', () => {
+        const events: ToolEvent[] = [
+            {
+                iteration: 1,
+                tools: ['search_videos', 'check_author'],
+                calls: [
+                    { type: 'search_videos', args: { queries: ['up主'] }, status: 'completed' },
+                    { type: 'check_author', args: { name: '影视飓风' }, status: 'completed' },
+                ],
+            },
+            {
+                iteration: 2,
+                tools: ['search_videos'],
+                calls: [{ type: 'search_videos', args: { queries: ['up主'] }, status: 'completed' }],
+            },
+        ];
+        const result = deduplicateToolCalls(events);
+        // search_videos deduped (same args), check_author kept
+        expect(result).toHaveLength(2);
+        expect(result.map(c => c.type)).toContain('check_author');
+        expect(result.filter(c => c.type === 'search_videos')).toHaveLength(1);
+    });
+
+    it('should return empty for events with no calls', () => {
+        const events: ToolEvent[] = [
+            { iteration: 1, tools: ['search_videos'] },
+        ];
+        const result = deduplicateToolCalls(events);
+        expect(result).toHaveLength(0);
+    });
+});
+
+/** Perf stats time format logic (extracted from ChatResponsePanel) */
+function formatElapsedTime(totalMs: number): string {
+    if (totalMs >= 60000) {
+        const min = Math.floor(totalMs / 60000);
+        const sec = Math.round((totalMs % 60000) / 1000);
+        if (sec > 0) {
+            return `用时 ${min} min ${sec} s`;
+        } else {
+            return `用时 ${min} min`;
+        }
+    } else {
+        const sec = Math.round(totalMs / 1000);
+        return `用时 ${sec}s`;
+    }
+}
+
+describe('Perf stats time formatting', () => {
+    it('should format sub-minute time as integer seconds', () => {
+        expect(formatElapsedTime(12345)).toBe('用时 12s');
+    });
+
+    it('should not include decimal for sub-minute times', () => {
+        const result = formatElapsedTime(5678);
+        expect(result).toBe('用时 6s');
+        expect(result).not.toContain('.');
+    });
+
+    it('should format exactly 1 minute', () => {
+        expect(formatElapsedTime(60000)).toBe('用时 1 min');
+    });
+
+    it('should format over 1 minute with seconds', () => {
+        expect(formatElapsedTime(75000)).toBe('用时 1 min 15 s');
+    });
+
+    it('should handle zero ms', () => {
+        expect(formatElapsedTime(0)).toBe('用时 0s');
+    });
+
+    it('should round 500ms to 1s', () => {
+        expect(formatElapsedTime(500)).toBe('用时 1s');
+    });
+
+    it('should round 499ms to 0s', () => {
+        expect(formatElapsedTime(499)).toBe('用时 0s');
+    });
+});

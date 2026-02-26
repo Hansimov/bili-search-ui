@@ -187,15 +187,22 @@ export default defineComponent({
     );
     const userQuery = computed(() => chatStore.currentSession.query || '');
 
-    /** 从所有 tool events 中提取扁平的 tool calls 列表 */
+    /**
+     * 从所有 tool events 中提取扁平的 tool calls 列表。
+     * 使用 type+args 去重：当多次 iteration 调用同一工具（相同参数）时，
+     * 只保留最新的版本（后面 iteration 的覆盖前面的），避免出现重复的 tool-call-item。
+     */
     const allToolCalls = computed((): ToolCall[] => {
-      const calls: ToolCall[] = [];
+      const callMap = new Map<string, ToolCall>();
       for (const event of toolEvents.value) {
         if (event.calls && event.calls.length > 0) {
-          calls.push(...event.calls);
+          for (const call of event.calls) {
+            const key = `${call.type}:${JSON.stringify(call.args)}`;
+            callMap.set(key, call);
+          }
         }
       }
-      return calls;
+      return Array.from(callMap.values());
     });
 
     /**
@@ -267,8 +274,8 @@ export default defineComponent({
           parts.push(`用时 ${min} min`);
         }
       } else {
-        const sec = (totalMs / 1000).toFixed(1);
-        parts.push(`用时 ${sec} s`);
+        const sec = Math.round(totalMs / 1000);
+        parts.push(`用时 ${sec}s`);
       }
 
       // Token usage: "输入 XX tokens，输出 XX tokens"
@@ -307,16 +314,19 @@ export default defineComponent({
     /** 暴露 renderMarkdown 给模板用于历史消息渲染 */
     const renderMd = (text: string) => renderMarkdown(text);
 
-    /** 从历史消息中提取扁平的 tool calls 列表 */
+    /** 从历史消息中提取扁平的 tool calls 列表（去重同 allToolCalls） */
     const getHistoryToolCalls = (msg: ConversationMessage): ToolCall[] => {
       if (!msg.toolEvents || msg.toolEvents.length === 0) return [];
-      const calls: ToolCall[] = [];
+      const callMap = new Map<string, ToolCall>();
       for (const event of msg.toolEvents) {
         if (event.calls && event.calls.length > 0) {
-          calls.push(...event.calls);
+          for (const call of event.calls) {
+            const key = `${call.type}:${JSON.stringify(call.args)}`;
+            callMap.set(key, call);
+          }
         }
       }
-      return calls;
+      return Array.from(callMap.values());
     };
 
     /** 获取历史消息的格式化性能统计 */
@@ -425,6 +435,20 @@ export default defineComponent({
   padding: 16px 20px;
   font-size: 15px;
   line-height: 1.7;
+}
+
+/* 窄屏时减少两侧 padding，让 chat 内容占满更多宽度 */
+@media (max-width: 768px) {
+  .chat-response-panel {
+    padding: 12px 10px;
+    max-width: calc(100vw - var(--sidebar-current-width, 0px) - 12px);
+  }
+}
+@media (max-width: 480px) {
+  .chat-response-panel {
+    padding: 10px 6px;
+    max-width: calc(100vw - var(--sidebar-current-width, 0px) - 8px);
+  }
 }
 
 /* 用户提问（渐变背景区分） */
