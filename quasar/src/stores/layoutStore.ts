@@ -116,15 +116,9 @@ export const useLayoutStore = defineStore('layout', {
             this.toggleSidebar();
         },
         updateSearchInputMaxWidth() {
-            let searchInputMaxWidth;
-            if (this.hasSidebar()) {
-                searchInputMaxWidth = `calc(${this.availableContentWidth()}px - 5vw)`;
-            } else {
-                searchInputMaxWidth = '95vw';
-            }
             document.documentElement.style.setProperty(
-                '--search-input-max-width',
-                searchInputMaxWidth
+                '--sidebar-current-width',
+                `${this.sidebarWidth()}px`
             );
         },
         updateScreenWidth() {

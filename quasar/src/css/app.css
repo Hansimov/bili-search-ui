@@ -2,8 +2,9 @@
 
 /* Root setting used by result title */
 :root {
+  --sidebar-current-width: 0px;
   --search-input-width: min(780px, 95vw);
-  /* --search-input-max-width: 95vw; */ /* already dynamicly calced in layoutStore.ts */
+  --search-input-max-width: calc(100vw - var(--sidebar-current-width) - 5vw);
   --search-input-width-more: 6px;
   --result-title-font-size: 1em;
   --result-title-line-height: calc(1.5 * var(--result-title-font-size));

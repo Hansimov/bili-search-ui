@@ -140,7 +140,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
@@ -596,11 +596,7 @@ function _setup(props) {
 
   // Lifecycle hooks
   onMounted(() => {
-    layoutStore.addWindowResizeListener();
-  });
-
-  onUnmounted(() => {
-    layoutStore.removeWindowResizeListener();
+    // resize listener is managed globally by App.vue
   });
 
   /** 是否处于折叠模式（maxItems > 0，仅 normal 模式） */
