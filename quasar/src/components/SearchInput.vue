@@ -518,7 +518,8 @@ export default {
             setRoute: false,
           });
         } else {
-          // 首次提交：设置路由并触发聊天（不调用 explore，LLM 工具调用会触发搜索）
+          // 首次提交：生成新的 sessionId，设置路由并触发聊天
+          chatStore.startNewChat();
           chat({
             queryValue: submittedQuery,
             mode,
@@ -553,8 +554,9 @@ export default {
       chatStore.abortCurrentRequest();
     };
 
-    // URL 驱动的搜索 (route.query.q 变化时)
-    // 注意：URL 导航只触发 explore，不触发 LLM 聊天
+    // URL 驱动的搜索
+    // - route.query.q 变化时触发 explore（直接查找模式）
+    // - route.params.sessionId 变化时尝试恢复 chat 会话（快速问答/智能思考模式）
     // LLM 聊天仅在用户显式提交（回车/点击发送）时触发
     watch(
       () => route.query.q,
@@ -594,6 +596,37 @@ export default {
               layoutStore.setCurrentPage(1);
             }
           }
+        }
+      },
+      { immediate: true }
+    );
+
+    // URL 驱动的 chat 会话恢复 (route.params.sessionId 变化时)
+    // 当 URL 为 /chat/<sessionId> 时，尝试从搜索历史恢复对应的聊天会话
+    watch(
+      () => route.params.sessionId as string | undefined,
+      async (newChatId) => {
+        if (!newChatId) return;
+        if (exploreStore.isRestoringSession) return;
+
+        // 如果当前会话已是该 sessionId，无需恢复
+        if (chatStore.currentSessionId === newChatId) return;
+
+        // 尝试从 chatStore 历史中恢复
+        if (chatStore.restoreBySessionId(newChatId)) {
+          return;
+        }
+
+        // 尝试从搜索历史的快照中恢复
+        await searchHistoryStore.loadHistory();
+        const historyItem = searchHistoryStore.findBySessionId(newChatId);
+        if (historyItem && historyItem.chatSnapshot) {
+          const mode = historyItem.mode || 'smart';
+          chatStore.restoreFromSnapshot(historyItem.chatSnapshot);
+          chatStore.setCurrentHistoryRecordId(historyItem.id);
+          searchModeStore.setMode(mode as SearchMode);
+          searchModeStore.forceInitialSessionMode(mode as SearchMode);
+          exploreStore.setSubmittedQuery(historyItem.query);
         }
       },
       { immediate: true }

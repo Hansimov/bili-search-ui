@@ -32,6 +32,8 @@ export interface SearchHistoryItem {
     displayName?: string;
     /** 搜索模式 (direct/smart/think/research)，用于恢复正确的页面布局 */
     mode?: SearchMode;
+    /** 聊天会话 ID（仅 smart/think 模式），用于 URL 恢复会话 */
+    sessionId?: string;
     /** Chat 模式下的对话历史快照（仅 smart/think 模式） */
     chatSnapshot?: ChatHistorySnapshot;
 }
@@ -217,12 +219,14 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
          * @param resultCount - 搜索结果数量
          * @param mode - 搜索模式 (direct/smart/think/research)
          * @param chatSnapshot - Chat 模式下的对话历史快照
+         * @param sessionId - 聊天会话 ID（仅 chat 模式）
          */
         async addRecord(
             query: string,
             resultCount?: number,
             mode?: SearchMode,
             chatSnapshot?: ChatHistorySnapshot,
+            sessionId?: string,
         ): Promise<string> {
             if (!query || query.trim() === '') return '';
 
@@ -235,6 +239,7 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
                 pinned: false,
                 resultCount,
                 mode,
+                sessionId,
                 chatSnapshot,
             };
             this.items.push(item);
@@ -344,6 +349,7 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
                     resultCount: item.resultCount,
                     displayName: item.displayName,
                     mode: item.mode,
+                    sessionId: item.sessionId,
                 };
                 // Chat 快照需要深拷贝去除响应式代理
                 if (item.chatSnapshot) {
@@ -398,6 +404,25 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
                 if (mode && item.mode && item.mode !== mode) return false;
                 return true;
             });
+        },
+
+        /**
+         * 根据 sessionId 查找历史记录
+         * 用于从 URL 参数 chat=<sessionId> 恢复会话
+         */
+        findBySessionId(sessionId: string): SearchHistoryItem | undefined {
+            return this.items.find((item) => item.sessionId === sessionId);
+        },
+
+        /**
+         * 更新记录的 sessionId（用于无快照的 chat 记录重新发起聊天时）
+         */
+        async updateSessionId(id: string, sessionId: string): Promise<void> {
+            const index = this.items.findIndex((item) => item.id === id);
+            if (index < 0) return;
+            const updated = { ...this.items[index], sessionId };
+            this.items.splice(index, 1, updated);
+            await this.persistItem(updated);
         },
     },
 });

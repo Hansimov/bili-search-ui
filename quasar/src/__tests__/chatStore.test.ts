@@ -750,6 +750,7 @@ describe('ChatStore 扩展功能', () => {
             const store = useChatStore();
             const snapshot = {
                 session: {
+                    sessionId: 'test-session-1',
                     query: '历史问题',
                     mode: 'smart' as const,
                     content: '历史回答',
@@ -785,6 +786,7 @@ describe('ChatStore 扩展功能', () => {
             const store = useChatStore();
             const snapshot = {
                 session: {
+                    sessionId: 'test-session-2',
                     query: '问题',
                     mode: 'smart' as const,
                     content: '回答',
@@ -829,6 +831,118 @@ describe('ChatStore 扩展功能', () => {
             store.setCurrentHistoryRecordId('test-id-123');
             store.clearHistory();
             expect(store.currentHistoryRecordId).toBeNull();
+        });
+    });
+
+    describe('sessionId 管理', () => {
+        it('默认会话应有 sessionId', () => {
+            const store = useChatStore();
+            expect(store.currentSession.sessionId).toBeTruthy();
+            expect(typeof store.currentSession.sessionId).toBe('string');
+        });
+
+        it('startNewChat 应生成新的 sessionId', () => {
+            const store = useChatStore();
+            const oldSessionId = store.currentSessionId;
+            store.startNewChat();
+            expect(store.currentSessionId).toBeTruthy();
+            expect(store.currentSessionId).not.toBe(oldSessionId);
+            expect(store.currentSession.sessionId).toBe(store.currentSessionId);
+        });
+
+        it('startNewChat 应重置对话历史和会话状态', () => {
+            const store = useChatStore();
+            store.conversationHistory.push(
+                { id: 'u1', role: 'user', content: 'hello' },
+                { id: 'a1', role: 'assistant', content: 'hi' },
+            );
+            store.setCurrentHistoryRecordId('record-1');
+
+            store.startNewChat();
+
+            expect(store.conversationHistory).toHaveLength(0);
+            expect(store.currentHistoryRecordId).toBeNull();
+            expect(store.currentSession.query).toBe('');
+            expect(store.currentSession.content).toBe('');
+        });
+
+        it('restoreFromSnapshot 应恢复 sessionId', () => {
+            const store = useChatStore();
+            const snapshot = {
+                session: {
+                    sessionId: 'restored-session-abc',
+                    query: '测试问题',
+                    mode: 'smart' as const,
+                    content: '测试回答',
+                    thinkingContent: '',
+                    isLoading: false,
+                    isThinkingPhase: false,
+                    isDone: true,
+                    isAborted: false,
+                    error: null,
+                    perfStats: null,
+                    usage: null,
+                    toolEvents: [],
+                    thinking: false,
+                    createdAt: Date.now(),
+                },
+                conversationHistory: [
+                    { id: 'u1', role: 'user' as const, content: '测试问题' },
+                    { id: 'a1', role: 'assistant' as const, content: '测试回答' },
+                ],
+            };
+
+            store.restoreFromSnapshot(snapshot);
+            expect(store.currentSessionId).toBe('restored-session-abc');
+            expect(store.currentSession.sessionId).toBe('restored-session-abc');
+        });
+
+        it('restoreFromSnapshot 应为缺少 sessionId 的旧快照生成新 sessionId', () => {
+            const store = useChatStore();
+            const snapshot = {
+                session: {
+                    sessionId: '',
+                    query: '旧快照',
+                    mode: 'think' as const,
+                    content: '旧回答',
+                    thinkingContent: '',
+                    isLoading: false,
+                    isThinkingPhase: false,
+                    isDone: true,
+                    isAborted: false,
+                    error: null,
+                    perfStats: null,
+                    usage: null,
+                    toolEvents: [],
+                    thinking: true,
+                    createdAt: Date.now(),
+                },
+                conversationHistory: [],
+            };
+
+            store.restoreFromSnapshot(snapshot);
+            // 空 sessionId 应被替换为新生成的
+            expect(store.currentSessionId).toBeTruthy();
+            expect(store.currentSession.sessionId).toBeTruthy();
+        });
+
+        it('restoreBySessionId 应在当前会话匹配时返回 true', () => {
+            const store = useChatStore();
+            const sid = store.currentSessionId;
+            expect(store.restoreBySessionId(sid)).toBe(true);
+        });
+
+        it('restoreBySessionId 应在找不到会话时返回 false', () => {
+            const store = useChatStore();
+            expect(store.restoreBySessionId('nonexistent-id')).toBe(false);
+        });
+
+        it('clearHistory 应重置 sessionId', () => {
+            const store = useChatStore();
+            store.startNewChat();
+            expect(store.currentSessionId).toBeTruthy();
+            store.clearHistory();
+            expect(store.currentSessionId).toBe('');
         });
     });
 });

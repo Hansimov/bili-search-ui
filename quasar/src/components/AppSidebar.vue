@@ -793,8 +793,14 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
     searchModeStore.forceInitialSessionMode(mode);
     // 防止 URL watcher 触发 explore
     exploreStore.setRestoringSession(true);
-    // 设置路由和标题
-    queryStore.setQuery({ newQuery: query, setRoute: true, mode });
+    // 使用 sessionId 设置 chat 路由
+    const sessionId = item.sessionId || chatStore.currentSessionId;
+    queryStore.setQuery({
+      newQuery: query,
+      setRoute: true,
+      mode,
+      chatSessionId: sessionId,
+    });
     exploreStore.setSubmittedQuery(query);
     // 关联历史记录 ID 以便后续更新快照
     chatStore.setCurrentHistoryRecordId(item.id);
@@ -806,10 +812,19 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
     searchModeStore.forceInitialSessionMode(mode);
     // 防止 URL watcher 触发 explore
     exploreStore.setRestoringSession(true);
-    queryStore.setQuery({ newQuery: query, setRoute: true, mode });
+    // 使用新生成的 sessionId 设置路由
+    const sessionId = chatStore.currentSessionId;
+    queryStore.setQuery({
+      newQuery: query,
+      setRoute: true,
+      mode,
+      chatSessionId: sessionId,
+    });
     exploreStore.setSubmittedQuery(query);
     // 预设历史记录 ID，避免 chat.ts 重复添加记录
     chatStore.setCurrentHistoryRecordId(item.id);
+    // 更新历史记录的 sessionId
+    searchHistoryStore.updateSessionId(item.id, sessionId);
     setTimeout(() => exploreStore.setRestoringSession(false), 200);
     // 重新发起聊天请求
     const { chat: chatFn } = await import('src/functions/chat');
@@ -956,7 +971,14 @@ const confirmRename = async () => {
 // Copy link
 const copiedItemId = ref<string | null>(null);
 const copySearchLink = async (query: string, itemId: string) => {
-  const url = `${window.location.origin}/search?q=${encodeURIComponent(query)}`;
+  // Chat 模式使用 /chat/<sessionId> URL，直接查找模式使用 /search?q=<query> URL
+  const item = searchHistoryStore.items.find((i) => i.id === itemId);
+  let url: string;
+  if (item?.sessionId && (item.mode === 'smart' || item.mode === 'think')) {
+    url = `${window.location.origin}/chat/${item.sessionId}`;
+  } else {
+    url = `${window.location.origin}/search?q=${encodeURIComponent(query)}`;
+  }
   try {
     await copyToClipboard(url);
     copiedItemId.value = itemId;

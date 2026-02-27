@@ -3,6 +3,9 @@
  *
  * 处理 "快速问答" (smart) 和 "智能思考" (think) 模式的查询提交。
  * 类似于 explore.ts 对 "直接查找" 模式的处理。
+ *
+ * Chat 模式使用 session_id 标识会话，URL 格式为 /chat/<session_id>
+ * 而非 /search?q=<query>，因为自然语言查询不适合暴露在 URL 中。
  */
 
 import { useQueryStore } from 'src/stores/queryStore';
@@ -18,7 +21,7 @@ import type { SearchMode } from 'src/stores/searchModeStore';
  * @param queryValue - 查询文本
  * @param mode - 'smart' (快速问答) 或 'think' (智能思考)
  * @param setQuery - 是否更新 queryStore
- * @param setRoute - 是否更新路由
+ * @param setRoute - 是否更新路由（使用 /chat/<sessionId>）
  */
 export const chat = async ({
     queryValue,
@@ -46,13 +49,27 @@ export const chat = async ({
     // 设置 submittedQuery 给 TitleToolbar 显示（仅新会话/首次提交时，多轮续接保持原始查询）
     if (setQuery) {
         exploreStore.setSubmittedQuery(queryValue);
-        queryStore.setQuery({ newQuery: queryValue, setRoute, mode });
+        // 聊天模式：使用 sessionId 路由
+        const sessionId = chatStore.currentSessionId;
+        queryStore.setQuery({
+            newQuery: queryValue,
+            setRoute,
+            mode,
+            chatSessionId: sessionId || undefined,
+        });
     }
 
     // 为 chat 模式记录搜索历史（仅首次，续接对话不重复记录）
     // 且不在历史恢复时重复记录（已预设 recordId）
     if (chatStore.conversationHistory.length === 0 && !chatStore.currentHistoryRecordId) {
-        const recordId = await searchHistoryStore.addRecord(queryValue, undefined, mode);
+        const sessionId = chatStore.currentSessionId;
+        const recordId = await searchHistoryStore.addRecord(
+            queryValue,
+            undefined,
+            mode,
+            undefined,
+            sessionId || undefined,
+        );
         if (recordId) {
             chatStore.setCurrentHistoryRecordId(recordId);
         }

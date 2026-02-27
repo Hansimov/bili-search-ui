@@ -16,6 +16,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('layouts/ResultsLayout.vue'),
     children: [{ path: '', component: () => import('pages/ResultsPage.vue') }],
   },
+  {
+    path: '/chat/:sessionId',
+    component: () => import('layouts/ResultsLayout.vue'),
+    children: [{ path: '', component: () => import('pages/ResultsPage.vue'), props: true }],
+  },
   // Always leave this as last one,
   // but you can also remove it
   {

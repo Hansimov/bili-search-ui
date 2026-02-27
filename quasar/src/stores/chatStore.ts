@@ -21,7 +21,19 @@ import {
     type ToolCall,
 } from 'src/services/chatService';
 import { useExploreStore } from './exploreStore';
-import { useSearchModeStore } from './searchModeStore';
+
+/** 生成 UUID v4 */
+function generateSessionId(): string {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback for environments without crypto.randomUUID
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
+}
 
 /** 多轮对话中的单条消息 */
 export interface ConversationMessage {
@@ -48,7 +60,9 @@ const MAX_CONVERSATION_TURNS = 5;
 
 /** 单条聊天会话 */
 export interface ChatSession {
-    /** 用户查询 */
+    /** 会话唯一标识（UUID） */
+    sessionId: string;
+    /** 用户查询（首次提交的查询文本） */
     query: string;
     /** 搜索模式: smart | think */
     mode: 'smart' | 'think';
@@ -78,8 +92,9 @@ export interface ChatSession {
     createdAt: number;
 }
 
-function defaultSession(): ChatSession {
+function defaultSession(sessionId?: string): ChatSession {
     return {
+        sessionId: sessionId || generateSessionId(),
         query: '',
         mode: 'smart',
         content: '',
@@ -101,6 +116,8 @@ export const useChatStore = defineStore('chat', {
     state: () => ({
         /** 当前活跃的聊天会话 */
         currentSession: defaultSession() as ChatSession,
+        /** 当前会话 ID（快捷访问，与 currentSession.sessionId 同步） */
+        currentSessionId: '' as string,
         /** 多轮对话历史（user/assistant 消息对） */
         conversationHistory: [] as ConversationMessage[],
         /** 历史会话列表 */
@@ -223,10 +240,14 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        /** 重置当前会话状态（不清除对话历史） */
+        /** 重置当前会话状态（不清除对话历史，保留 sessionId） */
         resetSession() {
             this.abortCurrentRequest();
-            this.currentSession = defaultSession();
+            const sid = this.currentSessionId;
+            this.currentSession = defaultSession(sid || undefined);
+            if (sid) {
+                this.currentSession.sessionId = sid;
+            }
         },
 
         /** 清除对话历史（开始全新对话） */
@@ -235,13 +256,20 @@ export const useChatStore = defineStore('chat', {
             this._conversationLengthBeforeCurrentRound = 0;
         },
 
-        /** 开始全新对话：重置当前会话 + 清除对话历史 */
+        /**
+         * 开始全新对话：重置当前会话 + 清除对话历史 + 生成新 sessionId
+         *
+         * 注意：不在此处重置 initialSessionMode，由调用方按需处理。
+         * - 导航到首页时：调用方自行调用 searchModeStore.resetInitialSessionMode()
+         * - 提交新聊天时：调用方先设置 setInitialSessionMode(mode) 再调用本方法
+         */
         startNewChat() {
             this.clearConversation();
-            this.resetSession();
-            // 重置首次会话模式，让下次提交可以重新决定布局
-            const searchModeStore = useSearchModeStore();
-            searchModeStore.resetInitialSessionMode();
+            this.abortCurrentRequest();
+            const newId = generateSessionId();
+            this.currentSessionId = newId;
+            this.currentSession = defaultSession(newId);
+            this._currentHistoryRecordId = null;
         },
 
         /**
@@ -334,12 +362,18 @@ export const useChatStore = defineStore('chat', {
             // 中止之前的请求
             this.abortCurrentRequest();
 
+            // 确保有 sessionId（首次提交时可能还没有）
+            if (!this.currentSessionId) {
+                this.currentSessionId = generateSessionId();
+            }
+            const sessionId = this.currentSessionId;
+
             // 记录当前回合开始前的历史长度，用于显示分离
             this._conversationLengthBeforeCurrentRound = this.conversationHistory.length;
 
             // 重置当前会话（保留对话历史）
             this.currentSession = {
-                ...defaultSession(),
+                ...defaultSession(sessionId),
                 query,
                 mode,
                 thinking: mode === 'think',
@@ -528,6 +562,9 @@ export const useChatStore = defineStore('chat', {
             conversationHistory: ConversationMessage[];
         }) {
             this.abortCurrentRequest();
+            // 恢复 sessionId
+            const sessionId = snapshot.session.sessionId || generateSessionId();
+            this.currentSessionId = sessionId;
             // 恢复对话历史（确保所有消息都有 ID，兼容旧快照）
             this.conversationHistory = snapshot.conversationHistory.map(m => ({
                 ...m,
@@ -538,6 +575,7 @@ export const useChatStore = defineStore('chat', {
             // 恢复当前会话状态（确保标记为已完成、非加载状态）
             this.currentSession = {
                 ...snapshot.session,
+                sessionId,
                 isLoading: false,
                 isThinkingPhase: false,
                 isDone: true,
@@ -552,7 +590,28 @@ export const useChatStore = defineStore('chat', {
             this.conversationHistory = [];
             this._currentHistoryRecordId = null;
             this._conversationLengthBeforeCurrentRound = 0;
+            this.currentSessionId = '';
             this.resetSession();
+        },
+
+        /**
+         * 根据 sessionId 查找并恢复会话
+         * 用于从 URL 参数 chat=<sessionId> 恢复会话
+         * @returns true 如果成功恢复，false 如果未找到
+         */
+        restoreBySessionId(sessionId: string): boolean {
+            // 如果当前会话已是该 sessionId，无需操作
+            if (this.currentSessionId === sessionId) {
+                return true;
+            }
+            // 在历史会话中查找
+            const idx = this.sessions.findIndex(s => s.sessionId === sessionId);
+            if (idx >= 0) {
+                this.restoreSession(idx);
+                this.currentSessionId = sessionId;
+                return true;
+            }
+            return false;
         },
     },
 });

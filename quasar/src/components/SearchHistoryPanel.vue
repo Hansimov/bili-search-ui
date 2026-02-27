@@ -114,14 +114,21 @@ export default {
       const mode = item.mode || 'direct';
 
       layoutStore.setIsSuggestVisible(false);
-      queryStore.setQuery({ newQuery: query, setRoute: true, mode });
 
-      // Chat 模式：恢复对话状态
+      // Chat 模式：恢复对话状态，使用 sessionId 路由
       if ((mode === 'smart' || mode === 'think') && item.chatSnapshot) {
         chatStore.restoreFromSnapshot(item.chatSnapshot);
         chatStore.setCurrentHistoryRecordId(item.id);
         searchModeStore.setMode(mode);
         searchModeStore.forceInitialSessionMode(mode);
+        // 使用 sessionId 设置路由
+        const sessionId = item.sessionId || chatStore.currentSessionId;
+        queryStore.setQuery({
+          newQuery: query,
+          setRoute: true,
+          mode,
+          chatSessionId: sessionId,
+        });
         return;
       }
 
@@ -130,6 +137,7 @@ export default {
       if (mode === 'direct') {
         searchModeStore.forceInitialSessionMode(mode);
       }
+      queryStore.setQuery({ newQuery: query, setRoute: true });
       await explore({
         queryValue: query,
         setQuery: false,
