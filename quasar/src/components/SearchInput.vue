@@ -24,7 +24,7 @@
           @click="handleClick"
           @compositionstart="onCompositionStart"
           @compositionend="onCompositionEnd"
-          rows="1"
+          :rows="minRows"
         ></textarea>
         <q-btn
           v-if="displayValue.trim()"
@@ -161,6 +161,8 @@ const MODE_ICON_COLORS: Record<SearchMode, string> = {
 /** textarea 单行高度 & 最大行数 */
 const TEXTAREA_LINE_HEIGHT = 24; // px, matches CSS line-height
 const TEXTAREA_MAX_ROWS = 6;
+/** 窗口高度低于此值时，输入框默认 1 行；否则 2 行 */
+const COMPACT_WINDOW_HEIGHT = 500;
 
 export default {
   setup() {
@@ -174,6 +176,10 @@ export default {
     const textareaRef = ref<HTMLTextAreaElement | null>(null);
     const wrapperRef = ref<HTMLElement | null>(null);
     let resizeObserver: ResizeObserver | null = null;
+
+    /** 根据窗口高度动态决定最小行数 */
+    /** 目前都设为 2 行，将来可以按需调整 */
+    const minRows = ref(window.innerHeight < COMPACT_WINDOW_HEIGHT ? 2 : 2);
 
     const queryModel = computed({
       get: () => queryStore.query || '',
@@ -252,27 +258,38 @@ export default {
 
     // ====== Textarea auto-resize ======
 
-    /** 调整 textarea 高度以适应内容 */
+    /** 调整 textarea 高度以适应内容（最小 minRows 行） */
     const autoResize = () => {
       const el = textareaRef.value;
       if (!el) return;
-      // 重置为单行以获取 scrollHeight
-      el.style.height = 'auto';
+      const minHeight = TEXTAREA_LINE_HEIGHT * minRows.value;
+      el.style.height = `${minHeight}px`;
       const maxHeight = TEXTAREA_LINE_HEIGHT * TEXTAREA_MAX_ROWS;
-      el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+      el.style.height = `${Math.max(
+        Math.min(el.scrollHeight, maxHeight),
+        minHeight
+      )}px`;
     };
 
-    /** 更新 --search-bar-total-height CSS 变量 + layoutStore */
+    /** 更新 --search-bar-total-height 及输入框位置相关 CSS 变量 + layoutStore */
     const updateSearchBarHeight = () => {
       const el = wrapperRef.value;
       if (!el) return;
       const height = el.offsetHeight;
       // 加上 sticky 容器 padding (16px * 2 = 32px)
       const totalHeight = height + 32;
-      document.documentElement.style.setProperty(
-        '--search-bar-total-height',
-        `${totalHeight}px`
+      const rect = el.getBoundingClientRect();
+      const root = document.documentElement;
+      root.style.setProperty('--search-bar-total-height', `${totalHeight}px`);
+      // 输入框左侧距 viewport 左边缘的距离（用于 chat 面板对齐）
+      root.style.setProperty('--search-input-left-edge', `${rect.left}px`);
+      // 输入框右侧距 viewport 右边缘的距离（用于“回到底部”按钮对齐）
+      root.style.setProperty(
+        '--search-input-right-edge',
+        `${window.innerWidth - rect.right}px`
       );
+      // 输入框实际渲染宽度（用于 chat 面板宽度匹配）
+      root.style.setProperty('--search-input-actual-width', `${rect.width}px`);
       layoutStore.setSearchBarTotalHeight(totalHeight);
     };
 
@@ -474,8 +491,20 @@ export default {
       });
     };
 
+    /** 监听窗口 resize，动态调整默认行数 + 更新输入框位置 CSS 变量 */
+    const handleWindowResize = () => {
+      const newMin = window.innerHeight < COMPACT_WINDOW_HEIGHT ? 1 : 2;
+      if (newMin !== minRows.value) {
+        minRows.value = newMin;
+        nextTick(() => autoResize());
+      }
+      // 窗口宽度变化时输入框位置会变，必须重新测量并更新 CSS 变量
+      updateSearchBarHeight();
+    };
+
     onMounted(() => {
       document.addEventListener('click', handleGlobalClick);
+      window.addEventListener('resize', handleWindowResize);
       // 初始化高度
       autoResize();
       updateSearchBarHeight();
@@ -490,6 +519,7 @@ export default {
 
     onBeforeUnmount(() => {
       document.removeEventListener('click', handleGlobalClick);
+      window.removeEventListener('resize', handleWindowResize);
       resizeObserver?.disconnect();
     });
 
@@ -678,6 +708,7 @@ export default {
       clearQuery,
       hoveredMode,
       getModeDisplayLabel,
+      minRows,
     };
   },
 };

@@ -1,9 +1,29 @@
 <template>
   <q-card flat class="results-tabs-card">
     <!-- LLM 聊天面板：显示在搜索结果上方（smart/think 模式） -->
-    <div v-if="showChatPanel" class="chat-results-container">
+    <div
+      v-if="showChatPanel"
+      ref="chatContainerRef"
+      class="chat-results-container"
+      @scroll="handleChatScroll"
+    >
       <ChatResponsePanel @retry="retryChat" @showResults="openResultsDialog" />
     </div>
+
+    <!-- 回到底部按钮 -->
+    <transition name="fade-up">
+      <q-btn
+        v-if="showScrollToBottom"
+        round
+        dense
+        flat
+        icon="keyboard_arrow_down"
+        class="scroll-to-bottom-btn"
+        size="sm"
+        title="回到底部"
+        @click="scrollToBottom"
+      />
+    </transition>
 
     <!-- 直接查找模式：正常显示搜索结果 -->
     <div v-if="!showChatPanel" class="results-panels-card">
@@ -60,7 +80,14 @@
 </template>
 
 <script>
-import { computed, ref } from 'vue';
+import {
+  computed,
+  ref,
+  watch,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+} from 'vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useChatStore } from 'src/stores/chatStore';
@@ -68,6 +95,9 @@ import { useExploreStore } from 'src/stores/exploreStore';
 import { chat } from 'src/functions/chat';
 import ResultsList from 'src/components/ResultsList.vue';
 import ChatResponsePanel from 'src/components/ChatResponsePanel.vue';
+
+/** 判断滚动容器是否接近底部的阈值（px） */
+const SCROLL_BOTTOM_THRESHOLD = 60;
 
 export default {
   components: {
@@ -127,6 +157,143 @@ export default {
       }
     };
 
+    // ====== Auto-scroll & "回到底部" 按钮逻辑 ======
+
+    /** 聊天滚动容器 ref */
+    const chatContainerRef = ref(null);
+
+    /** 用户是否手动向上滚动（脱离底部） */
+    const userScrolledUp = ref(false);
+
+    /** 是否正在执行程序化滚动（用于区分用户滚动和自动滚动） */
+    let isProgrammaticScroll = false;
+
+    /** 判断滚动容器是否在底部附近 */
+    const isNearBottom = (el) => {
+      if (!el) return true;
+      return (
+        el.scrollHeight - el.scrollTop - el.clientHeight <
+        SCROLL_BOTTOM_THRESHOLD
+      );
+    };
+
+    /** 处理聊天容器滚动事件 */
+    const handleChatScroll = () => {
+      // 忽略程序化滚动引发的 scroll 事件
+      if (isProgrammaticScroll) return;
+      const el = chatContainerRef.value;
+      if (!el) return;
+      userScrolledUp.value = !isNearBottom(el);
+    };
+
+    /** 平滑滚动到底部 */
+    const scrollToBottom = () => {
+      const el = chatContainerRef.value;
+      if (!el) return;
+      isProgrammaticScroll = true;
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      userScrolledUp.value = false;
+      // 等滚动动画结束后恢复标志
+      setTimeout(() => {
+        isProgrammaticScroll = false;
+      }, 400);
+    };
+
+    /** 立即滚动到底部（无动画，用于流式内容更新） */
+    const scrollToBottomInstant = () => {
+      const el = chatContainerRef.value;
+      if (!el) return;
+      isProgrammaticScroll = true;
+      el.scrollTop = el.scrollHeight;
+      // 短延迟后恢复标志
+      setTimeout(() => {
+        isProgrammaticScroll = false;
+      }, 50);
+    };
+
+    /** 是否显示 "回到底部" 按钮 */
+    const showScrollToBottom = computed(
+      () => isChatMode.value && userScrolledUp.value
+    );
+
+    // 监听聊天内容变化，自动滚动到底部
+    // 使用多个 watch 源覆盖所有流式更新阶段
+    watch(
+      () => [
+        chatStore.currentSession.content,
+        chatStore.currentSession.thinkingContent,
+        chatStore.currentSession.toolEvents.length,
+        chatStore.currentSession.isLoading,
+      ],
+      () => {
+        if (!isChatMode.value) return;
+        if (userScrolledUp.value) return;
+        nextTick(() => scrollToBottomInstant());
+      }
+    );
+
+    // 新的聊天开始时（isLoading 变为 true），重置滚动状态
+    watch(
+      () => chatStore.currentSession.isLoading,
+      (loading, prevLoading) => {
+        if (loading && !prevLoading) {
+          userScrolledUp.value = false;
+          nextTick(() => scrollToBottomInstant());
+        }
+      }
+    );
+
+    // ====== Chat 面板与输入框对齐 ======
+
+    /**
+     * 计算并更新 chat 面板的左侧偏移，使其与输入框精确对齐。
+     * 核心思路：测量 chat 容器的 viewport 左侧位置，与输入框左侧位置比较，
+     * 差值即为 chat 内容需要的左侧偏移量。这样无论 sidebar、padding、滚动条怎么变，
+     * 对齐始终精确。
+     */
+    const updateChatAlignment = () => {
+      nextTick(() => {
+        const container = chatContainerRef.value;
+        if (!container) return;
+        const root = document.documentElement;
+        const inputLeft = parseFloat(
+          root.style.getPropertyValue('--search-input-left-edge') || '0'
+        );
+        const containerLeft = container.getBoundingClientRect().left;
+        const offset = Math.max(0, inputLeft - containerLeft);
+        root.style.setProperty('--chat-align-offset', `${offset}px`);
+      });
+    };
+
+    // 当 chat 面板变为可见时计算对齐
+    watch(isChatMode, (visible) => {
+      if (visible) updateChatAlignment();
+    });
+
+    // 当输入框位置变化时重新计算（侧边栏展开/收起、窗口 resize 等）
+    watch(
+      () => layoutStore.searchBarTotalHeight,
+      () => {
+        if (isChatMode.value) updateChatAlignment();
+      }
+    );
+
+    const handleWindowResize = () => {
+      // 延迟 1 帧，确保 SearchInput 的 updateSearchBarHeight 已先更新 CSS 变量
+      requestAnimationFrame(() => {
+        if (isChatMode.value) updateChatAlignment();
+      });
+    };
+
+    onMounted(() => {
+      window.addEventListener('resize', handleWindowResize);
+      if (isChatMode.value) updateChatAlignment();
+    });
+
+    onBeforeUnmount(() => {
+      window.removeEventListener('resize', handleWindowResize);
+    });
+
     return {
       activeTab: computed(() => layoutStore.activeTab || 'videos'),
       showChatPanel: isChatMode,
@@ -134,6 +301,10 @@ export default {
       showResultsDialog,
       openResultsDialog,
       retryChat,
+      chatContainerRef,
+      handleChatScroll,
+      scrollToBottom,
+      showScrollToBottom,
     };
   },
 };
@@ -166,7 +337,7 @@ body.body--dark .search-bar-row {
   background: transparent;
   display: flex;
   flex-direction: column;
-  align-items: center; /* Center chat panel horizontally */
+  align-items: flex-start; /* 不用 center，由 --chat-align-offset 控制对齐 */
   width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
@@ -238,6 +409,45 @@ body.body--dark .q-tab-panels {
 }
 .q-tab-panel {
   padding: 0px;
+}
+
+/* "回到底部" 按钮：右侧对齐输入框，在输入框上方20px */
+.scroll-to-bottom-btn {
+  position: fixed;
+  /* 使用 JS 计算的实际输入框右侧距离 */
+  right: var(--search-input-right-edge, 32px);
+  /* 在搜索框上方20px */
+  bottom: calc(var(--search-bar-total-height, 96px) + 20px);
+  z-index: 999; /* 低于建议下拉列表 z-index:1000 */
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  opacity: 0.85;
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+  &:hover {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+body.body--light .scroll-to-bottom-btn {
+  background: rgba(255, 255, 255, 0.92);
+  color: #555;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+body.body--dark .scroll-to-bottom-btn {
+  background: rgba(40, 40, 40, 0.92);
+  color: #bbb;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 按钮出入动画 */
+.fade-up-enter-active,
+.fade-up-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.fade-up-enter-from,
+.fade-up-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
 }
 
 /* 主题适配 */

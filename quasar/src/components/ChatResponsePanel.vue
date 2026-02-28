@@ -265,11 +265,12 @@ export default defineComponent({
       const totalMs = ps.total_elapsed_ms || 0;
       const parts: string[] = [];
 
+      // 用时
       if (totalMs >= 60000) {
         const min = Math.floor(totalMs / 60000);
         const sec = Math.round((totalMs % 60000) / 1000);
         if (sec > 0) {
-          parts.push(`用时 ${min} min ${sec} s`);
+          parts.push(`用时 ${min} min ${sec}s`);
         } else {
           parts.push(`用时 ${min} min`);
         }
@@ -278,21 +279,17 @@ export default defineComponent({
         parts.push(`用时 ${sec}s`);
       }
 
-      // Token usage: "输入 XX tokens，输出 XX tokens"
-      if (u?.prompt_tokens && u?.completion_tokens) {
-        parts.push(
-          `输入 ${formatTokenCount(
-            u.prompt_tokens
-          )} tokens，输出 ${formatTokenCount(u.completion_tokens)} tokens`
-        );
-      } else if (u?.prompt_tokens) {
+      // 用量
+      if (u?.prompt_tokens) {
         parts.push(`输入 ${formatTokenCount(u.prompt_tokens)} tokens`);
-      } else if (u?.completion_tokens) {
+      }
+      if (u?.completion_tokens) {
         parts.push(`输出 ${formatTokenCount(u.completion_tokens)} tokens`);
       }
 
+      // 吞吐
       if (ps.tokens_per_second) {
-        parts.push(`${ps.tokens_per_second} tokens/s`);
+        parts.push(`吞吐 ${ps.tokens_per_second} tokens/s`);
       }
 
       return parts.join(' · ');
@@ -427,27 +424,25 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .chat-response-panel {
-  max-width: var(--search-input-max-width, 95vw);
-  width: var(--search-input-width);
+  max-width: min(var(--search-input-max-width, 95vw), 100%);
+  width: var(--search-input-actual-width, var(--search-input-width));
   min-width: 0; /* allow shrinking in flex/grid layouts */
   box-sizing: border-box;
-  margin: 0 auto;
-  padding: 16px 20px;
+  margin-left: var(--chat-align-offset, 0px);
+  padding: 16px 14px; /* 两侧内缩 14px，与输入框圆角内边距对齐 */
   font-size: 15px;
   line-height: 1.7;
 }
 
-/* 窄屏时减少两侧 padding，让 chat 内容占满更多宽度 */
+/* 窄屏时减少垂直 padding */
 @media (max-width: 768px) {
   .chat-response-panel {
-    padding: 12px 10px;
-    max-width: calc(100vw - var(--sidebar-current-width, 0px) - 12px);
+    padding: 12px 0;
   }
 }
 @media (max-width: 480px) {
   .chat-response-panel {
-    padding: 10px 6px;
-    max-width: calc(100vw - var(--sidebar-current-width, 0px) - 8px);
+    padding: 10px 0;
   }
 }
 
