@@ -8,9 +8,64 @@
       </div>
       <!-- 助手消息（历史） -->
       <div v-else-if="msg.role === 'assistant'" class="chat-history-assistant">
-        <!-- 历史工具调用显示 -->
+        <!-- 历史思考过程+工具调用（按时间线交替渲染） -->
+        <div v-if="hasHistoryThinking(msg)" class="chat-thinking-section">
+          <div
+            class="chat-thinking-header"
+            @click="toggleHistoryThinking(msg.id)"
+          >
+            <q-icon
+              :name="
+                isHistoryThinkingExpanded(msg.id)
+                  ? 'expand_less'
+                  : 'expand_more'
+              "
+              size="18px"
+              class="thinking-expand-icon"
+            />
+            <span class="thinking-header-text">思考过程</span>
+          </div>
+          <div
+            class="chat-thinking-collapse-wrapper"
+            :class="{ expanded: isHistoryThinkingExpanded(msg.id) }"
+          >
+            <div class="chat-thinking-collapse-inner">
+              <template
+                v-if="msg.streamSegments && msg.streamSegments.length > 0"
+              >
+                <template v-for="(seg, sIdx) in msg.streamSegments" :key="sIdx">
+                  <div
+                    v-if="seg.type === 'thinking' && seg.content"
+                    class="chat-thinking-content"
+                  >
+                    <div
+                      v-html="renderMd(seg.content.replace(/\\n+$/, ''))"
+                    ></div>
+                  </div>
+                  <ToolCallDisplay
+                    v-if="
+                      seg.type === 'tool' && getSegmentToolCalls(seg).length > 0
+                    "
+                    :toolCalls="getSegmentToolCalls(seg)"
+                    isHistorical
+                    @viewAllResults="handleViewHistoricalResults"
+                    class="thinking-inline-tools"
+                  />
+                </template>
+              </template>
+              <template v-else>
+                <div v-if="msg.thinkingContent" class="chat-thinking-content">
+                  <div
+                    v-html="renderMd(msg.thinkingContent.replace(/\\n+$/, ''))"
+                  ></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+        <!-- 历史工具调用：仅在没有 streamSegments 时 fallback 显示 -->
         <ToolCallDisplay
-          v-if="getHistoryToolCalls(msg).length > 0"
+          v-if="!msg.streamSegments && getHistoryToolCalls(msg).length > 0"
           :toolCalls="getHistoryToolCalls(msg)"
           isHistorical
           @viewAllResults="handleViewHistoricalResults"
@@ -47,8 +102,12 @@
       </div>
     </div>
 
-    <!-- 思考/推理内容区域（可折叠） -->
-    <div v-if="hasThinkingContent" class="chat-thinking-section">
+    <!-- 当前回合：思考过程+工具调用（按 streamSegments 时间线交替渲染） -->
+    <div
+      v-if="hasThinkingContent || allToolCalls.length > 0"
+      class="chat-thinking-section"
+    >
+      <!-- 折叠头 -->
       <div
         class="chat-thinking-header"
         @click="thinkingExpanded = !thinkingExpanded"
@@ -66,30 +125,42 @@
           >
         </span>
       </div>
+      <!-- 可折叠内容：按时间线渲染 thinking 文本 + tool calls -->
       <div
         class="chat-thinking-collapse-wrapper"
         :class="{ expanded: thinkingExpanded }"
       >
         <div class="chat-thinking-collapse-inner">
-          <div class="chat-thinking-content">
-            <div v-html="renderedThinkingContent"></div>
-            <span
-              v-if="isThinkingPhase && allToolCalls.length === 0"
-              class="chat-cursor thinking-cursor"
-              >▊</span
+          <template v-for="(seg, sIdx) in currentStreamSegments" :key="sIdx">
+            <!-- 思考文本片段 -->
+            <div
+              v-if="seg.type === 'thinking' && seg.content"
+              class="chat-thinking-content"
             >
-          </div>
+              <div v-html="renderSegmentThinking(seg.content, sIdx)"></div>
+              <!-- 最后一个 thinking 片段 + 正在思考 + 无工具调用：显示光标 -->
+              <span
+                v-if="
+                  isLastThinkingSegment(sIdx) &&
+                  isThinkingPhase &&
+                  allToolCalls.length === 0
+                "
+                class="chat-cursor thinking-cursor"
+                >▊</span
+              >
+            </div>
+            <!-- 工具调用片段 -->
+            <ToolCallDisplay
+              v-if="seg.type === 'tool' && getSegmentToolCalls(seg).length > 0"
+              :toolCalls="getSegmentToolCalls(seg)"
+              :isAborted="isAborted"
+              @viewAllResults="handleViewCurrentResults"
+              class="thinking-inline-tools"
+            />
+          </template>
         </div>
       </div>
     </div>
-
-    <!-- 工具调用状态（新组件：详细展示每个工具调用） -->
-    <ToolCallDisplay
-      v-if="allToolCalls.length > 0"
-      :toolCalls="allToolCalls"
-      :isAborted="isAborted"
-      @viewAllResults="handleViewCurrentResults"
-    />
 
     <!-- 流式光标（工具调用完成后、内容生成前，显示在工具调用下方） -->
     <span
@@ -136,8 +207,12 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref } from 'vue';
-import { useChatStore, type ConversationMessage } from 'src/stores/chatStore';
+import { computed, defineComponent, ref, reactive } from 'vue';
+import {
+  useChatStore,
+  type ConversationMessage,
+  type StreamSegment,
+} from 'src/stores/chatStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
@@ -311,6 +386,65 @@ export default defineComponent({
     /** 暴露 renderMarkdown 给模板用于历史消息渲染 */
     const renderMd = (text: string) => renderMarkdown(text);
 
+    // ── StreamSegment helpers（当前回合 + 历史） ──
+
+    /** 当前回合的 streamSegments（从 store 读取） */
+    const currentStreamSegments = computed(() => chatStore.streamSegments);
+
+    /** 渲染单个 thinking segment 的 markdown（去除末尾空行） */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const renderSegmentThinking = (content: string, _idx: number): string => {
+      if (!content) return '';
+      return renderMarkdown(content.replace(/\n+$/, ''));
+    };
+
+    /** 判断某个 segment 是否是当前轮最后一个 thinking segment */
+    const isLastThinkingSegment = (idx: number): boolean => {
+      const segs = currentStreamSegments.value;
+      for (let i = segs.length - 1; i >= 0; i--) {
+        if (segs[i].type === 'thinking') return i === idx;
+      }
+      return false;
+    };
+
+    /** 从单个 tool segment 中提取去重后的 ToolCall 列表 */
+    const getSegmentToolCalls = (seg: StreamSegment): ToolCall[] => {
+      if (!seg.toolEvent) return [];
+      const ev = seg.toolEvent;
+      if (!ev.calls || ev.calls.length === 0) return [];
+      const callMap = new Map<string, ToolCall>();
+      for (const call of ev.calls) {
+        const key = `${call.type}:${JSON.stringify(call.args)}`;
+        callMap.set(key, call);
+      }
+      return Array.from(callMap.values());
+    };
+
+    // ── 历史消息 thinking 展开/折叠 ──
+
+    /** 每条历史消息的 thinking 展开状态（默认折叠） */
+    const historyThinkingExpandedMap = reactive<Record<string, boolean>>({});
+
+    /** 判断历史消息是否有思考内容可显示 */
+    const hasHistoryThinking = (msg: ConversationMessage): boolean => {
+      if (msg.streamSegments && msg.streamSegments.length > 0) {
+        return msg.streamSegments.some(
+          (s) => (s.type === 'thinking' && !!s.content) || s.type === 'tool'
+        );
+      }
+      return !!msg.thinkingContent;
+    };
+
+    /** 切换历史消息 thinking 展开/折叠 */
+    const toggleHistoryThinking = (msgId: string) => {
+      historyThinkingExpandedMap[msgId] = !historyThinkingExpandedMap[msgId];
+    };
+
+    /** 查询历史消息 thinking 是否展开 */
+    const isHistoryThinkingExpanded = (msgId: string): boolean => {
+      return !!historyThinkingExpandedMap[msgId];
+    };
+
     /** 从历史消息中提取扁平的 tool calls 列表（去重同 allToolCalls） */
     const getHistoryToolCalls = (msg: ConversationMessage): ToolCall[] => {
       if (!msg.toolEvents || msg.toolEvents.length === 0) return [];
@@ -413,6 +547,14 @@ export default defineComponent({
       formatToolEvent,
       hasSearchTool,
       renderMd,
+      // StreamSegment helpers
+      currentStreamSegments,
+      renderSegmentThinking,
+      isLastThinkingSegment,
+      getSegmentToolCalls,
+      hasHistoryThinking,
+      toggleHistoryThinking,
+      isHistoryThinkingExpanded,
       getHistoryToolCalls,
       getHistoryPerfStats,
       handleViewHistoricalResults,
@@ -614,11 +756,31 @@ export default defineComponent({
   :deep(> div > :last-child) {
     margin-bottom: 0;
   }
+
+  /* 思考区域内标题不放大字体 */
+  :deep(h1),
+  :deep(h2),
+  :deep(h3),
+  :deep(h4),
+  :deep(h5),
+  :deep(h6) {
+    margin-top: 8px;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: 1em;
+  }
 }
 
 .thinking-expand-icon {
   opacity: 0.45;
   flex-shrink: 0;
+}
+
+/* 思考区域内嵌的工具调用（在 streamSegments 时间线中穿插显示） */
+.thinking-inline-tools {
+  margin-left: 18px;
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 .thinking-cursor {
@@ -723,11 +885,11 @@ export default defineComponent({
     margin-top: 12px;
     margin-bottom: 6px;
     font-weight: 600;
-    font-size: inherit;
+    font-size: 1em; /* h2-h6 不额外增大；h1 仅微增 */
   }
 
   :deep(h1) {
-    font-size: calc(1em + 2px);
+    font-size: calc(1em + 1px);
   }
 
   :deep(p) {

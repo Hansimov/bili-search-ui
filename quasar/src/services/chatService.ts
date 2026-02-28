@@ -59,6 +59,11 @@ export interface ChatStreamChunk {
             role?: string;
             content?: string;
             reasoning_content?: string;
+            /** When true, the frontend should discard streamed content because
+             *  it was analysis text from a tool-calling iteration and belongs
+             *  in the thinking section (which will receive it shortly after as
+             *  a reasoning_content event). */
+            retract_content?: boolean;
         };
         finish_reason: string | null;
     }>;
@@ -78,6 +83,10 @@ export interface ChatStreamCallbacks {
     onContent?: (content: string) => void;
     /** Called for each reasoning/thinking content delta */
     onThinking?: (content: string) => void;
+    /** Called when the backend retracts previously streamed content (because
+     *  the streamed text was analysis for a tool-calling iteration, not the
+     *  final answer).  The frontend should clear the content area. */
+    onRetractContent?: () => void;
     /** Called when a tool event is received */
     onToolEvent?: (event: ToolEvent) => void;
     /** Called when streaming completes */
@@ -201,6 +210,14 @@ export async function chatCompletionStream(
                     // First chunk with role — signal start
                     if (delta.role === 'assistant') {
                         callbacks.onStart?.(chunk);
+                    }
+
+                    // Retract content: backend signals that streamed content was
+                    // analysis text for a tool-calling iteration, not the final
+                    // answer.  Ask the frontend to clear the content area.
+                    if (delta.retract_content) {
+                        callbacks.onRetractContent?.();
+                        continue;
                     }
 
                     // Reasoning/thinking content delta

@@ -35,14 +35,31 @@ function generateSessionId(): string {
     });
 }
 
+/**
+ * 流式响应时间线中的一个片段。
+ * 保留 thinking / tool_event 的原始时间顺序，
+ * 使前端能按真实到达顺序渲染。
+ */
+export interface StreamSegment {
+    type: 'thinking' | 'tool';
+    /** type='thinking' 时的文本内容 */
+    content?: string;
+    /** type='tool' 时的工具事件 */
+    toolEvent?: ToolEvent;
+}
+
 /** 多轮对话中的单条消息 */
 export interface ConversationMessage {
     /** Unique ID for stable v-for keys */
     id: string;
     role: 'user' | 'assistant';
     content: string;
+    /** LLM 思考/推理内容 */
+    thinkingContent?: string;
     /** Tool events for this assistant message (only for assistant role) */
     toolEvents?: ToolEvent[];
+    /** 保留时间线顺序的流片段（thinking + tool 交替） */
+    streamSegments?: StreamSegment[];
     /** Performance stats for this assistant message (only for assistant role) */
     perfStats?: PerfStats;
     /** Token usage for this assistant message (only for assistant role) */
@@ -86,6 +103,8 @@ export interface ChatSession {
     usage: Usage | null;
     /** 工具调用事件 */
     toolEvents: ToolEvent[];
+    /** 流式响应时间线片段（保持 thinking/tool 交替顺序） */
+    streamSegments: StreamSegment[];
     /** 是否为 thinking 模式 */
     thinking: boolean;
     /** 创建时间戳 */
@@ -107,6 +126,7 @@ function defaultSession(sessionId?: string): ChatSession {
         perfStats: null,
         usage: null,
         toolEvents: [],
+        streamSegments: [],
         thinking: false,
         createdAt: Date.now(),
     };
@@ -193,6 +213,11 @@ export const useChatStore = defineStore('chat', {
         /** 当前会话的工具事件 */
         toolEvents(): ToolEvent[] {
             return this.currentSession.toolEvents;
+        },
+
+        /** 当前会话的流式时间线片段 */
+        streamSegments(): StreamSegment[] {
+            return this.currentSession.streamSegments;
         },
 
         /** 多轮对话的总轮数 */
@@ -405,10 +430,26 @@ export const useChatStore = defineStore('chat', {
                         onThinking: (content) => {
                             this.currentSession.thinkingContent += content;
                             this.currentSession.isThinkingPhase = true;
+                            // 维护时间线片段：追加到最后一个 thinking 片段，或新建
+                            const segs = this.currentSession.streamSegments;
+                            const last = segs[segs.length - 1];
+                            if (last && last.type === 'thinking') {
+                                last.content = (last.content || '') + content;
+                            } else {
+                                segs.push({ type: 'thinking', content });
+                            }
                         },
                         onContent: (content) => {
                             this.currentSession.content += content;
                             this.currentSession.isThinkingPhase = false;
+                        },
+                        onRetractContent: () => {
+                            // Backend signals that the streamed content was
+                            // analysis text for a tool-calling iteration.
+                            // Clear the content area; the analysis will arrive
+                            // shortly as reasoning_content in the thinking section.
+                            this.currentSession.content = '';
+                            this.currentSession.isThinkingPhase = true;
                         },
                         onToolEvent: (event) => {
                             // Merge tool events: if same iteration exists, update it
@@ -417,18 +458,26 @@ export const useChatStore = defineStore('chat', {
                                 (e) => e.iteration === event.iteration
                             );
                             if (existingIdx >= 0) {
-                                // Update existing event (e.g., pending → completed)
                                 this.currentSession.toolEvents = [
                                     ...this.currentSession.toolEvents.slice(0, existingIdx),
                                     event,
                                     ...this.currentSession.toolEvents.slice(existingIdx + 1),
                                 ];
                             } else {
-                                // Add new event
                                 this.currentSession.toolEvents = [
                                     ...this.currentSession.toolEvents,
                                     event,
                                 ];
+                            }
+                            // 维护时间线片段：更新已有同 iteration 或新建
+                            const segs = this.currentSession.streamSegments;
+                            const segIdx = segs.findIndex(
+                                (s) => s.type === 'tool' && s.toolEvent?.iteration === event.iteration
+                            );
+                            if (segIdx >= 0) {
+                                segs[segIdx] = { type: 'tool', toolEvent: event };
+                            } else {
+                                segs.push({ type: 'tool', toolEvent: event });
                             }
                         },
                         onDone: (perfStats, usage) => {
@@ -444,15 +493,19 @@ export const useChatStore = defineStore('chat', {
                             // 清除 abort controller 和 stream_id（请求已完成）
                             this._abortController = null;
                             this._streamId = null;
-                            // 将当前轮次追加到对话历史，包含 tool events
+                            // 将当前轮次追加到对话历史，包含 tool events + thinking + segments
                             this.conversationHistory.push(
                                 { id: nextMsgId(), role: 'user', content: query },
                                 {
                                     id: nextMsgId(),
                                     role: 'assistant',
                                     content: this.currentSession.content,
+                                    thinkingContent: this.currentSession.thinkingContent || undefined,
                                     toolEvents: this.currentSession.toolEvents.length > 0
                                         ? [...this.currentSession.toolEvents]
+                                        : undefined,
+                                    streamSegments: this.currentSession.streamSegments.length > 0
+                                        ? [...this.currentSession.streamSegments]
                                         : undefined,
                                     perfStats: this.currentSession.perfStats || undefined,
                                     usage: this.currentSession.usage || undefined,
@@ -493,8 +546,12 @@ export const useChatStore = defineStore('chat', {
                                 id: nextMsgId(),
                                 role: 'assistant',
                                 content: this.currentSession.content,
+                                thinkingContent: this.currentSession.thinkingContent || undefined,
                                 toolEvents: this.currentSession.toolEvents.length > 0
                                     ? [...this.currentSession.toolEvents]
+                                    : undefined,
+                                streamSegments: this.currentSession.streamSegments.length > 0
+                                    ? [...this.currentSession.streamSegments]
                                     : undefined,
                             }
                         );
