@@ -96,6 +96,7 @@ export function formatFullTime(timestamp: number): string {
 
 /** 最大历史记录数 */
 const MAX_HISTORY_ITEMS = 200;
+const DISMISSED_SUGGESTION_QUERIES_KEY = 'searchHistory.dismissedSuggestionQueries';
 
 export const useSearchHistoryStore = defineStore('searchHistory', {
     state: () => ({
@@ -103,6 +104,10 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
         items: [] as SearchHistoryItem[],
         /** 是否已从持久化存储加载 */
         isLoaded: false,
+        /** 建议面板中被用户删除（隐藏）的 query 键（lowercase + trim） */
+        dismissedSuggestionQueries: [] as string[],
+        /** 是否已从 localStorage 加载 dismissedSuggestionQueries */
+        isDismissedSuggestionLoaded: false,
         /** 是否显示历史列表面板 */
         isHistoryPanelVisible: false,
     }),
@@ -165,6 +170,8 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
          */
         async loadHistory(): Promise<void> {
             if (this.isLoaded) return;
+
+            this.loadDismissedSuggestionQueries();
 
             try {
                 const entries = await cacheService.getAll<SearchHistoryItem>(STORE_NAMES.HISTORY);
@@ -244,6 +251,9 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
             };
             this.items.push(item);
 
+            // 新搜索会让同 query 的“建议区隐藏”失效，避免用户重新搜索后仍看不到该条
+            this.undismissSuggestionQuery(trimmedQuery);
+
             // 超出上限时移除最旧的非置顶记录
             if (this.items.length > MAX_HISTORY_ITEMS) {
                 this.trimHistory();
@@ -252,6 +262,79 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
             // 持久化到 IndexedDB
             await this.persistItem(item);
             return item.id;
+        },
+
+        /** 规范化 query 作为比较键 */
+        normalizeSuggestionQuery(query: string): string {
+            return (query || '').trim().toLowerCase();
+        },
+
+        /** 从 localStorage 加载建议区被隐藏的 query */
+        loadDismissedSuggestionQueries(): void {
+            if (this.isDismissedSuggestionLoaded) return;
+            this.isDismissedSuggestionLoaded = true;
+            if (typeof window === 'undefined') return;
+
+            try {
+                const raw = window.localStorage.getItem(DISMISSED_SUGGESTION_QUERIES_KEY);
+                if (!raw) {
+                    this.dismissedSuggestionQueries = [];
+                    return;
+                }
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    this.dismissedSuggestionQueries = parsed
+                        .map((value) => (typeof value === 'string' ? this.normalizeSuggestionQuery(value) : ''))
+                        .filter(Boolean);
+                } else {
+                    this.dismissedSuggestionQueries = [];
+                }
+            } catch (error) {
+                console.error('[SearchHistory] Failed to load dismissed suggestion queries:', error);
+                this.dismissedSuggestionQueries = [];
+            }
+        },
+
+        /** 持久化建议区被隐藏的 query */
+        persistDismissedSuggestionQueries(): void {
+            if (typeof window === 'undefined') return;
+            try {
+                window.localStorage.setItem(
+                    DISMISSED_SUGGESTION_QUERIES_KEY,
+                    JSON.stringify(this.dismissedSuggestionQueries)
+                );
+            } catch (error) {
+                console.error('[SearchHistory] Failed to persist dismissed suggestion queries:', error);
+            }
+        },
+
+        /** 建议区删除某条 query（只隐藏，不删除历史记录） */
+        dismissSuggestionQuery(query: string): void {
+            this.loadDismissedSuggestionQueries();
+            const key = this.normalizeSuggestionQuery(query);
+            if (!key) return;
+            if (this.dismissedSuggestionQueries.includes(key)) return;
+            this.dismissedSuggestionQueries = [...this.dismissedSuggestionQueries, key];
+            this.persistDismissedSuggestionQueries();
+        },
+
+        /** 取消建议区对某条 query 的隐藏 */
+        undismissSuggestionQuery(query: string): void {
+            this.loadDismissedSuggestionQueries();
+            const key = this.normalizeSuggestionQuery(query);
+            if (!key) return;
+            const next = this.dismissedSuggestionQueries.filter((item) => item !== key);
+            if (next.length === this.dismissedSuggestionQueries.length) return;
+            this.dismissedSuggestionQueries = next;
+            this.persistDismissedSuggestionQueries();
+        },
+
+        /** 某条 query 是否在建议区被隐藏 */
+        isSuggestionQueryDismissed(query: string): boolean {
+            this.loadDismissedSuggestionQueries();
+            const key = this.normalizeSuggestionQuery(query);
+            if (!key) return false;
+            return this.dismissedSuggestionQueries.includes(key);
         },
 
         /**

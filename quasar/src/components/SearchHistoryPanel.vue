@@ -33,7 +33,7 @@
         class="history-chip pinned-chip"
         @click="searchFromHistory(item)"
         removable
-        @remove="removeItem(item.id)"
+        @remove="removeItem(item)"
       >
         {{ item.displayName || item.query }}
       </q-chip>
@@ -48,7 +48,7 @@
         class="history-chip"
         @click="searchFromHistory(item)"
         removable
-        @remove="removeItem(item.id)"
+        @remove="removeItem(item)"
       >
         {{ item.displayName || item.query }}
       </q-chip>
@@ -83,23 +83,15 @@ export default {
      */
     const isDismissed = ref(false);
 
-    /**
-     * 本地已隐藏的 chip id 集合：点击 chip X 时只添加到此集合，
-     * 不从共享 store 中删除，因此不影响侧边栏历史记录。
-     * 组件重新挂载时自动重置。
-     */
-    const dismissedIds = ref(new Set<string>());
-
     onMounted(async () => {
       await historyStore.loadHistory();
     });
 
-    const hasHistory = computed(() => historyStore.items.length > 0);
     const pinnedItems = computed(() => {
       // 按显示名称/query去重，仅保留最新的一条
       const seen = new Set<string>();
       return historyStore.pinnedItems.filter((item) => {
-        if (dismissedIds.value.has(item.id)) return false;
+        if (historyStore.isSuggestionQueryDismissed(item.query)) return false;
         const key = (item.displayName || item.query).toLowerCase();
         if (seen.has(key)) return false;
         seen.add(key);
@@ -110,13 +102,17 @@ export default {
       // 按显示名称/query去重，仅保留最新的一条（已按时间倒序）
       const seen = new Set<string>();
       return historyStore.recentItems.filter((item) => {
-        if (dismissedIds.value.has(item.id)) return false;
+        if (historyStore.isSuggestionQueryDismissed(item.query)) return false;
         const key = (item.displayName || item.query).toLowerCase();
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
     });
+
+    const hasHistory = computed(
+      () => pinnedItems.value.length > 0 || recentItems.value.length > 0
+    );
 
     const searchFromHistory = async (item: SearchHistoryItem) => {
       const query = item.query;
@@ -155,8 +151,8 @@ export default {
       layoutStore.setCurrentPage(1);
     };
 
-    const removeItem = (id: string) => {
-      dismissedIds.value = new Set([...dismissedIds.value, id]);
+    const removeItem = (item: SearchHistoryItem) => {
+      historyStore.dismissSuggestionQuery(item.query);
     };
 
     /**
