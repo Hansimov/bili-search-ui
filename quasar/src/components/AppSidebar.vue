@@ -583,7 +583,9 @@
           </q-card-section>
           <q-card-section class="q-pt-none">
             <div class="text-body1">确定要清除所有搜索历史记录吗？</div>
-            <div class="text-caption text-grey q-mt-sm">置顶记录也会被清除</div>
+            <div class="text-caption text-grey q-mt-sm">
+              不影响对话历史，置顶记录会被清除
+            </div>
           </q-card-section>
           <q-card-actions align="right">
             <q-btn
@@ -896,7 +898,7 @@ const confirmClearHistory = () => {
 };
 
 const clearHistory = () => {
-  searchHistoryStore.clearAll();
+  searchHistoryStore.clearSearchOnly();
   showClearHistoryDialog.value = false;
   historyDisplayLimit.value = HISTORY_PAGE_SIZE;
 };

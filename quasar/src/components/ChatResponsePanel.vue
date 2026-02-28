@@ -570,7 +570,7 @@ export default defineComponent({
   width: var(--search-input-actual-width, var(--search-input-width));
   min-width: 0; /* allow shrinking in flex/grid layouts */
   box-sizing: border-box;
-  margin-left: var(--chat-align-offset, 0px);
+
   padding: 16px 14px; /* 两侧内缩 14px，与输入框圆角内边距对齐 */
   font-size: 15px;
   line-height: 1.7;

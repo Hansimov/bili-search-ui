@@ -80,14 +80,7 @@
 </template>
 
 <script>
-import {
-  computed,
-  ref,
-  watch,
-  nextTick,
-  onMounted,
-  onBeforeUnmount,
-} from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useChatStore } from 'src/stores/chatStore';
@@ -243,56 +236,9 @@ export default {
       }
     );
 
-    // ====== Chat 面板与输入框对齐 ======
-
-    /**
-     * 计算并更新 chat 面板的左侧偏移，使其与输入框精确对齐。
-     * 核心思路：测量 chat 容器的 viewport 左侧位置，与输入框左侧位置比较，
-     * 差值即为 chat 内容需要的左侧偏移量。这样无论 sidebar、padding、滚动条怎么变，
-     * 对齐始终精确。
-     */
-    const updateChatAlignment = () => {
-      nextTick(() => {
-        const container = chatContainerRef.value;
-        if (!container) return;
-        const root = document.documentElement;
-        const inputLeft = parseFloat(
-          root.style.getPropertyValue('--search-input-left-edge') || '0'
-        );
-        const containerLeft = container.getBoundingClientRect().left;
-        const offset = Math.max(0, inputLeft - containerLeft);
-        root.style.setProperty('--chat-align-offset', `${offset}px`);
-      });
-    };
-
-    // 当 chat 面板变为可见时计算对齐
-    watch(isChatMode, (visible) => {
-      if (visible) updateChatAlignment();
-    });
-
-    // 当输入框位置变化时重新计算（侧边栏展开/收起、窗口 resize 等）
-    watch(
-      () => layoutStore.searchBarTotalHeight,
-      () => {
-        if (isChatMode.value) updateChatAlignment();
-      }
-    );
-
-    const handleWindowResize = () => {
-      // 延迟 1 帧，确保 SearchInput 的 updateSearchBarHeight 已先更新 CSS 变量
-      requestAnimationFrame(() => {
-        if (isChatMode.value) updateChatAlignment();
-      });
-    };
-
-    onMounted(() => {
-      window.addEventListener('resize', handleWindowResize);
-      if (isChatMode.value) updateChatAlignment();
-    });
-
-    onBeforeUnmount(() => {
-      window.removeEventListener('resize', handleWindowResize);
-    });
+    // Chat 面板与输入框对齐：完全依赖 CSS 变量 + align-items: center，
+    // 与 SearchInput 使用相同的 --search-input-width / --search-input-max-width，
+    // 无需 JS 测量，侧边栏切换时自动跟随布局动画。
 
     return {
       activeTab: computed(() => layoutStore.activeTab || 'videos'),
@@ -337,7 +283,7 @@ body.body--dark .search-bar-row {
   background: transparent;
   display: flex;
   flex-direction: column;
-  align-items: flex-start; /* 不用 center，由 --chat-align-offset 控制对齐 */
+  align-items: center; /* 纯 CSS 居中，与 SearchInput 同理 */
   width: 100%;
   overflow-x: hidden;
   overflow-y: auto;

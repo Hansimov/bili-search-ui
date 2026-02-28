@@ -302,6 +302,25 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
         },
 
         /**
+         * 清除所有非 chat 的搜索记录（保留 smart/think 类型的会话历史）
+         * 用于侧边栏的 "清除搜索历史" 功能，只删除 direct 模式的搜索记录
+         */
+        async clearSearchOnly(): Promise<void> {
+            const chatItems = this.items.filter(
+                (item) => item.mode === 'smart' || item.mode === 'think'
+            );
+            const searchItems = this.items.filter(
+                (item) => item.mode !== 'smart' && item.mode !== 'think'
+            );
+            this.items = chatItems;
+
+            // 批量删除搜索记录
+            for (const item of searchItems) {
+                await cacheService.delete(STORE_NAMES.HISTORY, `history:${item.id}`);
+            }
+        },
+
+        /**
          * 清除非置顶的历史记录
          */
         async clearUnpinned(): Promise<void> {

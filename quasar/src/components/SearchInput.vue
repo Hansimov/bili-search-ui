@@ -523,6 +523,16 @@ export default {
       resizeObserver?.disconnect();
     });
 
+    // 侧边栏展开/收起有 250ms CSS transition，结束后重新测量输入框位置
+    watch(
+      () => layoutStore.isSidebarExpanded,
+      () => {
+        setTimeout(() => {
+          updateSearchBarHeight();
+        }, 280);
+      }
+    );
+
     const submitQuery = async () => {
       if (!queryModel.value || !queryModel.value.trim()) return;
       const mode = searchModeStore.currentMode;
