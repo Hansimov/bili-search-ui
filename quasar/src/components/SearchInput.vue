@@ -134,6 +134,7 @@ import {
   type SearchMode,
 } from 'src/stores/searchModeStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
+import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
 import { explore, abortExplore } from 'src/functions/explore';
 import { chat } from 'src/functions/chat';
 import {
@@ -172,6 +173,7 @@ export default {
     const chatStore = useChatStore();
     const searchModeStore = useSearchModeStore();
     const searchHistoryStore = useSearchHistoryStore();
+    const inputHistoryStore = useInputHistoryStore();
     const route = useRoute();
     const textareaRef = ref<HTMLTextAreaElement | null>(null);
     const wrapperRef = ref<HTMLElement | null>(null);
@@ -535,14 +537,16 @@ export default {
 
     const submitQuery = async () => {
       if (!queryModel.value || !queryModel.value.trim()) return;
+      const submittedQuery = queryModel.value.trim();
       const mode = searchModeStore.currentMode;
+
+      // 建议栏输入记录：仅记录用户提交过的 input，与侧边栏历史分离
+      inputHistoryStore.addRecord(submittedQuery);
 
       // 首次提交时记录模式，用于锁定布局（必须在调用 explore/chat 之前设置）
       searchModeStore.setInitialSessionMode(mode);
 
       if (mode === 'smart' || mode === 'think') {
-        const submittedQuery = queryModel.value;
-
         // 判断是否为多轮对话续接（已有对话历史且布局已锁定为 chat 模式）
         const isContinuation =
           chatStore.conversationHistory.length > 0 &&
@@ -575,7 +579,7 @@ export default {
       } else {
         // 直接查找模式：仅触发 explore
         await explore({
-          queryValue: queryModel.value,
+          queryValue: submittedQuery,
           setQuery: true,
           setRoute: true,
         });

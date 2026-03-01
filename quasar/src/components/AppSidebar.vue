@@ -584,7 +584,7 @@
           <q-card-section class="q-pt-none">
             <div class="text-body1">确定要清除所有搜索历史记录吗？</div>
             <div class="text-caption text-grey q-mt-sm">
-              不影响对话历史，置顶记录会被清除
+              会清除历史会话记录与已保存的 chat 快照数据
             </div>
           </q-card-section>
           <q-card-actions align="right">
@@ -897,8 +897,9 @@ const confirmClearHistory = () => {
   showClearHistoryDialog.value = true;
 };
 
-const clearHistory = () => {
-  searchHistoryStore.clearSearchOnly();
+const clearHistory = async () => {
+  await searchHistoryStore.clearAll();
+  chatStore.clearHistory();
   showClearHistoryDialog.value = false;
   historyDisplayLimit.value = HISTORY_PAGE_SIZE;
 };

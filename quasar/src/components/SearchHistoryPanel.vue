@@ -1,5 +1,5 @@
 <template>
-  <div class="search-history-panel" v-if="hasHistory && !isDismissed">
+  <div class="search-history-panel" v-if="hasHistory">
     <div class="history-header">
       <span class="history-title">
         <q-icon name="history" size="14px" class="q-mr-xs" />
@@ -13,8 +13,8 @@
         label="清除"
         icon="delete_outline"
         class="clear-btn"
-        title="隐藏搜索历史面板（不影响侧边栏历史记录）"
-        @click="dismissPanel"
+        title="清除建议栏输入记录（不影响侧边栏历史记录）"
+        @click="clearInputHistory"
       />
     </div>
 
@@ -35,7 +35,7 @@
         removable
         @remove="removeItem(item)"
       >
-        {{ item.displayName || item.query }}
+        {{ item.query }}
       </q-chip>
 
       <!-- 最近搜索（显示全部，超出 4 行时滚动） -->
@@ -50,127 +50,86 @@
         removable
         @remove="removeItem(item)"
       >
-        {{ item.displayName || item.query }}
+        {{ item.query }}
       </q-chip>
     </div>
   </div>
 </template>
 
 <script lang="ts">
-import { computed, ref, onMounted } from 'vue';
-import {
-  useSearchHistoryStore,
-  type SearchHistoryItem,
-} from 'src/stores/searchHistoryStore';
-import { useQueryStore } from 'src/stores/queryStore';
+import { computed, onMounted } from 'vue';
+import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
+import type { InputHistoryItem } from 'src/stores/inputHistoryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useChatStore } from 'src/stores/chatStore';
-import { explore } from 'src/functions/explore';
+import { submitByMode } from 'src/functions/chat';
 
 export default {
   name: 'SearchHistoryPanel',
   setup() {
-    const historyStore = useSearchHistoryStore();
-    const queryStore = useQueryStore();
+    const inputHistoryStore = useInputHistoryStore();
     const layoutStore = useLayoutStore();
     const searchModeStore = useSearchModeStore();
     const chatStore = useChatStore();
 
-    /**
-     * 本地"隐藏"状态：点击清除后只隐藏面板，不删除实际历史数据。
-     * 组件重新挂载（如用户输入后清空输入）时会自动重置为 false。
-     */
-    const isDismissed = ref(false);
-
-    onMounted(async () => {
-      await historyStore.loadHistory();
+    onMounted(() => {
+      inputHistoryStore.loadHistory();
     });
 
+    // 建议栏只展示输入记录，按 query 去重（保留最新一条）
     const pinnedItems = computed(() => {
-      // 按显示名称/query去重，仅保留最新的一条
-      const seen = new Set<string>();
-      return historyStore.pinnedItems.filter((item) => {
-        if (historyStore.isSuggestionQueryDismissed(item.query)) return false;
-        const key = (item.displayName || item.query).toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      return [] as InputHistoryItem[];
     });
+
     const recentItems = computed(() => {
-      // 按显示名称/query去重，仅保留最新的一条（已按时间倒序）
+      // 按 query 去重，仅保留最新的一条（已按时间倒序）
       const seen = new Set<string>();
-      return historyStore.recentItems.filter((item) => {
-        if (historyStore.isSuggestionQueryDismissed(item.query)) return false;
-        const key = (item.displayName || item.query).toLowerCase();
+      return inputHistoryStore.sortedItems.filter((item) => {
+        const key = item.query.toLowerCase();
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
     });
 
-    const hasHistory = computed(
-      () => pinnedItems.value.length > 0 || recentItems.value.length > 0
-    );
+    const hasHistory = computed(() => recentItems.value.length > 0);
 
-    const searchFromHistory = async (item: SearchHistoryItem) => {
+    const searchFromHistory = async (item: InputHistoryItem) => {
       const query = item.query;
-      const mode = item.mode || 'direct';
+      const mode = searchModeStore.currentMode;
+      searchModeStore.setInitialSessionMode(mode);
 
       layoutStore.setIsSuggestVisible(false);
 
-      // Chat 模式：恢复对话状态，使用 sessionId 路由
-      if ((mode === 'smart' || mode === 'think') && item.chatSnapshot) {
-        chatStore.restoreFromSnapshot(item.chatSnapshot);
-        chatStore.setCurrentHistoryRecordId(item.id);
-        searchModeStore.setMode(mode);
-        searchModeStore.forceInitialSessionMode(mode);
-        // 使用 sessionId 设置路由
-        const sessionId = item.sessionId || chatStore.currentSessionId;
-        queryStore.setQuery({
-          newQuery: query,
-          setRoute: true,
-          mode,
-          chatSessionId: sessionId,
-        });
-        return;
+      // 输入记录点击后按当前模式提交；chat 模式始终新开会话
+      if (mode === 'smart' || mode === 'think') {
+        chatStore.startNewChat();
       }
-
-      // 直接查找模式或无快照：走 explore 路径
-      searchModeStore.setMode(mode);
-      if (mode === 'direct') {
-        searchModeStore.forceInitialSessionMode(mode);
-      }
-      queryStore.setQuery({ newQuery: query, setRoute: true });
-      await explore({
+      await submitByMode({
         queryValue: query,
-        setQuery: false,
-        setRoute: false,
+        mode,
+        setQuery: true,
+        setRoute: true,
       });
       layoutStore.setCurrentPage(1);
     };
 
-    const removeItem = (item: SearchHistoryItem) => {
-      historyStore.dismissSuggestionQuery(item.query);
+    const removeItem = (item: InputHistoryItem) => {
+      inputHistoryStore.removeRecord(item.id);
     };
 
-    /**
-     * 仅隐藏搜索输入框中的历史面板，不影响侧边栏的历史记录。
-     * 组件重新挂载时 isDismissed 会自动重置为 false。
-     */
-    const dismissPanel = () => {
-      isDismissed.value = true;
+    const clearInputHistory = () => {
+      inputHistoryStore.clearAll();
     };
 
     return {
       hasHistory,
-      isDismissed,
       pinnedItems,
       recentItems,
       searchFromHistory,
       removeItem,
-      dismissPanel,
+      clearInputHistory,
     };
   },
 };
