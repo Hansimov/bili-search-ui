@@ -307,10 +307,10 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
          */
         async clearSearchOnly(): Promise<void> {
             const chatItems = this.items.filter(
-                (item) => item.mode === 'smart' || item.mode === 'think'
+                (item) => item.mode === 'smart' || item.mode === 'think' || item.mode === 'research'
             );
             const searchItems = this.items.filter(
-                (item) => item.mode !== 'smart' && item.mode !== 'think'
+                (item) => item.mode !== 'smart' && item.mode !== 'think' && item.mode !== 'research'
             );
             this.items = chatItems;
 

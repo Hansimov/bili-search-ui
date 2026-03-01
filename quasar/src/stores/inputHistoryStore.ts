@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { getSmartSuggestService } from 'src/services/smartSuggestService';
 
 export interface InputHistoryItem {
     id: string;
@@ -15,6 +16,14 @@ function generateId(): string {
 
 function normalizeQuery(query: string): string {
     return (query || '').trim();
+}
+
+function syncSuggestHistoryIndex(items: InputHistoryItem[]): void {
+    const smartService = getSmartSuggestService();
+    smartService.clearHistoryEntries();
+    if (items.length > 0) {
+        smartService.addFromHistory(items);
+    }
 }
 
 export const useInputHistoryStore = defineStore('inputHistory', {
@@ -100,6 +109,7 @@ export const useInputHistoryStore = defineStore('inputHistory', {
             }
 
             this.persistHistory();
+            syncSuggestHistoryIndex(this.items);
         },
 
         removeRecord(id: string): void {
@@ -108,12 +118,14 @@ export const useInputHistoryStore = defineStore('inputHistory', {
             if (next.length === this.items.length) return;
             this.items = next;
             this.persistHistory();
+            syncSuggestHistoryIndex(this.items);
         },
 
         clearAll(): void {
             this.loadHistory();
             this.items = [];
             this.persistHistory();
+            syncSuggestHistoryIndex(this.items);
         },
     },
 });

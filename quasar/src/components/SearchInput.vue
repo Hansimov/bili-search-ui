@@ -470,13 +470,13 @@ export default {
       }
     };
 
-    /** 初始化智能补全服务：确保搜索历史已加载到索引中 */
+    /** 初始化智能补全服务：仅使用输入记录作为 history 建议来源 */
     const initSmartSuggest = async () => {
       const smartService = getSmartSuggestService();
-      await searchHistoryStore.loadHistory();
-      // 每次都刷新历史到索引（addFromHistory 内部会去重）
-      if (searchHistoryStore.items.length > 0) {
-        smartService.addFromHistory(searchHistoryStore.items);
+      inputHistoryStore.loadHistory();
+      // 每次都刷新输入记录到索引（addFromHistory 内部会去重）
+      if (inputHistoryStore.items.length > 0) {
+        smartService.addFromHistory(inputHistoryStore.items);
       }
     };
 

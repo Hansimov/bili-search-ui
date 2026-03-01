@@ -1388,6 +1388,23 @@ export class SmartSuggestService {
     }
 
     /**
+     * 仅清空 history 类型索引（保留 title/author/tag/phrase）
+     * 用于输入记录变更后增量同步建议索引
+     */
+    clearHistoryEntries(): void {
+        const prevSize = this.index.length;
+        this.index = this.index.filter((entry) => entry.type !== 'history');
+        if (this.index.length === prevSize) return;
+
+        // 重建文本集合，确保去重状态与当前索引一致
+        this.textSet.clear();
+        for (const entry of this.index) {
+            this.textSet.add(entry.lower);
+        }
+        suggestIndexVersion.value++;
+    }
+
+    /**
      * 获取当前索引大小
      */
     getSize(): number {
