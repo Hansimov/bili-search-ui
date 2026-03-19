@@ -90,7 +90,10 @@ export interface ChatStreamCallbacks {
     /** Called when a tool event is received */
     onToolEvent?: (event: ToolEvent) => void;
     /** Called when streaming completes */
-    onDone?: (perfStats?: PerfStats, usage?: Usage) => void;
+    onDone?: (
+        perfStats?: PerfStats,
+        usage?: Usage,
+    ) => void;
     /** Called on error */
     onError?: (error: Error) => void;
 }
@@ -241,7 +244,7 @@ export async function chatCompletionStream(
                     if (choice.finish_reason === 'stop') {
                         callbacks.onDone?.(
                             chunk.perf_stats,
-                            chunk.usage
+                            chunk.usage,
                         );
                     }
                 } catch {

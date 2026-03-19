@@ -1,5 +1,18 @@
 <template>
-  <div class="chat-response-panel" :class="{ 'chat-thinking': isThinking }">
+  <div
+    ref="panelRef"
+    class="chat-response-panel"
+    :class="{ 'chat-thinking': isThinking }"
+  >
+    <!-- Video hover tooltip -->
+    <BiliVideoTooltip
+      :videoInfo="tooltipVideoInfo"
+      :visible="tooltipVisible"
+      :anchorRect="tooltipAnchorRect"
+      :containerRect="tooltipContainerRect"
+      @tooltip-enter="onTooltipEnter"
+      @tooltip-leave="onTooltipLeave"
+    />
     <!-- 多轮对话：历史消息 -->
     <template v-for="msg in historyMessages" :key="msg.id">
       <!-- 用户消息 -->
@@ -74,6 +87,7 @@
           class="chat-content markdown-body"
           v-html="renderMd(msg.content)"
         ></div>
+
         <!-- 历史消息的性能统计 -->
         <div v-if="getHistoryPerfStats(msg)" class="chat-perf-stats">
           <span class="perf-text">{{ getHistoryPerfStats(msg) }}</span>
@@ -207,7 +221,14 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, reactive } from 'vue';
+import {
+  computed,
+  defineComponent,
+  ref,
+  reactive,
+  onMounted,
+  onBeforeUnmount,
+} from 'vue';
 import {
   useChatStore,
   type ConversationMessage,
@@ -224,6 +245,7 @@ import type {
 } from 'src/services/chatService';
 import { renderMarkdown } from 'src/utils/markdown';
 import ToolCallDisplay from './ToolCallDisplay.vue';
+import BiliVideoTooltip from './BiliVideoTooltip.vue';
 
 /** 工具名称中英对照 */
 const TOOL_LABELS: Record<string, string> = {
@@ -236,6 +258,7 @@ export default defineComponent({
   name: 'ChatResponsePanel',
   components: {
     ToolCallDisplay,
+    BiliVideoTooltip,
   },
   emits: ['retry', 'showResults'],
   setup(_props, { emit }) {
@@ -521,6 +544,133 @@ export default defineComponent({
       }
     };
 
+    // ── Video tooltip (hover preview for BV links) ──
+
+    interface VideoHit {
+      bvid?: string;
+      title?: string;
+      pic?: string;
+      duration?: number;
+      owner?: { name?: string };
+      stat?: { view?: number };
+    }
+
+    /** Build a bvid→videoInfo lookup from all tool call results */
+    const videoMap = computed((): Map<string, VideoHit> => {
+      const map = new Map<string, VideoHit>();
+      // Current session tool events
+      const events = [...toolEvents.value];
+      // History tool events
+      for (const msg of historyMessages.value) {
+        if (msg.toolEvents) events.push(...msg.toolEvents);
+      }
+      for (const event of events) {
+        if (!event.calls) continue;
+        for (const call of event.calls) {
+          if (call.type !== 'search_videos' || !call.result) continue;
+          const result = call.result as {
+            hits?: VideoHit[];
+            results?: Array<{ hits?: VideoHit[] }>;
+          };
+          const hitSources: VideoHit[][] = [];
+          if (result.hits) hitSources.push(result.hits);
+          if (result.results) {
+            for (const r of result.results) {
+              if (r.hits) hitSources.push(r.hits);
+            }
+          }
+          for (const hits of hitSources) {
+            for (const hit of hits) {
+              if (hit.bvid) map.set(hit.bvid, hit);
+            }
+          }
+        }
+      }
+      return map;
+    });
+
+    // Tooltip reactive state
+    const tooltipVisible = ref(false);
+    const tooltipVideoInfo = ref<VideoHit | null>(null);
+    const tooltipAnchorRect = ref<DOMRect | null>(null);
+    const tooltipContainerRect = ref<DOMRect | null>(null);
+    const panelRef = ref<HTMLElement | null>(null);
+    let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const showTooltip = (bvid: string, anchorEl: HTMLElement) => {
+      const info = videoMap.value.get(bvid);
+      if (!info) return;
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+      }
+      tooltipVideoInfo.value = info;
+      tooltipAnchorRect.value = anchorEl.getBoundingClientRect();
+      const container = panelRef.value;
+      tooltipContainerRect.value = container
+        ? container.getBoundingClientRect()
+        : null;
+      tooltipVisible.value = true;
+    };
+
+    const scheduleHide = () => {
+      if (hideTimeout) clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => {
+        tooltipVisible.value = false;
+        tooltipVideoInfo.value = null;
+      }, 120);
+    };
+
+    const onTooltipEnter = () => {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+      }
+    };
+
+    const onTooltipLeave = () => {
+      scheduleHide();
+    };
+
+    // Event delegation for mouseenter/mouseleave on a.bili-video-ref
+    const onPanelMouseOver = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest?.(
+        'a.bili-video-ref'
+      ) as HTMLElement | null;
+      if (!target) return;
+      const bvid = target.dataset.bvid;
+      if (bvid) showTooltip(bvid, target);
+    };
+
+    const onPanelMouseOut = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest?.(
+        'a.bili-video-ref'
+      ) as HTMLElement | null;
+      const related = (e.relatedTarget as HTMLElement)?.closest?.(
+        'a.bili-video-ref, .bili-video-tooltip'
+      ) as HTMLElement | null;
+      if (target && !related) {
+        scheduleHide();
+      }
+    };
+
+    onMounted(() => {
+      const el = panelRef.value;
+      if (el) {
+        el.addEventListener('mouseover', onPanelMouseOver);
+        el.addEventListener('mouseout', onPanelMouseOut);
+      }
+    });
+
+    onBeforeUnmount(() => {
+      const el = panelRef.value;
+      if (el) {
+        el.removeEventListener('mouseover', onPanelMouseOver);
+        el.removeEventListener('mouseout', onPanelMouseOut);
+      }
+      if (hideTimeout) clearTimeout(hideTimeout);
+    });
+
     return {
       thinkingExpanded,
       isLoading,
@@ -559,6 +709,14 @@ export default defineComponent({
       getHistoryPerfStats,
       handleViewHistoricalResults,
       handleViewCurrentResults,
+      // Video tooltip
+      panelRef,
+      tooltipVisible,
+      tooltipVideoInfo,
+      tooltipAnchorRect,
+      tooltipContainerRect,
+      onTooltipEnter,
+      onTooltipLeave,
     };
   },
 });
@@ -566,6 +724,7 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .chat-response-panel {
+  position: relative; /* for absolute tooltip positioning */
   max-width: min(var(--search-input-max-width, 95vw), 100%);
   width: var(--search-input-actual-width, var(--search-input-width));
   min-width: 0; /* allow shrinking in flex/grid layouts */
@@ -588,7 +747,7 @@ export default defineComponent({
   }
 }
 
-/* 用户提问（渐变背景区分） */
+/* 用户提问 */
 .chat-user-query {
   display: flex;
   align-items: flex-start;
@@ -598,11 +757,7 @@ export default defineComponent({
   border-radius: 8px;
   font-size: 14px;
   opacity: 0.8;
-  background: linear-gradient(
-    135deg,
-    rgba(142, 36, 170, 0.06) 0%,
-    rgba(100, 181, 246, 0.06) 100%
-  );
+  background: rgba(128, 128, 128, 0.06);
 }
 
 .user-query-text {
@@ -747,7 +902,7 @@ export default defineComponent({
   margin: 0;
   margin-top: 6px;
   font-size: 13px;
-  line-height: 1.25;
+  line-height: 1.5;
   border-left: 2px solid rgba(128, 128, 128, 0.25);
   margin-left: 18px;
   opacity: 0.75;
@@ -755,6 +910,27 @@ export default defineComponent({
   /* 去除 Markdown 渲染产生的末尾空行 */
   :deep(> div > :last-child) {
     margin-bottom: 0;
+  }
+
+  /* 思考区域内链接样式 */
+  :deep(a) {
+    color: inherit;
+    opacity: 0.85;
+    text-decoration: underline;
+    text-decoration-color: rgba(128, 128, 128, 0.4);
+    text-underline-offset: 2px;
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  :deep(a.bili-video-ref) {
+    color: inherit;
+    .bili-tv-inline {
+      vertical-align: -1.5px;
+      margin-right: 2px;
+      opacity: 0.5;
+    }
   }
 
   /* 思考区域内标题不放大字体 */
@@ -914,6 +1090,19 @@ export default defineComponent({
     }
   }
 
+  :deep(a.bili-video-ref) {
+    color: #00a1d6;
+    font-weight: 500;
+    .bili-tv-inline {
+      vertical-align: -2px;
+      margin-right: 3px;
+      opacity: 0.6;
+    }
+    &:hover {
+      color: #0086b3;
+    }
+  }
+
   :deep(code) {
     padding: 1px 6px;
     border-radius: 4px;
@@ -971,11 +1160,7 @@ body.body--light {
   }
 
   .chat-user-query {
-    background: linear-gradient(
-      135deg,
-      rgba(142, 36, 170, 0.06) 0%,
-      rgba(25, 118, 210, 0.05) 100%
-    );
+    background: rgba(0, 0, 0, 0.04);
     color: #555;
   }
 
@@ -1021,11 +1206,7 @@ body.body--dark {
   }
 
   .chat-user-query {
-    background: linear-gradient(
-      135deg,
-      rgba(206, 147, 216, 0.08) 0%,
-      rgba(100, 181, 246, 0.06) 100%
-    );
+    background: rgba(255, 255, 255, 0.06);
     color: #aaa;
   }
 
@@ -1040,6 +1221,13 @@ body.body--dark {
   .chat-content {
     :deep(a) {
       color: #64b5f6;
+    }
+
+    :deep(a.bili-video-ref) {
+      color: #23ade5;
+      &:hover {
+        color: #4fc3f7;
+      }
     }
 
     :deep(code) {
