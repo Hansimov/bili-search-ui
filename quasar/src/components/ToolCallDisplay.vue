@@ -205,6 +205,40 @@
               </div>
               <div v-else class="author-not-found">未找到该作者</div>
             </div>
+            <div
+              v-else-if="call.type === 'search_google'"
+              class="tool-google-results"
+            >
+              <a
+                v-for="(result, ridx) in getGoogleResults(call)"
+                :key="result.link || ridx"
+                class="tool-google-result"
+                :href="result.link || '#'"
+                target="_blank"
+                rel="noopener noreferrer"
+                @click.stop
+              >
+                <div
+                  v-if="getGoogleDisplayedUrl(result)"
+                  class="tool-google-result-topline"
+                >
+                  <span class="tool-google-result-source">{{
+                    getGoogleDisplayedUrl(result)
+                  }}</span>
+                  <q-icon
+                    name="open_in_new"
+                    size="12px"
+                    class="tool-google-result-open"
+                  />
+                </div>
+                <div class="tool-google-result-title">
+                  {{ result.title || result.link }}
+                </div>
+                <div v-if="result.snippet" class="tool-google-result-snippet">
+                  {{ result.snippet }}
+                </div>
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -234,6 +268,14 @@ interface AuthorResult {
   found?: boolean;
   name?: string;
   mid?: number;
+}
+
+interface GoogleResult {
+  title?: string;
+  link?: string;
+  snippet?: string;
+  displayed_url?: string;
+  display_link?: string;
 }
 
 /** 工具名称中英对照 */
@@ -322,6 +364,10 @@ export default defineComponent({
       if (call.type === 'check_author') {
         return true; // Always show author result
       }
+      if (call.type === 'search_google') {
+        const result = call.result as Record<string, unknown>;
+        return Array.isArray(result?.results) && result.results.length > 0;
+      }
       return false;
     };
 
@@ -382,6 +428,13 @@ export default defineComponent({
         const total = getAllVideoHits(call).length;
         return `${total} 条结果`;
       }
+      if (call.type === 'search_google') {
+        const result = call.result as Record<string, unknown>;
+        const total = Number(
+          result?.result_count || getGoogleResults(call).length || 0
+        );
+        return `${total} 条结果`;
+      }
       if (call.type === 'check_author') {
         const found = (call.result as Record<string, unknown>)?.found;
         return found ? '已找到' : '未找到';
@@ -398,6 +451,16 @@ export default defineComponent({
     const getAuthorResult = (call: ToolCall): AuthorResult => {
       if (call.type !== 'check_author') return {};
       return (call.result as AuthorResult) || {};
+    };
+
+    const getGoogleResults = (call: ToolCall): GoogleResult[] => {
+      if (call.type !== 'search_google' || !call.result) return [];
+      const results = (call.result as Record<string, unknown>)?.results;
+      return Array.isArray(results) ? (results as GoogleResult[]) : [];
+    };
+
+    const getGoogleDisplayedUrl = (result: GoogleResult): string => {
+      return result.displayed_url || result.display_link || '';
     };
 
     /** Normalize bilibili pic URL to include https: protocol */
@@ -424,7 +487,6 @@ export default defineComponent({
       (calls) => {
         calls.forEach((call, idx) => {
           if (
-            call.type === 'search_videos' &&
             call.status === 'completed' &&
             hasResults(call) &&
             expanded.value[idx] === undefined
@@ -490,6 +552,8 @@ export default defineComponent({
       getAllVideoHits,
       getPerQueryResults,
       getAuthorResult,
+      getGoogleResults,
+      getGoogleDisplayedUrl,
       normalizePicUrl,
       openVideoPage,
     };
@@ -746,6 +810,58 @@ export default defineComponent({
   opacity: 0.45;
 }
 
+.tool-google-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-google-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  background: rgba(128, 128, 128, 0.03);
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: rgba(128, 128, 128, 0.08);
+  }
+}
+
+.tool-google-result-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tool-google-result-source {
+  font-size: 11px;
+  opacity: 0.48;
+}
+
+.tool-google-result-open {
+  opacity: 0.35;
+  flex-shrink: 0;
+}
+
+.tool-google-result-title {
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 500;
+  opacity: 0.88;
+}
+
+.tool-google-result-snippet {
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.62;
+}
+
 .tool-result-more {
   display: flex;
   align-items: center;
@@ -843,6 +959,14 @@ body.body--dark {
 
   .tool-result-item {
     background: rgba(255, 255, 255, 0.02);
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+  }
+
+  .tool-google-result {
+    background: rgba(255, 255, 255, 0.02);
+
     &:hover {
       background: rgba(255, 255, 255, 0.05);
     }
