@@ -1,6 +1,6 @@
 <template>
   <q-item
-    class="result-author-item q-pl-xs q-pb-none q-pt-xs"
+    class="result-author-item q-pb-none q-pt-xs"
     @click="onAuthorClick"
     clickable
   >
@@ -68,7 +68,11 @@ const onAuthorClick = () => {
   visibility: hidden;
 }
 .result-author-item {
-  max-width: var(--result-item-width);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-left: 4px;
+  padding-right: 4px;
   cursor: pointer;
   transition: transform 0.2s ease-out, filter 0.2s ease-out;
   transform-origin: left center;

@@ -3,8 +3,7 @@
     v-if="isShowAuthorsList"
     ref="detailsElement"
     open
-    class="result-authors-details q-pl-xs"
-    :style="dynamicResultAuthorsDetailsStyle"
+    class="result-authors-details"
   >
     <summary @click.prevent="toggleDetails">相关作者</summary>
     <div ref="contentElement" class="authors-content-wrapper">
@@ -20,7 +19,7 @@
 </template>
 
 <script>
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { isNonEmptyArray } from 'src/stores/resultStore';
@@ -36,8 +35,8 @@ export default {
     const detailsElement = ref(null);
     const contentElement = ref(null);
     const isOpen = ref(true);
-    let resizeObserver = null;
     let animationCleanup = null; // cleanup function for in-progress animation
+    let measureRAFId = null;
 
     const authors = computed(() => {
       // Backend now returns authors as a LIST (not dict) to preserve order
@@ -49,42 +48,38 @@ export default {
       return isNonEmptyArray(authors.value);
     });
 
-    // The backend sorts by first_appear_order to match video list order
-    const dynamicResultAuthorsDetailsStyle = computed(() => {
-      return {
-        maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
-      };
-    });
+    const syncExpandedMaxHeight = () => {
+      const content = contentElement.value;
+      if (!content || !isOpen.value) return;
+      if (measureRAFId != null) {
+        cancelAnimationFrame(measureRAFId);
+      }
+      measureRAFId = requestAnimationFrame(() => {
+        measureRAFId = null;
+        if (!contentElement.value || !isOpen.value) return;
+        contentElement.value.style.maxHeight = `${contentElement.value.scrollHeight}px`;
+      });
+    };
 
-    // Setup ResizeObserver helper
-    const setupResizeObserver = () => {
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-        resizeObserver = null;
-      }
-      if (detailsElement.value) {
-        resizeObserver = new ResizeObserver((entries) => {
-          for (const entry of entries) {
-            const height = entry.target.offsetHeight;
-            layoutStore.setAuthorsListHeight(height);
-          }
-        });
-        resizeObserver.observe(detailsElement.value);
-        // Trigger initial height calculation
-        layoutStore.setAuthorsListHeight(detailsElement.value.offsetHeight);
-      } else {
-        layoutStore.setAuthorsListHeight(0);
-      }
+    const handleWindowResize = () => {
+      syncExpandedMaxHeight();
     };
 
     // Watch for changes in isShowAuthorsList and detailsElement
     watch(
       [isShowAuthorsList, detailsElement],
-      () => {
-        // Use nextTick-like delay to ensure DOM is updated
-        setTimeout(setupResizeObserver, 0);
+      async () => {
+        await nextTick();
+        syncExpandedMaxHeight();
       },
       { immediate: true }
+    );
+
+    watch(
+      () => layoutStore.screenWidth,
+      () => {
+        syncExpandedMaxHeight();
+      }
     );
 
     // Animated toggle for details expand/collapse
@@ -139,7 +134,6 @@ export default {
             animationCleanup = null;
             details.removeAttribute('open');
             isOpen.value = false;
-            layoutStore.setAuthorsListHeight(details.offsetHeight);
           });
         });
       } else {
@@ -155,24 +149,24 @@ export default {
           content.style.maxHeight = `${targetHeight}px`;
           animationCleanup = onTransitionEnd(content, () => {
             animationCleanup = null;
-            // Remove inline max-height so content can reflow naturally
-            content.style.maxHeight = '';
-            layoutStore.setAuthorsListHeight(details.offsetHeight);
+            content.style.maxHeight = `${content.scrollHeight}px`;
           });
         });
       }
     };
 
+    window.addEventListener('resize', handleWindowResize, { passive: true });
+
     onUnmounted(() => {
+      window.removeEventListener('resize', handleWindowResize);
+      if (measureRAFId != null) {
+        cancelAnimationFrame(measureRAFId);
+        measureRAFId = null;
+      }
       if (animationCleanup) {
         animationCleanup();
         animationCleanup = null;
       }
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-        resizeObserver = null;
-      }
-      layoutStore.setAuthorsListHeight(0);
     });
 
     return {
@@ -182,7 +176,6 @@ export default {
       isShowAuthorsList,
       isOpen,
       toggleDetails,
-      dynamicResultAuthorsDetailsStyle,
     };
   },
 };
@@ -191,10 +184,17 @@ export default {
 <style lang="scss" scoped>
 .result-authors-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, calc(var(--result-item-width)));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(var(--result-item-width), 100%), 1fr)
+  );
   overflow-y: scroll;
   overflow-x: hidden;
   max-height: 110px;
+  width: 100%;
+  justify-content: start;
+  align-content: start;
+  gap: 10px;
   /* CSS containment: isolate grid layout from ancestor reflows */
   contain: layout style;
   &::-webkit-scrollbar {
@@ -205,12 +205,6 @@ export default {
 .result-authors-list > * {
   overflow: hidden;
 }
-@media (max-width: 520px) {
-  .result-authors-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin: auto;
-  }
-}
 .authors-content-wrapper {
   overflow: hidden;
   transition: max-height 0.25s ease;
@@ -218,6 +212,8 @@ export default {
 .result-authors-details {
   padding-bottom: 6px;
   padding-left: 0px;
+  width: 100%;
+  max-width: 100%;
 }
 details {
   cursor: pointer;

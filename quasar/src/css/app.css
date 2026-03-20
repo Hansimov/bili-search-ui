@@ -8,12 +8,19 @@ html {
 /* Root setting used by result title */
 :root {
   --sidebar-current-width: 0px;
-  --search-input-width: min(780px, 95vw);
-  --search-input-max-width: calc(100vw - var(--sidebar-current-width) - 5vw);
+  --viewport-width-css: 100vw;
+  --available-content-width: calc(
+    var(--viewport-width-css) - var(--sidebar-current-width)
+  );
+  --search-input-max-width: min(
+    780px,
+    calc(var(--available-content-width) - 24px)
+  );
+  --search-input-width: var(--search-input-max-width);
   --search-input-width-more: 6px;
   --result-title-font-size: 1em;
   --result-title-line-height: calc(1.5 * var(--result-title-font-size));
-  --result-item-width: 240px;
+  --result-item-width: 216px;
   --video-embed-width: 1000px;
   --video-embed-max-width: 95vw;
   --video-embed-height: 563px;

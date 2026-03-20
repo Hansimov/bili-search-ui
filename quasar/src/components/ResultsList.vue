@@ -1,67 +1,96 @@
 <template>
   <div :class="containerClass">
-    <!-- === 正常模式 / 对话框模式：完整统计栏 === -->
-    <div
-      v-if="showStatsBar"
-      class="row results-list-info-top justify-between"
-      v-show="hasResults || isExploreLoading"
-    >
-      <span class="results-stats">
-        <ExploreSessionSwitch v-show="isExploreSessionVisible" />
-        <span class="results-stats-text">
-          <span v-if="isExploreLoading" class="loading-indicator">
-            <q-spinner-dots size="16px" class="q-mr-xs" />
-            <span>正在搜索：</span>
-            <span class="loading-query">{{ submittedQuery }}</span>
-            <span class="loading-dots"></span>
-          </span>
-          <span v-else-if="isShowResultsStats">
-            <span v-show="isReturnResultsLessThanTotal">
-              匹配：{{ totalHits }}，
-            </span>
-            <span>
-              {{ isReturnResultsLessThanTotal ? '返回' : '匹配' }}：{{
-                returnHits
-              }}
-            </span>
-            <span v-show="isHasAuthorFilter"
-              >，筛选：{{ sortedHits.length }}
-            </span>
-          </span>
-          <span v-else> {{ currentStepName }} {{ currentStepMark }}</span>
-        </span>
-      </span>
-
-      <q-btn
-        v-show="hasResults"
-        class="results-sort"
-        flat
-        :icon-right="resultsSortMethod.icon"
-        :label="resultsSortMethod.label"
-      >
-        <q-menu>
-          <q-list dense>
-            <q-item
-              v-for="(method, index) in resultsSortMethods"
-              :key="index"
-              clickable
-              v-close-popup
-              @click="sortResults(method)"
-            >
-              <q-item-section>
-                <span>
-                  {{ method.label }}&nbsp;
-                  <q-icon :name="method.icon"></q-icon>
+    <template v-if="isNormal">
+      <div class="results-normal-shell" :style="contentWidthStyle">
+        <div
+          v-if="showStatsBar"
+          class="row results-list-info-top justify-between"
+          v-show="hasResults || isExploreLoading"
+        >
+          <span class="results-stats">
+            <ExploreSessionSwitch v-show="isExploreSessionVisible" />
+            <span class="results-stats-text">
+              <span v-if="isExploreLoading" class="loading-indicator">
+                <q-spinner-dots size="16px" class="q-mr-xs" />
+                <span>正在搜索：</span>
+                <span class="loading-query">{{ submittedQuery }}</span>
+                <span class="loading-dots"></span>
+              </span>
+              <span v-else-if="isShowResultsStats">
+                <span v-show="isReturnResultsLessThanTotal">
+                  匹配：{{ totalHits }}，
                 </span>
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-menu>
-      </q-btn>
-    </div>
+                <span>
+                  {{ isReturnResultsLessThanTotal ? '返回' : '匹配' }}：{{
+                    returnHits
+                  }}
+                </span>
+                <span v-show="isHasAuthorFilter"
+                  >，筛选：{{ sortedHits.length }}
+                </span>
+              </span>
+              <span v-else> {{ currentStepName }} {{ currentStepMark }}</span>
+            </span>
+          </span>
+
+          <q-btn
+            v-show="hasResults"
+            class="results-sort"
+            flat
+            :icon-right="resultsSortMethod.icon"
+            :label="resultsSortMethod.label"
+          >
+            <q-menu>
+              <q-list dense>
+                <q-item
+                  v-for="(method, index) in resultsSortMethods"
+                  :key="index"
+                  clickable
+                  v-close-popup
+                  @click="sortResults(method)"
+                >
+                  <q-item-section>
+                    <span>
+                      {{ method.label }}&nbsp;
+                      <q-icon :name="method.icon"></q-icon>
+                    </span>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
+          </q-btn>
+        </div>
+
+        <ResultAuthorsList v-show="showAuthorsSection" />
+        <ResultAuthorFilters v-show="showAuthorFilters" />
+
+        <div
+          ref="resultsListDiv"
+          class="results-list results-list--normal"
+          @scroll="handleScroll"
+        >
+          <ResultItem
+            v-for="(result, index) in displayedResults"
+            :key="result.bvid || index"
+            :result="result"
+          />
+        </div>
+
+        <div
+          v-show="showPagination"
+          class="flex flex-center q-pt-xs results-paginate-bottom"
+        >
+          <ResultsPagination
+            :currentPage="currentPage"
+            :totalPages="totalPages"
+            @update:currentPage="handlePageChange"
+          />
+        </div>
+      </div>
+    </template>
 
     <!-- === 内联模式：简化头部（排序按钮 + 查看全部） === -->
-    <div v-if="isInline && hasResults" class="inline-results-header">
+    <div v-else-if="isInline && hasResults" class="inline-results-header">
       <div class="inline-header-left">
         <span class="inline-results-count">{{ sortedHits.length }} 条结果</span>
         <q-btn
@@ -106,12 +135,8 @@
       </div>
     </div>
 
-    <!-- 作者列表/筛选：仅正常模式和对话框模式 -->
-    <ResultAuthorsList v-show="showAuthorsSection" />
-    <ResultAuthorFilters v-show="showAuthorFilters" />
-
-    <!-- 结果网格 -->
     <div
+      v-if="!isNormal"
       ref="resultsListDiv"
       :class="gridClass"
       :style="gridStyle"
@@ -124,8 +149,8 @@
       />
     </div>
 
-    <!-- 分页：仅正常模式和对话框模式 -->
     <div
+      v-if="!isNormal"
       v-show="showPagination"
       class="flex flex-center q-pt-xs results-paginate-bottom"
       :class="{ 'results-paginate-dialog': isDialog }"
@@ -151,6 +176,8 @@ import ResultsPagination from './ResultsPagination.vue';
 import ResultAuthorsList from 'src/components/ResultAuthorsList.vue';
 import ResultAuthorFilters from './ResultAuthorFilters.vue';
 import ExploreSessionSwitch from './ExploreSessionSwitch.vue';
+
+const RESULTS_MAX_WIDTH = 1280;
 
 export default {
   props: {
@@ -567,17 +594,18 @@ function _setup(props) {
   );
 
   const dynamicResultsListStyle = computed(() => {
-    const authorsListHeight = layoutStore.authorsListHeight || 0;
-    // 86px = header (~50px) + results stats bar (~36px)
-    // 48px = pagination bar height (button + padding)
-    // searchBarTotalHeight = search input wrapper + sticky padding (set by SearchInput)
-    const topFixedHeight = 86 + authorsListHeight;
-    const searchBarHeight = layoutStore.searchBarTotalHeight || 96;
+    const listWidth = `${Math.min(
+      layoutStore.availableContentWidth(),
+      RESULTS_MAX_WIDTH
+    )}px`;
+
     return {
-      maxWidth: `${Math.min(layoutStore.availableContentWidth(), 1280)}px`,
-      maxHeight: `calc(100vh - ${topFixedHeight}px - ${searchBarHeight}px - 16px)`,
+      width: listWidth,
+      maxWidth: listWidth,
     };
   });
+
+  const contentWidthStyle = computed(() => dynamicResultsListStyle.value);
 
   const isExploreSessionVisible = computed(() =>
     exploreStore.isSessionSwitchVisible()
@@ -608,6 +636,9 @@ function _setup(props) {
       // 内联模式：显示固定数量
       return sorting.sortedHits.value.slice(0, INLINE_DISPLAY_LIMIT);
     }
+    if (isDialog.value) {
+      return sorting.sortedHits.value;
+    }
     const all = pagination.loadedResults.value;
     if (props.maxItems > 0) {
       return all.slice(0, props.maxItems);
@@ -616,24 +647,23 @@ function _setup(props) {
   });
 
   // UI visibility helpers based on display mode
-  const showStatsBar = computed(() => !isInline.value);
+  const showStatsBar = computed(() => isNormal.value);
   const showAuthorsSection = computed(
-    () => (isNormal.value || isDialog.value) && !isCollapsed.value
+    () => isNormal.value && !isCollapsed.value
   );
   const showAuthorFilters = computed(
     () =>
-      hitsData.isHasAuthorFilter.value &&
-      (isNormal.value || isDialog.value) &&
-      !isCollapsed.value
+      hitsData.isHasAuthorFilter.value && isNormal.value && !isCollapsed.value
   );
-  const showPagination = computed(
-    () => (isNormal.value || isDialog.value) && !isCollapsed.value
-  );
+  const showPagination = computed(() => isNormal.value && !isCollapsed.value);
 
   // Container class for dialog mode flex layout
   const containerClass = computed(() => {
     if (isDialog.value) {
       return 'results-container results-container--dialog';
+    }
+    if (isNormal.value) {
+      return 'results-container results-container--normal';
     }
     return 'results-container';
   });
@@ -646,13 +676,9 @@ function _setup(props) {
         : 'results-list results-list--inline q-gutter-xs';
     }
     if (isDialog.value) {
-      return layoutStore.isSmallScreen()
-        ? 'results-list results-list--dialog q-gutter-none'
-        : 'results-list results-list--dialog q-gutter-xs';
+      return 'results-list results-list--dialog';
     }
-    return layoutStore.isSmallScreen()
-      ? 'results-list q-gutter-none'
-      : 'results-list q-gutter-xs';
+    return 'results-list results-list--normal';
   });
 
   const gridStyle = computed(() => {
@@ -683,6 +709,7 @@ function _setup(props) {
     isNormal,
     // Container class
     containerClass,
+    contentWidthStyle,
     // Step status
     ...stepStatus,
     // Hits data
@@ -730,9 +757,26 @@ function _setup(props) {
   flex-direction: column;
 }
 
+.results-container--normal {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .results-container--dialog {
   height: 100%;
   min-height: 0;
+}
+
+.results-normal-shell {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .results-stats {
@@ -742,24 +786,30 @@ function _setup(props) {
 .results-stats {
   display: flex;
   align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .results-list-info-top {
   min-height: 42px;
+  width: 100%;
+  flex-wrap: nowrap;
 }
 .results-stats-text {
   padding-left: 4px;
   display: flex;
   align-items: center;
+  min-width: 0;
 }
 .loading-indicator {
   display: inline-flex;
   align-items: center;
   line-height: 1;
+  min-width: 0;
 }
 .loading-query {
   opacity: 0.75;
   font-style: bold;
-  max-width: 200px;
+  max-width: min(50vw, 420px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -787,12 +837,13 @@ function _setup(props) {
 }
 .results-sort {
   align-self: center;
+  flex-shrink: 0;
 }
 
 .results-paginate-bottom {
   padding-top: 9px;
-  /* 给固定在底部的搜索栏留出空间 */
-  padding-bottom: calc(var(--search-bar-total-height, 96px) - 9px);
+  padding-bottom: 12px;
+  flex-shrink: 0;
 }
 .results-paginate-dialog {
   padding-bottom: 12px;
@@ -806,16 +857,33 @@ function _setup(props) {
 }
 .results-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, var(--result-item-width));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(var(--result-item-width), 100%), 1fr)
+  );
   /* max-width and max-height are applied via inline styles */
   overflow-y: scroll;
   overflow-x: hidden;
+  width: 100%;
+  min-height: 0;
+  margin: 0 auto;
+  align-content: start;
+  justify-content: start;
   /* CSS containment: isolate grid layout from ancestor reflows */
   contain: layout style;
+  gap: 10px;
   &::-webkit-scrollbar {
     width: 8px;
     background: transparent;
   }
+}
+
+.results-list--normal {
+  flex: 1 1 auto;
+  min-height: 0;
+  justify-content: start;
+  align-content: start;
+  padding-right: 2px;
 }
 
 /* 内联模式：自适应宽度网格，居中对齐 */
@@ -830,26 +898,39 @@ function _setup(props) {
 
 /* 对话框模式：自适应宽度网格，居中对齐 */
 .results-list--dialog {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, var(--result-item-width));
   max-width: 100%;
   overflow-x: hidden;
   overflow-y: scroll;
   scrollbar-gutter: stable both-edges;
   justify-content: center;
+  align-content: start;
   contain: none;
-  gap: 12px;
+  gap: 10px;
   padding: 4px 2px 8px;
+}
+
+.results-list--normal :deep(.result-item),
+.results-list--normal :deep(.result-item-cover) {
+  width: 100%;
+  max-width: 100%;
 }
 
 /* 内联/对话框模式下，解除 result-item 的固定宽度限制 */
 .results-list--inline :deep(.result-item),
 .results-list--inline :deep(.result-item-cover),
-.results-list--dialog :deep(.result-item),
 .results-list--dialog :deep(.result-item-cover) {
   max-width: 100%;
 }
+
+.results-list--dialog :deep(.result-item) {
+  width: var(--result-item-width);
+  max-width: var(--result-item-width);
+  justify-self: center;
+}
 @media (max-width: 569px) {
-  .results-list {
+  .results-list--inline,
+  .results-list--dialog {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin: auto;
   }

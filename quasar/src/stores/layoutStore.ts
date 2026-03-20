@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { getViewportCssWidth } from 'src/utils/zoom';
 
 /** RAF id for debounced resize handler */
 let resizeRAFId: number | null = null;
@@ -22,14 +23,13 @@ export const useLayoutStore = defineStore('layout', {
     state: () => ({
         /** @deprecated 旧抽屉可见性，保留兼容 */
         isSearchRecordsVisible: false,
-        screenWidth: window.innerWidth,
+        screenWidth: getViewportCssWidth(),
         searchRecordsListWidth: 300,
         isMouseInSearchBar: false,
         isSuggestVisible: false,
         activeTab: 'videos',
         currentPage: 1 as number,
         itemsPerPage: 20 as number,
-        authorsListHeight: 0 as number,
         loadedPages: new Set([1]) as Set<number>,
         /** 侧边栏是否展开 */
         isSidebarExpanded: JSON.parse(localStorage.getItem('isSidebarExpanded') || 'true') as boolean,
@@ -126,7 +126,7 @@ export const useLayoutStore = defineStore('layout', {
             resizeRAFId = requestAnimationFrame(() => {
                 resizeRAFId = null;
                 const prevWidth = this.screenWidth;
-                this.screenWidth = window.innerWidth;
+                this.screenWidth = getViewportCssWidth();
 
                 // Auto-collapse sidebar when screen narrows past desktop breakpoint
                 if (prevWidth >= DESKTOP_BREAKPOINT && this.screenWidth < DESKTOP_BREAKPOINT) {
@@ -168,9 +168,6 @@ export const useLayoutStore = defineStore('layout', {
         },
         setItemsPerPage(newItemsPerPage: number) {
             this.itemsPerPage = newItemsPerPage;
-        },
-        setAuthorsListHeight(newHeight: number) {
-            this.authorsListHeight = newHeight;
         },
         addLoadedPages(pages: number[]) {
             pages.forEach(page => this.loadedPages.add(page));

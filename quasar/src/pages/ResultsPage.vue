@@ -1,5 +1,9 @@
 <template>
-  <q-card flat class="results-tabs-card">
+  <q-card
+    flat
+    class="results-tabs-card"
+    :class="{ 'results-tabs-card--direct': !showChatPanel }"
+  >
     <!-- LLM 聊天面板：显示在搜索结果上方（smart/think 模式） -->
     <div
       v-if="showChatPanel"
@@ -270,13 +274,45 @@ body.body--dark .search-bar-row {
   overflow-x: hidden;
   overflow-y: hidden;
 }
+
+.results-tabs-card--direct {
+  height: calc(
+    var(--viewport-height-css, 100vh) - 36px -
+      var(--search-bar-total-height, 72px) - 10px
+  );
+}
+
 .results-panels-card {
   background: transparent;
   display: flex;
+  flex: 1 1 auto;
   justify-content: center;
+  min-height: 0;
+  width: 100%;
   overflow-x: hidden;
   overflow-y: hidden;
 }
+
+.results-panels-card :deep(.q-tab-panels) {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  background: transparent;
+}
+
+.results-panels-card :deep(.q-panel) {
+  height: 100%;
+  min-height: 0;
+}
+
+.results-panels-card :deep(.q-tab-panel) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
 .chat-results-container {
   background: transparent;
   display: flex;
