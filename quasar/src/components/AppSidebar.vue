@@ -157,64 +157,8 @@
                     icon="more_horiz"
                     size="xs"
                     class="history-more-btn"
-                    @click.stop
-                  >
-                    <q-menu
-                      anchor="bottom end"
-                      self="top end"
-                      :offset="[0, 2]"
-                      class="history-item-menu"
-                    >
-                      <q-list dense>
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click.stop="searchHistoryStore.togglePin(item.id)"
-                        >
-                          <q-item-section side
-                            ><q-icon name="push_pin" size="16px"
-                          /></q-item-section>
-                          <q-item-section>取消置顶</q-item-section>
-                        </q-item>
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click.stop="startRename(item)"
-                        >
-                          <q-item-section side
-                            ><q-icon name="edit" size="16px"
-                          /></q-item-section>
-                          <q-item-section>重命名</q-item-section>
-                        </q-item>
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click.stop="copySearchLink(item.query, item.id)"
-                        >
-                          <q-item-section side
-                            ><q-icon name="link" size="16px"
-                          /></q-item-section>
-                          <q-item-section>复制链接</q-item-section>
-                        </q-item>
-                        <q-separator />
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click.stop="searchHistoryStore.removeRecord(item.id)"
-                        >
-                          <q-item-section side
-                            ><q-icon
-                              name="delete"
-                              size="16px"
-                              class="text-negative"
-                          /></q-item-section>
-                          <q-item-section class="text-negative"
-                            >删除</q-item-section
-                          >
-                        </q-item>
-                      </q-list>
-                    </q-menu>
-                  </q-btn>
+                    @click.stop="openHistoryActionMenu($event, item)"
+                  />
                 </div>
               </div>
 
@@ -256,64 +200,8 @@
                     icon="more_horiz"
                     size="xs"
                     class="history-more-btn"
-                    @click.stop
-                  >
-                    <q-menu
-                      anchor="bottom end"
-                      self="top end"
-                      :offset="[0, 2]"
-                      class="history-item-menu"
-                    >
-                      <q-list dense>
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click.stop="searchHistoryStore.togglePin(item.id)"
-                        >
-                          <q-item-section side
-                            ><q-icon name="push_pin" size="16px"
-                          /></q-item-section>
-                          <q-item-section>置顶</q-item-section>
-                        </q-item>
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click.stop="startRename(item)"
-                        >
-                          <q-item-section side
-                            ><q-icon name="edit" size="16px"
-                          /></q-item-section>
-                          <q-item-section>重命名</q-item-section>
-                        </q-item>
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click.stop="copySearchLink(item.query, item.id)"
-                        >
-                          <q-item-section side
-                            ><q-icon name="link" size="16px"
-                          /></q-item-section>
-                          <q-item-section>复制链接</q-item-section>
-                        </q-item>
-                        <q-separator />
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click.stop="searchHistoryStore.removeRecord(item.id)"
-                        >
-                          <q-item-section side
-                            ><q-icon
-                              name="delete"
-                              size="16px"
-                              class="text-negative"
-                          /></q-item-section>
-                          <q-item-section class="text-negative"
-                            >删除</q-item-section
-                          >
-                        </q-item>
-                      </q-list>
-                    </q-menu>
-                  </q-btn>
+                    @click.stop="openHistoryActionMenu($event, item)"
+                  />
                 </div>
               </div>
             </template>
@@ -617,6 +505,52 @@
     </transition>
   </teleport>
 
+  <teleport to="body">
+    <transition name="fade">
+      <div
+        v-if="historyActionMenu.visible && historyActionMenu.item"
+        ref="historyActionMenuRef"
+        class="history-action-menu"
+        :style="historyActionMenuStyle"
+        @click.stop
+      >
+        <button
+          type="button"
+          class="history-action-menu-item"
+          @click.stop="toggleHistoryActionPin"
+        >
+          <q-icon :name="historyActionPinIcon" size="16px" />
+          <span>{{ historyActionPinLabel }}</span>
+        </button>
+        <button
+          type="button"
+          class="history-action-menu-item"
+          @click.stop="renameHistoryActionItem"
+        >
+          <q-icon name="edit" size="16px" />
+          <span>重命名</span>
+        </button>
+        <button
+          type="button"
+          class="history-action-menu-item"
+          @click.stop="copyHistoryActionLink"
+        >
+          <q-icon name="link" size="16px" />
+          <span>复制链接</span>
+        </button>
+        <div class="history-action-menu-separator" />
+        <button
+          type="button"
+          class="history-action-menu-item history-action-menu-item--danger"
+          @click.stop="removeHistoryActionItem"
+        >
+          <q-icon name="delete" size="16px" />
+          <span>删除</span>
+        </button>
+      </div>
+    </transition>
+  </teleport>
+
   <!-- 侧边栏右边缘手柄：放在 aside 外侧，避免遮挡滚动条（仅桌面端） -->
   <div
     v-if="hasSidebar && !isTablet"
@@ -655,7 +589,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { Dark, copyToClipboard } from 'quasar';
 import { useLayoutStore } from 'src/stores/layoutStore';
@@ -703,6 +637,20 @@ const sidebarTooltip = ref({
   left: 0,
   top: 0,
 });
+const historyActionMenu = ref<{
+  visible: boolean;
+  item: SearchHistoryItem | null;
+  left: number;
+  top: number;
+}>({
+  visible: false,
+  item: null,
+  left: 0,
+  top: 0,
+});
+const historyActionAnchorRect = ref<DOMRect | null>(null);
+const historyActionTriggerEl = ref<HTMLElement | null>(null);
+const historyActionMenuRef = ref<HTMLElement | null>(null);
 
 // History lazy-loading: only render up to this many recent items initially
 const HISTORY_PAGE_SIZE = 25;
@@ -1058,6 +1006,137 @@ const hideSidebarTooltip = () => {
   };
 };
 
+const closeHistoryActionMenu = () => {
+  historyActionMenu.value = {
+    visible: false,
+    item: null,
+    left: 0,
+    top: 0,
+  };
+  historyActionAnchorRect.value = null;
+  historyActionTriggerEl.value = null;
+};
+
+const positionHistoryActionMenu = () => {
+  const anchorRect = historyActionAnchorRect.value;
+  if (!anchorRect || !historyActionMenu.value.visible) return;
+
+  const zoom = getDocumentZoom();
+  const viewportWidth = viewportPxToCssPx(window.innerWidth, zoom);
+  const viewportHeight = viewportPxToCssPx(window.innerHeight, zoom);
+  const menuRect = historyActionMenuRef.value?.getBoundingClientRect();
+  const menuWidth = menuRect ? viewportPxToCssPx(menuRect.width, zoom) : 160;
+  const menuHeight = menuRect ? viewportPxToCssPx(menuRect.height, zoom) : 154;
+  const gutter = 8;
+  const offset = 6;
+
+  let left = viewportPxToCssPx(anchorRect.right, zoom) - menuWidth;
+  left = Math.max(gutter, Math.min(left, viewportWidth - menuWidth - gutter));
+
+  const anchorBottom = viewportPxToCssPx(anchorRect.bottom, zoom);
+  const anchorTop = viewportPxToCssPx(anchorRect.top, zoom);
+  let top = anchorBottom + offset;
+  if (top + menuHeight > viewportHeight - gutter) {
+    top = anchorTop - menuHeight - offset;
+  }
+  top = Math.max(gutter, Math.min(top, viewportHeight - menuHeight - gutter));
+
+  historyActionMenu.value = {
+    ...historyActionMenu.value,
+    left,
+    top,
+  };
+};
+
+const openHistoryActionMenu = async (event: Event, item: SearchHistoryItem) => {
+  hideSidebarTooltip();
+
+  const trigger = event.currentTarget;
+  if (!(trigger instanceof HTMLElement)) return;
+
+  const isSameItemOpen =
+    historyActionMenu.value.visible &&
+    historyActionMenu.value.item?.id === item.id;
+  if (isSameItemOpen) {
+    closeHistoryActionMenu();
+    return;
+  }
+
+  historyActionTriggerEl.value = trigger;
+  historyActionAnchorRect.value = trigger.getBoundingClientRect();
+  historyActionMenu.value = {
+    visible: true,
+    item,
+    left: 0,
+    top: 0,
+  };
+
+  await nextTick();
+  positionHistoryActionMenu();
+};
+
+const historyActionMenuStyle = computed(() => ({
+  left: `${historyActionMenu.value.left}px`,
+  top: `${historyActionMenu.value.top}px`,
+}));
+
+const historyActionPinLabel = computed(() =>
+  historyActionMenu.value.item?.pinned ? '取消置顶' : '置顶'
+);
+
+const historyActionPinIcon = computed(() =>
+  historyActionMenu.value.item?.pinned ? 'keep_off' : 'push_pin'
+);
+
+const toggleHistoryActionPin = async () => {
+  const item = historyActionMenu.value.item;
+  if (!item) return;
+  await searchHistoryStore.togglePin(item.id);
+  closeHistoryActionMenu();
+};
+
+const renameHistoryActionItem = () => {
+  const item = historyActionMenu.value.item;
+  if (!item) return;
+  startRename(item);
+  closeHistoryActionMenu();
+};
+
+const copyHistoryActionLink = async () => {
+  const item = historyActionMenu.value.item;
+  if (!item) return;
+  await copySearchLink(item.query, item.id);
+  closeHistoryActionMenu();
+};
+
+const removeHistoryActionItem = async () => {
+  const item = historyActionMenu.value.item;
+  if (!item) return;
+  await searchHistoryStore.removeRecord(item.id);
+  closeHistoryActionMenu();
+};
+
+const handleGlobalPointerDown = (event: MouseEvent) => {
+  if (!historyActionMenu.value.visible) return;
+
+  const target = event.target as Node | null;
+  if (!target) {
+    closeHistoryActionMenu();
+    return;
+  }
+
+  if (historyActionMenuRef.value?.contains(target)) return;
+  if (historyActionTriggerEl.value?.contains(target)) return;
+
+  closeHistoryActionMenu();
+};
+
+const handleGlobalKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    closeHistoryActionMenu();
+  }
+};
+
 const sidebarTooltipStyle = computed(() => ({
   left: `${sidebarTooltip.value.left}px`,
   top: `${sidebarTooltip.value.top}px`,
@@ -1100,7 +1179,11 @@ watch(showLoginDialog, async (newValue) => {
 onMounted(async () => {
   await searchHistoryStore.loadHistory();
   window.addEventListener('resize', hideSidebarTooltip, { passive: true });
+  window.addEventListener('resize', closeHistoryActionMenu, { passive: true });
   window.addEventListener('scroll', hideSidebarTooltip, true);
+  window.addEventListener('scroll', closeHistoryActionMenu, true);
+  document.addEventListener('mousedown', handleGlobalPointerDown);
+  document.addEventListener('keydown', handleGlobalKeydown);
 });
 
 // Lazy-loaded recent history: limits rendered items for performance
@@ -1133,6 +1216,7 @@ const hasMoreHistory = computed(
 );
 
 const onHistoryScroll = (info: { verticalPercentage: number }) => {
+  closeHistoryActionMenu();
   // Load more when scrolled past 85%
   if (info.verticalPercentage > 0.85 && hasMoreHistory.value) {
     historyDisplayLimit.value += HISTORY_PAGE_SIZE;
@@ -1142,12 +1226,26 @@ const onHistoryScroll = (info: { verticalPercentage: number }) => {
 onUnmounted(() => {
   authStore.cleanup();
   window.removeEventListener('resize', hideSidebarTooltip);
+  window.removeEventListener('resize', closeHistoryActionMenu);
   window.removeEventListener('scroll', hideSidebarTooltip, true);
+  window.removeEventListener('scroll', closeHistoryActionMenu, true);
+  document.removeEventListener('mousedown', handleGlobalPointerDown);
+  document.removeEventListener('keydown', handleGlobalKeydown);
 });
 
 watch(sidebarExpanded, () => {
   hideSidebarTooltip();
+  closeHistoryActionMenu();
 });
+
+watch(
+  () => historyActionMenu.value.visible,
+  async (visible) => {
+    if (!visible) return;
+    await nextTick();
+    positionHistoryActionMenu();
+  }
+);
 </script>
 
 <style scoped>
@@ -1752,40 +1850,57 @@ body.body--dark .sidebar-hover-tooltip {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* ============ 历史记录操作菜单（非scoped，q-menu 传送到 body） ============ */
-.history-item-menu {
-  border-radius: 10px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
-  min-width: 140px;
-}
-.history-item-menu .q-list {
+/* ============ 历史记录操作菜单（非scoped，fixed 定位，避免 zoom 偏移） ============ */
+.history-action-menu {
+  position: fixed;
+  z-index: 4100;
+  min-width: 160px;
   padding: 4px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
-.history-item-menu .q-item {
-  border-radius: 6px;
-  min-height: 32px;
-  padding: 4px 10px;
+.history-action-menu-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 7px;
+  min-height: 34px;
+  padding: 6px 10px;
   font-size: 13px;
+  text-align: left;
+  cursor: pointer;
 }
-.history-item-menu .q-item-section--side {
-  min-width: 24px;
-  padding-right: 6px;
+.history-action-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
 }
-.history-item-menu .q-separator {
-  margin: 3px 6px;
+.history-action-menu-item--danger {
+  color: #d32f2f;
 }
-body.body--light .history-item-menu {
+body.body--dark .history-action-menu-item--danger {
+  color: #ff7a7a;
+}
+body.body--light .history-action-menu {
   background-color: #f5f5f5;
   border: 1px solid #e0e0e0;
 }
-body.body--dark .history-item-menu {
+body.body--dark .history-action-menu {
   background-color: #1a1a1a;
   border: 1px solid #333;
 }
-body.body--light .history-item-menu .q-item:hover {
+body.body--light .history-action-menu-item:hover {
   background-color: #e8e8e8;
 }
-body.body--dark .history-item-menu .q-item:hover {
+body.body--dark .history-action-menu-item:hover {
   background-color: #2a2a2a;
+}
+body.body--light .history-action-menu-separator {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+body.body--dark .history-action-menu-separator {
+  background-color: rgba(255, 255, 255, 0.08);
 }
 </style>

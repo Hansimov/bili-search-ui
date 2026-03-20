@@ -861,8 +861,8 @@ function _setup(props) {
 .results-list {
   display: grid;
   grid-template-columns: repeat(
-    auto-fit,
-    minmax(min(var(--result-item-width), 100%), 1fr)
+    auto-fill,
+    minmax(min(var(--result-item-width), 100%), var(--result-item-width))
   );
   /* max-width and max-height are applied via inline styles */
   overflow-y: scroll;
@@ -884,7 +884,14 @@ function _setup(props) {
 .results-list--normal {
   flex: 1 1 auto;
   min-height: 0;
-  justify-content: start;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(var(--result-item-width), 100%), var(--result-item-width))
+  );
+  justify-content: center;
   align-content: start;
   padding-right: 0;
 }

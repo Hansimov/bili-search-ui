@@ -186,16 +186,18 @@ export default {
   display: grid;
   grid-template-columns: repeat(
     auto-fit,
-    minmax(min(var(--result-item-width), 100%), 1fr)
+    minmax(min(var(--result-item-width), 100%), var(--result-item-width))
   );
   overflow-y: scroll;
   overflow-x: hidden;
   max-height: 96px;
-  width: 100%;
-  justify-content: start;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  justify-content: center;
   align-content: start;
-  column-gap: 8px;
-  row-gap: 3px;
+  column-gap: 10px;
+  row-gap: 10px;
   /* CSS containment: isolate grid layout from ancestor reflows */
   contain: layout style;
   &::-webkit-scrollbar {
