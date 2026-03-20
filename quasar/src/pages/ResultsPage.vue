@@ -278,7 +278,7 @@ body.body--dark .search-bar-row {
 .results-tabs-card--direct {
   height: calc(
     var(--viewport-height-css, 100vh) - 36px -
-      var(--search-bar-total-height, 72px) - 10px
+      var(--search-bar-total-height, 72px) + 2px
   );
 }
 

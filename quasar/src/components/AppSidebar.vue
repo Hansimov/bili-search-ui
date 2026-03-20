@@ -65,7 +65,7 @@
           @mouseleave="hideSidebarTooltip"
           ref="dslHelpBtnRef"
         >
-          <q-icon name="help_outline" size="22px" class="sidebar-nav-icon" />
+          <q-icon name="code" size="22px" class="sidebar-nav-icon" />
           <transition name="fade">
             <span v-if="sidebarExpanded" class="nav-label">语法帮助</span>
           </transition>

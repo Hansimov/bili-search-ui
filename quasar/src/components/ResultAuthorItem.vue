@@ -1,9 +1,5 @@
 <template>
-  <q-item
-    class="result-author-item q-pb-none q-pt-xs"
-    @click="onAuthorClick"
-    clickable
-  >
+  <q-item class="result-author-item" @click="onAuthorClick" clickable>
     <q-item-section avatar side>
       <q-avatar class="result-author-avatar">
         <img
@@ -73,6 +69,9 @@ const onAuthorClick = () => {
   box-sizing: border-box;
   padding-left: 4px;
   padding-right: 4px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  min-height: 34px;
   cursor: pointer;
   transition: transform 0.2s ease-out, filter 0.2s ease-out;
   transform-origin: left center;

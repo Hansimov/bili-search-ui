@@ -514,11 +514,12 @@ function usePageChange(
     setTimeout(() => {
       const relativeIndex = getPageIndexInLoadedResults(newPage);
       if (relativeIndex >= 0) {
-        const targetElement = resultsListDiv.value?.children[relativeIndex];
-        if (targetElement) {
-          targetElement.scrollIntoView({
+        const scrollContainer = resultsListDiv.value;
+        const targetElement = scrollContainer?.children[relativeIndex];
+        if (scrollContainer && targetElement instanceof HTMLElement) {
+          scrollContainer.scrollTo({
+            top: targetElement.offsetTop,
             behavior: 'smooth',
-            block: 'start',
           });
         }
       }
@@ -885,8 +886,7 @@ function _setup(props) {
   min-height: 0;
   justify-content: start;
   align-content: start;
-  padding-right: 6px;
-  scrollbar-gutter: stable;
+  padding-right: 0;
 }
 
 /* 内联模式：自适应宽度网格，居中对齐 */

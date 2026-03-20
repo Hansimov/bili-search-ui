@@ -190,11 +190,12 @@ export default {
   );
   overflow-y: scroll;
   overflow-x: hidden;
-  max-height: 110px;
+  max-height: 96px;
   width: 100%;
   justify-content: start;
   align-content: start;
-  gap: 10px;
+  column-gap: 8px;
+  row-gap: 3px;
   /* CSS containment: isolate grid layout from ancestor reflows */
   contain: layout style;
   &::-webkit-scrollbar {
@@ -223,7 +224,7 @@ export default {
 details {
   cursor: pointer;
   margin: 0;
-  line-height: 1.75;
+  line-height: 1.7;
 }
 summary {
   user-select: none;
