@@ -178,6 +178,12 @@ import ResultAuthorFilters from './ResultAuthorFilters.vue';
 import ExploreSessionSwitch from './ExploreSessionSwitch.vue';
 
 const RESULTS_MAX_WIDTH = 1280;
+const RESULT_ITEM_WIDTH = 216;
+const RESULT_GRID_GAP = 10;
+const RESULTS_SHELL_INLINE_PADDING = 20;
+const RESULTS_SCROLLBAR_WIDTH = 8;
+const RESULTS_FLUID_TWO_COLUMN_THRESHOLD =
+  RESULT_ITEM_WIDTH * 3 + RESULT_GRID_GAP * 2;
 
 export default {
   props: {
@@ -595,14 +601,41 @@ function _setup(props) {
   );
 
   const dynamicResultsListStyle = computed(() => {
-    const listWidth = `${Math.min(
+    const availableWidth = Math.min(
       layoutStore.availableContentWidth(),
       RESULTS_MAX_WIDTH
-    )}px`;
+    );
+    const availableGridWidth = Math.max(
+      RESULT_ITEM_WIDTH,
+      availableWidth - RESULTS_SHELL_INLINE_PADDING - RESULTS_SCROLLBAR_WIDTH
+    );
+    const isFluidTwoColumnWidth =
+      availableGridWidth < RESULTS_FLUID_TWO_COLUMN_THRESHOLD;
+    const columnCount = isFluidTwoColumnWidth
+      ? 2
+      : Math.max(
+          1,
+          Math.floor(
+            (availableGridWidth + RESULT_GRID_GAP) /
+              (RESULT_ITEM_WIDTH + RESULT_GRID_GAP)
+          )
+        );
+    const fixedContentWidth = isFluidTwoColumnWidth
+      ? availableGridWidth
+      : Math.min(
+          availableGridWidth,
+          columnCount * RESULT_ITEM_WIDTH +
+            Math.max(0, columnCount - 1) * RESULT_GRID_GAP
+        );
+    const listWidth = `${availableWidth}px`;
 
     return {
       width: listWidth,
       maxWidth: listWidth,
+      '--results-normal-fixed-width': `${fixedContentWidth}px`,
+      '--results-normal-grid-template': isFluidTwoColumnWidth
+        ? 'repeat(2, minmax(0, 1fr))'
+        : `repeat(${columnCount}, minmax(0, var(--result-item-width)))`,
     };
   });
 
@@ -795,6 +828,8 @@ function _setup(props) {
 .results-list-info-top {
   min-height: 42px;
   width: 100%;
+  max-width: var(--results-normal-fixed-width, 100%);
+  margin: 0 auto;
   flex-wrap: nowrap;
 }
 .results-stats-text {
@@ -884,14 +919,14 @@ function _setup(props) {
 .results-list--normal {
   flex: 1 1 auto;
   min-height: 0;
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
+  max-width: var(--results-normal-fixed-width, 100%);
   margin: 0 auto;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(min(var(--result-item-width), 100%), var(--result-item-width))
+  grid-template-columns: var(
+    --results-normal-grid-template,
+    repeat(1, minmax(0, var(--result-item-width)))
   );
-  justify-content: center;
+  justify-content: start;
   align-content: start;
   padding-right: 0;
 }

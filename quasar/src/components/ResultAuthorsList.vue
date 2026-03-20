@@ -191,10 +191,10 @@ export default {
   overflow-y: scroll;
   overflow-x: hidden;
   max-height: 96px;
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
+  max-width: var(--results-normal-fixed-width, 100%);
   margin: 0 auto;
-  justify-content: center;
+  justify-content: start;
   align-content: start;
   column-gap: 10px;
   row-gap: 10px;
@@ -208,6 +208,11 @@ export default {
 .result-authors-list > * {
   overflow: hidden;
 }
+@media (min-width: 570px) and (max-width: 858px) {
+  .result-authors-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 @media (max-width: 569px) {
   .result-authors-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -216,12 +221,14 @@ export default {
 .authors-content-wrapper {
   overflow: hidden;
   transition: max-height 0.25s ease;
+  width: 100%;
 }
 .result-authors-details {
   padding-bottom: 6px;
   padding-left: 0px;
   width: 100%;
-  max-width: 100%;
+  max-width: var(--results-normal-fixed-width, 100%);
+  margin: 0 auto;
 }
 details {
   cursor: pointer;
@@ -229,6 +236,8 @@ details {
   line-height: 1.7;
 }
 summary {
+  display: block;
+  width: 100%;
   user-select: none;
 }
 body.body--light summary:hover {
