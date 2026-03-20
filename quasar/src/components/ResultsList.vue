@@ -776,6 +776,8 @@ function _setup(props) {
   height: 100%;
   min-height: 0;
   width: 100%;
+  box-sizing: border-box;
+  padding-inline: 10px;
   margin: 0 auto;
 }
 
@@ -842,7 +844,7 @@ function _setup(props) {
 
 .results-paginate-bottom {
   padding-top: 9px;
-  padding-bottom: 12px;
+  padding-bottom: 6px;
   flex-shrink: 0;
 }
 .results-paginate-dialog {
@@ -883,7 +885,8 @@ function _setup(props) {
   min-height: 0;
   justify-content: start;
   align-content: start;
-  padding-right: 2px;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
 }
 
 /* 内联模式：自适应宽度网格，居中对齐 */
@@ -929,6 +932,7 @@ function _setup(props) {
   justify-self: center;
 }
 @media (max-width: 569px) {
+  .results-list--normal,
   .results-list--inline,
   .results-list--dialog {
     grid-template-columns: repeat(2, minmax(0, 1fr));

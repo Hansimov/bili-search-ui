@@ -397,6 +397,7 @@ import {
   tsToDatetime,
   hasLeadingCjkPunctuation,
 } from 'src/utils/convert';
+import { getViewportCssWidth, getViewportCssHeight } from 'src/utils/zoom';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Dict = Record<string, any>;
@@ -521,14 +522,14 @@ const bodyLayoutClass = computed(() => {
 
 // ── Window size tracking for responsive layout ────────────────────────
 const windowWidth = ref(
-  typeof window !== 'undefined' ? window.innerWidth : 1024
+  typeof window !== 'undefined' ? getViewportCssWidth() : 1024
 );
 const windowHeight = ref(
-  typeof window !== 'undefined' ? window.innerHeight : 768
+  typeof window !== 'undefined' ? getViewportCssHeight() : 768
 );
 const onWindowResize = () => {
-  windowWidth.value = window.innerWidth;
-  windowHeight.value = window.innerHeight;
+  windowWidth.value = getViewportCssWidth();
+  windowHeight.value = getViewportCssHeight();
 };
 
 // ── Cover frame (frame 0) ──────────────────────────────────────────────────

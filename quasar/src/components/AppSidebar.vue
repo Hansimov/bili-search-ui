@@ -19,17 +19,13 @@
     <div class="sidebar-inner">
       <!-- Logo / 收起按钮 -->
       <div class="sidebar-header">
-        <div class="sidebar-toggle" @click="handleToggle">
+        <div
+          class="sidebar-toggle"
+          @mouseenter="showSidebarTooltip($event, '展开侧边栏')"
+          @mouseleave="hideSidebarTooltip"
+          @click="handleToggle"
+        >
           <q-icon name="menu" size="20px" class="sidebar-nav-icon" />
-          <q-tooltip
-            v-if="!sidebarExpanded"
-            anchor="center right"
-            self="center left"
-            transition-show="fade"
-            transition-hide="fade"
-          >
-            展开侧边栏
-          </q-tooltip>
         </div>
         <router-link
           v-if="sidebarExpanded"
@@ -47,21 +43,14 @@
         <div
           class="sidebar-nav-item"
           :class="{ 'nav-item-collapsed': !sidebarExpanded }"
+          @mouseenter="showSidebarTooltip($event, '新建搜索')"
+          @mouseleave="hideSidebarTooltip"
           @click="navigateToSearch"
         >
           <q-icon name="add" size="22px" class="sidebar-nav-icon" />
           <transition name="fade">
             <span v-if="sidebarExpanded" class="nav-label">新建搜索</span>
           </transition>
-          <q-tooltip
-            v-if="!sidebarExpanded"
-            anchor="center right"
-            self="center left"
-            transition-show="fade"
-            transition-hide="fade"
-          >
-            新建搜索
-          </q-tooltip>
         </div>
 
         <!-- 搜索语法帮助 -->
@@ -72,21 +61,14 @@
             'dsl-help-shake': isDslShaking,
           }"
           @click="showDslHelpDialog = true"
+          @mouseenter="showSidebarTooltip($event, '语法帮助')"
+          @mouseleave="hideSidebarTooltip"
           ref="dslHelpBtnRef"
         >
           <q-icon name="help_outline" size="22px" class="sidebar-nav-icon" />
           <transition name="fade">
             <span v-if="sidebarExpanded" class="nav-label">语法帮助</span>
           </transition>
-          <q-tooltip
-            v-if="!sidebarExpanded"
-            anchor="center right"
-            self="center left"
-            transition-show="fade"
-            transition-hide="fade"
-          >
-            语法帮助
-          </q-tooltip>
         </div>
 
         <!-- 历史记录 -->
@@ -96,6 +78,8 @@
             'nav-item-collapsed': !sidebarExpanded,
             'nav-item-active': !showHistoryList,
           }"
+          @mouseenter="showSidebarTooltip($event, '历史记录')"
+          @mouseleave="hideSidebarTooltip"
           @click="toggleHistory"
         >
           <q-icon name="history" size="22px" class="sidebar-nav-icon" />
@@ -122,15 +106,6 @@
               <q-tooltip>清除历史</q-tooltip>
             </q-btn>
           </template>
-          <q-tooltip
-            v-if="!sidebarExpanded"
-            anchor="center right"
-            self="center left"
-            transition-show="fade"
-            transition-hide="fade"
-          >
-            历史记录
-          </q-tooltip>
         </div>
       </div>
 
@@ -378,6 +353,10 @@
         <div
           class="sidebar-bottom-item"
           :class="{ 'item-collapsed': !sidebarExpanded }"
+          @mouseenter="
+            showSidebarTooltip($event, isDark ? '浅色模式' : '深色模式')
+          "
+          @mouseleave="hideSidebarTooltip"
           @click="toggleDarkMode"
         >
           <q-icon
@@ -390,21 +369,19 @@
               {{ isDark ? '深色' : '浅色' }}
             </span>
           </transition>
-          <q-tooltip
-            v-if="!sidebarExpanded"
-            anchor="center right"
-            self="center left"
-            transition-show="fade"
-            transition-hide="fade"
-          >
-            {{ isDark ? '浅色模式' : '深色模式' }}
-          </q-tooltip>
         </div>
 
         <!-- 用户登录 -->
         <div
           class="sidebar-bottom-item sidebar-user"
           :class="{ 'item-collapsed': !sidebarExpanded }"
+          @mouseenter="
+            showSidebarTooltip(
+              $event,
+              accountStore.isLoggedIn ? accountStore.userName : '登录'
+            )
+          "
+          @mouseleave="hideSidebarTooltip"
           @click="handleUserClick"
         >
           <template v-if="accountStore.isLoggedIn && accountStore.userAvatar">
@@ -507,15 +484,6 @@
               </span>
             </transition>
           </template>
-          <q-tooltip
-            v-if="!sidebarExpanded"
-            anchor="center right"
-            self="center left"
-            transition-show="fade"
-            transition-hide="fade"
-          >
-            {{ accountStore.isLoggedIn ? accountStore.userName : '登录' }}
-          </q-tooltip>
         </div>
       </div>
 
@@ -637,6 +605,18 @@
     <!-- /.sidebar-inner -->
   </aside>
 
+  <teleport to="body">
+    <transition name="fade">
+      <div
+        v-if="sidebarTooltip.visible"
+        class="sidebar-hover-tooltip"
+        :style="sidebarTooltipStyle"
+      >
+        {{ sidebarTooltip.text }}
+      </div>
+    </transition>
+  </teleport>
+
   <!-- 侧边栏右边缘手柄：放在 aside 外侧，避免遮挡滚动条（仅桌面端） -->
   <div
     v-if="hasSidebar && !isTablet"
@@ -692,6 +672,7 @@ import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import type { SearchMode } from 'src/stores/searchModeStore';
+import { getDocumentZoom, viewportPxToCssPx } from 'src/utils/zoom';
 import DslHelpDialog from './DslHelpDialog.vue';
 
 const router = useRouter();
@@ -716,6 +697,12 @@ const renameValue = ref('');
 const renameItemId = ref('');
 const isDslShaking = ref(false);
 const dslHelpBtnRef = ref<HTMLElement | null>(null);
+const sidebarTooltip = ref({
+  visible: false,
+  text: '',
+  left: 0,
+  top: 0,
+});
 
 // History lazy-loading: only render up to this many recent items initially
 const HISTORY_PAGE_SIZE = 25;
@@ -890,6 +877,7 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
 
 // Sidebar toggle
 const handleToggle = () => {
+  hideSidebarTooltip();
   if (isOverlayMode.value) {
     // mobile + tablet：使用 overlay 模式
     layoutStore.toggleMobileSidebar();
@@ -921,6 +909,7 @@ const closeSidebar = () => {
 
 // History
 const toggleHistory = () => {
+  hideSidebarTooltip();
   if (sidebarExpanded.value) {
     showHistoryList.value = !showHistoryList.value;
   } else {
@@ -1034,10 +1023,45 @@ const copySearchLink = async (query: string, itemId: string) => {
 
 // User management
 const handleUserClick = () => {
+  hideSidebarTooltip();
   if (!accountStore.isLoggedIn) {
     showLoginDialog.value = true;
   }
 };
+
+const showSidebarTooltip = (event: MouseEvent, text: string) => {
+  if (sidebarExpanded.value || !text) {
+    hideSidebarTooltip();
+    return;
+  }
+
+  const target = event.currentTarget as HTMLElement | null;
+  if (!target) return;
+
+  const rect = target.getBoundingClientRect();
+  const zoom = getDocumentZoom();
+  sidebarTooltip.value = {
+    visible: true,
+    text,
+    left: viewportPxToCssPx(rect.right, zoom) + 10,
+    top: viewportPxToCssPx(rect.top + rect.height / 2, zoom),
+  };
+};
+
+const hideSidebarTooltip = () => {
+  if (!sidebarTooltip.value.visible) return;
+  sidebarTooltip.value = {
+    visible: false,
+    text: '',
+    left: 0,
+    top: 0,
+  };
+};
+
+const sidebarTooltipStyle = computed(() => ({
+  left: `${sidebarTooltip.value.left}px`,
+  top: `${sidebarTooltip.value.top}px`,
+}));
 
 const closeLoginDialog = () => {
   showLoginDialog.value = false;
@@ -1075,6 +1099,8 @@ watch(showLoginDialog, async (newValue) => {
 // Load search history on mount
 onMounted(async () => {
   await searchHistoryStore.loadHistory();
+  window.addEventListener('resize', hideSidebarTooltip, { passive: true });
+  window.addEventListener('scroll', hideSidebarTooltip, true);
 });
 
 // Lazy-loaded recent history: limits rendered items for performance
@@ -1115,6 +1141,12 @@ const onHistoryScroll = (info: { verticalPercentage: number }) => {
 
 onUnmounted(() => {
   authStore.cleanup();
+  window.removeEventListener('resize', hideSidebarTooltip);
+  window.removeEventListener('scroll', hideSidebarTooltip, true);
+});
+
+watch(sidebarExpanded, () => {
+  hideSidebarTooltip();
 });
 </script>
 
@@ -1684,16 +1716,40 @@ body.body--dark .sidebar-user-menu .q-item:hover {
 /* ============ 历史记录 more 按钮（非scoped，q-btn 内部样式需穿透） ============ */
 .history-more-btn {
   flex-shrink: 0;
-  opacity: 0;
+  opacity: 0.18;
   transition: opacity 0.15s ease;
   width: 24px;
   height: 24px;
 }
-.history-item:hover .history-more-btn {
+.history-item:hover .history-more-btn,
+.history-item:focus-within .history-more-btn {
   opacity: 0.6;
 }
 .history-more-btn:hover {
   opacity: 1 !important;
+}
+
+.sidebar-hover-tooltip {
+  position: fixed;
+  transform: translateY(-50%);
+  z-index: 4000;
+  pointer-events: none;
+  white-space: nowrap;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.2;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+body.body--light .sidebar-hover-tooltip {
+  background: rgba(255, 255, 255, 0.96);
+  color: #333;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+body.body--dark .sidebar-hover-tooltip {
+  background: rgba(26, 26, 26, 0.96);
+  color: #ddd;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* ============ 历史记录操作菜单（非scoped，q-menu 传送到 body） ============ */

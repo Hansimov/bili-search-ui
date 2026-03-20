@@ -205,6 +205,11 @@ export default {
 .result-authors-list > * {
   overflow: hidden;
 }
+@media (max-width: 569px) {
+  .result-authors-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .authors-content-wrapper {
   overflow: hidden;
   transition: max-height 0.25s ease;
