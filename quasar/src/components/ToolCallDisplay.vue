@@ -215,6 +215,8 @@
 <script lang="ts">
 import { defineComponent, ref, watch, nextTick, PropType } from 'vue';
 import type { ToolCall } from 'src/services/chatService';
+import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
+import { formatToolCallArgs } from 'src/utils/toolCall';
 
 /** Video hit from search result */
 interface VideoHit {
@@ -238,6 +240,13 @@ interface AuthorResult {
 const TOOL_LABELS: Record<string, string> = {
   search_videos: '搜索视频',
   check_author: '查询作者',
+  search_google: '搜索 Google',
+  related_tokens_by_tokens: '相关词补全',
+  related_owners_by_tokens: '相关作者',
+  related_videos_by_videos: '相关视频',
+  related_owners_by_videos: '相关作者',
+  related_videos_by_owners: '作者相关视频',
+  related_owners_by_owners: '相关作者',
   read_spec: '阅读文档',
 };
 
@@ -245,6 +254,13 @@ const TOOL_LABELS: Record<string, string> = {
 const TOOL_ICONS: Record<string, string> = {
   search_videos: 'search',
   check_author: 'person_search',
+  search_google: 'travel_explore',
+  related_tokens_by_tokens: 'token',
+  related_owners_by_tokens: 'group',
+  related_videos_by_videos: 'linked_camera',
+  related_owners_by_videos: 'group_work',
+  related_videos_by_owners: 'video_library',
+  related_owners_by_owners: 'groups',
   read_spec: 'description',
 };
 
@@ -282,13 +298,7 @@ export default defineComponent({
       return queries && Array.isArray(queries) ? queries : [];
     };
 
-    const formatToolArgs = (call: ToolCall) => {
-      if (call.type === 'check_author') {
-        const name = call.args?.name as string | undefined;
-        return name ? `"${name}"` : '';
-      }
-      return '';
-    };
+    const formatToolArgs = (call: ToolCall) => formatToolCallArgs(call);
 
     /** Check if a tool call has displayable results */
     const hasResults = (call: ToolCall): boolean => {
@@ -321,14 +331,16 @@ export default defineComponent({
       const result = call.result as Record<string, unknown>;
       // Single query format
       if (Array.isArray(result.hits)) {
-        return result.hits as VideoHit[];
+        return (result.hits as VideoHit[]).map((hit) => normalizeVideoHit(hit));
       }
       // Multi-query format: merge all hits
       if (Array.isArray(result.results)) {
         const allHits: VideoHit[] = [];
         for (const r of result.results as Array<Record<string, unknown>>) {
           if (Array.isArray(r.hits)) {
-            allHits.push(...(r.hits as VideoHit[]));
+            allHits.push(
+              ...(r.hits as VideoHit[]).map((hit) => normalizeVideoHit(hit))
+            );
           }
         }
         return allHits;
@@ -346,7 +358,9 @@ export default defineComponent({
       if (Array.isArray(result.results)) {
         return (result.results as Array<Record<string, unknown>>).map((r) => ({
           query: String(r.query || ''),
-          hits: Array.isArray(r.hits) ? (r.hits as VideoHit[]) : [],
+          hits: Array.isArray(r.hits)
+            ? (r.hits as VideoHit[]).map((hit) => normalizeVideoHit(hit))
+            : [],
         }));
       }
       // Single query format
@@ -354,7 +368,9 @@ export default defineComponent({
         return [
           {
             query: String(result.query || ''),
-            hits: result.hits as VideoHit[],
+            hits: (result.hits as VideoHit[]).map((hit) =>
+              normalizeVideoHit(hit)
+            ),
           },
         ];
       }
@@ -386,10 +402,7 @@ export default defineComponent({
 
     /** Normalize bilibili pic URL to include https: protocol */
     const normalizePicUrl = (pic: string): string => {
-      if (!pic) return '';
-      if (pic.startsWith('//')) return 'https:' + pic;
-      if (pic.startsWith('http://')) return pic.replace('http://', 'https://');
-      return pic;
+      return normalizeVideoPicUrl(pic);
     };
 
     /** Open video page on bilibili in new tab */

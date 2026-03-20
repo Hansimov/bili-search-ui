@@ -41,18 +41,30 @@
             class="text-caption absolute-top text-center result-top-bar"
             :class="{ 'bar-visible': coverLoaded }"
           ></span>
-          <span class="text-caption absolute-top text-left result-score">
-            {{ result?.score != null ? result.score.toFixed(1) : '' }}
+          <span class="text-caption result-score">
+            {{
+              normalizedResult?.score != null
+                ? normalizedResult.score.toFixed(1)
+                : ''
+            }}
           </span>
-          <span class="text-caption absolute-top text-right result-tname">
+          <span class="text-caption result-tname">
             {{ getRegionName() }}
           </span>
-          <span class="text-caption absolute-bottom text-left result-view">
+          <span class="text-caption result-view">
             <q-icon name="fa-regular fa-play-circle"></q-icon>
-            {{ humanReadableNumber(result?.stat?.view) }}
+            {{
+              normalizedResult?.stat?.view != null
+                ? humanReadableNumber(normalizedResult.stat.view)
+                : ''
+            }}
           </span>
-          <span class="text-caption absolute-bottom text-right result-duration">
-            {{ result?.duration ? secondsToDuration(result.duration) : '' }}
+          <span class="text-caption result-duration">
+            {{
+              normalizedResult?.duration
+                ? secondsToDuration(normalizedResult.duration)
+                : ''
+            }}
           </span>
         </q-img>
       </a>
@@ -98,6 +110,7 @@ import {
   hasLeadingCjkPunctuation,
 } from 'src/utils/convert';
 import { useCachedImage } from 'src/composables/useCachedImage';
+import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
 import ResultItemContextMenu from './ResultItemContextMenu.vue';
 import VideoSnapshotViewer from './VideoSnapshotViewer.vue';
 
@@ -113,9 +126,9 @@ export default {
     },
   },
   setup(props) {
-    const coverPicSuffix = constants.coverPicSuffix;
+    const normalizedResult = computed(() => normalizeVideoHit(props.result));
     const { cachedSrc: coverSrc } = useCachedImage(() =>
-      props.result.pic ? props.result.pic + coverPicSuffix : ''
+      normalizeVideoPicUrl(normalizedResult.value.pic)
     );
     const coverLoaded = ref(false);
     const showSnapshotViewer = ref(false);
@@ -136,6 +149,7 @@ export default {
     );
 
     return {
+      normalizedResult,
       coverSrc,
       coverLoaded,
       onCoverLoad,
@@ -172,18 +186,24 @@ export default {
       }
     },
     highlightedPubdateStr() {
-      return tsToYmd(this.result?.pubdate);
+      return tsToYmd(this.normalizedResult?.pubdate || '');
     },
     humanReadableNumber,
     secondsToDuration,
     getRegionName() {
-      return this.result.region_parent_name || this.result.region_name || '';
+      return (
+        this.normalizedResult?.region_parent_name ||
+        this.normalizedResult?.region_name ||
+        ''
+      );
     },
   },
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '../css/video-preview-card.scss' as preview;
+
 .result-item {
   background-color: transparent;
   max-width: var(--result-item-width);
@@ -214,28 +234,13 @@ body.body--dark .result-item.result-item-menu-open {
 }
 .result-owner-avatar,
 .result-pubdate {
-  flex: 0 0 auto;
-  opacity: 0.9;
+  @include preview.pubdate;
 }
 .result-owner-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-grow: 1;
-  opacity: 0.9;
+  @include preview.owner;
 }
 .result-title {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  font-size: var(--result-title-font-size);
-  line-height: var(--result-title-line-height);
-  height: calc(2 * var(--result-title-line-height));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-grow: 1;
-  opacity: 0.85;
-  font-feature-settings: 'halt' 1;
+  @include preview.title;
 }
 /* Compensate leading CJK punctuation whitespace when halt is not supported */
 .result-title.cjk-punct-indent {
@@ -257,26 +262,53 @@ body.body--dark .result-title:hover {
   color: inherit;
 }
 .q-item {
-  min-height: var(--result-title-line-height);
+  @include preview.bottom-row;
 }
 .result-score,
 .result-tname,
 .result-view,
 .result-duration {
-  padding: 2px 5px 0px 5px;
-  font-size: 14px;
-  background: transparent;
-  color: white;
+  @include preview.cover-badge;
+  position: absolute;
+  z-index: 2;
+  max-width: calc(50% - 12px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-score {
+  top: 4px;
+  left: 6px;
+}
+
+.result-tname {
+  top: 4px;
+  right: 6px;
+  text-align: right;
+}
+
+.result-view,
+.result-duration {
+  top: calc(100% - 12px);
+  transform: translateY(-50%);
+}
+
+.result-view {
+  left: 6px;
+}
+
+.result-duration {
+  right: 6px;
+  text-align: right;
 }
 .result-top-bar,
 .result-bottom-bar {
-  background: transparent;
-  padding: 12px 0px 12px 0px;
-  transition: background 0.3s ease;
+  @include preview.cover-bar;
 }
 .result-top-bar.bar-visible,
 .result-bottom-bar.bar-visible {
-  background: rgba(0, 0, 0, 0.4);
+  @include preview.cover-bar-visible;
 }
 .q-img i {
   vertical-align: 2%;

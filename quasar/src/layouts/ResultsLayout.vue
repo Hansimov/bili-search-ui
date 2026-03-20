@@ -6,11 +6,12 @@
     <q-page-container>
       <q-page class="row items-start justify-evenly q-pa-none">
         <router-view />
-        <div class="search-bar-sticky" :style="searchBarStickyStyle">
-          <SearchBar />
-        </div>
       </q-page>
     </q-page-container>
+    <!-- Fixed search bar at the bottom (position:fixed bypasses html{zoom} issues) -->
+    <div class="search-bar-bottom" :style="searchBarBottomStyle">
+      <SearchBar />
+    </div>
   </q-layout>
 </template>
 
@@ -38,17 +39,14 @@ const headerStyle = computed(() => {
   return {};
 });
 
-const searchBarStickyStyle = computed(() => {
+const searchBarBottomStyle = computed(() => {
   if (layoutStore.hasSidebar()) {
     return {
       left: `${layoutStore.sidebarWidth()}px`,
-      width: `calc(100% - ${layoutStore.sidebarWidth()}px)`,
+      transition: 'left 0.25s ease',
     };
   }
-  return {
-    left: '0',
-    width: '100%',
-  };
+  return {};
 });
 
 /** Alt+← / Alt+→ 切换 explore 会话 */
@@ -73,37 +71,21 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.search-bar-sticky {
+.search-bar-bottom {
   position: fixed;
   bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 16px;
+  padding: 12px 16px;
+  pointer-events: none;
   z-index: 1000;
-  pointer-events: none;
-  transition: left 0.25s ease, width 0.25s ease;
+  /* 不设置 background，让滚动条透出 */
 }
 
-.search-bar-sticky::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 100%;
-  pointer-events: none;
-}
-
-body.body--light .search-bar-sticky::before {
-  background: linear-gradient(to top, white 60%, transparent);
-}
-
-body.body--dark .search-bar-sticky::before {
-  background: linear-gradient(to top, var(--q-dark-page) 60%, transparent);
-}
-
-.search-bar-sticky > * {
+.search-bar-bottom > * {
   pointer-events: auto;
   position: relative;
 }

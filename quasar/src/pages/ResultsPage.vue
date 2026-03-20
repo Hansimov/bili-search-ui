@@ -152,7 +152,7 @@ export default {
 
     // ====== Auto-scroll & "回到底部" 按钮逻辑 ======
 
-    /** 聊天滚动容器 ref */
+    /** 滚动容器引用：chat 结果容器自身 */
     const chatContainerRef = ref(null);
 
     /** 用户是否手动向上滚动（脱离底部） */
@@ -170,9 +170,8 @@ export default {
       );
     };
 
-    /** 处理聊天容器滚动事件 */
+    /** 处理 chat 容器滚动事件 */
     const handleChatScroll = () => {
-      // 忽略程序化滚动引发的 scroll 事件
       if (isProgrammaticScroll) return;
       const el = chatContainerRef.value;
       if (!el) return;
@@ -186,7 +185,6 @@ export default {
       isProgrammaticScroll = true;
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
       userScrolledUp.value = false;
-      // 等滚动动画结束后恢复标志
       setTimeout(() => {
         isProgrammaticScroll = false;
       }, 400);
@@ -198,7 +196,6 @@ export default {
       if (!el) return;
       isProgrammaticScroll = true;
       el.scrollTop = el.scrollHeight;
-      // 短延迟后恢复标志
       setTimeout(() => {
         isProgrammaticScroll = false;
       }, 50);
@@ -269,6 +266,7 @@ body.body--dark .search-bar-row {
   flex-direction: column;
   align-items: stretch;
   width: 100%;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: hidden;
 }
@@ -285,13 +283,21 @@ body.body--dark .search-bar-row {
   flex-direction: column;
   align-items: center; /* 纯 CSS 居中，与 SearchInput 同理 */
   width: 100%;
+  min-height: 0;
+  height: calc(
+    var(--viewport-height-css, 100vh) - 36px -
+      var(--search-bar-total-height, 72px) - 10px
+  );
+  max-height: calc(
+    var(--viewport-height-css, 100vh) - 36px -
+      var(--search-bar-total-height, 72px) - 10px
+  );
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  /* Add padding at the bottom for the fixed search bar */
-  padding-bottom: calc(var(--search-bar-total-height, 96px) + 24px);
-  /* Set max height to fill available space minus header */
-  max-height: calc(100vh - 50px);
+  /* 底部留出空间，避免最后内容被输入框遮挡 */
+  padding-right: 6px;
+  padding-bottom: calc(var(--search-bar-total-height, 72px) + 24px);
 }
 
 /* 聊天模式：内联搜索结果区域 */
@@ -358,11 +364,11 @@ body.body--dark .q-tab-panels {
   padding: 0px;
 }
 
-/* "回到底部" 按钮：右侧对齐输入框，在输入框上方20px */
+/* "回到底部" 按钮：右侧对齐输入框，在输入框上方 */
 .scroll-to-bottom-btn {
   position: fixed;
   right: var(--search-input-right-edge, 32px);
-  bottom: calc(var(--search-bar-total-height, 96px) + 20px);
+  bottom: calc(var(--search-bar-total-height, 72px) + 8px);
   z-index: 999; /* 低于建议下拉列表 z-index:1000 */
   border: 1px solid rgba(128, 128, 128, 0.2);
   opacity: 0.85;

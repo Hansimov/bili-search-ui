@@ -137,6 +137,14 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 4px 8px;
+  border-radius: 26px;
+}
+body.body--light .search-container {
+  background: white;
+}
+body.body--dark .search-container {
+  background: var(--q-dark-page);
 }
 
 .search-sub-container {

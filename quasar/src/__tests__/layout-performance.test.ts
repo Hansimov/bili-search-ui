@@ -420,9 +420,9 @@ describe('sidebar toggle — performance budget analysis', () => {
                 childReflows: false,
             },
             {
-                element: '.search-bar-sticky',
-                property: 'left, width',
-                trigger: 'CSS transition: left/width 0.25s ease',
+                element: '.search-bar-bottom',
+                property: 'left',
+                trigger: 'CSS transition: left 0.25s ease',
                 frequency: 'per-frame' as const,
                 childReflows: false,
             },

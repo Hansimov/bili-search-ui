@@ -9,9 +9,9 @@ declare module '@vue/runtime-core' {
     }
 }
 
-export default boot(async ({ app, store }) => {
-    const accountStore = useAccountStore(store);
-    const authStore = useAuthStore(store);
+export default boot(async ({ app }) => {
+    const accountStore = useAccountStore();
+    const authStore = useAuthStore();
 
     try {
         // 初始化账户状态（从本地存储恢复并验证会话）

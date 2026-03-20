@@ -6,6 +6,14 @@ export function humanReadableNumber(num: number): string {
     }
 }
 
+function normalizeNumberish(value: number | string): number | null {
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
 const localeArgs: Intl.LocalesArgument = 'zh-CN';
 const localeOptions: Intl.DateTimeFormatOptions = {
     timeZone: 'Asia/Shanghai',
@@ -18,15 +26,20 @@ const localeOptions: Intl.DateTimeFormatOptions = {
     hour12: false
 }
 
-export function intToIso(num: number, local = true): string {
+export function intToIso(num: number | string, local = true): string {
     try {
-        if (local) {
-            return new Date(num * 1000).toLocaleString(localeArgs, localeOptions);
-        } else {
-            return new Date(num * 1000).toISOString();
+        const normalized = normalizeNumberish(num);
+        if (normalized == null) {
+            return '';
         }
-    } catch (e) {
-        return '1970-01-01 00:00:00';
+        if (local) {
+            const result = new Date(normalized * 1000).toLocaleString(localeArgs, localeOptions);
+            return result === 'Invalid Date' ? '' : result;
+        } else {
+            return new Date(normalized * 1000).toISOString();
+        }
+    } catch {
+        return '';
     }
 }
 
@@ -44,7 +57,7 @@ export function secondsToDuration(seconds: number): string {
     }
 }
 
-export function tsToYmd(ts: number): string {
+export function tsToYmd(ts: number | string): string {
     return intToIso(ts).slice(0, 10);
 }
 
@@ -54,7 +67,7 @@ export function tsToYmd(ts: number): string {
  * @param ts Unix 时间戳（秒）
  * @returns 格式化字符串，如 "2024-01-15 13:45:30"
  */
-export function tsToDatetime(ts: number): string {
+export function tsToDatetime(ts: number | string): string {
     return intToIso(ts).replace(/\//g, '-');
 }
 

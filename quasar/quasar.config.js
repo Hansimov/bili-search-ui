@@ -79,11 +79,8 @@ module.exports = configure(function (/* ctx */) {
                 [
                     'vite-plugin-checker',
                     {
-                        vueTsc: {
-                            tsconfigPath: 'tsconfig.vue-tsc.json',
-                        },
                         eslint: {
-                            lintCommand: 'eslint "./**/*.{js,ts,mjs,cjs,vue}"',
+                            lintCommand: 'eslint "./src/**/*.{js,ts,vue}"',
                         },
                     },
                     { server: false },

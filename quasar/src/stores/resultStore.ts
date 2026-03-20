@@ -22,8 +22,7 @@ export interface RelatedAuthorsListItem {
     authorName: string;
     authorInfo: RelatedAuthor;
 }
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface RelatedAuthorsList extends Array<RelatedAuthorsListItem> { }
+export type RelatedAuthorsList = RelatedAuthorsListItem[];
 
 export interface SuggestInfo {
     qword_hword_count: {

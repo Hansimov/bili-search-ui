@@ -12,6 +12,7 @@
       :containerRect="tooltipContainerRect"
       @tooltip-enter="onTooltipEnter"
       @tooltip-leave="onTooltipLeave"
+      @tooltip-wheel="onTooltipWheel"
     />
     <!-- 多轮对话：历史消息 -->
     <template v-for="msg in historyMessages" :key="msg.id">
@@ -244,6 +245,7 @@ import type {
   Usage,
 } from 'src/services/chatService';
 import { renderMarkdown } from 'src/utils/markdown';
+import { normalizeVideoHit } from 'src/utils/videoHit';
 import ToolCallDisplay from './ToolCallDisplay.vue';
 import BiliVideoTooltip from './BiliVideoTooltip.vue';
 
@@ -506,13 +508,16 @@ export default defineComponent({
       if (call.type === 'search_videos' && call.result) {
         const result = call.result as {
           hits?: unknown[];
-          results?: Array<{ hits?: unknown[] }>;
+          total_hits?: number;
+          results?: Array<{ hits?: unknown[]; total_hits?: number }>;
         };
         let allHits: unknown[] = [];
+        let totalHits = 0;
 
         // Single query format: {hits: [...]}
         if (result.hits && Array.isArray(result.hits)) {
           allHits = result.hits;
+          totalHits = Number(result.total_hits || allHits.length);
         }
         // Multi-query format: {results: [{hits: [...]}, ...]}
         else if (result.results && Array.isArray(result.results)) {
@@ -520,10 +525,14 @@ export default defineComponent({
             if (r.hits && Array.isArray(r.hits)) {
               allHits.push(...r.hits);
             }
+            totalHits += Number(r.total_hits || r.hits?.length || 0);
           }
         }
 
         if (allHits.length > 0) {
+          const normalizedHits = allHits.map((hit) =>
+            normalizeVideoHit(hit as Record<string, unknown>)
+          );
           exploreStore.updateLatestHitsResult({
             step: 0,
             name: 'search_videos',
@@ -533,9 +542,9 @@ export default defineComponent({
             output_type: 'hits',
             comment: '',
             output: {
-              hits: allHits,
-              return_hits: allHits.length,
-              total_hits: allHits.length,
+              hits: normalizedHits,
+              return_hits: normalizedHits.length,
+              total_hits: totalHits || normalizedHits.length,
             },
           });
           // 确保分页状态正确，让 ResultsList 能显示第一页
@@ -551,8 +560,12 @@ export default defineComponent({
       title?: string;
       pic?: string;
       duration?: number;
-      owner?: { name?: string };
+      owner?: { name?: string; mid?: number };
       stat?: { view?: number };
+      pubdate?: number;
+      region_name?: string;
+      region_parent_name?: string;
+      score?: number;
     }
 
     /** Build a bvid→videoInfo lookup from all tool call results */
@@ -581,7 +594,8 @@ export default defineComponent({
           }
           for (const hits of hitSources) {
             for (const hit of hits) {
-              if (hit.bvid) map.set(hit.bvid, hit);
+              if (!hit.bvid) continue;
+              map.set(hit.bvid, normalizeVideoHit(hit));
             }
           }
         }
@@ -630,6 +644,14 @@ export default defineComponent({
 
     const onTooltipLeave = () => {
       scheduleHide();
+    };
+
+    const onTooltipWheel = (deltaY: number) => {
+      const scrollContainer = panelRef.value?.closest(
+        '.chat-results-container'
+      ) as HTMLElement | null;
+      if (!scrollContainer) return;
+      scrollContainer.scrollBy({ top: deltaY });
     };
 
     // Event delegation for mouseenter/mouseleave on a.bili-video-ref
@@ -717,6 +739,7 @@ export default defineComponent({
       tooltipContainerRect,
       onTooltipEnter,
       onTooltipLeave,
+      onTooltipWheel,
     };
   },
 });

@@ -668,7 +668,8 @@ function _setup(props) {
       return {
         flex: '1 1 0',
         minHeight: '0',
-        overflowY: 'auto',
+        overflowY: 'scroll',
+        scrollbarGutter: 'stable both-edges',
       };
     }
     // Normal mode: full dynamic calculation
@@ -832,9 +833,12 @@ function _setup(props) {
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   max-width: 100%;
   overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-gutter: stable both-edges;
   justify-content: center;
   contain: none;
   gap: 12px;
+  padding: 4px 2px 8px;
 }
 
 /* 内联/对话框模式下，解除 result-item 的固定宽度限制 */

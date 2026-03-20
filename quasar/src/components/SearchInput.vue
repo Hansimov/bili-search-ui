@@ -143,6 +143,12 @@ import {
   suggestIndexVersion,
   type SmartSuggestion,
 } from 'src/services/smartSuggestService';
+import {
+  getDocumentZoom,
+  getViewportCssHeight,
+  getViewportCssWidth,
+  viewportPxToCssPx,
+} from 'src/utils/zoom';
 import DslHelpDialog from './DslHelpDialog.vue';
 
 /** 各模式的 placeholder 文本 */
@@ -168,6 +174,9 @@ const TEXTAREA_MAX_ROWS = 6;
 const COMPACT_WINDOW_HEIGHT = 500;
 
 export default {
+  components: {
+    DslHelpDialog,
+  },
   setup() {
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
@@ -286,20 +295,29 @@ export default {
       const el = wrapperRef.value;
       if (!el) return;
       const height = el.offsetHeight;
-      // 加上搜索栏容器 padding (16px * 2 = 32px)
-      const totalHeight = height + 32;
+      // 加上搜索栏容器 padding (12px * 2 = 24px)
+      const totalHeight = height + 24;
       const rect = el.getBoundingClientRect();
+      const zoom = getDocumentZoom();
+      const viewportWidthCss = getViewportCssWidth(zoom);
+      const viewportHeightCss = getViewportCssHeight(zoom);
+      const inputLeftCss = viewportPxToCssPx(rect.left, zoom);
+      const inputRightCss =
+        viewportWidthCss - viewportPxToCssPx(rect.right, zoom);
+      const inputWidthCss = viewportPxToCssPx(rect.width, zoom);
       const root = document.documentElement;
       root.style.setProperty('--search-bar-total-height', `${totalHeight}px`);
+      root.style.setProperty('--viewport-width-css', `${viewportWidthCss}px`);
+      root.style.setProperty('--viewport-height-css', `${viewportHeightCss}px`);
       // 输入框左侧距 viewport 左边缘的距离（用于 chat 面板对齐）
-      root.style.setProperty('--search-input-left-edge', `${rect.left}px`);
+      root.style.setProperty('--search-input-left-edge', `${inputLeftCss}px`);
       // 输入框右侧距 viewport 右边缘的距离（用于“回到底部”按钮对齐）
-      root.style.setProperty(
-        '--search-input-right-edge',
-        `${window.innerWidth - rect.right}px`
-      );
+      root.style.setProperty('--search-input-right-edge', `${inputRightCss}px`);
       // 输入框实际渲染宽度（用于 chat 面板宽度匹配）
-      root.style.setProperty('--search-input-actual-width', `${rect.width}px`);
+      root.style.setProperty(
+        '--search-input-actual-width',
+        `${inputWidthCss}px`
+      );
       layoutStore.setSearchBarTotalHeight(totalHeight);
     };
 
@@ -732,7 +750,6 @@ export default {
       getModeDisplayLabel,
       minRows,
       showDslHelp,
-      DslHelpDialog,
     };
   },
 };
@@ -759,8 +776,8 @@ export default {
 }
 
 .search-input-box-dense {
-  padding: 6px 12px 2px 12px;
-  border-radius: 18px;
+  padding: 10px 14px 6px 14px;
+  border-radius: 22px;
 }
 
 /* 输入行 */
