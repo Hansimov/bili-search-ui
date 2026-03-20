@@ -7,7 +7,7 @@ export const useQueryStore = defineStore('query', {
     }),
     actions: {
         /**
-         * 设置直接查找模式的路由: /search?q=<query>
+         * 设置直接查找模式的路由: /chat?q=<query>
          */
         setRoute: (newQuery: string, mode?: string) => {
             const router = getRouter();
@@ -16,7 +16,7 @@ export const useQueryStore = defineStore('query', {
             if (mode && mode !== 'direct') {
                 params.set('mode', mode);
             }
-            const newRoute = `/search?${params.toString()}`;
+            const newRoute = `/chat?${params.toString()}`;
             const currentPath = router.currentRoute.value.fullPath;
             if (currentPath !== newRoute) {
                 router.replace(newRoute);

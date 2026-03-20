@@ -5,7 +5,7 @@
  * 类似于 explore.ts 对 "直接查找" 模式的处理。
  *
  * Chat 模式使用 session_id 标识会话，URL 格式为 /chat/<session_id>
- * 而非 /search?q=<query>，因为自然语言查询不适合暴露在 URL 中。
+ * 而非 /chat?q=<query>，因为自然语言查询不适合暴露在 URL 中。
  */
 
 import { useQueryStore } from 'src/stores/queryStore';

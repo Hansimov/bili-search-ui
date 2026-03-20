@@ -32,15 +32,8 @@ export interface SearchModeOption {
     };
 }
 
-/** 所有可用模式 */
+/** 所有可用模式（顺序：快速问答、智能思考、直接查找、深度研究） */
 export const SEARCH_MODES: SearchModeOption[] = [
-    {
-        value: 'direct',
-        label: '直接查找',
-        icon: 'search',
-        description: '直接查找，返回匹配视频',
-        apiType: 'explore',
-    },
     {
         value: 'smart',
         label: '快速问答',
@@ -56,6 +49,13 @@ export const SEARCH_MODES: SearchModeOption[] = [
         description: '智能思考，AI 先思考再回答',
         apiType: 'chat',
         chatParams: { thinking: true },
+    },
+    {
+        value: 'direct',
+        label: '直接查找',
+        icon: 'search',
+        description: '直接查找，返回匹配视频',
+        apiType: 'explore',
     },
     {
         value: 'research',
@@ -75,9 +75,11 @@ export function getSearchMode(mode: SearchMode): SearchModeOption {
 export const useSearchModeStore = defineStore('searchMode', {
     state: () => ({
         /** 当前搜索模式 */
-        currentMode: (localStorage.getItem('searchMode') as SearchMode) || 'direct' as SearchMode,
+        currentMode: (localStorage.getItem('searchMode') as SearchMode) || 'smart' as SearchMode,
         /** 首次会话提交时的模式（用于决定布局方式） */
         initialSessionMode: null as SearchMode | null,
+        /** DSL 帮助按钮抖动标记（用于提示用户查看搜索语法） */
+        dslHelpShakeFlag: 0,
     }),
 
     getters: {
@@ -134,6 +136,11 @@ export const useSearchModeStore = defineStore('searchMode', {
         /** 重置首次会话模式（开始新对话时调用） */
         resetInitialSessionMode() {
             this.initialSessionMode = null;
+        },
+
+        /** 触发 DSL 帮助按钮抖动动画 */
+        triggerDslHelpShake() {
+            this.dslHelpShakeFlag++;
         },
     },
 });

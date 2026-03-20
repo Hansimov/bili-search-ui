@@ -268,7 +268,7 @@ body.body--dark .search-bar-row {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  width: 100%; /* fill q-page flex row so children can center properly, very important for auto-resize */
+  width: 100%;
   overflow-x: hidden;
   overflow-y: hidden;
 }
@@ -287,6 +287,7 @@ body.body--dark .search-bar-row {
   width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   /* Add padding at the bottom for the fixed search bar */
   padding-bottom: calc(var(--search-bar-total-height, 96px) + 24px);
   /* Set max height to fill available space minus header */
@@ -360,9 +361,7 @@ body.body--dark .q-tab-panels {
 /* "回到底部" 按钮：右侧对齐输入框，在输入框上方20px */
 .scroll-to-bottom-btn {
   position: fixed;
-  /* 使用 JS 计算的实际输入框右侧距离 */
   right: var(--search-input-right-edge, 32px);
-  /* 在搜索框上方20px */
   bottom: calc(var(--search-bar-total-height, 96px) + 20px);
   z-index: 999; /* 低于建议下拉列表 z-index:1000 */
   border: 1px solid rgba(128, 128, 128, 0.2);

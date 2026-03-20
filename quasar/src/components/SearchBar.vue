@@ -6,8 +6,7 @@
     <div
       class="search-sub-container"
       :class="{
-        'search-sub-top': isIndexRoute,
-        'search-sub-bottom': !isIndexRoute,
+        'search-sub-bottom': true,
         'search-sub-bordered': isSuggestVisible && hasSuggestContent,
       }"
     >
@@ -15,7 +14,7 @@
         class="suggest-container"
         v-show="isSuggestVisible && hasSuggestContent"
         :class="{
-          'suggest-container-reverse': !isIndexRoute,
+          'suggest-container-reverse': true,
         }"
       >
         <div class="search-sub-space-top"></div>
@@ -51,7 +50,6 @@
 
 <script>
 import { computed } from 'vue';
-import { useRoute } from 'vue-router';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import SearchInput from './SearchInput.vue';
@@ -60,6 +58,11 @@ import SuggestionsList from './SuggestionsList.vue';
 import SuggestReplace from './SuggestReplace.vue';
 import SmartSuggestions from './SmartSuggestions.vue';
 import SearchHistoryPanel from './SearchHistoryPanel.vue';
+import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
+import {
+  getSmartSuggestService,
+  suggestIndexVersion,
+} from 'src/services/smartSuggestService';
 
 export default {
   components: {
@@ -73,6 +76,7 @@ export default {
   setup() {
     const searchStore = useSearchStore();
     const layoutStore = useLayoutStore();
+    const inputHistoryStore = useInputHistoryStore();
     const isQueryEmpty = computed(() => searchStore.isQueryEmpty);
     const isSuggestVisible = computed(() => layoutStore.isSuggestVisible);
     const isSuggestionsListVisible = computed(
@@ -86,11 +90,23 @@ export default {
     );
     // 有任何下拉内容要显示
     const hasSuggestContent = computed(() => {
-      if (!isQueryEmpty.value) return true; // SmartSuggestions will show
-      return true; // SearchHistoryPanel will show
+      // 触发响应式依赖
+      void suggestIndexVersion.value;
+      if (!isQueryEmpty.value) {
+        // 有输入时，检查是否有任何子组件会渲染
+        const q = searchStore.query;
+        const hasSmartSuggestions =
+          q && q.trim() && getSmartSuggestService().suggest(q).length > 0;
+        return (
+          hasSmartSuggestions ||
+          isSuggestionsListVisible.value ||
+          isSuggestRepaceVisible.value ||
+          isSuggestAuthorsListVisible.value
+        );
+      }
+      // 输入为空时，只有输入历史存在才显示
+      return inputHistoryStore.sortedItems.length > 0;
     });
-    const $route = useRoute();
-    const isIndexRoute = computed(() => $route.path === '/');
     const mouseEnter = () => {
       layoutStore.setIsMouseInSearchBar(true);
     };
@@ -106,7 +122,6 @@ export default {
       isSuggestionsListVisible,
       isSuggestRepaceVisible,
       isSuggestAuthorsListVisible,
-      isIndexRoute,
     };
   },
 };
@@ -131,9 +146,6 @@ export default {
   padding: 0px 0px 0px 5px;
   width: var(--search-input-width);
   max-width: var(--search-input-max-width);
-}
-.search-sub-top {
-  top: calc(100% + 8px);
 }
 .search-sub-bottom {
   bottom: calc(100% + 8px);

@@ -1,5 +1,10 @@
 /* app global css */
 
+/* Global zoom: 115% scaling */
+html {
+  zoom: 1.15;
+}
+
 /* Root setting used by result title */
 :root {
   --sidebar-current-width: 0px;
@@ -82,9 +87,14 @@ body.body--dark .result-owner-name hit {
   font-size: 1.1em;
 }
 
-/* Scrollbar */
+/* Scrollbar — 仅内部滚动容器使用，全局 body 不滚动 */
 body {
-  overflow-y: scroll;
+  overflow: hidden;
+}
+
+/* 为滚动容器预留滚动条空间，防止内容出现/消失时水平跳动 */
+.chat-results-container {
+  scrollbar-gutter: stable;
 }
 
 ::-webkit-scrollbar {

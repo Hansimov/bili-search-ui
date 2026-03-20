@@ -64,6 +64,31 @@
           </q-tooltip>
         </div>
 
+        <!-- 搜索语法帮助 -->
+        <div
+          class="sidebar-nav-item"
+          :class="{
+            'nav-item-collapsed': !sidebarExpanded,
+            'dsl-help-shake': isDslShaking,
+          }"
+          @click="showDslHelpDialog = true"
+          ref="dslHelpBtnRef"
+        >
+          <q-icon name="help_outline" size="22px" class="sidebar-nav-icon" />
+          <transition name="fade">
+            <span v-if="sidebarExpanded" class="nav-label">语法帮助</span>
+          </transition>
+          <q-tooltip
+            v-if="!sidebarExpanded"
+            anchor="center right"
+            self="center left"
+            transition-show="fade"
+            transition-hide="fade"
+          >
+            语法帮助
+          </q-tooltip>
+        </div>
+
         <!-- 历史记录 -->
         <div
           class="sidebar-nav-item"
@@ -160,21 +185,12 @@
                     @click.stop
                   >
                     <q-menu
-                      anchor="bottom right"
-                      self="top right"
+                      anchor="bottom end"
+                      self="top end"
+                      :offset="[0, 2]"
                       class="history-item-menu"
                     >
                       <q-list dense>
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click.stop="startRename(item)"
-                        >
-                          <q-item-section side
-                            ><q-icon name="edit" size="16px"
-                          /></q-item-section>
-                          <q-item-section>重命名</q-item-section>
-                        </q-item>
                         <q-item
                           clickable
                           v-close-popup
@@ -184,6 +200,16 @@
                             ><q-icon name="push_pin" size="16px"
                           /></q-item-section>
                           <q-item-section>取消置顶</q-item-section>
+                        </q-item>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click.stop="startRename(item)"
+                        >
+                          <q-item-section side
+                            ><q-icon name="edit" size="16px"
+                          /></q-item-section>
+                          <q-item-section>重命名</q-item-section>
                         </q-item>
                         <q-item
                           clickable
@@ -258,21 +284,12 @@
                     @click.stop
                   >
                     <q-menu
-                      anchor="bottom right"
-                      self="top right"
+                      anchor="bottom end"
+                      self="top end"
+                      :offset="[0, 2]"
                       class="history-item-menu"
                     >
                       <q-list dense>
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click.stop="startRename(item)"
-                        >
-                          <q-item-section side
-                            ><q-icon name="edit" size="16px"
-                          /></q-item-section>
-                          <q-item-section>重命名</q-item-section>
-                        </q-item>
                         <q-item
                           clickable
                           v-close-popup
@@ -282,6 +299,16 @@
                             ><q-icon name="push_pin" size="16px"
                           /></q-item-section>
                           <q-item-section>置顶</q-item-section>
+                        </q-item>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click.stop="startRename(item)"
+                        >
+                          <q-item-section side
+                            ><q-icon name="edit" size="16px"
+                          /></q-item-section>
+                          <q-item-section>重命名</q-item-section>
                         </q-item>
                         <q-item
                           clickable
@@ -603,6 +630,9 @@
           </q-card-actions>
         </q-card>
       </q-dialog>
+
+      <!-- DSL 搜索语法帮助对话框 -->
+      <DslHelpDialog v-model="showDslHelpDialog" />
     </div>
     <!-- /.sidebar-inner -->
   </aside>
@@ -662,6 +692,7 @@ import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import type { SearchMode } from 'src/stores/searchModeStore';
+import DslHelpDialog from './DslHelpDialog.vue';
 
 const router = useRouter();
 const layoutStore = useLayoutStore();
@@ -680,8 +711,11 @@ const showLogoutDialog = ref(false);
 const showUserMenu = ref(false);
 const showClearHistoryDialog = ref(false);
 const showRenameDialog = ref(false);
+const showDslHelpDialog = ref(false);
 const renameValue = ref('');
 const renameItemId = ref('');
+const isDslShaking = ref(false);
+const dslHelpBtnRef = ref<HTMLElement | null>(null);
 
 // History lazy-loading: only render up to this many recent items initially
 const HISTORY_PAGE_SIZE = 25;
@@ -696,6 +730,17 @@ const edgeHandleStyle = computed(() => ({
   left: sidebarExpanded.value ? '260px' : '50px',
 }));
 Dark.set(isDark.value);
+
+// DSL 帮助按钮抖动动画：搜索模式切换到 direct 时触发
+watch(
+  () => searchModeStore.dslHelpShakeFlag,
+  () => {
+    isDslShaking.value = true;
+    setTimeout(() => {
+      isDslShaking.value = false;
+    }, 600);
+  }
+);
 
 const toggleDarkMode = () => {
   isDark.value = !isDark.value;
@@ -795,14 +840,10 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
     searchModeStore.forceInitialSessionMode(mode);
     // 防止 URL watcher 触发 explore
     exploreStore.setRestoringSession(true);
-    // 使用 sessionId 设置 chat 路由
+    // 使用 sessionId 设置 chat 路由，不填充输入框
     const sessionId = item.sessionId || chatStore.currentSessionId;
-    queryStore.setQuery({
-      newQuery: query,
-      setRoute: true,
-      mode,
-      chatSessionId: sessionId,
-    });
+    queryStore.setChatRoute(sessionId);
+    queryStore.setQuery({ newQuery: '' });
     exploreStore.setSubmittedQuery(query);
     // 关联历史记录 ID 以便后续更新快照
     chatStore.setCurrentHistoryRecordId(item.id);
@@ -814,14 +855,10 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
     searchModeStore.forceInitialSessionMode(mode);
     // 防止 URL watcher 触发 explore
     exploreStore.setRestoringSession(true);
-    // 使用新生成的 sessionId 设置路由
+    // 使用新生成的 sessionId 设置路由，不填充输入框
     const sessionId = chatStore.currentSessionId;
-    queryStore.setQuery({
-      newQuery: query,
-      setRoute: true,
-      mode,
-      chatSessionId: sessionId,
-    });
+    queryStore.setChatRoute(sessionId);
+    queryStore.setQuery({ newQuery: '' });
     exploreStore.setSubmittedQuery(query);
     // 预设历史记录 ID，避免 chat.ts 重复添加记录
     chatStore.setCurrentHistoryRecordId(item.id);
@@ -974,13 +1011,13 @@ const confirmRename = async () => {
 // Copy link
 const copiedItemId = ref<string | null>(null);
 const copySearchLink = async (query: string, itemId: string) => {
-  // Chat 模式使用 /chat/<sessionId> URL，直接查找模式使用 /search?q=<query> URL
+  // Chat 模式使用 /chat/<sessionId> URL，直接查找模式使用 /chat?q=<query> URL
   const item = searchHistoryStore.items.find((i) => i.id === itemId);
   let url: string;
   if (item?.sessionId && (item.mode === 'smart' || item.mode === 'think')) {
     url = `${window.location.origin}/chat/${item.sessionId}`;
   } else {
-    url = `${window.location.origin}/search?q=${encodeURIComponent(query)}`;
+    url = `${window.location.origin}/chat?q=${encodeURIComponent(query)}`;
   }
   try {
     await copyToClipboard(url);
@@ -1325,6 +1362,35 @@ body.body--dark .nav-item-active {
   white-space: nowrap;
 }
 
+/* DSL 帮助按钮抖动动画 */
+.dsl-help-shake {
+  animation: dsl-shake 0.5s ease;
+}
+@keyframes dsl-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-4px);
+  }
+  30% {
+    transform: translateX(4px);
+  }
+  45% {
+    transform: translateX(-3px);
+  }
+  60% {
+    transform: translateX(3px);
+  }
+  75% {
+    transform: translateX(-1px);
+  }
+  90% {
+    transform: translateX(1px);
+  }
+}
+
 .history-toggle-icon {
   flex-shrink: 0;
   opacity: 0.4;
@@ -1441,33 +1507,6 @@ body.body--light .copied-indicator {
 body.body--dark .copied-indicator {
   background-color: rgba(255, 255, 255, 0.1);
   color: #ccc;
-}
-
-.history-more-btn {
-  flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  width: 24px;
-  height: 24px;
-}
-
-.history-item:hover .history-more-btn {
-  opacity: 0.6;
-}
-
-.history-more-btn:hover {
-  opacity: 1 !important;
-}
-
-/* 使用 :deep() 确保 scoped 样式能穿透到 q-btn 内部 */
-.history-item :deep(.history-more-btn) {
-  opacity: 0;
-}
-.history-item:hover :deep(.history-more-btn) {
-  opacity: 0.6;
-}
-.history-item :deep(.history-more-btn:hover) {
-  opacity: 1;
 }
 
 /* 时间分组 */
@@ -1640,6 +1679,21 @@ body.body--dark .sidebar-user-menu .q-item:hover {
   flex: none;
   min-width: 48px;
   justify-content: flex-end;
+}
+
+/* ============ 历史记录 more 按钮（非scoped，q-btn 内部样式需穿透） ============ */
+.history-more-btn {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  width: 24px;
+  height: 24px;
+}
+.history-item:hover .history-more-btn {
+  opacity: 0.6;
+}
+.history-more-btn:hover {
+  opacity: 1 !important;
 }
 
 /* ============ 历史记录操作菜单（非scoped，q-menu 传送到 body） ============ */

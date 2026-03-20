@@ -84,7 +84,27 @@ onBeforeUnmount(() => {
   pointer-events: none;
   transition: left 0.25s ease, width 0.25s ease;
 }
+
+.search-bar-sticky::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  pointer-events: none;
+}
+
+body.body--light .search-bar-sticky::before {
+  background: linear-gradient(to top, white 60%, transparent);
+}
+
+body.body--dark .search-bar-sticky::before {
+  background: linear-gradient(to top, var(--q-dark-page) 60%, transparent);
+}
+
 .search-bar-sticky > * {
   pointer-events: auto;
+  position: relative;
 }
 </style>

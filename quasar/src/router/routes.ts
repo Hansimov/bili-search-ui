@@ -3,7 +3,7 @@ import { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    component: () => import('layouts/IndexLayout.vue'),
+    component: () => import('layouts/ResultsLayout.vue'),
     children: [{ path: '', component: () => import('pages/IndexPage.vue') }],
   },
   {
@@ -12,7 +12,7 @@ const routes: RouteRecordRaw[] = [
     children: [{ path: '', component: () => import('pages/VideoPage.vue'), props: true }],
   },
   {
-    path: '/search',
+    path: '/chat',
     component: () => import('layouts/ResultsLayout.vue'),
     children: [{ path: '', component: () => import('pages/ResultsPage.vue') }],
   },
@@ -20,6 +20,11 @@ const routes: RouteRecordRaw[] = [
     path: '/chat/:sessionId',
     component: () => import('layouts/ResultsLayout.vue'),
     children: [{ path: '', component: () => import('pages/ResultsPage.vue'), props: true }],
+  },
+  {
+    path: '/search',
+    component: () => import('layouts/ResultsLayout.vue'),
+    children: [{ path: '', component: () => import('pages/ResultsPage.vue') }],
   },
   // Always leave this as last one,
   // but you can also remove it

@@ -28,9 +28,9 @@ describe('SearchModeStore', () => {
     });
 
     describe('初始状态', () => {
-        it('默认模式应该是 direct', () => {
+        it('默认模式应该是 smart', () => {
             const store = useSearchModeStore();
-            expect(store.currentMode).toBe('direct');
+            expect(store.currentMode).toBe('smart');
         });
 
         it('应该从 localStorage 恢复模式', () => {
@@ -73,6 +73,8 @@ describe('SearchModeStore', () => {
 
         it('isDirectMode 应该正确判断', () => {
             const store = useSearchModeStore();
+            expect(store.isDirectMode).toBe(false);
+            store.setMode('direct');
             expect(store.isDirectMode).toBe(true);
             store.setMode('smart');
             expect(store.isDirectMode).toBe(false);
@@ -80,9 +82,9 @@ describe('SearchModeStore', () => {
 
         it('isChatMode 应该正确判断', () => {
             const store = useSearchModeStore();
-            expect(store.isChatMode).toBe(false); // direct 不是 chat
-            store.setMode('smart');
-            expect(store.isChatMode).toBe(true);
+            expect(store.isChatMode).toBe(true); // smart 是 chat
+            store.setMode('direct');
+            expect(store.isChatMode).toBe(false);
             store.setMode('think');
             expect(store.isChatMode).toBe(true);
             store.setMode('research');
@@ -130,9 +132,9 @@ describe('SearchModeStore', () => {
             expect(mode.value).toBe('smart');
         });
 
-        it('未知模式应该返回默认 direct', () => {
+        it('未知模式应该返回默认 smart', () => {
             const mode = getSearchMode('unknown' as never);
-            expect(mode.value).toBe('direct');
+            expect(mode.value).toBe('smart');
         });
     });
 });

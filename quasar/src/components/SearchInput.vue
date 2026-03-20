@@ -112,6 +112,7 @@
         </div>
       </div>
     </div>
+    <DslHelpDialog v-model="showDslHelp" />
   </div>
 </template>
 
@@ -142,6 +143,7 @@ import {
   suggestIndexVersion,
   type SmartSuggestion,
 } from 'src/services/smartSuggestService';
+import DslHelpDialog from './DslHelpDialog.vue';
 
 /** 各模式的 placeholder 文本 */
 const MODE_PLACEHOLDERS: Record<SearchMode, string> = {
@@ -153,8 +155,8 @@ const MODE_PLACEHOLDERS: Record<SearchMode, string> = {
 
 /** 各模式的 icon color */
 const MODE_ICON_COLORS: Record<SearchMode, string> = {
-  direct: 'blue-5',
-  smart: 'teal-5',
+  direct: 'teal-5',
+  smart: 'blue-5',
   think: 'purple-5',
   research: 'deep-orange-5',
 };
@@ -179,9 +181,8 @@ export default {
     const wrapperRef = ref<HTMLElement | null>(null);
     let resizeObserver: ResizeObserver | null = null;
 
-    /** 根据窗口高度动态决定最小行数 */
-    /** 目前都设为 2 行，将来可以按需调整 */
-    const minRows = ref(window.innerHeight < COMPACT_WINDOW_HEIGHT ? 2 : 2);
+    /** 默认 1 行，窗口高度足够时可自动增长到多行 */
+    const minRows = ref(1);
 
     const queryModel = computed({
       get: () => queryStore.query || '',
@@ -231,7 +232,14 @@ export default {
 
     const selectMode = (mode: SearchMode) => {
       searchModeStore.setMode(mode);
+      // 切换到直接查找模式时，抖动侧边栏搜索语法按钮提示用户
+      if (mode === 'direct') {
+        searchModeStore.triggerDslHelpShake();
+      }
     };
+
+    /** 是否显示 DSL 帮助对话框 */
+    const showDslHelp = ref(false);
 
     /** 模式简短标签（未选中未悬浮时显示） */
     const SHORT_MODE_LABELS: Record<SearchMode, string> = {
@@ -278,7 +286,7 @@ export default {
       const el = wrapperRef.value;
       if (!el) return;
       const height = el.offsetHeight;
-      // 加上 sticky 容器 padding (16px * 2 = 32px)
+      // 加上搜索栏容器 padding (16px * 2 = 32px)
       const totalHeight = height + 32;
       const rect = el.getBoundingClientRect();
       const root = document.documentElement;
@@ -495,7 +503,7 @@ export default {
 
     /** 监听窗口 resize，动态调整默认行数 + 更新输入框位置 CSS 变量 */
     const handleWindowResize = () => {
-      const newMin = window.innerHeight < COMPACT_WINDOW_HEIGHT ? 1 : 2;
+      const newMin = window.innerHeight < COMPACT_WINDOW_HEIGHT ? 1 : 1;
       if (newMin !== minRows.value) {
         minRows.value = newMin;
         nextTick(() => autoResize());
@@ -723,6 +731,8 @@ export default {
       hoveredMode,
       getModeDisplayLabel,
       minRows,
+      showDslHelp,
+      DslHelpDialog,
     };
   },
 };
@@ -738,7 +748,7 @@ export default {
 .search-input-box {
   border: 1.5px solid #c0c0c0;
   border-radius: 22px;
-  padding: 8px 14px 4px 14px;
+  padding: 10px 14px 6px 14px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   background: inherit;
 
@@ -824,27 +834,27 @@ export default {
 .search-toolbar {
   display: flex;
   align-items: center;
-  padding: 2px 0 2px 0;
+  padding: 4px 0 4px 0;
   margin-top: 2px;
 }
 
 .toolbar-modes {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 /* 模式按钮 */
 .mode-btn {
-  font-size: 11px !important;
-  padding: 1px 8px !important;
-  min-height: 24px !important;
-  border-radius: 12px !important;
+  font-size: 12px !important;
+  padding: 3px 10px !important;
+  min-height: 28px !important;
+  border-radius: 14px !important;
   transition: all 0.2s ease;
   text-transform: none;
 
   .mode-label {
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1;
   }
 }
@@ -872,12 +882,12 @@ body.body--light {
     font-weight: 500;
   }
   .mode-btn-direct.mode-btn-active {
-    color: #1976d2 !important;
-    background-color: rgba(25, 118, 210, 0.1) !important;
-  }
-  .mode-btn-smart.mode-btn-active {
     color: #00897b !important;
     background-color: rgba(0, 137, 123, 0.1) !important;
+  }
+  .mode-btn-smart.mode-btn-active {
+    color: #1976d2 !important;
+    background-color: rgba(25, 118, 210, 0.1) !important;
   }
   .mode-btn-think.mode-btn-active {
     color: #8e24aa !important;
@@ -888,12 +898,12 @@ body.body--light {
     background-color: rgba(230, 74, 25, 0.1) !important;
   }
   .mode-btn-direct:hover:not(.mode-btn-active) {
-    color: #1976d2;
-    background-color: rgba(25, 118, 210, 0.06);
-  }
-  .mode-btn-smart:hover:not(.mode-btn-active) {
     color: #00897b;
     background-color: rgba(0, 137, 123, 0.06);
+  }
+  .mode-btn-smart:hover:not(.mode-btn-active) {
+    color: #1976d2;
+    background-color: rgba(25, 118, 210, 0.06);
   }
   .mode-btn-think:hover:not(.mode-btn-active) {
     color: #8e24aa;
@@ -924,12 +934,12 @@ body.body--dark {
     font-weight: 500;
   }
   .mode-btn-direct.mode-btn-active {
-    color: #64b5f6 !important;
-    background-color: rgba(33, 150, 243, 0.18) !important;
-  }
-  .mode-btn-smart.mode-btn-active {
     color: #4db6ac !important;
     background-color: rgba(0, 150, 136, 0.18) !important;
+  }
+  .mode-btn-smart.mode-btn-active {
+    color: #64b5f6 !important;
+    background-color: rgba(33, 150, 243, 0.18) !important;
   }
   .mode-btn-think.mode-btn-active {
     color: #ce93d8 !important;
@@ -940,12 +950,12 @@ body.body--dark {
     background-color: rgba(255, 87, 34, 0.18) !important;
   }
   .mode-btn-direct:hover:not(.mode-btn-active) {
-    color: #64b5f6;
-    background-color: rgba(33, 150, 243, 0.1);
-  }
-  .mode-btn-smart:hover:not(.mode-btn-active) {
     color: #4db6ac;
     background-color: rgba(0, 150, 136, 0.1);
+  }
+  .mode-btn-smart:hover:not(.mode-btn-active) {
+    color: #64b5f6;
+    background-color: rgba(33, 150, 243, 0.1);
   }
   .mode-btn-think:hover:not(.mode-btn-active) {
     color: #ce93d8;

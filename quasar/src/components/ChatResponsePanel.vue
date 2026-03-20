@@ -725,8 +725,8 @@ export default defineComponent({
 <style lang="scss" scoped>
 .chat-response-panel {
   position: relative; /* for absolute tooltip positioning */
-  max-width: min(var(--search-input-max-width, 95vw), 100%);
-  width: var(--search-input-actual-width, var(--search-input-width));
+  max-width: var(--search-input-max-width, 95vw);
+  width: var(--search-input-width);
   min-width: 0; /* allow shrinking in flex/grid layouts */
   box-sizing: border-box;
 
