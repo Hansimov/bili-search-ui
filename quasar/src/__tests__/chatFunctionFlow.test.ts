@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const mockQueryStore = {
     setQuery: vi.fn(),
+    setChatRoute: vi.fn(),
 };
 
 const mockLayoutStore = {
@@ -93,10 +94,9 @@ describe('chat.ts flow', () => {
         expect(mockExploreStore.setSubmittedQuery).toHaveBeenCalledWith('测试问题');
         expect(mockQueryStore.setQuery).toHaveBeenCalledWith({
             newQuery: '测试问题',
-            setRoute: true,
-            mode: 'smart',
-            chatSessionId: 'session-123',
+            setRoute: false,
         });
+        expect(mockQueryStore.setChatRoute).toHaveBeenCalledWith('session-123');
 
         expect(mockSearchHistoryStore.addRecord).toHaveBeenCalledWith(
             '测试问题',
@@ -192,6 +192,7 @@ describe('chat.ts flow', () => {
         expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith('follow up');
         expect(mockChatStore.startNewChat).not.toHaveBeenCalled();
         expect(mockQueryStore.setQuery).not.toHaveBeenCalled();
+        expect(mockQueryStore.setChatRoute).not.toHaveBeenCalled();
         expect(mockChatStore.sendChat).toHaveBeenCalledWith('follow up', 'smart');
     });
 
@@ -210,12 +211,8 @@ describe('chat.ts flow', () => {
         expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith('uid=546195');
         expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith('think');
         expect(mockChatStore.startNewChat).toHaveBeenCalledTimes(1);
-        expect(mockQueryStore.setQuery).toHaveBeenCalledWith({
-            newQuery: 'uid=546195',
-            setRoute: true,
-            mode: 'think',
-            chatSessionId: 'session-123',
-        });
+        expect(mockQueryStore.setQuery).not.toHaveBeenCalled();
+        expect(mockQueryStore.setChatRoute).toHaveBeenCalledWith('session-123');
         expect(mockChatStore.sendChat).toHaveBeenCalledWith('uid=546195', 'think');
         expect(mockExplore).not.toHaveBeenCalled();
     });

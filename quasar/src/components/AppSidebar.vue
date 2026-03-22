@@ -963,6 +963,8 @@ const getItemTooltip = (item: SearchHistoryItem): string => {
 const getHistoryItemIcon = (item: SearchHistoryItem): string => {
   if (item.pinned) return 'push_pin';
   switch (item.mode) {
+    case 'direct':
+      return 'search';
     case 'smart':
       return 'auto_awesome';
     case 'think':
@@ -977,6 +979,8 @@ const getHistoryItemIcon = (item: SearchHistoryItem): string => {
 /** 根据搜索模式返回历史项图标颜色类 */
 const getHistoryItemIconClass = (item: SearchHistoryItem): string => {
   switch (item.mode) {
+    case 'direct':
+      return 'history-icon-direct';
     case 'smart':
       return 'history-icon-smart';
     case 'think':
@@ -1680,25 +1684,38 @@ body.body--dark .history-item-active {
 }
 
 .history-item-icon {
+  display: block;
+  align-self: center;
   flex-shrink: 0;
+  line-height: 1;
   opacity: 0.5;
+  transform: translateY(-0.5px);
+}
+
+.history-icon-direct {
+  color: #00897b;
+  opacity: 0.72;
 }
 
 .history-icon-smart {
-  color: #00897b;
-  opacity: 0.7;
+  color: #1976d2;
+  opacity: 0.72;
 }
 .history-icon-think {
   color: #8e24aa;
-  opacity: 0.7;
+  opacity: 0.72;
 }
 .history-icon-research {
   color: #e64a19;
-  opacity: 0.7;
+  opacity: 0.72;
+}
+
+body.body--dark .history-icon-direct {
+  color: #4db6ac;
 }
 
 body.body--dark .history-icon-smart {
-  color: #4db6ac;
+  color: #64b5f6;
 }
 body.body--dark .history-icon-think {
   color: #ce93d8;

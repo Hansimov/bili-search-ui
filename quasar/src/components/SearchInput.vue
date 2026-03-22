@@ -85,7 +85,7 @@
               @mouseenter="hoveredMode = mode.value"
               @mouseleave="hoveredMode = null"
             >
-              <q-icon :name="mode.icon" size="14px" class="q-mr-xs" />
+              <q-icon :name="mode.icon" size="14px" class="mode-btn-icon" />
               <span class="mode-label">{{ getModeDisplayLabel(mode) }}</span>
             </q-btn>
             <!-- 其他模式按钮：正常交互 -->
@@ -105,7 +105,7 @@
               @mouseenter="hoveredMode = mode.value"
               @mouseleave="hoveredMode = null"
             >
-              <q-icon :name="mode.icon" size="14px" class="q-mr-xs" />
+              <q-icon :name="mode.icon" size="14px" class="mode-btn-icon" />
               <span class="mode-label">{{ getModeDisplayLabel(mode) }}</span>
             </q-btn>
           </template>
@@ -795,7 +795,10 @@ export default {
 
 .search-prepend-icon {
   flex-shrink: 0;
-  margin-top: 2px;
+  display: block;
+  line-height: 1;
+  margin-top: 0;
+  transform: translateY(1px);
 }
 
 /* textarea 替换 input，支持多行自动增长 */
@@ -876,7 +879,24 @@ export default {
   transition: all 0.2s ease;
   text-transform: none;
 
+  :deep(.q-btn__content) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    line-height: 1;
+  }
+
+  .mode-btn-icon {
+    display: block;
+    flex-shrink: 0;
+    line-height: 1;
+    margin: 0;
+    transform: translateY(-0.5px);
+  }
+
   .mode-label {
+    display: block;
     font-size: 12px;
     line-height: 1;
   }

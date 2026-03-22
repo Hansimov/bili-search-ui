@@ -49,17 +49,19 @@ export const chat = async ({
         return;
     }
 
-    // 设置 submittedQuery 给 TitleToolbar 显示（仅新会话/首次提交时，多轮续接保持原始查询）
+    // 聊天模式始终更新已提交问题，供标题栏和当前会话视图使用。
+    exploreStore.setSubmittedQuery(queryValue);
+
+    const sessionId = chatStore.currentSessionId;
     if (setQuery) {
-        exploreStore.setSubmittedQuery(queryValue);
-        // 聊天模式：使用 sessionId 路由
-        const sessionId = chatStore.currentSessionId;
         queryStore.setQuery({
             newQuery: queryValue,
-            setRoute,
-            mode,
-            chatSessionId: sessionId || undefined,
+            setRoute: false,
         });
+    }
+
+    if (setRoute && sessionId) {
+        queryStore.setChatRoute(sessionId);
     }
 
     // 为 chat 模式记录搜索历史（仅首次，续接对话不重复记录）
@@ -165,7 +167,7 @@ export const submitCurrentModeQuery = async ({
             await chat({
                 queryValue: submittedQuery,
                 mode,
-                setQuery: true,
+                setQuery: false,
                 setRoute,
             });
         }
