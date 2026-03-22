@@ -589,7 +589,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  nextTick,
+  defineAsyncComponent,
+} from 'vue';
 import { useRouter } from 'vue-router';
 import { Dark, copyToClipboard } from 'quasar';
 import { useLayoutStore } from 'src/stores/layoutStore';
@@ -607,7 +615,12 @@ import { useExploreStore } from 'src/stores/exploreStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import type { SearchMode } from 'src/stores/searchModeStore';
 import { getDocumentZoom, viewportPxToCssPx } from 'src/utils/zoom';
-import DslHelpDialog from './DslHelpDialog.vue';
+import { scheduleAfterInitialRender } from 'src/utils/schedule';
+
+const DslHelpDialog = defineAsyncComponent(() => import('./DslHelpDialog.vue'));
+const VueQrcode = defineAsyncComponent(
+  () => import('@chenfengyuan/vue-qrcode')
+);
 
 const router = useRouter();
 const layoutStore = useLayoutStore();
@@ -651,6 +664,7 @@ const historyActionMenu = ref<{
 const historyActionAnchorRect = ref<DOMRect | null>(null);
 const historyActionTriggerEl = ref<HTMLElement | null>(null);
 const historyActionMenuRef = ref<HTMLElement | null>(null);
+let hasRequestedHistoryLoad = false;
 
 // History lazy-loading: only render up to this many recent items initially
 const HISTORY_PAGE_SIZE = 25;
@@ -1176,8 +1190,26 @@ watch(showLoginDialog, async (newValue) => {
 });
 
 // Load search history on mount
-onMounted(async () => {
-  await searchHistoryStore.loadHistory();
+const shouldPrimeHistory = computed(
+  () => sidebarExpanded.value && showHistoryList.value
+);
+
+watch(
+  shouldPrimeHistory,
+  (shouldLoad) => {
+    if (!shouldLoad || hasRequestedHistoryLoad || searchHistoryStore.isLoaded) {
+      return;
+    }
+
+    hasRequestedHistoryLoad = true;
+    scheduleAfterInitialRender(() => {
+      void searchHistoryStore.loadHistory();
+    }, 800);
+  },
+  { immediate: true }
+);
+
+onMounted(() => {
   window.addEventListener('resize', hideSidebarTooltip, { passive: true });
   window.addEventListener('resize', closeHistoryActionMenu, { passive: true });
   window.addEventListener('scroll', hideSidebarTooltip, true);

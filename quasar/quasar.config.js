@@ -23,7 +23,7 @@ module.exports = configure(function (/* ctx */) {
         // app boot file (/src/boot)
         // --> boot files are part of "main.js"
         // https://v2.quasar.dev/quasar-cli-vite/boot-files
-        boot: ['axios', 'vue-qrcode', 'auth'],
+        boot: ['axios', 'auth'],
 
         // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
         css: [
@@ -72,7 +72,35 @@ module.exports = configure(function (/* ctx */) {
             // polyfillModulePreload: true,
             // distDir
 
-            // extendViteConf (viteConf) {},
+            extendViteConf(viteConf) {
+                viteConf.build = viteConf.build || {};
+                viteConf.build.rollupOptions = viteConf.build.rollupOptions || {};
+                viteConf.build.rollupOptions.output = viteConf.build.rollupOptions.output || {};
+                viteConf.build.rollupOptions.output.manualChunks = (id) => {
+                    if (!id.includes('node_modules')) return;
+
+                    if (id.includes('showdown')) {
+                        return 'markdown';
+                    }
+
+                    if (id.includes('@chenfengyuan/vue-qrcode') || id.includes('/qrcode/')) {
+                        return 'qrcode';
+                    }
+
+                    if (id.includes('@vue-flow/')) {
+                        return 'vue-flow';
+                    }
+
+                    if (
+                        id.includes('/vue/') ||
+                        id.includes('/vue-router/') ||
+                        id.includes('/pinia/') ||
+                        id.includes('/quasar/')
+                    ) {
+                        return 'framework';
+                    }
+                };
+            },
             // viteVuePluginOptions: {},
 
             vitePlugins: [

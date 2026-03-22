@@ -23,21 +23,21 @@
         <SmartSuggestions v-if="!isQueryEmpty" />
 
         <!-- 纠错建议 -->
-        <SuggestReplace />
+        <SuggestReplace v-if="isSuggestRepaceVisible" />
 
         <q-separator
           inset
           class="suggest-component-sep"
           v-if="isSuggestAuthorsListVisible"
         />
-        <SuggestAuthorsList />
+        <SuggestAuthorsList v-if="isSuggestAuthorsListVisible" />
 
         <q-separator
           inset
           class="suggest-component-sep"
           v-if="isSuggestionsListVisible"
         />
-        <SuggestionsList />
+        <SuggestionsList v-if="isSuggestionsListVisible" />
 
         <!-- 搜索历史（无输入时显示） -->
         <SearchHistoryPanel v-if="isQueryEmpty" />
@@ -49,20 +49,31 @@
 </template>
 
 <script>
-import { computed } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import SearchInput from './SearchInput.vue';
-import SuggestAuthorsList from './SuggestAuthorsList.vue';
-import SuggestionsList from './SuggestionsList.vue';
-import SuggestReplace from './SuggestReplace.vue';
-import SmartSuggestions from './SmartSuggestions.vue';
-import SearchHistoryPanel from './SearchHistoryPanel.vue';
 import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
 import {
   getSmartSuggestService,
   suggestIndexVersion,
 } from 'src/services/smartSuggestService';
+
+const SuggestAuthorsList = defineAsyncComponent(() =>
+  import('./SuggestAuthorsList.vue')
+);
+const SuggestionsList = defineAsyncComponent(() =>
+  import('./SuggestionsList.vue')
+);
+const SuggestReplace = defineAsyncComponent(() =>
+  import('./SuggestReplace.vue')
+);
+const SmartSuggestions = defineAsyncComponent(() =>
+  import('./SmartSuggestions.vue')
+);
+const SearchHistoryPanel = defineAsyncComponent(() =>
+  import('./SearchHistoryPanel.vue')
+);
 
 export default {
   components: {
@@ -90,6 +101,10 @@ export default {
     );
     // 有任何下拉内容要显示
     const hasSuggestContent = computed(() => {
+      if (!isSuggestVisible.value) {
+        return false;
+      }
+
       // 触发响应式依赖
       void suggestIndexVersion.value;
       if (!isQueryEmpty.value) {

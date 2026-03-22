@@ -396,36 +396,50 @@ export const useAccountStore = defineStore('account', {
             }
         },
 
-        loadFromStorage() {
+        loadCoreFromStorage() {
             try {
-                const data = StorageManager.loadAll();
+                this.refreshToken = StorageManager.getRefreshToken();
 
-                // 加载 refresh token
-                if (data.refreshToken) {
-                    this.refreshToken = data.refreshToken;
+                const userInfo = StorageManager.loadUserInfo();
+                if (userInfo) {
+                    this.spaceMyInfo = userInfo.spaceMyInfo;
+                    this.midCard = userInfo.midCard;
+                    this.isLoggedIn = userInfo.isLoggedIn;
                 }
 
-                // 加载用户信息
-                if (data.userInfo) {
-                    this.spaceMyInfo = data.userInfo.spaceMyInfo;
-                    this.midCard = data.userInfo.midCard;
-                    this.isLoggedIn = data.userInfo.isLoggedIn;
-                }
-
-                // 加载关注列表
-                if (data.relationFollowings) {
-                    this.relationFollowings = data.relationFollowings;
-                }
-
-                console.log('Loaded from storage:', {
+                console.log('Loaded core account state from storage:', {
                     hasRefreshToken: !!this.refreshToken,
                     hasSpaceMyInfo: !!this.spaceMyInfo,
                     hasMidCard: !!this.midCard,
                     isLoggedIn: this.isLoggedIn,
-                    hasRelationFollowings: !!this.relationFollowings,
-                    followingCount: this.followingCount,
                     userName: this.userName,
                 });
+            } catch (error) {
+                console.error('Failed to load core account state from storage:', error);
+                StorageManager.clearAll();
+            }
+        },
+
+        loadDeferredFromStorage() {
+            try {
+                const relationFollowings = StorageManager.loadRelationFollowings();
+                if (relationFollowings) {
+                    this.relationFollowings = relationFollowings;
+                }
+
+                console.log('Loaded deferred account state from storage:', {
+                    hasRelationFollowings: !!this.relationFollowings,
+                    followingCount: this.followingCount,
+                });
+            } catch (error) {
+                console.error('Failed to load deferred account state from storage:', error);
+            }
+        },
+
+        loadFromStorage() {
+            try {
+                this.loadCoreFromStorage();
+                this.loadDeferredFromStorage();
             } catch (error) {
                 console.error('Failed to load from storage:', error);
                 StorageManager.clearAll();
@@ -433,11 +447,24 @@ export const useAccountStore = defineStore('account', {
         },
 
         // 初始化
-        async initialize(): Promise<void> {
+        async initialize(options?: {
+            restoreCoreFromStorage?: boolean;
+            restoreDeferredFromStorage?: boolean;
+        }): Promise<void> {
             console.log('Initializing account store...');
 
-            // 加载本地存储的数据
-            this.loadFromStorage();
+            const {
+                restoreCoreFromStorage = true,
+                restoreDeferredFromStorage = true,
+            } = options || {};
+
+            if (restoreCoreFromStorage) {
+                this.loadCoreFromStorage();
+            }
+
+            if (restoreDeferredFromStorage) {
+                this.loadDeferredFromStorage();
+            }
 
             // 如果有登录状态，尝试验证 session
             if (this.isLoggedIn) {

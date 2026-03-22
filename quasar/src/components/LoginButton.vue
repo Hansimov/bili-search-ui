@@ -179,9 +179,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue';
 import { useAuthStore } from 'src/stores/authStore';
 import { useAccountStore } from 'src/stores/accountStore';
+
+const VueQrcode = defineAsyncComponent(
+  () => import('@chenfengyuan/vue-qrcode')
+);
 
 const authStore = useAuthStore();
 const accountStore = useAccountStore();

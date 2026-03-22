@@ -124,6 +124,7 @@ import {
   onBeforeUnmount,
   watch,
   nextTick,
+  defineAsyncComponent,
 } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQueryStore } from 'src/stores/queryStore';
@@ -149,7 +150,8 @@ import {
   getViewportCssWidth,
   viewportPxToCssPx,
 } from 'src/utils/zoom';
-import DslHelpDialog from './DslHelpDialog.vue';
+
+const DslHelpDialog = defineAsyncComponent(() => import('./DslHelpDialog.vue'));
 
 /** 各模式的 placeholder 文本 */
 const MODE_PLACEHOLDERS: Record<SearchMode, string> = {
