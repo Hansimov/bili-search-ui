@@ -195,7 +195,7 @@
           class="chat-loading"
         >
           <div class="chat-loading-indicator">
-            <q-spinner-dots size="16px" :color="modeColor" />
+            <q-spinner-dots size="16px" color="grey-6" />
             <span class="chat-loading-text">{{ loadingText }}</span>
           </div>
         </div>
@@ -210,18 +210,22 @@
             class="chat-thinking-header"
             @click="thinkingExpanded = !thinkingExpanded"
           >
+            <div class="chat-thinking-header-main">
+              <span v-if="thinkingHeaderLabel" class="thinking-header-text">{{
+                thinkingHeaderLabel
+              }}</span>
+              <span v-if="isThinkingPhase" class="thinking-active-indicator">
+                <span class="thinking-header-text">思考中</span>
+                <span class="thinking-dots"
+                  ><span>.</span><span>.</span><span>.</span></span
+                >
+              </span>
+            </div>
             <q-icon
               :name="thinkingExpanded ? 'expand_less' : 'expand_more'"
               size="18px"
               class="thinking-expand-icon"
             />
-            <span class="thinking-header-text">{{ thinkingHeaderLabel }}</span>
-            <span v-if="isThinkingPhase" class="thinking-active-indicator">
-              <span class="thinking-header-text">思考中</span>
-              <span class="thinking-dots"
-                ><span>.</span><span>.</span><span>.</span></span
-              >
-            </span>
           </div>
           <!-- 可折叠内容：按时间线渲染 thinking 文本 + tool calls -->
           <div
@@ -328,7 +332,6 @@ import {
   type ConversationMessage,
   type StreamSegment,
 } from 'src/stores/chatStore';
-import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import type {
@@ -358,7 +361,6 @@ export default defineComponent({
   emits: ['retry', 'showResults'],
   setup(_props, { emit }) {
     const chatStore = useChatStore();
-    const searchModeStore = useSearchModeStore();
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
 
@@ -405,12 +407,6 @@ export default defineComponent({
      * 避免内容匹配启发式导致的闪烁和 key 变化时的 instance.update 错误
      */
     const historyMessages = computed(() => chatStore.historyMessages);
-
-    const modeColor = computed(() => {
-      const mode = searchModeStore.currentMode;
-      if (mode === 'think') return 'purple-5';
-      return 'teal-5';
-    });
 
     const loadingText = computed(() => {
       return '思考中';
@@ -863,7 +859,6 @@ export default defineComponent({
       errorMessage,
       userQuery,
       historyMessages,
-      modeColor,
       loadingText,
       thinkingHeaderLabel,
       renderedContent,
@@ -935,12 +930,12 @@ export default defineComponent({
   gap: 12px;
   width: 100%;
   margin-bottom: 12px;
-  padding: 10px 14px;
-  border: 1px solid transparent;
+  padding: 9px 13px;
+  border: 1px solid rgba(128, 128, 128, 0.1);
   border-radius: 10px;
   font-size: 14px;
-  opacity: 0.82;
-  background: rgba(128, 128, 128, 0.06);
+  opacity: 0.84;
+  background: rgba(128, 128, 128, 0.042);
   transition: background 0.18s ease, border-color 0.18s ease,
     box-shadow 0.18s ease, opacity 0.18s ease;
 }
@@ -952,10 +947,10 @@ export default defineComponent({
 }
 
 .chat-user-query.is-toggle:hover {
-  opacity: 0.96;
-  background: rgba(128, 128, 128, 0.1);
-  border-color: rgba(128, 128, 128, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.04);
+  opacity: 0.94;
+  background: rgba(128, 128, 128, 0.06);
+  border-color: rgba(128, 128, 128, 0.14);
+  box-shadow: none;
 }
 
 .chat-user-query.is-toggle:focus-visible {
@@ -965,7 +960,8 @@ export default defineComponent({
 }
 
 .chat-user-query.is-expanded {
-  opacity: 0.95;
+  opacity: 0.92;
+  background: rgba(128, 128, 128, 0.058);
 }
 
 .user-query-text {
@@ -974,6 +970,7 @@ export default defineComponent({
   white-space: pre-wrap;
   word-break: break-word;
   min-width: 0;
+  font-weight: 520;
 }
 
 .chat-round-toggle-bar-state {
@@ -983,7 +980,7 @@ export default defineComponent({
   flex-shrink: 0;
   font-size: 12px;
   line-height: 1.2;
-  opacity: 0.72;
+  opacity: 0.58;
   white-space: nowrap;
 }
 
@@ -1074,31 +1071,47 @@ export default defineComponent({
 .chat-thinking-header {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   user-select: none;
+  border: 1px solid rgba(128, 128, 128, 0.06);
   border-radius: 8px;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
   /* 保持稳定高度，避免内容变化时跳动 */
-  min-height: 32px;
-  background: rgba(128, 128, 128, 0.04);
+  min-height: 28px;
+  background: rgba(128, 128, 128, 0.024);
+  opacity: 0.72;
 
   &:hover {
-    background: rgba(128, 128, 128, 0.08);
+    background: rgba(128, 128, 128, 0.04);
+    border-color: rgba(128, 128, 128, 0.08);
+    opacity: 0.82;
   }
 }
 
+.chat-thinking-header-main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
 .thinking-header-text {
-  opacity: 0.6;
+  opacity: 0.62;
   font-weight: 500;
 }
 
 .thinking-active-indicator {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 0;
+  min-width: 0;
 }
 
 .thinking-dots {
@@ -1184,7 +1197,7 @@ export default defineComponent({
 }
 
 .thinking-expand-icon {
-  opacity: 0.45;
+  opacity: 0.44;
   flex-shrink: 0;
 }
 
@@ -1396,30 +1409,28 @@ body.body--light {
   }
 
   .chat-user-query {
-    background: linear-gradient(
-      180deg,
-      rgba(0, 0, 0, 0.035),
-      rgba(0, 0, 0, 0.055)
-    );
-    border-color: rgba(0, 0, 0, 0.06);
+    background: rgba(0, 0, 0, 0.036);
+    border-color: rgba(0, 0, 0, 0.08);
     color: #555;
   }
 
   .chat-user-query.is-toggle:hover {
-    background: linear-gradient(
-      180deg,
-      rgba(0, 0, 0, 0.05),
-      rgba(0, 0, 0, 0.08)
-    );
-    border-color: rgba(0, 0, 0, 0.1);
+    background: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.12);
   }
 
   .chat-user-query.is-expanded {
-    background: linear-gradient(
-      180deg,
-      rgba(0, 0, 0, 0.045),
-      rgba(0, 0, 0, 0.075)
-    );
+    background: rgba(0, 0, 0, 0.046);
+  }
+
+  .chat-thinking-header {
+    background: rgba(0, 0, 0, 0.018);
+    border-color: rgba(0, 0, 0, 0.045);
+  }
+
+  .chat-thinking-header:hover {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.07);
   }
 
   .chat-error {
@@ -1464,30 +1475,28 @@ body.body--dark {
   }
 
   .chat-user-query {
-    background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.055),
-      rgba(255, 255, 255, 0.035)
-    );
-    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.045);
+    border-color: rgba(255, 255, 255, 0.1);
     color: #aaa;
   }
 
   .chat-user-query.is-toggle:hover {
-    background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.08),
-      rgba(255, 255, 255, 0.05)
-    );
-    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.062);
+    border-color: rgba(255, 255, 255, 0.14);
   }
 
   .chat-user-query.is-expanded {
-    background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.075),
-      rgba(255, 255, 255, 0.045)
-    );
+    background: rgba(255, 255, 255, 0.058);
+  }
+
+  .chat-thinking-header {
+    background: rgba(255, 255, 255, 0.024);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .chat-thinking-header:hover {
+    background: rgba(255, 255, 255, 0.038);
+    border-color: rgba(255, 255, 255, 0.09);
   }
 
   .chat-error {

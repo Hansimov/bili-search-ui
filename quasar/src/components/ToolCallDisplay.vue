@@ -565,64 +565,67 @@ export default defineComponent({
 .tool-call-container {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 8px 0;
+  gap: 4px;
+  margin: 6px 0;
 }
 
 .tool-call-item {
   border-radius: 8px;
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: background 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
 }
 
 .tool-call-pending {
-  background: rgba(128, 128, 128, 0.06);
-  border: 1px dashed rgba(128, 128, 128, 0.2);
+  background: rgba(128, 128, 128, 0.028);
+  border: 1px dashed rgba(128, 128, 128, 0.12);
 }
 
 .tool-call-completed {
-  background: rgba(128, 128, 128, 0.04);
-  border: 1px solid rgba(128, 128, 128, 0.12);
+  background: rgba(128, 128, 128, 0.022);
+  border: 1px solid rgba(128, 128, 128, 0.08);
 }
 
 .tool-call-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 6px 10px;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, opacity 0.15s ease;
+  opacity: 0.78;
 
   &:hover {
-    background: rgba(128, 128, 128, 0.06);
+    background: rgba(128, 128, 128, 0.04);
+    opacity: 0.88;
   }
 }
 
 .tool-call-left {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex: 1;
   min-width: 0;
 }
 
 .tool-call-spinner {
-  color: var(--q-primary);
+  opacity: 0.42;
+  color: currentColor;
 }
 
 .tool-call-icon {
-  opacity: 0.6;
+  opacity: 0.48;
 }
 
 .tool-call-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  opacity: 0.85;
+  opacity: 0.72;
 }
 
 .tool-call-args {
-  font-size: 12px;
-  opacity: 0.5;
+  font-size: 11px;
+  opacity: 0.42;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -630,8 +633,8 @@ export default defineComponent({
 }
 
 .tool-call-args-full {
-  font-size: 12px;
-  opacity: 0.5;
+  font-size: 11px;
+  opacity: 0.42;
 }
 
 /* 多 query 子列表 */
@@ -639,7 +642,7 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 2px 12px 6px 34px;
+  padding: 1px 10px 5px 30px;
 }
 
 .tool-query-item {
@@ -654,8 +657,8 @@ export default defineComponent({
 }
 
 .tool-query-text {
-  font-size: 12px;
-  opacity: 0.55;
+  font-size: 11px;
+  opacity: 0.48;
   line-height: 1.4;
   word-break: break-word;
 }
@@ -664,17 +667,18 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-left: 8px;
 }
 
 .tool-call-status-pending {
   font-size: 11px;
-  color: var(--q-primary);
-  opacity: 0.8;
+  color: inherit;
+  opacity: 0.48;
 }
 
 .tool-call-status-aborted {
   font-size: 11px;
-  opacity: 0.5;
+  opacity: 0.42;
   color: inherit;
 }
 
@@ -684,11 +688,11 @@ export default defineComponent({
 
 .tool-call-status-completed {
   font-size: 11px;
-  opacity: 0.5;
+  opacity: 0.42;
 }
 
 .tool-call-expand-icon {
-  opacity: 0.4;
+  opacity: 0.32;
 }
 
 /* 搜索结果折叠动画 */
@@ -709,8 +713,8 @@ export default defineComponent({
 
 /* 搜索结果预览 */
 .tool-call-results {
-  padding: 8px 12px 12px;
-  border-top: 1px solid rgba(128, 128, 128, 0.08);
+  padding: 6px 10px 10px;
+  border-top: 1px solid rgba(128, 128, 128, 0.06);
 }
 
 /* 按 query 分组的搜索结果 */
@@ -725,8 +729,8 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 6px;
-  padding: 4px 0;
+  margin-bottom: 4px;
+  padding: 2px 0;
 }
 
 .per-query-icon {
@@ -735,14 +739,14 @@ export default defineComponent({
 }
 
 .per-query-text {
-  font-size: 12px;
-  opacity: 0.6;
+  font-size: 11px;
+  opacity: 0.52;
   font-weight: 500;
 }
 
 .per-query-count {
   font-size: 11px;
-  opacity: 0.4;
+  opacity: 0.36;
   margin-left: 4px;
 }
 
@@ -868,7 +872,8 @@ export default defineComponent({
   justify-content: center;
   padding: 12px;
   font-size: 12px;
-  color: var(--q-primary);
+  color: inherit;
+  opacity: 0.5;
   cursor: pointer;
   border-radius: 6px;
   background: rgba(128, 128, 128, 0.03);
@@ -876,6 +881,7 @@ export default defineComponent({
 
   &:hover {
     background: rgba(128, 128, 128, 0.08);
+    opacity: 0.68;
   }
 }
 
@@ -909,9 +915,12 @@ export default defineComponent({
 /* 在新窗口中查看按钮（header 中） */
 .tool-view-all-btn {
   font-size: 11px !important;
-  opacity: 0.55;
+  min-height: 22px;
+  padding: 0 2px;
+  color: inherit;
+  opacity: 0.46;
   &:hover {
-    opacity: 0.85;
+    opacity: 0.68;
   }
 }
 
@@ -922,13 +931,13 @@ export default defineComponent({
   justify-content: center;
   padding: 4px 0;
   margin-top: 4px;
-  border-top: 1px dashed rgba(128, 128, 128, 0.12);
+  border-top: 1px dashed rgba(128, 128, 128, 0.08);
   cursor: pointer;
   transition: background 0.15s ease;
   border-radius: 0 0 6px 6px;
 
   &:hover {
-    background: rgba(128, 128, 128, 0.08);
+    background: rgba(128, 128, 128, 0.04);
   }
 }
 
@@ -944,17 +953,17 @@ export default defineComponent({
 /* Dark theme */
 body.body--dark {
   .tool-call-pending {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.07);
   }
 
   .tool-call-completed {
-    background: rgba(255, 255, 255, 0.02);
-    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.015);
+    border-color: rgba(255, 255, 255, 0.06);
   }
 
   .tool-call-header:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.03);
   }
 
   .tool-result-item {
