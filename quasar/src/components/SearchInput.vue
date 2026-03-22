@@ -413,19 +413,32 @@ export default {
      * - 其他 → 搜索建议文本
      */
     const executeSuggestionAction = async (item: SmartSuggestion) => {
+      const shouldClearImmediately =
+        currentMode.value === 'smart' || currentMode.value === 'think';
+      const submittedQuery = item.text;
+
+      if (shouldClearImmediately) {
+        clearVisibleQueryImmediately();
+      }
+
       const didSubmit = await submitSuggestionByMode({
         item,
         mode: currentMode.value,
       });
-      if (!didSubmit) return;
+
+      if (!didSubmit) {
+        if (shouldClearImmediately) {
+          queryModel.value = submittedQuery;
+          if (textareaRef.value) {
+            textareaRef.value.value = submittedQuery;
+          }
+          nextTick(() => autoResize());
+        }
+        return;
+      }
 
       displayOverride.value = null;
       suppressSuggest.value = true;
-
-      if (currentMode.value === 'smart' || currentMode.value === 'think') {
-        queryModel.value = '';
-        nextTick(() => autoResize());
-      }
     };
 
     /** 导航建议列表（direction: 1=下, -1=上） — 仅预览，不修改 queryStore */
@@ -513,6 +526,9 @@ export default {
     const clearQuery = () => {
       queryModel.value = '';
       displayOverride.value = null;
+      if (textareaRef.value) {
+        textareaRef.value.value = '';
+      }
       layoutStore.resetSuggestNavigation();
       layoutStore.setIsSuggestVisible(false);
       suppressSuggest.value = false;
@@ -520,6 +536,15 @@ export default {
         autoResize();
         textareaRef.value?.focus();
       });
+    };
+
+    const clearVisibleQueryImmediately = () => {
+      queryModel.value = '';
+      displayOverride.value = null;
+      if (textareaRef.value) {
+        textareaRef.value.value = '';
+      }
+      nextTick(() => autoResize());
     };
 
     /** 监听窗口 resize，动态调整默认行数 + 更新输入框位置 CSS 变量 */
@@ -571,9 +596,7 @@ export default {
         (mode === 'smart' || mode === 'think') && !!submittedQuery.trim();
 
       if (shouldClearImmediately) {
-        queryModel.value = '';
-        displayOverride.value = null;
-        nextTick(() => autoResize());
+        clearVisibleQueryImmediately();
       }
 
       const didSubmit = await submitCurrentModeQuery({
@@ -585,6 +608,9 @@ export default {
       if (!didSubmit) {
         if (shouldClearImmediately) {
           queryModel.value = submittedQuery;
+          if (textareaRef.value) {
+            textareaRef.value.value = submittedQuery;
+          }
           nextTick(() => autoResize());
         }
         return;

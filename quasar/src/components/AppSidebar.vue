@@ -101,10 +101,9 @@
               icon="delete"
               size="xs"
               class="history-clear-btn"
+              title="清除历史"
               @click.stop="confirmClearHistory"
-            >
-              <q-tooltip>清除历史</q-tooltip>
-            </q-btn>
+            />
           </template>
         </div>
       </div>
@@ -130,6 +129,7 @@
                   v-for="item in searchHistoryStore.pinnedItems"
                   :key="'pin-' + item.id"
                   class="history-item pinned"
+                  :class="{ 'history-item-active': isHistoryItemActive(item) }"
                   :title="getItemTooltip(item)"
                   @click="searchFromHistory(item)"
                 >
@@ -150,15 +150,17 @@
                       链接已复制
                     </span>
                   </transition>
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    icon="more_horiz"
-                    size="xs"
-                    class="history-more-btn"
-                    @click.stop="openHistoryActionMenu($event, item)"
-                  />
+                  <span class="history-item-right">
+                    <q-btn
+                      flat
+                      round
+                      dense
+                      icon="more_vert"
+                      size="xs"
+                      class="history-more-btn"
+                      @click.stop="openHistoryActionMenu($event, item)"
+                    />
+                  </span>
                 </div>
               </div>
 
@@ -173,6 +175,7 @@
                   v-for="item in group.items"
                   :key="'recent-' + item.id"
                   class="history-item"
+                  :class="{ 'history-item-active': isHistoryItemActive(item) }"
                   :title="getItemTooltip(item)"
                   @click="searchFromHistory(item)"
                 >
@@ -193,15 +196,17 @@
                       链接已复制
                     </span>
                   </transition>
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    icon="more_horiz"
-                    size="xs"
-                    class="history-more-btn"
-                    @click.stop="openHistoryActionMenu($event, item)"
-                  />
+                  <span class="history-item-right">
+                    <q-btn
+                      flat
+                      round
+                      dense
+                      icon="more_vert"
+                      size="xs"
+                      class="history-more-btn"
+                      @click.stop="openHistoryActionMenu($event, item)"
+                    />
+                  </span>
                 </div>
               </div>
             </template>
@@ -885,11 +890,52 @@ const confirmClearHistory = () => {
   showClearHistoryDialog.value = true;
 };
 
-const clearHistory = async () => {
-  await searchHistoryStore.clearAll();
+const resetCurrentViewState = async () => {
   chatStore.clearHistory();
+  chatStore.startNewChat();
+  queryStore.setQuery({ newQuery: '' });
+  exploreStore.clearStepResults();
+  exploreStore.setSubmittedQuery('');
+  searchModeStore.resetInitialSessionMode();
+  await router.push('/');
+};
+
+const clearHistory = async () => {
+  hideSidebarTooltip();
+  closeHistoryActionMenu();
+  await searchHistoryStore.clearAll();
+  await resetCurrentViewState();
   showClearHistoryDialog.value = false;
   historyDisplayLimit.value = HISTORY_PAGE_SIZE;
+};
+
+const isHistoryItemActive = (item: SearchHistoryItem): boolean => {
+  if (chatStore.currentHistoryRecordId === item.id) {
+    return true;
+  }
+
+  const currentRoute = router.currentRoute.value;
+  const itemMode = item.mode || 'direct';
+
+  if ((itemMode === 'smart' || itemMode === 'think') && item.sessionId) {
+    return currentRoute.path === `/chat/${item.sessionId}`;
+  }
+
+  if (itemMode === 'direct') {
+    const routeQuery = currentRoute.query.q;
+    const routeMode = currentRoute.query.mode;
+    const isDirectRoute =
+      currentRoute.path === '/chat' &&
+      typeof routeQuery === 'string' &&
+      routeQuery === item.query &&
+      (routeMode == null || routeMode === 'direct');
+
+    if (isDirectRoute) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 // Tooltip helper
@@ -1604,15 +1650,18 @@ body.body--dark .nav-item-active {
 }
 
 .history-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 28px;
   align-items: center;
-  padding: 6px 6px 6px 12px;
+  position: relative;
+  padding: 6px 4px 6px 12px;
   margin: 1px 8px;
   border-radius: 6px;
   cursor: pointer;
   gap: 8px;
   min-height: 32px;
   min-width: 0;
+  overflow: hidden;
 }
 
 body.body--light .history-item:hover {
@@ -1620,6 +1669,14 @@ body.body--light .history-item:hover {
 }
 body.body--dark .history-item:hover {
   background-color: #2a2a2a;
+}
+
+body.body--light .history-item-active {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+body.body--dark .history-item-active {
+  background-color: rgba(255, 255, 255, 0.065);
 }
 
 .history-item-icon {
@@ -1660,13 +1717,25 @@ body.body--dark .history-icon-research {
   min-width: 0;
 }
 
+.history-item-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 28px;
+  min-width: 28px;
+}
+
 .copied-indicator {
-  flex-shrink: 0;
+  position: absolute;
+  right: 34px;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 11px;
   padding: 2px 6px;
   border-radius: 4px;
   opacity: 0.7;
   white-space: nowrap;
+  pointer-events: none;
 }
 body.body--light .copied-indicator {
   background-color: rgba(0, 0, 0, 0.06);
@@ -1855,12 +1924,12 @@ body.body--dark .sidebar-user-menu .q-item:hover {
   align-self: center;
   opacity: 0.18;
   transition: opacity 0.15s ease;
-  width: 24px;
-  height: 24px;
-  min-width: 24px;
-  min-height: 24px;
-  margin-left: 4px;
-  margin-right: -2px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  margin-left: 0;
+  margin-right: 0;
 }
 .history-item:hover .history-more-btn,
 .history-item:focus-within .history-more-btn {
