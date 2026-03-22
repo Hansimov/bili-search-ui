@@ -37,8 +37,8 @@ module.exports = configure(function (/* ctx */) {
 
         // https://github.com/quasarframework/quasar/tree/dev/extras
         extras: [
-            'ionicons-v4',
-            'mdi-v7',
+            // 'ionicons-v4',
+            // 'mdi-v7',
             'fontawesome-v6',
             // 'eva-icons',
             // 'themify',
@@ -46,7 +46,7 @@ module.exports = configure(function (/* ctx */) {
             // 'roboto-font-latin-ext', // this or either 'roboto-font', NEVER both!
             'roboto-font', // optional, you are not bound to it
             'material-icons', // optional, you are not bound to it
-            'material-icons-outlined', // optional, you are not bound to it
+            // 'material-icons-outlined',
         ],
 
         // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
@@ -79,23 +79,32 @@ module.exports = configure(function (/* ctx */) {
                 viteConf.build.rollupOptions.output.manualChunks = (id) => {
                     if (!id.includes('node_modules')) return;
 
-                    if (id.includes('showdown')) {
+                    // Extract the package path after the last node_modules/
+                    const parts = id.split('node_modules/');
+                    const pkg = parts[parts.length - 1];
+
+                    if (pkg.startsWith('showdown')) {
                         return 'markdown';
                     }
 
-                    if (id.includes('@chenfengyuan/vue-qrcode') || id.includes('/qrcode/')) {
+                    if (pkg.startsWith('@chenfengyuan/vue-qrcode') || pkg.startsWith('qrcode/')) {
                         return 'qrcode';
                     }
 
-                    if (id.includes('@vue-flow/')) {
+                    if (pkg.startsWith('@vue-flow/')) {
                         return 'vue-flow';
                     }
 
+                    if (pkg.startsWith('pinyin') || pkg.startsWith('segmentit')) {
+                        return 'pinyin';
+                    }
+
                     if (
-                        id.includes('/vue/') ||
-                        id.includes('/vue-router/') ||
-                        id.includes('/pinia/') ||
-                        id.includes('/quasar/')
+                        pkg.startsWith('vue/') ||
+                        pkg.startsWith('@vue/') ||
+                        pkg.startsWith('vue-router/') ||
+                        pkg.startsWith('pinia/') ||
+                        pkg.startsWith('quasar/')
                     ) {
                         return 'framework';
                     }
@@ -223,7 +232,7 @@ module.exports = configure(function (/* ctx */) {
                 dark: 'auto',
             },
 
-            iconSet: 'material-icons-outlined', // Quasar icon set
+            iconSet: 'material-icons', // Quasar icon set
             // lang: 'en-US', // Quasar language pack
 
             // For special cases outside of where the auto-import strategy can have an impact

@@ -12,8 +12,26 @@
  * 使用 hotoo/pinyin 库实现精准的中文拼音转换。
  */
 
-import { pinyin } from 'pinyin';
 import { ref } from 'vue';
+
+type PinyinFn = (text: string, options: { style: string }) => string[][];
+let _pinyin: PinyinFn | null = null;
+let _pinyinPromise: Promise<PinyinFn> | null = null;
+
+export function loadPinyin(): Promise<PinyinFn> {
+    if (_pinyin) return Promise.resolve(_pinyin);
+    if (!_pinyinPromise) {
+        _pinyinPromise = import('pinyin').then(m => {
+            _pinyin = m.pinyin as unknown as PinyinFn;
+            return _pinyin!;
+        });
+    }
+    return _pinyinPromise!;
+}
+
+function getPinyinSync(): PinyinFn | null {
+    return _pinyin;
+}
 
 /** 响应式版本号：每次索引变更时递增，供 Vue computed 追踪依赖 */
 export const suggestIndexVersion = ref(0);
@@ -107,15 +125,23 @@ function getPinyinInfo(text: string): { full: string; initials: string } {
     let chineseBuf = '';
     const flushChinese = () => {
         if (!chineseBuf) return;
-        try {
-            const result = pinyin(chineseBuf, { style: 'normal' });
-            for (const py of result) {
-                const p = py[0] || '';
-                fullParts.push(p);
-                initialParts.push(p.charAt(0));
+        const pinyinFn = getPinyinSync();
+        if (pinyinFn) {
+            try {
+                const result = pinyinFn(chineseBuf, { style: 'normal' });
+                for (const py of result) {
+                    const p = py[0] || '';
+                    fullParts.push(p);
+                    initialParts.push(p.charAt(0));
+                }
+            } catch {
+                // fallback: treat each char as-is
+                for (const c of Array.from(chineseBuf)) {
+                    fullParts.push(c.toLowerCase());
+                    initialParts.push(c.toLowerCase());
+                }
             }
-        } catch {
-            // fallback: treat each char as-is
+        } else {
             for (const c of Array.from(chineseBuf)) {
                 fullParts.push(c.toLowerCase());
                 initialParts.push(c.toLowerCase());
@@ -495,19 +521,31 @@ function matchPinyinPositions(text: string, queryLower: string): Array<[number, 
     let chineseBuf = '';
     const flushChinese = () => {
         if (!chineseBuf) return;
-        try {
-            const result = pinyin(chineseBuf, { style: 'normal' });
-            const bufChars = Array.from(chineseBuf);
-            for (let i = 0; i < bufChars.length; i++) {
-                const py = result[i]?.[0] || '';
-                charPinyins.push({
-                    char: bufChars[i],
-                    pinyin: py,
-                    initial: py.charAt(0),
-                    isChinese: true,
-                });
+        const pinyinFn = getPinyinSync();
+        if (pinyinFn) {
+            try {
+                const result = pinyinFn(chineseBuf, { style: 'normal' });
+                const bufChars = Array.from(chineseBuf);
+                for (let i = 0; i < bufChars.length; i++) {
+                    const py = result[i]?.[0] || '';
+                    charPinyins.push({
+                        char: bufChars[i],
+                        pinyin: py,
+                        initial: py.charAt(0),
+                        isChinese: true,
+                    });
+                }
+            } catch {
+                for (const c of Array.from(chineseBuf)) {
+                    charPinyins.push({
+                        char: c,
+                        pinyin: c.toLowerCase(),
+                        initial: c.toLowerCase(),
+                        isChinese: true,
+                    });
+                }
             }
-        } catch {
+        } else {
             for (const c of Array.from(chineseBuf)) {
                 charPinyins.push({
                     char: c,
@@ -1421,6 +1459,7 @@ let instance: SmartSuggestService | null = null;
 export function getSmartSuggestService(): SmartSuggestService {
     if (!instance) {
         instance = new SmartSuggestService();
+        loadPinyin();
     }
     return instance;
 }

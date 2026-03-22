@@ -8,11 +8,15 @@
  * - 评分逻辑
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { SmartSuggestService } from 'src/services/smartSuggestService';
+import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
+import { SmartSuggestService, loadPinyin } from 'src/services/smartSuggestService';
 
 describe('SmartSuggestService', () => {
     let service: SmartSuggestService;
+
+    beforeAll(async () => {
+        await loadPinyin();
+    });
 
     beforeEach(() => {
         service = new SmartSuggestService();
