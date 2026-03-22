@@ -48,19 +48,21 @@
 import { computed, ref, watch, nextTick } from 'vue';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
-import { explore } from 'src/functions/explore';
+import { useSearchModeStore } from 'src/stores/searchModeStore';
 import {
   getSmartSuggestService,
   suggestIndexVersion,
   type SmartSuggestion,
   type SuggestionType,
 } from 'src/services/smartSuggestService';
+import { submitSuggestionByMode } from 'src/functions/chat';
 
 export default {
   name: 'SmartSuggestions',
   setup() {
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
+    const searchModeStore = useSearchModeStore();
     const smartService = getSmartSuggestService();
 
     const suggestionsRef = ref<HTMLElement | null>(null);
@@ -112,23 +114,17 @@ export default {
      * - author (用户) → 搜索 uid=... 语句（如果有 uid）
      */
     const selectSuggestion = async (item: SmartSuggestion) => {
-      layoutStore.setIsSuggestVisible(false);
-
-      let searchQuery = item.text;
-
-      if (item.type === 'title' && item.meta?.bvid) {
-        searchQuery = `bv=${item.meta.bvid}`;
-      } else if (item.type === 'author' && item.meta?.uid) {
-        searchQuery = `uid=${item.meta.uid}`;
-      }
-
-      queryStore.setQuery({ newQuery: searchQuery });
-      await explore({
-        queryValue: searchQuery,
-        setQuery: true,
-        setRoute: true,
+      await submitSuggestionByMode({
+        item,
+        mode: searchModeStore.currentMode,
       });
-      layoutStore.setCurrentPage(1);
+
+      if (
+        searchModeStore.currentMode === 'smart' ||
+        searchModeStore.currentMode === 'think'
+      ) {
+        queryStore.setQuery({ newQuery: '' });
+      }
     };
 
     const getTypeIcon = (type: SuggestionType): string => {

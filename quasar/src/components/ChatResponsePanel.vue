@@ -15,208 +15,300 @@
       @tooltip-wheel="onTooltipWheel"
     />
     <!-- 多轮对话：历史消息 -->
-    <template v-for="msg in historyMessages" :key="msg.id">
+    <template v-for="(msg, msgIdx) in historyMessages" :key="msg.id">
       <!-- 用户消息 -->
-      <div v-if="msg.role === 'user'" class="chat-user-query">
+      <component
+        :is="getHistoryLinkedAssistant(msgIdx) ? 'button' : 'div'"
+        v-if="msg.role === 'user'"
+        class="chat-user-query"
+        :class="{
+          'is-toggle': !!getHistoryLinkedAssistant(msgIdx),
+          'is-expanded': isHistoryAnswerExpanded(
+            getHistoryLinkedAssistant(msgIdx)?.id || ''
+          ),
+        }"
+        :type="getHistoryLinkedAssistant(msgIdx) ? 'button' : undefined"
+        @click="
+          getHistoryLinkedAssistant(msgIdx) &&
+            toggleHistoryAnswerByIndex(msgIdx)
+        "
+      >
         <span class="user-query-text">{{ msg.content }}</span>
-      </div>
+        <span
+          v-if="getHistoryLinkedAssistant(msgIdx)"
+          class="chat-round-toggle-bar-state"
+        >
+          <span>
+            {{
+              isHistoryAnswerExpanded(
+                getHistoryLinkedAssistant(msgIdx)?.id || ''
+              )
+                ? '收起回复'
+                : '展开回复'
+            }}
+          </span>
+          <q-icon
+            :name="
+              isHistoryAnswerExpanded(
+                getHistoryLinkedAssistant(msgIdx)?.id || ''
+              )
+                ? 'expand_less'
+                : 'expand_more'
+            "
+            size="16px"
+          />
+        </span>
+      </component>
       <!-- 助手消息（历史） -->
       <div v-else-if="msg.role === 'assistant'" class="chat-history-assistant">
-        <!-- 历史思考过程+工具调用（按时间线交替渲染） -->
-        <div v-if="hasHistoryThinking(msg)" class="chat-thinking-section">
-          <div
-            class="chat-thinking-header"
-            @click="toggleHistoryThinking(msg.id)"
-          >
-            <q-icon
-              :name="
-                isHistoryThinkingExpanded(msg.id)
-                  ? 'expand_less'
-                  : 'expand_more'
-              "
-              size="18px"
-              class="thinking-expand-icon"
-            />
-            <span class="thinking-header-text">思考过程</span>
-          </div>
-          <div
-            class="chat-thinking-collapse-wrapper"
-            :class="{ expanded: isHistoryThinkingExpanded(msg.id) }"
-          >
-            <div class="chat-thinking-collapse-inner">
-              <template
-                v-if="msg.streamSegments && msg.streamSegments.length > 0"
+        <div
+          class="chat-answer-collapse-wrapper"
+          :class="{ expanded: isHistoryAnswerExpanded(msg.id) }"
+        >
+          <div class="chat-answer-collapse-inner">
+            <!-- 历史思考过程+工具调用（按时间线交替渲染） -->
+            <div v-if="hasHistoryThinking(msg)" class="chat-thinking-section">
+              <div
+                class="chat-thinking-header"
+                @click="toggleHistoryThinking(msg.id)"
               >
-                <template v-for="(seg, sIdx) in msg.streamSegments" :key="sIdx">
-                  <div
-                    v-if="seg.type === 'thinking' && seg.content"
-                    class="chat-thinking-content"
+                <q-icon
+                  :name="
+                    isHistoryThinkingExpanded(msg.id)
+                      ? 'expand_less'
+                      : 'expand_more'
+                  "
+                  size="18px"
+                  class="thinking-expand-icon"
+                />
+                <span class="thinking-header-text">思考过程</span>
+              </div>
+              <div
+                class="chat-thinking-collapse-wrapper"
+                :class="{ expanded: isHistoryThinkingExpanded(msg.id) }"
+              >
+                <div class="chat-thinking-collapse-inner">
+                  <template
+                    v-if="msg.streamSegments && msg.streamSegments.length > 0"
                   >
+                    <template
+                      v-for="(seg, sIdx) in msg.streamSegments"
+                      :key="sIdx"
+                    >
+                      <div
+                        v-if="seg.type === 'thinking' && seg.content"
+                        class="chat-thinking-content"
+                      >
+                        <div
+                          v-html="renderMd(seg.content.replace(/\\n+$/, ''))"
+                        ></div>
+                      </div>
+                      <ToolCallDisplay
+                        v-if="
+                          seg.type === 'tool' &&
+                          getSegmentToolCalls(seg).length > 0
+                        "
+                        :toolCalls="getSegmentToolCalls(seg)"
+                        isHistorical
+                        @viewAllResults="handleViewHistoricalResults"
+                        class="thinking-inline-tools"
+                      />
+                    </template>
+                  </template>
+                  <template v-else>
                     <div
-                      v-html="renderMd(seg.content.replace(/\\n+$/, ''))"
-                    ></div>
-                  </div>
-                  <ToolCallDisplay
-                    v-if="
-                      seg.type === 'tool' && getSegmentToolCalls(seg).length > 0
-                    "
-                    :toolCalls="getSegmentToolCalls(seg)"
-                    isHistorical
-                    @viewAllResults="handleViewHistoricalResults"
-                    class="thinking-inline-tools"
-                  />
-                </template>
-              </template>
-              <template v-else>
-                <div v-if="msg.thinkingContent" class="chat-thinking-content">
-                  <div
-                    v-html="renderMd(msg.thinkingContent.replace(/\\n+$/, ''))"
-                  ></div>
+                      v-if="msg.thinkingContent"
+                      class="chat-thinking-content"
+                    >
+                      <div
+                        v-html="
+                          renderMd(msg.thinkingContent.replace(/\\n+$/, ''))
+                        "
+                      ></div>
+                    </div>
+                  </template>
                 </div>
-              </template>
+              </div>
+            </div>
+            <!-- 历史工具调用：仅在没有 streamSegments 时 fallback 显示 -->
+            <ToolCallDisplay
+              v-if="!msg.streamSegments && getHistoryToolCalls(msg).length > 0"
+              :toolCalls="getHistoryToolCalls(msg)"
+              isHistorical
+              @viewAllResults="handleViewHistoricalResults"
+            />
+            <div
+              class="chat-content markdown-body"
+              v-html="renderMd(msg.content)"
+            ></div>
+
+            <!-- 历史消息的性能统计 -->
+            <div v-if="getHistoryPerfStats(msg)" class="chat-perf-stats">
+              <span class="perf-text">{{ getHistoryPerfStats(msg) }}</span>
             </div>
           </div>
-        </div>
-        <!-- 历史工具调用：仅在没有 streamSegments 时 fallback 显示 -->
-        <ToolCallDisplay
-          v-if="!msg.streamSegments && getHistoryToolCalls(msg).length > 0"
-          :toolCalls="getHistoryToolCalls(msg)"
-          isHistorical
-          @viewAllResults="handleViewHistoricalResults"
-        />
-        <div
-          class="chat-content markdown-body"
-          v-html="renderMd(msg.content)"
-        ></div>
-
-        <!-- 历史消息的性能统计 -->
-        <div v-if="getHistoryPerfStats(msg)" class="chat-perf-stats">
-          <span class="perf-text">{{ getHistoryPerfStats(msg) }}</span>
         </div>
       </div>
     </template>
 
     <!-- 当前回合：用户提问 -->
-    <div v-if="userQuery" class="chat-user-query">
-      <span class="user-query-text">{{ userQuery }}</span>
-    </div>
-
-    <!-- 加载状态：等待 LLM 响应（小巧提示，左对齐） -->
-    <div
-      v-if="
-        isLoading &&
-        !hasContent &&
-        !hasThinkingContent &&
-        toolEvents.length === 0
+    <component
+      :is="shouldShowCurrentAnswerToggle ? 'button' : 'div'"
+      v-if="userQuery"
+      class="chat-user-query"
+      :class="{
+        'is-toggle': shouldShowCurrentAnswerToggle,
+        'is-expanded': currentAnswerExpanded,
+      }"
+      :type="shouldShowCurrentAnswerToggle ? 'button' : undefined"
+      @click="
+        shouldShowCurrentAnswerToggle &&
+          (currentAnswerExpanded = !currentAnswerExpanded)
       "
-      class="chat-loading"
     >
-      <div class="chat-loading-indicator">
-        <q-spinner-dots size="16px" :color="modeColor" />
-        <span class="chat-loading-text">{{ loadingText }}</span>
-      </div>
-    </div>
-
-    <!-- 当前回合：思考过程+工具调用（按 streamSegments 时间线交替渲染） -->
-    <div
-      v-if="hasThinkingContent || allToolCalls.length > 0"
-      class="chat-thinking-section"
-    >
-      <!-- 折叠头 -->
-      <div
-        class="chat-thinking-header"
-        @click="thinkingExpanded = !thinkingExpanded"
+      <span class="user-query-text">{{ userQuery }}</span>
+      <span
+        v-if="shouldShowCurrentAnswerToggle"
+        class="chat-round-toggle-bar-state"
       >
+        <span>{{ currentAnswerExpanded ? '收起回复' : '展开回复' }}</span>
         <q-icon
-          :name="thinkingExpanded ? 'expand_less' : 'expand_more'"
-          size="18px"
-          class="thinking-expand-icon"
+          :name="currentAnswerExpanded ? 'expand_less' : 'expand_more'"
+          size="16px"
         />
-        <span class="thinking-header-text">{{ thinkingHeaderLabel }}</span>
-        <span v-if="isThinkingPhase" class="thinking-active-indicator">
-          <span class="thinking-header-text">思考中</span>
-          <span class="thinking-dots"
-            ><span>.</span><span>.</span><span>.</span></span
+      </span>
+    </component>
+
+    <div
+      class="chat-answer-collapse-wrapper"
+      :class="{ expanded: currentAnswerExpanded }"
+    >
+      <div class="chat-answer-collapse-inner">
+        <!-- 加载状态：等待 LLM 响应（小巧提示，左对齐） -->
+        <div
+          v-if="
+            isLoading &&
+            !hasContent &&
+            !hasThinkingContent &&
+            toolEvents.length === 0
+          "
+          class="chat-loading"
+        >
+          <div class="chat-loading-indicator">
+            <q-spinner-dots size="16px" :color="modeColor" />
+            <span class="chat-loading-text">{{ loadingText }}</span>
+          </div>
+        </div>
+
+        <!-- 当前回合：思考过程+工具调用（按 streamSegments 时间线交替渲染） -->
+        <div
+          v-if="hasThinkingContent || allToolCalls.length > 0"
+          class="chat-thinking-section"
+        >
+          <!-- 折叠头 -->
+          <div
+            class="chat-thinking-header"
+            @click="thinkingExpanded = !thinkingExpanded"
           >
-        </span>
-      </div>
-      <!-- 可折叠内容：按时间线渲染 thinking 文本 + tool calls -->
-      <div
-        class="chat-thinking-collapse-wrapper"
-        :class="{ expanded: thinkingExpanded }"
-      >
-        <div class="chat-thinking-collapse-inner">
-          <template v-for="(seg, sIdx) in currentStreamSegments" :key="sIdx">
-            <!-- 思考文本片段 -->
-            <div
-              v-if="seg.type === 'thinking' && seg.content"
-              class="chat-thinking-content"
-            >
-              <div v-html="renderSegmentThinking(seg.content, sIdx)"></div>
-              <!-- 最后一个 thinking 片段 + 正在思考 + 无工具调用：显示光标 -->
-              <span
-                v-if="
-                  isLastThinkingSegment(sIdx) &&
-                  isThinkingPhase &&
-                  allToolCalls.length === 0
-                "
-                class="chat-cursor thinking-cursor"
-                >▊</span
-              >
-            </div>
-            <!-- 工具调用片段 -->
-            <ToolCallDisplay
-              v-if="seg.type === 'tool' && getSegmentToolCalls(seg).length > 0"
-              :toolCalls="getSegmentToolCalls(seg)"
-              :isAborted="isAborted"
-              @viewAllResults="handleViewCurrentResults"
-              class="thinking-inline-tools"
+            <q-icon
+              :name="thinkingExpanded ? 'expand_less' : 'expand_more'"
+              size="18px"
+              class="thinking-expand-icon"
             />
-          </template>
+            <span class="thinking-header-text">{{ thinkingHeaderLabel }}</span>
+            <span v-if="isThinkingPhase" class="thinking-active-indicator">
+              <span class="thinking-header-text">思考中</span>
+              <span class="thinking-dots"
+                ><span>.</span><span>.</span><span>.</span></span
+              >
+            </span>
+          </div>
+          <!-- 可折叠内容：按时间线渲染 thinking 文本 + tool calls -->
+          <div
+            class="chat-thinking-collapse-wrapper"
+            :class="{ expanded: thinkingExpanded }"
+          >
+            <div class="chat-thinking-collapse-inner">
+              <template
+                v-for="(seg, sIdx) in currentStreamSegments"
+                :key="sIdx"
+              >
+                <!-- 思考文本片段 -->
+                <div
+                  v-if="seg.type === 'thinking' && seg.content"
+                  class="chat-thinking-content"
+                >
+                  <div v-html="renderSegmentThinking(seg.content, sIdx)"></div>
+                  <!-- 最后一个 thinking 片段 + 正在思考 + 无工具调用：显示光标 -->
+                  <span
+                    v-if="
+                      isLastThinkingSegment(sIdx) &&
+                      isThinkingPhase &&
+                      allToolCalls.length === 0
+                    "
+                    class="chat-cursor thinking-cursor"
+                    >▊</span
+                  >
+                </div>
+                <!-- 工具调用片段 -->
+                <ToolCallDisplay
+                  v-if="
+                    seg.type === 'tool' && getSegmentToolCalls(seg).length > 0
+                  "
+                  :toolCalls="getSegmentToolCalls(seg)"
+                  :isAborted="isAborted"
+                  @viewAllResults="handleViewCurrentResults"
+                  class="thinking-inline-tools"
+                />
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- 流式光标（工具调用完成后、内容生成前，显示在工具调用下方） -->
+        <span
+          v-if="isLoading && !hasContent && allToolCalls.length > 0"
+          class="chat-cursor tool-after-cursor"
+          >▊</span
+        >
+
+        <!-- Markdown 内容渲染 -->
+        <div
+          v-if="hasContent"
+          class="chat-content markdown-body"
+          v-html="renderedContent"
+        ></div>
+
+        <!-- 流式光标（正在生成回答内容时显示） -->
+        <span
+          v-if="isLoading && hasContent && !isThinkingPhase"
+          class="chat-cursor"
+          >▊</span
+        >
+        <!-- 中止提示 -->
+        <div v-if="isAborted" class="chat-aborted">
+          <q-icon name="stop_circle" size="15px" />
+          <span class="chat-aborted-text">已中止生成</span>
+        </div>
+        <!-- 性能统计 -->
+        <div v-if="isDone && perfStats" class="chat-perf-stats">
+          <span class="perf-text">{{ formattedPerfStats }}</span>
+        </div>
+
+        <!-- 错误信息 -->
+        <div v-if="hasError" class="chat-error">
+          <q-icon name="error_outline" size="16px" color="negative" />
+          <span class="chat-error-text">{{ errorMessage }}</span>
+          <q-btn
+            flat
+            dense
+            size="sm"
+            label="重试"
+            color="primary"
+            @click="$emit('retry')"
+          />
         </div>
       </div>
-    </div>
-
-    <!-- 流式光标（工具调用完成后、内容生成前，显示在工具调用下方） -->
-    <span
-      v-if="isLoading && !hasContent && allToolCalls.length > 0"
-      class="chat-cursor tool-after-cursor"
-      >▊</span
-    >
-
-    <!-- Markdown 内容渲染 -->
-    <div
-      v-if="hasContent"
-      class="chat-content markdown-body"
-      v-html="renderedContent"
-    ></div>
-
-    <!-- 流式光标（正在生成回答内容时显示） -->
-    <span v-if="isLoading && hasContent && !isThinkingPhase" class="chat-cursor"
-      >▊</span
-    >
-    <!-- 中止提示 -->
-    <div v-if="isAborted" class="chat-aborted">
-      <q-icon name="stop_circle" size="15px" />
-      <span class="chat-aborted-text">已中止生成</span>
-    </div>
-    <!-- 性能统计 -->
-    <div v-if="isDone && perfStats" class="chat-perf-stats">
-      <span class="perf-text">{{ formattedPerfStats }}</span>
-    </div>
-
-    <!-- 错误信息 -->
-    <div v-if="hasError" class="chat-error">
-      <q-icon name="error_outline" size="16px" color="negative" />
-      <span class="chat-error-text">{{ errorMessage }}</span>
-      <q-btn
-        flat
-        dense
-        size="sm"
-        label="重试"
-        color="primary"
-        @click="$emit('retry')"
-      />
     </div>
   </div>
 </template>
@@ -227,6 +319,7 @@ import {
   defineComponent,
   ref,
   reactive,
+  watch,
   onMounted,
   onBeforeUnmount,
 } from 'vue';
@@ -269,7 +362,8 @@ export default defineComponent({
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
 
-    const thinkingExpanded = ref(true);
+    const thinkingExpanded = ref(false);
+    const currentAnswerExpanded = ref(true);
 
     const isLoading = computed(() => chatStore.isLoading);
     const hasContent = computed(() => chatStore.hasContent);
@@ -343,6 +437,39 @@ export default defineComponent({
       raw = raw.replace(/\n+$/, '');
       return renderMarkdown(raw);
     });
+
+    const shouldShowCurrentAnswerToggle = computed(() => {
+      return (
+        !!userQuery.value &&
+        (isLoading.value ||
+          hasThinkingContent.value ||
+          hasContent.value ||
+          allToolCalls.value.length > 0 ||
+          isAborted.value ||
+          hasError.value ||
+          !!perfStats.value)
+      );
+    });
+
+    watch(
+      isThinkingPhase,
+      (thinking) => {
+        if (thinking) {
+          thinkingExpanded.value = true;
+        }
+      },
+      { immediate: true }
+    );
+
+    watch(
+      () => chatStore.currentSession.query,
+      (query, previousQuery) => {
+        if (query && query !== previousQuery) {
+          currentAnswerExpanded.value = true;
+          thinkingExpanded.value = false;
+        }
+      }
+    );
 
     /** 格式化性能统计为完整字符串 */
     const formattedPerfStats = computed(() => {
@@ -449,6 +576,31 @@ export default defineComponent({
 
     /** 每条历史消息的 thinking 展开状态（默认折叠） */
     const historyThinkingExpandedMap = reactive<Record<string, boolean>>({});
+    const historyAnswerExpandedMap = reactive<Record<string, boolean>>({});
+
+    const getHistoryLinkedAssistant = (
+      msgIdx: number
+    ): ConversationMessage | null => {
+      const nextMsg = historyMessages.value[msgIdx + 1];
+      if (!nextMsg || nextMsg.role !== 'assistant') {
+        return null;
+      }
+      return nextMsg;
+    };
+
+    const toggleHistoryAnswer = (msgId: string) => {
+      historyAnswerExpandedMap[msgId] = !isHistoryAnswerExpanded(msgId);
+    };
+
+    const toggleHistoryAnswerByIndex = (msgIdx: number) => {
+      const assistantMsg = getHistoryLinkedAssistant(msgIdx);
+      if (!assistantMsg) return;
+      toggleHistoryAnswer(assistantMsg.id);
+    };
+
+    const isHistoryAnswerExpanded = (msgId: string): boolean => {
+      return historyAnswerExpandedMap[msgId] !== false;
+    };
 
     /** 判断历史消息是否有思考内容可显示 */
     const hasHistoryThinking = (msg: ConversationMessage): boolean => {
@@ -695,6 +847,7 @@ export default defineComponent({
 
     return {
       thinkingExpanded,
+      currentAnswerExpanded,
       isLoading,
       hasContent,
       hasThinkingContent,
@@ -715,6 +868,7 @@ export default defineComponent({
       thinkingHeaderLabel,
       renderedContent,
       renderedThinkingContent,
+      shouldShowCurrentAnswerToggle,
       formattedPerfStats,
       formatToolEvent,
       hasSearchTool,
@@ -724,6 +878,9 @@ export default defineComponent({
       renderSegmentThinking,
       isLastThinkingSegment,
       getSegmentToolCalls,
+      getHistoryLinkedAssistant,
+      toggleHistoryAnswerByIndex,
+      isHistoryAnswerExpanded,
       hasHistoryThinking,
       toggleHistoryThinking,
       isHistoryThinkingExpanded,
@@ -773,20 +930,61 @@ export default defineComponent({
 /* 用户提问 */
 .chat-user-query {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
   margin-bottom: 12px;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
   font-size: 14px;
-  opacity: 0.8;
+  opacity: 0.82;
   background: rgba(128, 128, 128, 0.06);
+  transition: background 0.18s ease, border-color 0.18s ease,
+    box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.chat-user-query.is-toggle {
+  appearance: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-user-query.is-toggle:hover {
+  opacity: 0.96;
+  background: rgba(128, 128, 128, 0.1);
+  border-color: rgba(128, 128, 128, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.04);
+}
+
+.chat-user-query.is-toggle:focus-visible {
+  outline: none;
+  border-color: rgba(24, 144, 255, 0.38);
+  box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.12);
+}
+
+.chat-user-query.is-expanded {
+  opacity: 0.95;
 }
 
 .user-query-text {
+  flex: 1;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+  min-width: 0;
+}
+
+.chat-round-toggle-bar-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1.2;
+  opacity: 0.72;
+  white-space: nowrap;
 }
 
 /* 历史助手消息 */
@@ -794,6 +992,21 @@ export default defineComponent({
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.chat-answer-collapse-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-answer-collapse-wrapper.expanded {
+  grid-template-rows: 1fr;
+}
+
+.chat-answer-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
 }
 
 /* 内联工具调用状态 */
@@ -1183,8 +1396,30 @@ body.body--light {
   }
 
   .chat-user-query {
-    background: rgba(0, 0, 0, 0.04);
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.035),
+      rgba(0, 0, 0, 0.055)
+    );
+    border-color: rgba(0, 0, 0, 0.06);
     color: #555;
+  }
+
+  .chat-user-query.is-toggle:hover {
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.05),
+      rgba(0, 0, 0, 0.08)
+    );
+    border-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .chat-user-query.is-expanded {
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.045),
+      rgba(0, 0, 0, 0.075)
+    );
   }
 
   .chat-error {
@@ -1229,8 +1464,30 @@ body.body--dark {
   }
 
   .chat-user-query {
-    background: rgba(255, 255, 255, 0.06);
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.055),
+      rgba(255, 255, 255, 0.035)
+    );
+    border-color: rgba(255, 255, 255, 0.08);
     color: #aaa;
+  }
+
+  .chat-user-query.is-toggle:hover {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.05)
+    );
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .chat-user-query.is-expanded {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.075),
+      rgba(255, 255, 255, 0.045)
+    );
   }
 
   .chat-error {

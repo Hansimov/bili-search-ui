@@ -13,7 +13,10 @@ import { useLayoutStore } from 'src/stores/layoutStore';
 import { useChatStore } from 'src/stores/chatStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
+import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
+import { useSearchModeStore } from 'src/stores/searchModeStore';
 import type { SearchMode } from 'src/stores/searchModeStore';
+import type { SmartSuggestion } from 'src/services/smartSuggestService';
 
 /**
  * 发起 LLM 聊天请求
@@ -101,4 +104,97 @@ export const submitByMode = async ({
         const { explore } = await import('src/functions/explore');
         await explore({ queryValue, setQuery, setRoute });
     }
+};
+
+export const resolveSuggestionQuery = (
+    item: Pick<SmartSuggestion, 'text' | 'type' | 'meta'>
+) => {
+    if (item.type === 'title' && item.meta?.bvid) {
+        return `bv=${item.meta.bvid}`;
+    }
+    if (item.type === 'author' && item.meta?.uid) {
+        return `uid=${item.meta.uid}`;
+    }
+    return item.text;
+};
+
+export const submitCurrentModeQuery = async ({
+    queryValue,
+    mode,
+    recordInputHistory = true,
+    setRoute = true,
+}: {
+    queryValue: string;
+    mode: SearchMode;
+    recordInputHistory?: boolean;
+    setRoute?: boolean;
+}) => {
+    const layoutStore = useLayoutStore();
+    const chatStore = useChatStore();
+    const searchModeStore = useSearchModeStore();
+    const inputHistoryStore = useInputHistoryStore();
+
+    const submittedQuery = queryValue.trim();
+    if (!submittedQuery) {
+        return false;
+    }
+
+    layoutStore.setIsSuggestVisible(false);
+    layoutStore.resetSuggestNavigation();
+
+    if (recordInputHistory) {
+        inputHistoryStore.addRecord(submittedQuery);
+    }
+
+    searchModeStore.setInitialSessionMode(mode);
+
+    if (mode === 'smart' || mode === 'think') {
+        const isContinuation =
+            chatStore.conversationHistory.length > 0 &&
+            searchModeStore.shouldUseInlineLayout;
+
+        if (isContinuation) {
+            await chat({
+                queryValue: submittedQuery,
+                mode,
+                setQuery: false,
+                setRoute: false,
+            });
+        } else {
+            chatStore.startNewChat();
+            await chat({
+                queryValue: submittedQuery,
+                mode,
+                setQuery: true,
+                setRoute,
+            });
+        }
+
+        layoutStore.setCurrentPage(1);
+        return true;
+    }
+
+    const { explore } = await import('src/functions/explore');
+    await explore({
+        queryValue: submittedQuery,
+        setQuery: true,
+        setRoute,
+    });
+    layoutStore.setCurrentPage(1);
+    return true;
+};
+
+export const submitSuggestionByMode = async ({
+    item,
+    mode,
+}: {
+    item: Pick<SmartSuggestion, 'text' | 'type' | 'meta'>;
+    mode: SearchMode;
+}) => {
+    return submitCurrentModeQuery({
+        queryValue: resolveSuggestionQuery(item),
+        mode,
+        recordInputHistory: true,
+        setRoute: true,
+    });
 };

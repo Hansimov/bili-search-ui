@@ -6,6 +6,8 @@ const mockQueryStore = {
 
 const mockLayoutStore = {
     setIsSuggestVisible: vi.fn(),
+    resetSuggestNavigation: vi.fn(),
+    setCurrentPage: vi.fn(),
 };
 
 const mockChatStore = {
@@ -13,7 +15,17 @@ const mockChatStore = {
     conversationHistory: [] as Array<{ role: string; content: string }>,
     currentHistoryRecordId: null as string | null,
     setCurrentHistoryRecordId: vi.fn(),
+    startNewChat: vi.fn(),
     sendChat: vi.fn(async () => undefined),
+};
+
+const mockInputHistoryStore = {
+    addRecord: vi.fn(),
+};
+
+const mockSearchModeStore = {
+    setInitialSessionMode: vi.fn(),
+    shouldUseInlineLayout: false,
 };
 
 const mockExploreStore = {
@@ -32,6 +44,14 @@ vi.mock('src/stores/queryStore', () => ({
 
 vi.mock('src/stores/layoutStore', () => ({
     useLayoutStore: () => mockLayoutStore,
+}));
+
+vi.mock('src/stores/inputHistoryStore', () => ({
+    useInputHistoryStore: () => mockInputHistoryStore,
+}));
+
+vi.mock('src/stores/searchModeStore', () => ({
+    useSearchModeStore: () => mockSearchModeStore,
 }));
 
 vi.mock('src/stores/chatStore', () => ({
@@ -56,6 +76,7 @@ describe('chat.ts flow', () => {
         mockChatStore.currentSessionId = 'session-123';
         mockChatStore.conversationHistory = [];
         mockChatStore.currentHistoryRecordId = null;
+        mockSearchModeStore.shouldUseInlineLayout = false;
     });
 
     it('chat 首次提交应写入 chat 路由参数并创建会话历史记录', async () => {
@@ -131,5 +152,71 @@ describe('chat.ts flow', () => {
         });
 
         expect(mockChatStore.sendChat).toHaveBeenCalledWith('smart query', 'smart');
+    });
+
+    it('submitCurrentModeQuery 在 direct 模式应统一走 explore 并记录输入历史', async () => {
+        const { submitCurrentModeQuery } = await import('src/functions/chat');
+
+        await submitCurrentModeQuery({
+            queryValue: 'direct query',
+            mode: 'direct',
+            recordInputHistory: true,
+            setRoute: true,
+        });
+
+        expect(mockLayoutStore.setIsSuggestVisible).toHaveBeenCalledWith(false);
+        expect(mockLayoutStore.resetSuggestNavigation).toHaveBeenCalledTimes(1);
+        expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith('direct query');
+        expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith('direct');
+        expect(mockExplore).toHaveBeenCalledWith({
+            queryValue: 'direct query',
+            setQuery: true,
+            setRoute: true,
+        });
+        expect(mockLayoutStore.setCurrentPage).toHaveBeenCalledWith(1);
+    });
+
+    it('submitCurrentModeQuery 在 chat 续接时不应新开会话', async () => {
+        const { submitCurrentModeQuery } = await import('src/functions/chat');
+
+        mockChatStore.conversationHistory = [{ role: 'user', content: 'old' }];
+        mockSearchModeStore.shouldUseInlineLayout = true;
+
+        await submitCurrentModeQuery({
+            queryValue: 'follow up',
+            mode: 'smart',
+            recordInputHistory: true,
+            setRoute: true,
+        });
+
+        expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith('follow up');
+        expect(mockChatStore.startNewChat).not.toHaveBeenCalled();
+        expect(mockQueryStore.setQuery).not.toHaveBeenCalled();
+        expect(mockChatStore.sendChat).toHaveBeenCalledWith('follow up', 'smart');
+    });
+
+    it('submitSuggestionByMode 应按当前 chat 模式提交而不是强制 explore', async () => {
+        const { submitSuggestionByMode } = await import('src/functions/chat');
+
+        await submitSuggestionByMode({
+            item: {
+                text: '老番茄',
+                type: 'author',
+                meta: { uid: 546195 },
+            },
+            mode: 'think',
+        });
+
+        expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith('uid=546195');
+        expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith('think');
+        expect(mockChatStore.startNewChat).toHaveBeenCalledTimes(1);
+        expect(mockQueryStore.setQuery).toHaveBeenCalledWith({
+            newQuery: 'uid=546195',
+            setRoute: true,
+            mode: 'think',
+            chatSessionId: 'session-123',
+        });
+        expect(mockChatStore.sendChat).toHaveBeenCalledWith('uid=546195', 'think');
+        expect(mockExplore).not.toHaveBeenCalled();
     });
 });

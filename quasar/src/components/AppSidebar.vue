@@ -1570,6 +1570,12 @@ body.body--dark .nav-item-active {
 
 .history-clear-btn {
   opacity: 0.5;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  margin-right: -2px;
+  align-self: center;
 }
 .history-clear-btn:hover {
   opacity: 1;
@@ -1600,7 +1606,7 @@ body.body--dark .nav-item-active {
 .history-item {
   display: flex;
   align-items: center;
-  padding: 6px 12px;
+  padding: 6px 6px 6px 12px;
   margin: 1px 8px;
   border-radius: 6px;
   cursor: pointer;
@@ -1846,10 +1852,15 @@ body.body--dark .sidebar-user-menu .q-item:hover {
 /* ============ 历史记录 more 按钮（非scoped，q-btn 内部样式需穿透） ============ */
 .history-more-btn {
   flex-shrink: 0;
+  align-self: center;
   opacity: 0.18;
   transition: opacity 0.15s ease;
   width: 24px;
   height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  margin-left: 4px;
+  margin-right: -2px;
 }
 .history-item:hover .history-more-btn,
 .history-item:focus-within .history-more-btn {
@@ -1904,6 +1915,7 @@ body.body--dark .sidebar-hover-tooltip {
   font-size: 13px;
   text-align: left;
   cursor: pointer;
+  color: inherit;
 }
 .history-action-menu-separator {
   height: 1px;
@@ -1918,10 +1930,12 @@ body.body--dark .history-action-menu-item--danger {
 body.body--light .history-action-menu {
   background-color: #f5f5f5;
   border: 1px solid #e0e0e0;
+  color: #2f2f2f;
 }
 body.body--dark .history-action-menu {
   background-color: #1a1a1a;
   border: 1px solid #333;
+  color: #e3e3e3;
 }
 body.body--light .history-action-menu-item:hover {
   background-color: #e8e8e8;

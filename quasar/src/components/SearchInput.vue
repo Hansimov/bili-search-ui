@@ -138,7 +138,10 @@ import {
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
 import { explore, abortExplore } from 'src/functions/explore';
-import { chat } from 'src/functions/chat';
+import {
+  submitCurrentModeQuery,
+  submitSuggestionByMode,
+} from 'src/functions/chat';
 import {
   getSmartSuggestService,
   suggestIndexVersion,
@@ -357,7 +360,7 @@ export default {
             displayOverride.value = null;
             layoutStore.resetSuggestNavigation();
             suppressSuggest.value = true;
-            executeSuggestionAction(selected);
+            void executeSuggestionAction(selected);
             return;
           }
         }
@@ -409,22 +412,20 @@ export default {
      * - author (用户) → 搜索 uid=... 语句
      * - 其他 → 搜索建议文本
      */
-    const executeSuggestionAction = (item: SmartSuggestion) => {
-      layoutStore.setIsSuggestVisible(false);
-      let searchQuery = item.text;
-      if (item.type === 'title' && item.meta?.bvid) {
-        searchQuery = `bv=${item.meta.bvid}`;
-      } else if (item.type === 'author' && item.meta?.uid) {
-        searchQuery = `uid=${item.meta.uid}`;
-      }
-      queryModel.value = searchQuery;
-      // 建议操作始终使用 explore（直接查找）模式
-      explore({
-        queryValue: searchQuery,
-        setQuery: true,
-        setRoute: true,
+    const executeSuggestionAction = async (item: SmartSuggestion) => {
+      const didSubmit = await submitSuggestionByMode({
+        item,
+        mode: currentMode.value,
       });
-      layoutStore.setCurrentPage(1);
+      if (!didSubmit) return;
+
+      displayOverride.value = null;
+      suppressSuggest.value = true;
+
+      if (currentMode.value === 'smart' || currentMode.value === 'think') {
+        queryModel.value = '';
+        nextTick(() => autoResize());
+      }
     };
 
     /** 导航建议列表（direction: 1=下, -1=上） — 仅预览，不修改 queryStore */
@@ -564,54 +565,18 @@ export default {
     );
 
     const submitQuery = async () => {
-      if (!queryModel.value || !queryModel.value.trim()) return;
-      const submittedQuery = queryModel.value.trim();
       const mode = searchModeStore.currentMode;
-
-      // 建议栏输入记录：仅记录用户提交过的 input，与侧边栏历史分离
-      inputHistoryStore.addRecord(submittedQuery);
-
-      // 首次提交时记录模式，用于锁定布局（必须在调用 explore/chat 之前设置）
-      searchModeStore.setInitialSessionMode(mode);
+      const didSubmit = await submitCurrentModeQuery({
+        queryValue: queryModel.value,
+        mode,
+        recordInputHistory: true,
+        setRoute: true,
+      });
+      if (!didSubmit) return;
 
       if (mode === 'smart' || mode === 'think') {
-        // 判断是否为多轮对话续接（已有对话历史且布局已锁定为 chat 模式）
-        const isContinuation =
-          chatStore.conversationHistory.length > 0 &&
-          searchModeStore.shouldUseInlineLayout;
-
-        if (isContinuation) {
-          // 多轮续接：只发送聊天请求，不改路由、不重新 explore
-          // 避免 route watcher 二次触发 explore 和输入框闪烁
-          chat({
-            queryValue: submittedQuery,
-            mode,
-            setQuery: false,
-            setRoute: false,
-          });
-        } else {
-          // 首次提交：生成新的 sessionId，设置路由并触发聊天
-          chatStore.startNewChat();
-          chat({
-            queryValue: submittedQuery,
-            mode,
-            setQuery: true,
-            setRoute: true,
-          });
-        }
-
-        layoutStore.setCurrentPage(1);
-        // 提交后清空输入框
         queryModel.value = '';
         nextTick(() => autoResize());
-      } else {
-        // 直接查找模式：仅触发 explore
-        await explore({
-          queryValue: submittedQuery,
-          setQuery: true,
-          setRoute: true,
-        });
-        layoutStore.setCurrentPage(1);
       }
     };
 
