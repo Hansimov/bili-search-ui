@@ -13,7 +13,7 @@
         <span class="tooltip-top-bar"></span>
         <span class="tooltip-bottom-bar"></span>
         <img
-          :src="coverUrl"
+          :src="cachedCoverUrl || coverUrl"
           class="tooltip-cover"
           referrerpolicy="no-referrer"
           loading="lazy"
@@ -60,6 +60,7 @@ import {
   normalizeVideoPicUrl,
   type VideoHitLike,
 } from 'src/utils/videoHit';
+import { useCachedImage } from 'src/composables/useCachedImage';
 type VideoHit = VideoHitLike;
 
 const TOOLTIP_ESTIMATED_HEIGHT = 260;
@@ -165,6 +166,8 @@ export default defineComponent({
       return normalizeVideoPicUrl(normalizedVideoInfo.value?.pic);
     });
 
+    const { cachedSrc: cachedCoverUrl } = useCachedImage(() => coverUrl.value);
+
     const formattedDuration = computed(() => {
       const duration = normalizedVideoInfo.value?.duration;
       return duration ? secondsToDuration(duration) : '';
@@ -202,6 +205,7 @@ export default defineComponent({
       tooltipPlacementClass,
       tooltipStyle,
       coverUrl,
+      cachedCoverUrl,
       formattedDuration,
       formattedViews,
       ownerName,

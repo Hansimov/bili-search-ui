@@ -566,18 +566,31 @@ export default {
 
     const submitQuery = async () => {
       const mode = searchModeStore.currentMode;
+      const submittedQuery = queryModel.value;
+      const shouldClearImmediately =
+        (mode === 'smart' || mode === 'think') && !!submittedQuery.trim();
+
+      if (shouldClearImmediately) {
+        queryModel.value = '';
+        displayOverride.value = null;
+        nextTick(() => autoResize());
+      }
+
       const didSubmit = await submitCurrentModeQuery({
-        queryValue: queryModel.value,
+        queryValue: submittedQuery,
         mode,
         recordInputHistory: true,
         setRoute: true,
       });
-      if (!didSubmit) return;
-
-      if (mode === 'smart' || mode === 'think') {
-        queryModel.value = '';
-        nextTick(() => autoResize());
+      if (!didSubmit) {
+        if (shouldClearImmediately) {
+          queryModel.value = submittedQuery;
+          nextTick(() => autoResize());
+        }
+        return;
       }
+
+      if (shouldClearImmediately) return;
     };
 
     /** 是否有请求正在进行中（搜索或聊天） */

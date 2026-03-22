@@ -72,6 +72,9 @@
                 class="chat-thinking-header"
                 @click="toggleHistoryThinking(msg.id)"
               >
+                <div class="chat-thinking-header-main">
+                  <span class="thinking-header-text">思考过程</span>
+                </div>
                 <q-icon
                   :name="
                     isHistoryThinkingExpanded(msg.id)
@@ -81,7 +84,6 @@
                   size="18px"
                   class="thinking-expand-icon"
                 />
-                <span class="thinking-header-text">思考过程</span>
               </div>
               <div
                 class="chat-thinking-collapse-wrapper"
@@ -138,8 +140,26 @@
               @viewAllResults="handleViewHistoricalResults"
             />
             <div
+              v-if="hasRenderableBvLinks(msg.content)"
+              class="chat-content-toolbar"
+            >
+              <div class="chat-content-view-switch" @click.stop>
+                <button
+                  v-for="option in videoViewOptions"
+                  :key="option.value"
+                  type="button"
+                  class="chat-content-view-option"
+                  :class="{ active: videoLinkView === option.value }"
+                  @click="setVideoLinkView(option.value)"
+                >
+                  <q-icon :name="option.icon" size="14px" />
+                  <span>{{ option.label }}</span>
+                </button>
+              </div>
+            </div>
+            <div
               class="chat-content markdown-body"
-              v-html="renderMd(msg.content)"
+              v-html="renderAnswerMd(msg.content)"
             ></div>
 
             <!-- 历史消息的性能统计 -->
@@ -278,6 +298,24 @@
 
         <!-- Markdown 内容渲染 -->
         <div
+          v-if="hasContent && hasCurrentBvLinks"
+          class="chat-content-toolbar"
+        >
+          <div class="chat-content-view-switch" @click.stop>
+            <button
+              v-for="option in videoViewOptions"
+              :key="option.value"
+              type="button"
+              class="chat-content-view-option"
+              :class="{ active: videoLinkView === option.value }"
+              @click="setVideoLinkView(option.value)"
+            >
+              <q-icon :name="option.icon" size="14px" />
+              <span>{{ option.label }}</span>
+            </button>
+          </div>
+        </div>
+        <div
           v-if="hasContent"
           class="chat-content markdown-body"
           v-html="renderedContent"
@@ -341,7 +379,8 @@ import type {
   Usage,
 } from 'src/services/chatService';
 import { renderMarkdown } from 'src/utils/markdown';
-import { normalizeVideoHit } from 'src/utils/videoHit';
+import { humanReadableNumber, secondsToDuration } from 'src/utils/convert';
+import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
 import ToolCallDisplay from './ToolCallDisplay.vue';
 import BiliVideoTooltip from './BiliVideoTooltip.vue';
 
@@ -351,6 +390,23 @@ const TOOL_LABELS: Record<string, string> = {
   check_author: '查询作者',
   read_spec: '阅读文档',
 };
+
+const RENDERED_BV_LINK_RE =
+  /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="bili-video-ref"[^>]*>(.*?)<\/a>/g;
+const RENDERED_BV_LINK_DETECT_RE =
+  /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="bili-video-ref"[^>]*>/;
+
+type VideoLinkViewMode = 'text' | 'card' | 'compact';
+
+const VIDEO_VIEW_OPTIONS: Array<{
+  value: VideoLinkViewMode;
+  label: string;
+  icon: string;
+}> = [
+  { value: 'text', label: '文本', icon: 'article' },
+  { value: 'card', label: '卡片', icon: 'view_agenda' },
+  { value: 'compact', label: '紧凑', icon: 'grid_view' },
+];
 
 export default defineComponent({
   name: 'ChatResponsePanel',
@@ -366,6 +422,7 @@ export default defineComponent({
 
     const thinkingExpanded = ref(false);
     const currentAnswerExpanded = ref(true);
+    const videoLinkView = ref<VideoLinkViewMode>('text');
 
     const isLoading = computed(() => chatStore.isLoading);
     const hasContent = computed(() => chatStore.hasContent);
@@ -418,12 +475,122 @@ export default defineComponent({
       return '思考过程';
     });
 
+    const stripHtml = (value: string): string => {
+      return value
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const escapeHtml = (value: string): string => {
+      return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
+    const formatVideoViews = (views?: number): string => {
+      if (views == null) return '';
+      return `${humanReadableNumber(views)} 播放`;
+    };
+
+    const formatVideoDuration = (duration?: number): string => {
+      if (!duration) return '';
+      return secondsToDuration(duration);
+    };
+
+    const formatVideoCompactStats = (video: VideoHit): string => {
+      const parts: string[] = [];
+      if (video.owner?.name) {
+        parts.push(video.owner.name);
+      }
+      const views = formatVideoViews(video.stat?.view);
+      if (views) {
+        parts.push(views);
+      }
+      return parts.join(' · ');
+    };
+
+    const renderAnswerMd = (text: string): string => {
+      const html = renderMarkdown(text);
+      if (!html || videoLinkView.value === 'text') {
+        return html;
+      }
+
+      return html.replace(RENDERED_BV_LINK_RE, (match, bvid, innerHtml) => {
+        const video = videoMap.value.get(bvid);
+        if (!video) {
+          return match;
+        }
+
+        const coverUrl = normalizeVideoPicUrl(video.pic);
+        const title = escapeHtml(video.title || stripHtml(innerHtml) || bvid);
+        const author = escapeHtml(video.owner?.name || '');
+        const viewText = escapeHtml(formatVideoViews(video.stat?.view));
+        const duration = escapeHtml(formatVideoDuration(video.duration));
+        const compactStats = escapeHtml(formatVideoCompactStats(video));
+
+        if (videoLinkView.value === 'compact') {
+          return `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-compact-ref" data-bvid="${bvid}" target="_blank" rel="noopener"><span class="bili-video-compact-cover-wrap">${
+            coverUrl
+              ? `<img src="${escapeHtml(
+                  coverUrl
+                )}" class="bili-video-compact-cover" loading="lazy" referrerpolicy="no-referrer" />`
+              : '<span class="bili-video-compact-cover bili-video-compact-cover-placeholder"></span>'
+          }${
+            duration
+              ? `<span class="bili-video-compact-duration">${duration}</span>`
+              : ''
+          }</span><span class="bili-video-compact-meta"><span class="bili-video-compact-title">${title}</span>${
+            compactStats
+              ? `<span class="bili-video-compact-stats">${compactStats}</span>`
+              : ''
+          }</span></a>`;
+        }
+
+        return `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-card-ref" data-bvid="${bvid}" target="_blank" rel="noopener"><span class="bili-video-card-cover-wrap">${
+          coverUrl
+            ? `<img src="${escapeHtml(
+                coverUrl
+              )}" class="bili-video-card-cover" loading="lazy" referrerpolicy="no-referrer" />`
+            : '<span class="bili-video-card-cover bili-video-card-cover-placeholder"></span>'
+        }${
+          duration
+            ? `<span class="bili-video-card-duration">${duration}</span>`
+            : ''
+        }</span><span class="bili-video-card-meta"><span class="bili-video-card-title">${title}</span><span class="bili-video-card-subline">${
+          author ? `<span class="bili-video-card-author">${author}</span>` : ''
+        }${
+          viewText
+            ? `<span class="bili-video-card-views">${viewText}</span>`
+            : ''
+        }</span></span></a>`;
+      });
+    };
+
+    const hasRenderableBvLinks = (text: string): boolean => {
+      if (!text) return false;
+      return RENDERED_BV_LINK_DETECT_RE.test(renderMarkdown(text));
+    };
+
     /** 渲染 Markdown 内容为 HTML */
     const renderedContent = computed(() => {
       const raw = chatStore.content;
       if (!raw) return '';
-      return renderMarkdown(raw);
+      return renderAnswerMd(raw);
     });
+
+    const hasCurrentBvLinks = computed(() => {
+      return hasRenderableBvLinks(chatStore.content || '');
+    });
+
+    const videoViewOptions = VIDEO_VIEW_OPTIONS;
+
+    const setVideoLinkView = (mode: VideoLinkViewMode) => {
+      videoLinkView.value = mode;
+    };
 
     /** 渲染思考内容为 HTML（去除末尾空行） */
     const renderedThinkingContent = computed(() => {
@@ -463,6 +630,7 @@ export default defineComponent({
         if (query && query !== previousQuery) {
           currentAnswerExpanded.value = true;
           thinkingExpanded.value = false;
+          videoLinkView.value = 'text';
         }
       }
     );
@@ -805,7 +973,7 @@ export default defineComponent({
     // Event delegation for mouseenter/mouseleave on a.bili-video-ref
     const onPanelMouseOver = (e: MouseEvent) => {
       const target = (e.target as HTMLElement).closest?.(
-        'a.bili-video-ref'
+        'a.bili-video-ref, a.bili-video-card-ref, a.bili-video-compact-ref'
       ) as HTMLElement | null;
       if (!target) return;
       const bvid = target.dataset.bvid;
@@ -814,10 +982,10 @@ export default defineComponent({
 
     const onPanelMouseOut = (e: MouseEvent) => {
       const target = (e.target as HTMLElement).closest?.(
-        'a.bili-video-ref'
+        'a.bili-video-ref, a.bili-video-card-ref, a.bili-video-compact-ref'
       ) as HTMLElement | null;
       const related = (e.relatedTarget as HTMLElement)?.closest?.(
-        'a.bili-video-ref, .bili-video-tooltip'
+        'a.bili-video-ref, a.bili-video-card-ref, a.bili-video-compact-ref, .bili-video-tooltip'
       ) as HTMLElement | null;
       if (target && !related) {
         scheduleHide();
@@ -862,6 +1030,12 @@ export default defineComponent({
       loadingText,
       thinkingHeaderLabel,
       renderedContent,
+      hasCurrentBvLinks,
+      videoLinkView,
+      videoViewOptions,
+      setVideoLinkView,
+      hasRenderableBvLinks,
+      renderAnswerMd,
       renderedThinkingContent,
       shouldShowCurrentAnswerToggle,
       formattedPerfStats,
@@ -1231,6 +1405,47 @@ export default defineComponent({
   opacity: 0.6;
 }
 
+.chat-content-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin: 4px 0 8px;
+}
+
+.chat-content-view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.chat-content-view-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid rgba(128, 128, 128, 0.08);
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.03);
+  color: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+
+  &:hover {
+    opacity: 0.78;
+    background: rgba(128, 128, 128, 0.05);
+    border-color: rgba(128, 128, 128, 0.12);
+  }
+}
+
+.chat-content-view-option.active {
+  opacity: 0.9;
+  background: rgba(128, 128, 128, 0.07);
+  border-color: rgba(128, 128, 128, 0.14);
+}
+
 /* 流式光标 */
 .chat-cursor {
   display: inline;
@@ -1352,6 +1567,171 @@ export default defineComponent({
     }
   }
 
+  :deep(a.bili-video-card-ref) {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    margin: 10px 0;
+    padding: 8px;
+    border: 1px solid rgba(128, 128, 128, 0.08);
+    border-radius: 10px;
+    background: rgba(128, 128, 128, 0.025);
+    color: inherit;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: rgba(128, 128, 128, 0.05);
+      border-color: rgba(128, 128, 128, 0.12);
+      text-decoration: none;
+    }
+  }
+
+  :deep(.bili-video-card-cover-wrap) {
+    position: relative;
+    width: 112px;
+    min-width: 112px;
+    aspect-ratio: 16 / 10;
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(128, 128, 128, 0.08);
+  }
+
+  :deep(.bili-video-card-cover) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  :deep(.bili-video-card-cover-placeholder) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: rgba(128, 128, 128, 0.08);
+  }
+
+  :deep(.bili-video-card-duration) {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.58);
+    color: #fff;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
+  :deep(.bili-video-card-meta) {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  :deep(.bili-video-card-title) {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: 13px;
+    line-height: 1.45;
+    font-weight: 500;
+    color: inherit;
+  }
+
+  :deep(.bili-video-card-subline) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    opacity: 0.56;
+  }
+
+  :deep(a.bili-video-compact-ref) {
+    display: inline-flex;
+    width: min(100%, 176px);
+    margin: 8px 10px 8px 0;
+    flex-direction: column;
+    vertical-align: top;
+    border: 1px solid rgba(128, 128, 128, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(128, 128, 128, 0.025);
+    color: inherit;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: rgba(128, 128, 128, 0.05);
+      border-color: rgba(128, 128, 128, 0.12);
+      text-decoration: none;
+    }
+  }
+
+  :deep(.bili-video-compact-cover-wrap) {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: rgba(128, 128, 128, 0.08);
+  }
+
+  :deep(.bili-video-compact-cover) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  :deep(.bili-video-compact-cover-placeholder) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: rgba(128, 128, 128, 0.08);
+  }
+
+  :deep(.bili-video-compact-duration) {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.58);
+    color: #fff;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
+  :deep(.bili-video-compact-meta) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 9px 9px;
+    min-width: 0;
+  }
+
+  :deep(.bili-video-compact-title) {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: 12px;
+    line-height: 1.4;
+    font-weight: 500;
+    color: inherit;
+  }
+
+  :deep(.bili-video-compact-stats) {
+    font-size: 10px;
+    line-height: 1.35;
+    opacity: 0.54;
+  }
+
   :deep(code) {
     padding: 1px 6px;
     border-radius: 4px;
@@ -1437,6 +1817,21 @@ body.body--light {
     background: rgba(244, 67, 54, 0.05);
   }
 
+  .chat-content-view-option {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.07);
+  }
+
+  .chat-content-view-option:hover {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .chat-content-view-option.active {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.12);
+  }
+
   .chat-content {
     :deep(code) {
       background: rgba(0, 0, 0, 0.06);
@@ -1503,6 +1898,21 @@ body.body--dark {
     background: rgba(244, 67, 54, 0.1);
   }
 
+  .chat-content-view-option {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.07);
+  }
+
+  .chat-content-view-option:hover {
+    background: rgba(255, 255, 255, 0.035);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .chat-content-view-option.active {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
   .tool-inline-link {
     color: #64b5f6;
   }
@@ -1516,6 +1926,26 @@ body.body--dark {
       color: #23ade5;
       &:hover {
         color: #4fc3f7;
+      }
+    }
+
+    :deep(a.bili-video-card-ref) {
+      background: rgba(255, 255, 255, 0.022);
+      border-color: rgba(255, 255, 255, 0.08);
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.038);
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+    }
+
+    :deep(a.bili-video-compact-ref) {
+      background: rgba(255, 255, 255, 0.022);
+      border-color: rgba(255, 255, 255, 0.08);
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.038);
+        border-color: rgba(255, 255, 255, 0.1);
       }
     }
 
