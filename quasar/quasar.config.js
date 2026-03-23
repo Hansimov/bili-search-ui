@@ -11,8 +11,10 @@
 const { configure } = require('quasar/wrappers');
 
 // 从环境变量或默认值获取端口配置
+const BACKEND_HOST = process.env.BACKEND_HOST || '127.0.0.1';
 const BACKEND_PORT = process.env.BACKEND_PORT || 21001;
 const FRONTEND_PORT = process.env.FRONTEND_PORT || 21002;
+const WEBSOCKET_HOST = process.env.WEBSOCKET_HOST || '127.0.0.1';
 const WEBSOCKET_PORT = process.env.WEBSOCKET_PORT || 21003;
 
 module.exports = configure(function (/* ctx */) {
@@ -181,13 +183,13 @@ module.exports = configure(function (/* ctx */) {
                 // https://quasar.dev/quasar-cli-vite/api-proxying
                 // proxy all requests starting with /api to jsonplaceholder
                 '/api': {
-                    target: `http://localhost:${BACKEND_PORT}`,
+                    target: `http://${BACKEND_HOST}:${BACKEND_PORT}`,
                     changeOrigin: true,
                     rewrite: (path) => path.replace(/^\/api/, ''),
                 },
                 // proxy all websocket requests to websocket server
                 '/ws': {
-                    target: `ws://localhost:${WEBSOCKET_PORT}/ws`,
+                    target: `ws://${WEBSOCKET_HOST}:${WEBSOCKET_PORT}/ws`,
                     ws: true,
                     changeOrigin: true,
                     rewrite: (path) => path.replace(/^\/ws/, ''),

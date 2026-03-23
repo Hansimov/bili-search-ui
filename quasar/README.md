@@ -1,51 +1,44 @@
 # Bili Search UI
 
-A UI for Bili Search Project.
+`quasar/` 目录只负责前端应用本身。
+
+服务管理、Docker、命令行、实例状态和启动矩阵已经迁移到仓库根目录的 [run/README.md](/home/asimov/repos/bili-search-ui/run/README.md)。
+
+## 前置要求
+
+本地运行：
+
+- Node.js 18+，建议 20+
+- npm
+
+Docker 运行：
+
+- Docker
+- Docker Compose Plugin，也就是 `docker compose`
 
 ## 安装依赖
+
 ```bash
 npm install
 ```
 
-## 构建
+## 运行与管理
+
+运行和服务管理请看 [run/README.md](/home/asimov/repos/bili-search-ui/run/README.md)。
+
+如果你只想在当前目录快速启动前台实例，保留了两个包装脚本：
+
 ```bash
-npm run build
-```
-
-## 运行
-
-### 命令行参数
-
-```sh
--fp (--frontend-port):  前端 UI   端口 (默认: 21002)
--bp (--backend-port):   后端 API  端口 (默认: 21001)  
--wp (--websocket-port): 通信 WbSk 端口 (默认: 21003)
-```
-
-### 开发模式 (dev)
-```bash
-# 默认端口 (前端:21002, 后端:21001, WebSocket:21003)
 npm run dev
-
-# 自定义端口
-npm run dev -- -fp 21012 -bp 21011 -wp 21013
-node qrun.js dev -fp 21012 -bp 21011 -wp 21013
+npm run serve
 ```
 
-### 生产模式 (serve)
-```bash
-# 默认端口
-npm run serve -- ./dist/spa --proxy proxy.mjs --history
+其中 `serve` 对应 `bxsv` 的 `pro` 模式；常用运行组合请直接使用 `bxsv templates` 和 `bxsv start --template ...`。
 
-# 自定义端口
-npm run serve -- ./dist/spa --proxy proxy.mjs --history -fp 21012 -bp 21011
-node qrun.js serve ./dist/spa --proxy proxy.mjs --history -fp 21012 -bp 21011
-```
-
-### 环境变量
-
-也可以通过环境变量来设置端口。不过命令行参数会覆盖环境变量。
+## 开发校验
 
 ```bash
-FRONTEND_PORT=21012 BACKEND_PORT=21011 WEBSOCKET_PORT=21013 npm run dev
+npm test
+npm run lint
+npm run typecheck
 ```

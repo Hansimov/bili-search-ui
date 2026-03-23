@@ -9,27 +9,66 @@
  * - 评分排序与去重
  * - 不同类型点击行为：文本直接搜索，视频 bv=... ，用户 uid=...
  *
- * 使用 hotoo/pinyin 库实现精准的中文拼音转换。
+ * 使用轻量拼音库实现按需拼音转换。
  */
 
 import { ref } from 'vue';
 
-type PinyinFn = (text: string, options: { style: string }) => string[][];
-let _pinyin: PinyinFn | null = null;
-let _pinyinPromise: Promise<PinyinFn> | null = null;
+type PinyinToken = {
+    type: 1 | 2 | 3;
+    source: string;
+    target: string;
+};
+type PinyinLib = {
+    isSupported(force?: boolean): boolean;
+    parse(text: string): PinyinToken[];
+    convertToPinyin(text: string, separator?: string, lowerCase?: boolean): string;
+    patchDict?(patcher: (dict: { EXCEPTIONS: Record<string, string> }) => void): void;
+};
+type PinyinInfo = { full: string; initials: string };
+let _pinyin: PinyinLib | null = null;
+let _pinyinPromise: Promise<PinyinLib> | null = null;
+let _pinyinUnavailable = false;
 
-export function loadPinyin(): Promise<PinyinFn> {
+export function loadPinyin(): Promise<PinyinLib> {
     if (_pinyin) return Promise.resolve(_pinyin);
+    if (_pinyinUnavailable) {
+        return Promise.reject(new Error('pinyin support is unavailable'));
+    }
     if (!_pinyinPromise) {
-        _pinyinPromise = import('pinyin').then(m => {
-            _pinyin = m.pinyin as unknown as PinyinFn;
-            return _pinyin!;
-        });
+        _pinyinPromise = import('tiny-pinyin')
+            .then(m => {
+                const candidate = (m.default ?? m) as unknown as PinyinLib;
+                candidate.patchDict?.((dict) => {
+                    dict.EXCEPTIONS = {
+                        ...dict.EXCEPTIONS,
+                        茄: 'QIE',
+                    };
+                });
+                if (!candidate?.isSupported?.()) {
+                    throw new Error('tiny-pinyin is not supported in current runtime');
+                }
+                _pinyin = candidate;
+                suggestIndexVersion.value++;
+                return _pinyin!;
+            })
+            .catch((error) => {
+                _pinyinPromise = null;
+                _pinyinUnavailable = true;
+                throw error;
+            });
     }
     return _pinyinPromise!;
 }
 
-function getPinyinSync(): PinyinFn | null {
+function requestPinyinLoad(): void {
+    if (_pinyin || _pinyinPromise || _pinyinUnavailable) {
+        return;
+    }
+    void loadPinyin().catch(() => undefined);
+}
+
+function getPinyinSync(): PinyinLib | null {
     return _pinyin;
 }
 
@@ -72,9 +111,9 @@ interface IndexEntry {
     /** 小写化文本 */
     lower: string;
     /** 拼音全拼（空格分割）：如 "ying shi ju feng" */
-    pinyinFull: string;
+    pinyinFull?: string;
     /** 拼音首字母：如 "ysjf" */
-    pinyinInitials: string;
+    pinyinInitials?: string;
     /** 类型 */
     type: SuggestionType;
     /** 频次 / 权重 */
@@ -106,9 +145,11 @@ interface CoOccurrenceEntry {
 /** 缓存：text → { full, initials } */
 const pinyinCache = new Map<string, { full: string; initials: string }>();
 
+const EMPTY_PINYIN_INFO: PinyinInfo = { full: '', initials: '' };
+
 /**
  * 获取文本的拼音信息（全拼 + 首字母）
- * 使用 hotoo/pinyin 库，支持多音字智能选择
+ * 使用轻量拼音库生成全拼和首字母。
  */
 function getPinyinInfo(text: string): { full: string; initials: string } {
     if (!text) return { full: '', initials: '' };
@@ -116,35 +157,28 @@ function getPinyinInfo(text: string): { full: string; initials: string } {
     const cached = pinyinCache.get(text);
     if (cached) return cached;
 
-    // 分字处理：中文用 pinyin 库，非中文保留原样
+    // 分字处理：中文用拼音库，非中文保留原样
     const chars = Array.from(text);
     const fullParts: string[] = [];
     const initialParts: string[] = [];
 
-    // 收集连续中文段一起处理，利用 pinyin 库的词组智能选择
+    // 收集连续中文段一起处理。
     let chineseBuf = '';
     const flushChinese = () => {
         if (!chineseBuf) return;
-        const pinyinFn = getPinyinSync();
-        if (pinyinFn) {
+        const pinyinLib = getPinyinSync();
+        if (pinyinLib) {
             try {
-                const result = pinyinFn(chineseBuf, { style: 'normal' });
-                for (const py of result) {
-                    const p = py[0] || '';
+                const tokens = pinyinLib.parse(chineseBuf);
+                for (const token of tokens) {
+                    if (token.type !== 2) {
+                        continue;
+                    }
+                    const p = token.target.toLowerCase();
                     fullParts.push(p);
                     initialParts.push(p.charAt(0));
                 }
             } catch {
-                // fallback: treat each char as-is
-                for (const c of Array.from(chineseBuf)) {
-                    fullParts.push(c.toLowerCase());
-                    initialParts.push(c.toLowerCase());
-                }
-            }
-        } else {
-            for (const c of Array.from(chineseBuf)) {
-                fullParts.push(c.toLowerCase());
-                initialParts.push(c.toLowerCase());
             }
         }
         chineseBuf = '';
@@ -180,6 +214,24 @@ function getPinyinInfo(text: string): { full: string; initials: string } {
         }
     }
     pinyinCache.set(text, info);
+    return info;
+}
+
+function getEntryPinyinInfo(entry: IndexEntry): PinyinInfo | null {
+    if (entry.pinyinFull !== undefined && entry.pinyinInitials !== undefined) {
+        return {
+            full: entry.pinyinFull,
+            initials: entry.pinyinInitials,
+        };
+    }
+
+    if (!getPinyinSync()) {
+        return null;
+    }
+
+    const info = getPinyinInfo(entry.text);
+    entry.pinyinFull = info.full;
+    entry.pinyinInitials = info.initials;
     return info;
 }
 
@@ -461,7 +513,7 @@ function highlightMatch(text: string, query: string): string {
     }
 
     // 2b. 中文输入 → 拼音匹配高亮（如"李思维"匹配"李四维"）
-    if (hasChinese(lowerQuery)) {
+    if (hasChinese(lowerQuery) && getPinyinSync()) {
         const queryPy = getPinyinInfo(lowerQuery);
         const fullQueryPy = queryPy.full.replace(/\s+/g, '');
         if (fullQueryPy.length >= 2) {
@@ -517,42 +569,27 @@ function matchPinyinPositions(text: string, queryLower: string): Array<[number, 
     // 为每个字符生成拼音信息
     const charPinyins: Array<{ char: string; pinyin: string; initial: string; isChinese: boolean }> = [];
 
-    // 收集连续中文段一起处理以利用词组拼音
+    // 收集连续中文段一起处理
     let chineseBuf = '';
     const flushChinese = () => {
         if (!chineseBuf) return;
-        const pinyinFn = getPinyinSync();
-        if (pinyinFn) {
+        const pinyinLib = getPinyinSync();
+        if (pinyinLib) {
             try {
-                const result = pinyinFn(chineseBuf, { style: 'normal' });
-                const bufChars = Array.from(chineseBuf);
-                for (let i = 0; i < bufChars.length; i++) {
-                    const py = result[i]?.[0] || '';
+                const tokens = pinyinLib.parse(chineseBuf);
+                for (const token of tokens) {
+                    if (token.type !== 2) {
+                        continue;
+                    }
+                    const py = token.target.toLowerCase();
                     charPinyins.push({
-                        char: bufChars[i],
+                        char: token.source,
                         pinyin: py,
                         initial: py.charAt(0),
                         isChinese: true,
                     });
                 }
             } catch {
-                for (const c of Array.from(chineseBuf)) {
-                    charPinyins.push({
-                        char: c,
-                        pinyin: c.toLowerCase(),
-                        initial: c.toLowerCase(),
-                        isChinese: true,
-                    });
-                }
-            }
-        } else {
-            for (const c of Array.from(chineseBuf)) {
-                charPinyins.push({
-                    char: c,
-                    pinyin: c.toLowerCase(),
-                    initial: c.toLowerCase(),
-                    isChinese: true,
-                });
             }
         }
         chineseBuf = '';
@@ -754,8 +791,10 @@ function calculateMatchScore(
     query: string,
     queryLower: string,
     queryIsPinyin: boolean,
+    queryHasChinese: boolean,
 ): number {
     const { lower, type, weight } = entry;
+    const entryPinyin = queryIsPinyin || queryHasChinese ? getEntryPinyinInfo(entry) : EMPTY_PINYIN_INFO;
 
     let score = 0;
 
@@ -773,23 +812,23 @@ function calculateMatchScore(
         score = 65 - Math.min(20, idx * 0.3);
     }
     // 4. 拼音匹配（仅当查询可能为拼音/字母时）
-    else if (queryIsPinyin && entry.pinyinInitials) {
-        score = matchPinyin(queryLower, entry.pinyinFull, entry.pinyinInitials);
+    else if (queryIsPinyin && entryPinyin?.initials) {
+        score = matchPinyin(queryLower, entryPinyin.full, entryPinyin.initials);
     }
     // 4b. 中文输入 → 拼音匹配（如"李思维"匹配"李四维"）
-    if (score === 0 && hasChinese(query) && entry.pinyinInitials) {
+    if (score === 0 && queryHasChinese && entryPinyin?.initials) {
         const queryPy = getPinyinInfo(query);
         if (queryPy.initials.length >= 2) {
             // 尝试全拼匹配
             const fullQueryPy = queryPy.full.replace(/\s+/g, '');
-            const pyScore = matchPinyin(fullQueryPy, entry.pinyinFull, entry.pinyinInitials);
+            const pyScore = matchPinyin(fullQueryPy, entryPinyin.full, entryPinyin.initials);
             if (pyScore > 0) {
                 // 中文→拼音匹配略低于直接拼音匹配
                 score = Math.max(pyScore - 5, 30);
             }
             // 尝试首字母匹配
             if (score === 0) {
-                const initialsScore = matchPinyin(queryPy.initials, entry.pinyinFull, entry.pinyinInitials);
+                const initialsScore = matchPinyin(queryPy.initials, entryPinyin.full, entryPinyin.initials);
                 if (initialsScore > 0) {
                     score = Math.max(initialsScore - 8, 25);
                 }
@@ -899,12 +938,9 @@ export class SmartSuggestService {
 
         for (const item of seen.values()) {
             const text = item.displayName || item.query;
-            const py = getPinyinInfo(text);
             this.addEntry({
                 text,
                 lower: text.toLowerCase(),
-                pinyinFull: py.full,
-                pinyinInitials: py.initials,
                 type: 'history',
                 weight: 10 + (item.resultCount || 0) * 0.1,
                 timestamp: item.timestamp,
@@ -934,12 +970,9 @@ export class SmartSuggestService {
             // ---- 索引标题 ----
             if (title) {
                 const normalized = normalizeText(title);
-                const py = getPinyinInfo(normalized);
                 this.addEntry({
                     text: normalized,
                     lower: normalized,
-                    pinyinFull: py.full,
-                    pinyinInitials: py.initials,
                     type: 'title',
                     weight: 5 + Math.min(5, videoScore * 0.1),
                     meta: bvid ? { bvid } : undefined,
@@ -954,12 +987,9 @@ export class SmartSuggestService {
                 this.authorVideoScores.set(normalizedName, prevScore + videoScore);
                 const totalVideoScore = prevScore + videoScore;
 
-                const py = getPinyinInfo(normalizedName);
                 this.addEntry({
                     text: ownerName,
                     lower: normalizedName,
-                    pinyinFull: py.full,
-                    pinyinInitials: py.initials,
                     type: 'author',
                     weight: 8 + Math.min(10, totalVideoScore * 0.2),
                     meta: ownerMid ? { uid: ownerMid } : undefined,
@@ -981,12 +1011,9 @@ export class SmartSuggestService {
                     .map((t: string) => stripLeadingNoise(stripPunctuation(t.trim())))
                     .filter((t: string) => t.length >= 2 && isValidPhraseLength(t));
                 for (const tag of tagList) {
-                    const py = getPinyinInfo(tag);
                     this.addEntry({
                         text: tag,
                         lower: tag.toLowerCase(),
-                        pinyinFull: py.full,
-                        pinyinInitials: py.initials,
                         type: 'tag',
                         weight: 3,
                     });
@@ -999,12 +1026,9 @@ export class SmartSuggestService {
             for (const kw of keywords) {
                 // 跳过与完整标题文本相同的关键词（避免与 title 条目重复）
                 if (kw.toLowerCase() === normalizedTitle) continue;
-                const py = getPinyinInfo(kw);
                 this.addEntry({
                     text: kw,
                     lower: kw.toLowerCase(),
-                    pinyinFull: py.full,
-                    pinyinInitials: py.initials,
                     type: 'phrase',
                     weight: 1,
                 });
@@ -1014,12 +1038,9 @@ export class SmartSuggestService {
             const phrases = extractPhrases(title);
             for (const phrase of phrases) {
                 if (phrase === normalizeText(title)) continue;
-                const py = getPinyinInfo(phrase);
                 this.addEntry({
                     text: phrase,
                     lower: phrase.toLowerCase(),
-                    pinyinFull: py.full,
-                    pinyinInitials: py.initials,
                     type: 'phrase',
                     weight: 2,
                 });
@@ -1162,8 +1183,11 @@ export class SmartSuggestService {
                 matchScore = 40;
             }
             // 拼音前缀匹配
-            else if (lastWordIsPinyin && entry.pinyinInitials) {
-                const pyScore = matchPinyin(lastWord, entry.pinyinFull, entry.pinyinInitials);
+            else if (lastWordIsPinyin) {
+                const entryPinyin = getEntryPinyinInfo(entry);
+                const pyScore = entryPinyin
+                    ? matchPinyin(lastWord, entryPinyin.full, entryPinyin.initials)
+                    : 0;
                 if (pyScore > 0) {
                     matchScore = pyScore * 0.8;
                 }
@@ -1191,12 +1215,9 @@ export class SmartSuggestService {
             // 跳过与完整查询相同的组合
             if (comboLower === queryLower) continue;
 
-            const py = getPinyinInfo(comboText);
             const syntheticEntry: IndexEntry = {
                 text: comboText,
                 lower: comboLower,
-                pinyinFull: py.full,
-                pinyinInitials: py.initials,
                 type: 'phrase',
                 weight: 3,
             };
@@ -1264,14 +1285,23 @@ export class SmartSuggestService {
         const trimmed = query.trim();
         const queryLower = trimmed.toLowerCase();
         const queryIsPinyin = isPossiblyPinyin(queryLower);
+        const queryHasChinese = hasChinese(trimmed);
+
+        if (queryIsPinyin) {
+            requestPinyinLoad();
+        }
 
         const scored: Array<{ entry: IndexEntry; score: number }> = [];
 
         for (const entry of this.index) {
-            const score = calculateMatchScore(entry, trimmed, queryLower, queryIsPinyin);
+            const score = calculateMatchScore(entry, trimmed, queryLower, queryIsPinyin, queryHasChinese);
             if (score > 0) {
                 scored.push({ entry, score });
             }
+        }
+
+        if (scored.length === 0 && queryHasChinese) {
+            requestPinyinLoad();
         }
 
         // 共现组合匹配：当用户输入匹配某个 token 时，推荐该 token 的共现组合
@@ -1286,12 +1316,9 @@ export class SmartSuggestService {
             // 避免推荐与查询完全相同的组合
             if (comboLower === queryLower) continue;
 
-            const py = getPinyinInfo(combo.text);
             const syntheticEntry: IndexEntry = {
                 text: combo.text,
                 lower: comboLower,
-                pinyinFull: py.full,
-                pinyinInitials: py.initials,
                 type: 'phrase',
                 weight: 2 + combo.count * 0.5,
             };
@@ -1459,7 +1486,6 @@ let instance: SmartSuggestService | null = null;
 export function getSmartSuggestService(): SmartSuggestService {
     if (!instance) {
         instance = new SmartSuggestService();
-        loadPinyin();
     }
     return instance;
 }

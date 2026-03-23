@@ -89,7 +89,7 @@ module.exports = {
 
     overrides: [
         {
-            files: ['qrun.js', 'quasar.config.js'],
+            files: ['quasar.config.js'],
             rules: {
                 '@typescript-eslint/no-require-imports': 'off'
             }

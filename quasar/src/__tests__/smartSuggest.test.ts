@@ -14,10 +14,6 @@ import { SmartSuggestService, loadPinyin } from 'src/services/smartSuggestServic
 describe('SmartSuggestService', () => {
     let service: SmartSuggestService;
 
-    beforeAll(async () => {
-        await loadPinyin();
-    });
-
     beforeEach(() => {
         service = new SmartSuggestService();
     });
@@ -148,6 +144,10 @@ describe('SmartSuggestService', () => {
     });
 
     describe('拼音匹配', () => {
+        beforeAll(async () => {
+            await loadPinyin();
+        });
+
         beforeEach(() => {
             service.addFromHistory([
                 { query: '原神', timestamp: Date.now() },
@@ -160,6 +160,16 @@ describe('SmartSuggestService', () => {
             // 拼音匹配 "原神" (y-s)
             // 注意：这取决于拼音映射表的精确度
             expect(results.length).toBeGreaterThanOrEqual(0);
+        });
+
+        it('未预加载拼音时不应影响普通建议', () => {
+            const coldService = new SmartSuggestService();
+            coldService.addFromHistory([
+                { query: '原神攻略', timestamp: Date.now() },
+            ]);
+            const results = coldService.suggest('原神');
+            expect(results.length).toBeGreaterThan(0);
+            expect(results[0].text).toBe('原神攻略');
         });
     });
 
@@ -329,6 +339,10 @@ describe('SmartSuggestService', () => {
     });
 
     describe('中文→拼音匹配', () => {
+        beforeAll(async () => {
+            await loadPinyin();
+        });
+
         it('同音中文应互相匹配（李思维 → 李四维）', () => {
             service.addFromHistory([
                 { query: '李四维', timestamp: Date.now() },
@@ -391,6 +405,10 @@ describe('SmartSuggestService', () => {
     });
 
     describe('拼音高亮', () => {
+        beforeAll(async () => {
+            await loadPinyin();
+        });
+
         it('拼音首字母应高亮对应汉字 (ysjf → 影视飓风)', () => {
             service.addFromHistory([
                 { query: '影视飓风', timestamp: Date.now() },
@@ -428,7 +446,8 @@ describe('SmartSuggestService', () => {
             expect(authorResult?.meta?.uid).toBe(12345);
         });
 
-        it('UP主名称应能通过拼音匹配', () => {
+        it('UP主名称应能通过拼音匹配', async () => {
+            await loadPinyin();
             service.addFromSearchResults([
                 {
                     title: '测试视频',

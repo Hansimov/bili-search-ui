@@ -1,0 +1,159 @@
+const fs = require('fs');
+const http = require('http');
+const path = require('path');
+const { createRequire } = require('module');
+
+const host = process.env.HOST || '0.0.0.0';
+const port = Number(process.env.FRONTEND_PORT || 21002);
+const distDir = process.env.DIST_DIR;
+const backendHost = process.env.BACKEND_HOST || '127.0.0.1';
+const backendPort = Number(process.env.BACKEND_PORT || 21001);
+const websocketHost = process.env.WEBSOCKET_HOST || '127.0.0.1';
+const websocketPort = Number(process.env.WEBSOCKET_PORT || 21003);
+
+if (!distDir) {
+    throw new Error('DIST_DIR is required');
+}
+
+const resolvedDistDir = path.resolve(distDir);
+const indexHtmlPath = path.join(resolvedDistDir, 'index.html');
+const quasarDir = path.resolve(resolvedDistDir, '..', '..');
+const workspaceRequire = createRequire(path.join(quasarDir, 'package.json'));
+const httpProxy = workspaceRequire('http-proxy');
+
+const apiProxy = httpProxy.createProxyServer({
+    target: `http://${backendHost}:${backendPort}`,
+    changeOrigin: true,
+    xfwd: true,
+});
+
+const wsProxy = httpProxy.createProxyServer({
+    target: `ws://${websocketHost}:${websocketPort}`,
+    changeOrigin: true,
+    ws: true,
+    xfwd: true,
+});
+
+function sendProxyError(res, error) {
+    res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end(`Proxy error: ${error.message}`);
+}
+
+apiProxy.on('error', (error, req, res) => {
+    if (res && !res.headersSent) {
+        sendProxyError(res, error);
+    }
+});
+
+wsProxy.on('error', (error, req, socket) => {
+    if (socket && !socket.destroyed) {
+        socket.end(`HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nProxy error: ${error.message}`);
+    }
+});
+
+function contentType(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    switch (ext) {
+        case '.html':
+            return 'text/html; charset=utf-8';
+        case '.js':
+        case '.mjs':
+            return 'application/javascript; charset=utf-8';
+        case '.css':
+            return 'text/css; charset=utf-8';
+        case '.json':
+            return 'application/json; charset=utf-8';
+        case '.svg':
+            return 'image/svg+xml';
+        case '.png':
+            return 'image/png';
+        case '.jpg':
+        case '.jpeg':
+            return 'image/jpeg';
+        case '.webp':
+            return 'image/webp';
+        case '.avif':
+            return 'image/avif';
+        case '.ico':
+            return 'image/x-icon';
+        case '.txt':
+            return 'text/plain; charset=utf-8';
+        default:
+            return 'application/octet-stream';
+    }
+}
+
+function safeFilePath(urlPathname) {
+    const decodedPath = decodeURIComponent(urlPathname);
+    const cleaned = decodedPath.replace(/^\/+/, '');
+    const absolutePath = path.resolve(resolvedDistDir, cleaned);
+    if (!absolutePath.startsWith(resolvedDistDir)) {
+        return null;
+    }
+    return absolutePath;
+}
+
+function serveFile(filePath, res) {
+    const stream = fs.createReadStream(filePath);
+    stream.on('open', () => {
+        res.writeHead(200, { 'Content-Type': contentType(filePath) });
+    });
+    stream.on('error', () => {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Failed to read file');
+    });
+    stream.pipe(res);
+}
+
+function handleStaticRequest(req, res) {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
+    const candidatePath = safeFilePath(requestUrl.pathname);
+
+    if (candidatePath) {
+        try {
+            const stat = fs.existsSync(candidatePath) ? fs.statSync(candidatePath) : null;
+            if (stat && stat.isFile()) {
+                serveFile(candidatePath, res);
+                return;
+            }
+            if (stat && stat.isDirectory()) {
+                const nestedIndex = path.join(candidatePath, 'index.html');
+                if (fs.existsSync(nestedIndex)) {
+                    serveFile(nestedIndex, res);
+                    return;
+                }
+            }
+        }
+        catch {
+            res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+            res.end('Failed to inspect file');
+            return;
+        }
+    }
+
+    serveFile(indexHtmlPath, res);
+}
+
+const server = http.createServer((req, res) => {
+    if (req.url.startsWith('/api')) {
+        req.url = req.url.replace(/^\/api/, '') || '/';
+        apiProxy.web(req, res);
+        return;
+    }
+
+    handleStaticRequest(req, res);
+});
+
+server.on('upgrade', (req, socket, head) => {
+    if (!req.url.startsWith('/ws')) {
+        socket.destroy();
+        return;
+    }
+
+    req.url = req.url.replace(/^\/ws/, '') || '/ws';
+    wsProxy.ws(req, socket, head);
+});
+
+server.listen(port, host, () => {
+    process.stdout.write(`bxsv pro server listening on http://${host}:${port}\n`);
+});

@@ -10,6 +10,7 @@ export default defineConfig({
         globals: true,
         pool: 'forks',
         isolate: false,
+        include: ['src/__tests__/**/*.test.ts', 'src/__tests__/**/*.test.js', '../run/__tests__/**/*.test.js'],
     },
     resolve: {
         alias: {
