@@ -321,7 +321,7 @@ export default defineComponent({
 .tooltip-view-badge {
   top: calc(100% - 12px);
   left: 6px;
-  gap: 3px;
+  gap: 5px;
   transform: translateY(-50%);
 }
 

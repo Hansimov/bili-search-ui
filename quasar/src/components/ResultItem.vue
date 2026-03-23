@@ -296,6 +296,7 @@ body.body--dark .result-title:hover {
 
 .result-view {
   left: 6px;
+  gap: 5px;
 }
 
 .result-duration {

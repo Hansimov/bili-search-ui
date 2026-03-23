@@ -567,15 +567,22 @@ export default defineComponent({
     };
 
     const formatVideoCompactStats = (video: VideoHit): string => {
-      const parts: string[] = [];
-      if (video.owner?.name) {
-        parts.push(video.owner.name);
+      const author = escapeHtml(video.owner?.name || '');
+      const views = escapeHtml(formatVideoViews(video.stat?.view));
+
+      if (!author && !views) {
+        return '';
       }
-      const views = formatVideoViews(video.stat?.view);
-      if (views) {
-        parts.push(views);
+
+      if (!author) {
+        return `<span class="bili-video-compact-views">${views}</span>`;
       }
-      return parts.join(' · ');
+
+      if (!views) {
+        return `<span class="bili-video-compact-author">${author}</span>`;
+      }
+
+      return `<span class="bili-video-compact-author">${author}</span><span class="bili-video-compact-stat-separator">·</span><span class="bili-video-compact-views">${views}</span>`;
     };
 
     const renderAnswerMd = (text: string): string => {
@@ -595,7 +602,7 @@ export default defineComponent({
         const author = escapeHtml(video.owner?.name || '');
         const viewText = escapeHtml(formatVideoViews(video.stat?.view));
         const duration = escapeHtml(formatVideoDuration(video.duration));
-        const compactStats = escapeHtml(formatVideoCompactStats(video));
+        const compactStats = formatVideoCompactStats(video);
 
         if (videoLinkView.value === 'compact') {
           return `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-compact-ref" data-bvid="${bvid}" target="_blank" rel="noopener"><span class="bili-video-compact-cover-wrap">${
@@ -1808,9 +1815,28 @@ export default defineComponent({
   }
 
   :deep(.bili-video-compact-stats) {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0 6px;
     font-size: 10px;
     line-height: 1.35;
     opacity: 0.54;
+  }
+
+  :deep(.bili-video-compact-author),
+  :deep(.bili-video-compact-views) {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  :deep(.bili-video-compact-views) {
+    letter-spacing: 0.01em;
+  }
+
+  :deep(.bili-video-compact-stat-separator) {
+    opacity: 0.45;
+    transform: translateY(-0.5px);
   }
 
   @media (max-width: 900px) {

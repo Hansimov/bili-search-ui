@@ -21,19 +21,19 @@
     </q-card-section>
     <q-item class="q-px-sm q-pt-none q-pb-sm" v-if="videoInfo">
       <q-item-section side>
-        <q-item-label>
+        <q-item-label class="video-card-stat-label">
           <q-icon name="fa-regular fa-play-circle"></q-icon>
           <span>{{ humanReadableNumber(videoInfo?.stat.view) }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
-        <q-item-label>
+        <q-item-label class="video-card-stat-label">
           <q-icon name="fa-solid fa-align-left"></q-icon>
           <span>{{ humanReadableNumber(videoInfo?.stat.danmaku) }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
-        <q-item-label>
+        <q-item-label class="video-card-stat-label">
           <q-icon name="fa-regular fa-commenting"></q-icon>
           <span>{{ humanReadableNumber(videoInfo?.stat.reply) }}</span>
         </q-item-label>
@@ -74,25 +74,25 @@
     />
     <q-item class="q-px-sm q-pt-xs q-pb-none" v-if="videoInfo">
       <q-item-section side>
-        <q-item-label>
+        <q-item-label class="video-card-stat-label">
           <q-icon name="fa-solid fa-thumbs-up"> </q-icon>
           <span>{{ humanReadableNumber(videoInfo?.stat.like) }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
-        <q-item-label>
+        <q-item-label class="video-card-stat-label">
           <q-icon name="fa-solid fa-soccer-ball"> </q-icon>
           <span>{{ humanReadableNumber(videoInfo?.stat.coin) }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
-        <q-item-label>
+        <q-item-label class="video-card-stat-label">
           <q-icon name="fa-solid fa-star"></q-icon>
           <span>{{ humanReadableNumber(videoInfo?.stat.favorite) }}</span>
         </q-item-label>
       </q-item-section>
       <q-item-section side>
-        <q-item-label>
+        <q-item-label class="video-card-stat-label">
           <q-icon name="fa-solid fa-share"></q-icon>
           <span>{{ humanReadableNumber(videoInfo?.stat.share) }}</span>
         </q-item-label>
@@ -200,8 +200,11 @@ export default {
 .q-item__label span {
   vertical-align: -4%;
 }
-.q-item__label span::before {
-  content: '\00a0';
+
+.video-card-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 .title-tooltip {
   font-size: 14px;

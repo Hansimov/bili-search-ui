@@ -794,7 +794,7 @@ export default {
 .search-input-box {
   border: 1.5px solid #c0c0c0;
   border-radius: 22px;
-  padding: 10px 14px 6px 14px;
+  padding: 11px 14px 9px 14px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   background: inherit;
 
@@ -805,7 +805,7 @@ export default {
 }
 
 .search-input-box-dense {
-  padding: 10px 14px 6px 14px;
+  padding: 11px 14px 9px 14px;
   border-radius: 22px;
 }
 
@@ -814,6 +814,7 @@ export default {
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  padding-bottom: 5px;
 }
 
 .search-prepend-icon {
@@ -883,14 +884,15 @@ export default {
 .search-toolbar {
   display: flex;
   align-items: center;
-  padding: 4px 0 4px 0;
-  margin-top: 2px;
+  padding: 8px 0 2px 0;
+  margin-top: 6px;
 }
 
 .toolbar-modes {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 /* 模式按钮 */
@@ -938,6 +940,7 @@ body.body--light {
     background: white;
     border-color: #d0d0d0;
   }
+
   .search-native-input {
     color: #333;
   }
@@ -961,6 +964,7 @@ body.body--dark {
     background: var(--q-dark-page);
     border-color: #444;
   }
+
   .search-native-input {
     color: #ddd;
     &::placeholder {
@@ -978,6 +982,48 @@ body.body--dark {
   .mode-btn:hover:not(.mode-btn-active) {
     color: var(--mode-dark-color);
     background-color: var(--mode-dark-hover-background);
+  }
+}
+
+@media (max-width: 768px) {
+  .search-input-box,
+  .search-input-box-dense {
+    padding: 10px 13px 8px;
+  }
+
+  .search-input-row {
+    padding-bottom: 4px;
+  }
+
+  .search-toolbar {
+    padding-top: 7px;
+    margin-top: 5px;
+  }
+
+  .toolbar-modes {
+    gap: 5px;
+  }
+}
+
+@media (max-width: 480px) {
+  .search-input-box,
+  .search-input-box-dense {
+    padding: 9px 12px 7px;
+    border-radius: 20px;
+  }
+
+  .search-input-row {
+    gap: 7px;
+    padding-bottom: 3px;
+  }
+
+  .search-toolbar {
+    padding-top: 6px;
+    margin-top: 4px;
+  }
+
+  .toolbar-modes {
+    gap: 4px;
   }
 }
 </style>

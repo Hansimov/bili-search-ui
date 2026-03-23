@@ -33,7 +33,7 @@ const currentMode = computed(() => searchModeStore.currentMode);
   align-items: center;
   width: 100%;
   min-height: calc(100vh - 50px);
-  padding-bottom: calc(var(--search-bar-total-height, 96px) + 32px);
+  padding-bottom: calc(var(--search-bar-total-height, 104px) + 32px);
 }
 
 .index-content {

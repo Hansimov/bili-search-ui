@@ -315,7 +315,7 @@ body.body--dark .search-bar-row {
 .results-tabs-card--direct {
   height: calc(
     var(--viewport-height-css, 100vh) - 36px -
-      var(--search-bar-total-height, 72px) + 2px
+      var(--search-bar-total-height, 84px) + 2px
   );
 }
 
@@ -365,18 +365,18 @@ body.body--dark .search-bar-row {
   min-height: 0;
   height: calc(
     var(--viewport-height-css, 100vh) - 36px -
-      var(--search-bar-total-height, 72px) - 10px
+      var(--search-bar-total-height, 84px) - 10px
   );
   max-height: calc(
     var(--viewport-height-css, 100vh) - 36px -
-      var(--search-bar-total-height, 72px) - 10px
+      var(--search-bar-total-height, 84px) - 10px
   );
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
   /* 底部留出空间，避免最后内容被输入框遮挡 */
   padding-right: 6px;
-  padding-bottom: calc(var(--search-bar-total-height, 72px) + 24px);
+  padding-bottom: calc(var(--search-bar-total-height, 84px) + 24px);
 }
 
 /* 聊天模式：内联搜索结果区域 */
@@ -447,7 +447,7 @@ body.body--dark .q-tab-panels {
 .scroll-to-bottom-btn {
   position: fixed;
   right: var(--search-input-right-edge, 32px);
-  bottom: calc(var(--search-bar-total-height, 72px) + 8px);
+  bottom: calc(var(--search-bar-total-height, 84px) + 8px);
   z-index: 999; /* 低于建议下拉列表 z-index:1000 */
   border: 1px solid rgba(128, 128, 128, 0.2);
   opacity: 0.85;
