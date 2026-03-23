@@ -44,6 +44,34 @@
           </div>
         </div>
 
+        <div v-if="detailedHelp?.examples?.length" class="dsl-section">
+          <div class="dsl-heading">常用样例</div>
+          <p class="dsl-desc">
+            先从最接近你目标的写法开始，再按需补过滤器，通常比从零拼 DSL 更快。
+          </p>
+          <div class="dsl-table-wrap">
+            <table class="dsl-table">
+              <thead>
+                <tr>
+                  <th>查询</th>
+                  <th>用途</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="example in detailedHelp.examples"
+                  :key="example.query"
+                >
+                  <td>
+                    <code>{{ example.query }}</code>
+                  </td>
+                  <td>{{ example.summary }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <template
           v-for="section in detailedHelp?.sections || []"
           :key="section.title"
@@ -54,59 +82,19 @@
               {{ section.description }}
             </p>
 
-            <table v-if="section.table" class="dsl-table">
-              <thead>
-                <tr>
-                  <th v-for="column in section.table.columns" :key="column">
-                    {{ column }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="row in section.table.rows"
-                  :key="`${section.title}-${row.join('-')}`"
-                >
-                  <td
-                    v-for="(cell, cellIndex) in row"
-                    :key="`${cell}-${cellIndex}`"
-                  >
-                    <code
-                      v-if="
-                        isCodeColumn(section.table.columns.length, cellIndex)
-                      "
-                    >
-                      {{ cell }}
-                    </code>
-                    <template v-else>{{ cell }}</template>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            <template
-              v-for="subSection in section.subSections || []"
-              :key="subSection.title"
-            >
-              <div class="dsl-subheading">{{ subSection.title }}</div>
-              <p v-if="subSection.description" class="dsl-desc">
-                {{ subSection.description }}
-              </p>
-              <table v-if="subSection.table" class="dsl-table">
+            <div v-if="section.table" class="dsl-table-wrap">
+              <table class="dsl-table">
                 <thead>
                   <tr>
-                    <th
-                      v-for="column in subSection.table.columns"
-                      :key="column"
-                    >
+                    <th v-for="column in section.table.columns" :key="column">
                       {{ column }}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr
-                    v-for="row in subSection.table.rows"
-                    :key="`${subSection.title}-${row.join('-')}`"
+                    v-for="row in section.table.rows"
+                    :key="`${section.title}-${row.join('-')}`"
                   >
                     <td
                       v-for="(cell, cellIndex) in row"
@@ -114,10 +102,7 @@
                     >
                       <code
                         v-if="
-                          isCodeColumn(
-                            subSection.table.columns.length,
-                            cellIndex
-                          )
+                          isCodeColumn(section.table.columns.length, cellIndex)
                         "
                       >
                         {{ cell }}
@@ -127,19 +112,54 @@
                   </tr>
                 </tbody>
               </table>
-            </template>
+            </div>
 
-            <ul
-              v-if="section.title === '三、组合示例' && detailedHelp?.examples"
-              class="dsl-examples"
+            <template
+              v-for="subSection in section.subSections || []"
+              :key="subSection.title"
             >
-              <li v-for="example in detailedHelp.examples" :key="example">
-                <code>{{ example.split(' — ')[0] }}</code>
-                <span v-if="example.includes(' — ')">
-                  — {{ example.split(' — ').slice(1).join(' — ') }}
-                </span>
-              </li>
-            </ul>
+              <div class="dsl-subheading">{{ subSection.title }}</div>
+              <p v-if="subSection.description" class="dsl-desc">
+                {{ subSection.description }}
+              </p>
+              <div v-if="subSection.table" class="dsl-table-wrap">
+                <table class="dsl-table">
+                  <thead>
+                    <tr>
+                      <th
+                        v-for="column in subSection.table.columns"
+                        :key="column"
+                      >
+                        {{ column }}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="row in subSection.table.rows"
+                      :key="`${subSection.title}-${row.join('-')}`"
+                    >
+                      <td
+                        v-for="(cell, cellIndex) in row"
+                        :key="`${cell}-${cellIndex}`"
+                      >
+                        <code
+                          v-if="
+                            isCodeColumn(
+                              subSection.table.columns.length,
+                              cellIndex
+                            )
+                          "
+                        >
+                          {{ cell }}
+                        </code>
+                        <template v-else>{{ cell }}</template>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
           </div>
         </template>
       </q-card-section>
@@ -283,8 +303,13 @@ watch(
   opacity: 0.8;
 }
 
+.dsl-table-wrap {
+  overflow-x: auto;
+}
+
 .dsl-table {
   width: 100%;
+  min-width: 520px;
   background: rgba(15, 23, 42, 0.025);
   border-collapse: collapse;
   margin: 8px 0;
@@ -302,22 +327,6 @@ watch(
     font-weight: 600;
     font-size: 12px;
     opacity: 0.7;
-  }
-
-  code {
-    font-family: 'Menlo', 'Consolas', monospace;
-    font-size: 12px;
-    padding: 1px 5px;
-    border-radius: 4px;
-  }
-}
-
-.dsl-examples {
-  padding-left: 18px;
-  margin: 8px 0;
-
-  li {
-    margin: 4px 0;
   }
 
   code {
@@ -347,13 +356,13 @@ body.body--light {
   .dsl-table {
     code {
       background: rgba(0, 0, 0, 0.05);
-      color: #c7254e;
+      color: #0f6f82;
     }
   }
 
-  .dsl-examples code {
+  .dsl-help-body code {
     background: rgba(0, 0, 0, 0.05);
-    color: #c7254e;
+    color: #0f6f82;
   }
 }
 
@@ -387,13 +396,19 @@ body.body--dark {
   .dsl-table {
     code {
       background: rgba(255, 255, 255, 0.08);
-      color: #e6db74;
+      color: #82d7e6;
     }
   }
 
-  .dsl-examples code {
+  .dsl-help-body code {
     background: rgba(255, 255, 255, 0.08);
-    color: #e6db74;
+    color: #82d7e6;
+  }
+}
+
+@media (max-width: 640px) {
+  .dsl-table {
+    min-width: 0;
   }
 }
 </style>

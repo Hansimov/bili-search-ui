@@ -73,7 +73,7 @@ const titleStyleVars = computed(() => getSearchModeThemeVars(modeMeta.value));
 .search-mode-empty-state--page {
   min-height: min(48vh, 400px);
   justify-content: flex-start;
-  padding-top: clamp(72px, 14vh, 132px);
+  padding-top: clamp(52px, 10vh, 102px);
 }
 
 .search-mode-empty-state--panel {
@@ -110,18 +110,19 @@ const titleStyleVars = computed(() => getSearchModeThemeVars(modeMeta.value));
 
 .search-mode-empty-state__subtitle {
   max-width: min(720px, 92vw);
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   font-size: 14px;
   line-height: 1.5;
 }
 
 .search-mode-empty-state__quick-help {
-  margin-top: 18px;
+  margin-top: 14px;
+  flex: 0 1 auto;
 }
 
 @media (max-width: 640px) {
   .search-mode-empty-state--page {
-    padding-top: clamp(56px, 11vh, 88px);
+    padding-top: clamp(42px, 9vh, 74px);
   }
 
   .search-mode-empty-state__title {

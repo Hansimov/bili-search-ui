@@ -1,20 +1,22 @@
 export type SearchMode = 'direct' | 'smart' | 'think' | 'research';
 
-export interface SearchModeQuickReferenceRow {
-    codes: string[];
-    description: string;
+export interface SearchModeQuickReferenceTable {
+    title: string;
+    columns: string[];
+    rows: string[][];
 }
 
-export interface SearchModeQuickReferenceColumn {
-    heading: string;
-    rows: SearchModeQuickReferenceRow[];
+export interface SearchModeQuickReferenceExample {
+    query: string;
+    summary: string;
 }
 
 export interface SearchModeQuickReference {
     title: string;
     format: string;
-    columns: SearchModeQuickReferenceColumn[];
-    examples: string[];
+    philosophy: string[];
+    tables: SearchModeQuickReferenceTable[];
+    examples: SearchModeQuickReferenceExample[];
 }
 
 export interface SearchModeHelpTable {
@@ -42,7 +44,7 @@ export interface SearchModeDetailedHelp {
     };
     format?: string;
     sections: SearchModeHelpSection[];
-    examples?: string[];
+    examples?: SearchModeQuickReferenceExample[];
 }
 
 export interface SearchModeTheme {
@@ -84,50 +86,70 @@ export interface SearchModeOption {
 const DIRECT_QUICK_REFERENCE: SearchModeQuickReference = {
     title: '直接查找 — 搜索语法速查',
     format: '<关键词> <过滤器>',
-    columns: [
+    philosophy: [
+        '默认用空格做收敛检索，先写核心关键词，再逐步加过滤器。',
+        '过滤器大多支持别名与列表 / 区间写法，目标是“少记忆、快表达”。',
+        '默认检索模式是 q=wv；只有在你明确知道需求时，再切到 q=v 或 q=wvr。',
+    ],
+    tables: [
         {
-            heading: '关键词',
+            title: '关键词与布尔组合',
+            columns: ['语法', '含义', '说明'],
             rows: [
-                { codes: ['词1 词2'], description: '同时包含' },
-                { codes: ['"短语"'], description: '精确匹配' },
-                { codes: ['+词'], description: '必须包含' },
-                { codes: ['-词'], description: '排除' },
+                ['词1 词2', '空格并列', '默认是收敛检索，结果同时满足多个词'],
+                ['"黑神话 悟空"', '精确短语', '适合固定标题、专有名词、连续片段'],
+                ['+词 / -词 / !词', '强制包含 / 排除', '用于 token 级约束，适合快速加减条件'],
+                ['A & B / A | B', '显式 AND / OR', '复杂条件推荐配合括号使用'],
+                ['(A | B) C', '分组组合', '先算括号，再与外部关键词组合'],
             ],
         },
         {
-            heading: '统计过滤器',
+            title: '常用字段过滤器',
+            columns: ['字段 / 别名', '常见写法', '用途'],
             rows: [
-                { codes: [':view>=1w'], description: '播放≥1万' },
-                { codes: [':like<500'], description: '点赞<500' },
-                { codes: [':coin>1k'], description: '投币>1千' },
-                { codes: [':danmaku', ':reply', ':favorite', ':share'], description: '统计字段' },
-                { codes: [':view=[1w, 10w]'], description: '区间' },
+                ['view / bf / vw / v', ':view>=1w  :view=[1w,10w)', '播放量过滤，支持 k / w / m / 亿'],
+                ['like / dz / lk / l', ':like>=500', '点赞量过滤'],
+                ['coin / tb / cn / c', ':coin>1k', '投币量过滤'],
+                ['favorite / fav / sc / fv', ':favorite>=2w', '收藏量过滤'],
+                ['reply / pl / rp  danmaku / dm  share / fx / sh', ':reply<500  :dm>=1k', '评论 / 弹幕 / 分享过滤'],
+                ['date / rq / dt / d', ':date<=7d  :date>=2024-01', '相对时间与绝对日期都支持'],
+                ['duration / dura / dr / time / t', ':t>5m  :t=[2m,15m]', '时长过滤，支持 dhms 组合'],
+                ['user / up / u', ':u=影视飓风  @老番茄', '按昵称过滤，支持 = / != / @ / @!'],
+                ['uid / mid / ud', ':uid=[946974,1780480185]', '按 UID 精确过滤'],
+                ['bvid / bv / avid / av', 'bv=BV1xx  av=12345', '直接限定视频 ID'],
+                ['qmod / qm / q', 'q=wv  q=v  q=wvr', '控制文字 / 向量 / 重排序策略'],
             ],
         },
         {
-            heading: '日期 / 时长 / UP主',
+            title: '区间、列表与时间写法',
+            columns: ['写法', '示例', '说明'],
             rows: [
-                { codes: [':date<=7d'], description: '7天内' },
-                { codes: [':date>=2024-01'], description: '之后' },
-                { codes: [':t>5m'], description: '时长>5分钟' },
-                { codes: [':user=名字'], description: '指定UP主' },
-                { codes: [':uid=946974'], description: '指定UID' },
-            ],
-        },
-        {
-            heading: '视频ID / 搜索模式',
-            rows: [
-                { codes: ['bv=BV1xx'], description: '按BV号查' },
-                { codes: ['av=12345'], description: '按AV号查' },
-                { codes: ['q=w', 'q=v', 'q=wv'], description: '文字 / 向量 / 混合' },
-                { codes: ['q=vwr'], description: '混合+重排序' },
+                ['列表', ':uid=[1,2,3]  :u=["老番茄","影视飓风"]', '适合白名单 / 多作者批量过滤'],
+                ['闭区间 / 开区间', ':view=[1w,10w]  :t=(2m,15m]', '[] 含边界，() 不含边界'],
+                ['相对时间', ':date<=7d  :date<=3h', '常用单位 h / d / w / m / y'],
+                ['自然时间段', ':date=tw  :date=lw  :date=pm', 'this / last / past 的缩写也支持'],
+                ['绝对日期', ':date=2024  :date=2024-03  :date=2024-03-21', '年 / 月 / 日都可直接写'],
+                ['组合写法', '黑神话 :u=老番茄 :view>=1w :date<=30d', '通常先写主题，再逐步收窄'],
             ],
         },
     ],
     examples: [
-        '黑神话 :view>=1w :date<=30d',
-        ':user=影视飓风 :date<=7d',
-        'Python 教程 -广告 :view>=1k',
+        {
+            query: '黑神话 :view>=1w :date<=30d',
+            summary: '30 天内、播放至少 1 万的黑神话相关视频',
+        },
+        {
+            query: ':u=影视飓风 :date<=7d',
+            summary: '指定 UP 主最近 7 天的视频',
+        },
+        {
+            query: 'Python 教程 -广告 :view>=1k',
+            summary: '排除广告，并要求至少有基础播放量',
+        },
+        {
+            query: '(芯片 | 半导体) :date<=90d q=wvr',
+            summary: '主题扩展 + 近 90 天范围 + 开启重排序',
+        },
     ],
 };
 
@@ -142,113 +164,154 @@ const DIRECT_DETAILED_HELP: SearchModeDetailedHelp = {
     format: '<关键词> <过滤器>',
     sections: [
         {
-            title: '一、关键词',
-            description: '关键词之间用空格分隔，表示同时搜索多个词。',
+            title: '一、设计哲学',
+            description: '直接查找不是聊天，而是面向检索任务的 DSL。它的设计目标是“先快写，再精修”：默认空格收敛、字段别名短、列表和区间统一、复杂条件可显式布尔组合。',
             table: {
-                columns: ['语法', '含义', '示例'],
+                columns: ['原则', '说明', '推荐用法'],
                 rows: [
-                    ['词', '搜索包含该词的视频', '黑神话'],
-                    ['词1 词2', '同时包含多个词', '黑神话 悟空'],
-                    ['"短语"', '精确匹配完整短语', '"黑神话 悟空"'],
-                    ['+词', '结果必须包含该词', '游戏实况 +黑神话'],
-                    ['-词', '排除包含该词的结果', 'Python 教程 -广告'],
+                    ['默认收敛', '空格并列默认表示结果同时满足多个条件', '先写主题词，再追加过滤器'],
+                    ['短别名优先', '常见字段都支持短别名，如 u / d / t / v', '熟练后直接写 :u=xx :d<=7d'],
+                    ['统一容器', '列表与区间都可写成 [] / ()，便于记忆', '作者白名单、播放区间都用同一套路'],
+                    ['显式布尔', '需要放宽或重组条件时用 |、&、()', '复杂检索场景用括号先组合'],
+                    ['检索模式分层', 'q 用来决定文字、向量、混合、重排序的策略', '不确定时保持默认 q=wv'],
                 ],
             },
         },
         {
-            title: '二、过滤器',
-            description: '过滤器以 : 开头，格式为 :<字段><操作符><值>。',
+            title: '二、关键词与布尔语法',
+            description: '关键词和布尔组合决定“搜什么”；字段过滤器决定“筛什么”。两者可以同时出现。',
+            table: {
+                columns: ['语法', '含义', '备注'],
+                rows: [
+                    ['词1 词2', '默认 AND / 收敛检索', '空格连接即可，无需额外符号'],
+                    ['"固定短语"', '按完整短语匹配', '适合标题片段、专有名词'],
+                    ['+词', '强制包含该 token', '用于强化必要条件'],
+                    ['-词 / !词', '排除该 token', '两个前缀等价'],
+                    ['A & B', '显式 AND', '和空格类似，但结构更清晰'],
+                    ['A | B', 'OR', '适合同义主题扩展'],
+                    ['(A | B) C', '分组后组合', '括号优先级最高'],
+                ],
+            },
             subSections: [
                 {
-                    title: '1. 统计过滤器',
+                    title: '1. 统计字段',
                     description:
-                        '字段: view(播放), like(点赞), coin(投币), danmaku(弹幕), reply(评论), favorite(收藏), share(分享)。数值单位: k=千, w=万, m=百万。',
+                        '支持 view / like / coin / favorite / reply / danmaku / share 及其短别名。数值单位支持 k、w、m、亿。',
                     table: {
-                        columns: ['语法', '含义'],
+                        columns: ['字段 / 别名', '示例', '说明'],
                         rows: [
-                            [':view>=1w', '播放量 ≥ 1万'],
-                            [':coin>1k', '投币 > 1千'],
-                            [':like<500', '点赞 < 500'],
-                            [':view=[1w, 10w]', '播放量在 1万 到 10万 之间（含边界）'],
+                            ['view / bf / vw / v', ':view>=1w', '播放量过滤'],
+                            ['like / dz / lk / l', ':like<500', '点赞量过滤'],
+                            ['coin / tb / cn / c', ':coin>1k', '投币量过滤'],
+                            ['favorite / fav / sc / fv', ':favorite>=2w', '收藏量过滤'],
+                            ['reply / pl / rp', ':reply=[100,1000)', '评论区间'],
+                            ['danmaku / dm', ':dm>=1k', '弹幕量过滤'],
+                            ['share / fx / sh', ':share>100', '分享量过滤'],
                         ],
                     },
                 },
                 {
-                    title: '2. 日期过滤器',
+                    title: '2. 日期与时间',
                     description:
-                        '字段: date。相对时间: Nh, Nd, Nw, Nm, Ny。绝对日期支持 YYYY / YYYY-MM / YYYY-MM-DD。',
+                        '字段别名为 date / rq / dt / d。相对时间支持 h / d / w / m / y；还支持 this / last / past 语义。',
                     table: {
-                        columns: ['语法', '含义'],
+                        columns: ['语法', '含义', '说明'],
                         rows: [
-                            [':date<=7d', '7天内'],
-                            [':date<=3h', '3小时内'],
-                            [':date>=2024-01', '2024年1月之后'],
-                            [':date=2024', '2024年内'],
+                            [':date<=7d', '7 天内', '相对时间'],
+                            [':date<=3h', '3 小时内', '小时级筛选'],
+                            [':date>=2024-01', '2024 年 1 月之后', '绝对月份'],
+                            [':date=2024', '2024 年内', '整年范围'],
+                            [':date=tw / :date=this week', '本周', 'this / t'],
+                            [':date=lw / :date=last week', '上周', 'last / l'],
+                            [':date=pm / :date=past month', '过去 1 个月', 'past / p'],
                         ],
                     },
                 },
                 {
                     title: '3. 视频时长过滤器',
-                    description: '字段: t。时长格式支持 Ns / Nm / Nh。',
+                    description: '字段别名为 duration / dura / dr / time / t。支持秒数，也支持 1h30m 这类组合写法。',
                     table: {
-                        columns: ['语法', '含义'],
+                        columns: ['语法', '含义', '说明'],
                         rows: [
-                            [':t>5m', '时长大于5分钟'],
-                            [':t<=30m', '时长不超过30分钟'],
-                            [':t=[5m, 30m]', '时长在5到30分钟之间'],
+                            [':t>5m', '时长大于 5 分钟', '快速过滤长视频'],
+                            [':t<=30m', '时长不超过 30 分钟', '控制上限'],
+                            [':t=[5m,30m]', '时长在 5 到 30 分钟之间', '[] 含边界'],
+                            [':t=(90,600]', '90 秒到 10 分钟', '支持纯数字秒数'],
                         ],
                     },
                 },
                 {
-                    title: '4. UP主昵称过滤器',
-                    description: '字段: user。',
+                    title: '4. 作者过滤器',
+                    description: '昵称字段别名为 user / up / u；UID 字段别名为 uid / mid / ud。',
                     table: {
-                        columns: ['语法', '含义'],
+                        columns: ['语法', '含义', '说明'],
                         rows: [
-                            [':user=影视飓风', '指定UP主'],
-                            [':user=["影视飓风", "飓多多StormCrew"]', '指定多个UP主'],
-                            [':user!=某UP主', '排除该UP主'],
+                            [':u=影视飓风', '指定昵称', '常规作者过滤'],
+                            ['@老番茄', '指定昵称（快捷写法）', '@ 相当于 user='],
+                            ['@!某UP主', '排除昵称（快捷写法）', '@! 相当于 user!='],
+                            [':u=["影视飓风","飓多多StormCrew"]', '多个昵称', '列表白名单'],
+                            [':uid=946974', '指定 UID', '适合精确作者定位'],
+                            [':uid=[946974,1780480185]', '多个 UID', '多作者批量过滤'],
                         ],
                     },
                 },
                 {
-                    title: '5. UP主UID过滤器',
-                    description: '字段: uid。',
+                    title: '5. 视频 ID',
+                    description: '视频 ID 支持 AV / BV，可用于精确定位单个视频。',
                     table: {
-                        columns: ['语法', '含义'],
+                        columns: ['语法', '含义', '说明'],
                         rows: [
-                            [':uid=946974', '指定UP主UID'],
-                            [':uid=[946974, 1780480185]', '指定多个UID'],
+                            ['bv=BV1xx / :bv=BV1xx', '指定 BV', '支持前导冒号，也支持直接写'],
+                            ['av=12345', '指定 AV', '会自动识别 aid'],
                         ],
                     },
                 },
                 {
-                    title: '6. 搜索模式',
-                    description: '字段: q。',
+                    title: '6. 检索模式 q',
+                    description: 'q 本身不产生过滤条件，而是控制底层检索策略。必须至少包含 w 或 v；r 表示在召回后追加重排序。',
                     table: {
-                        columns: ['值', '含义'],
+                        columns: ['写法', '含义', '适用场景'],
                         rows: [
-                            ['q=w', '仅文字搜索'],
-                            ['q=v', '仅向量搜索'],
-                            ['q=wv', '混合搜索（默认）'],
-                            ['q=vwr', '混合搜索+重排序（相关性更高）'],
+                            ['q=w', '仅文字检索', '关键词明确、追求可解释性'],
+                            ['q=v', '仅向量检索', '语义检索、近义表达'],
+                            ['q=wv', '混合检索（默认）', '大多数场景的首选'],
+                            ['q=wr / q=vr', '单路检索 + 重排序', '单一路径结果再精排'],
+                            ['q=wvr', '混合检索 + 重排序', '高相关性优先，代价稍高'],
                         ],
                     },
                 },
             ],
         },
-        {
-            title: '三、组合示例',
-        },
     ],
     examples: [
-        '黑神话 :view>=1w :date<=30d — 搜索“黑神话”，播放≥1万，30天内',
-        ':user=影视飓风 :date<=7d — 影视飓风最近7天的视频',
-        'Python 教程 -广告 :date<=1y :view>=1k — Python教程，排除广告，1年内，播放≥1千',
-        ':user=["老番茄", "影视飓风"] :date<=30d — 两个UP主最近30天的视频',
-        '游戏评测 +黑神话 :view>=5w — 游戏评测且必含“黑神话”，播放≥5万',
-        ':user=何同学 :t>10m — 何同学时长超过10分钟的视频',
-        '深度学习入门 q=vwr — 深度学习入门，启用重排序提高相关性',
+        {
+            query: '黑神话 :view>=1w :date<=30d',
+            summary: '搜索黑神话相关视频，并要求 30 天内、播放至少 1 万',
+        },
+        {
+            query: ':u=影视飓风 :date<=7d',
+            summary: '查看指定 UP 主最近 7 天的视频',
+        },
+        {
+            query: 'Python 教程 -广告 :date<=1y :view>=1k',
+            summary: '查 Python 教程，排除广告，限定 1 年内且至少 1 千播放',
+        },
+        {
+            query: ':u=["老番茄","影视飓风"] :date<=30d',
+            summary: '同时看多个 UP 主最近 30 天的视频',
+        },
+        {
+            query: '(芯片 | 半导体) :date<=90d q=wvr',
+            summary: '做主题扩展，同时限制近期内容并启用重排序',
+        },
+        {
+            query: '游戏评测 +黑神话 :view>=5w',
+            summary: '游戏评测里强制包含黑神话，且播放至少 5 万',
+        },
+        {
+            query: ':u=何同学 :t>10m',
+            summary: '查看何同学时长超过 10 分钟的视频',
+        },
     ],
 };
 

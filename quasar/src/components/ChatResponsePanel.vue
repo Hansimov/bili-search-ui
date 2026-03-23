@@ -1959,7 +1959,7 @@ body.body--light {
   .chat-content {
     :deep(code) {
       background: rgba(0, 0, 0, 0.06);
-      color: #d63384;
+      color: #0f6f82;
     }
 
     :deep(pre) {
@@ -2075,7 +2075,7 @@ body.body--dark {
 
     :deep(code) {
       background: rgba(255, 255, 255, 0.08);
-      color: #e4a0c0;
+      color: #82d7e6;
     }
 
     :deep(pre) {

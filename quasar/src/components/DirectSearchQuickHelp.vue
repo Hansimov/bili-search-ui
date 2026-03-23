@@ -6,10 +6,6 @@
   >
     <div class="direct-search-quick-help__header">
       <div class="direct-search-quick-help__title-wrap">
-        <div class="direct-search-quick-help__badge">
-          <q-icon :name="modeMeta.icon" size="18px" />
-          <span>搜索语法速查</span>
-        </div>
         <div class="direct-search-quick-help__title">
           {{ quickReference.title }}
         </div>
@@ -32,39 +28,82 @@
         <code>{{ quickReference.format }}</code>
       </div>
 
-      <div class="direct-search-quick-help__columns">
-        <div
-          v-for="column in quickReference.columns"
-          :key="column.heading"
-          class="direct-search-quick-help__column"
-        >
-          <div class="direct-search-quick-help__heading">
-            {{ column.heading }}
-          </div>
-          <div
-            v-for="row in column.rows"
-            :key="`${column.heading}-${row.codes.join('-')}`"
-            class="direct-search-quick-help__row"
-          >
-            <template v-for="code in row.codes" :key="code">
-              <code>{{ code }}</code>
-            </template>
-            <span>{{ row.description }}</span>
-          </div>
+      <div class="direct-search-quick-help__table-card">
+        <div class="direct-search-quick-help__section-title">常用样例</div>
+        <div class="direct-search-quick-help__table-wrap">
+          <table class="direct-search-quick-help__table">
+            <thead>
+              <tr>
+                <th>查询</th>
+                <th>用途</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="example in quickReference.examples"
+                :key="example.query"
+              >
+                <td>
+                  <code>{{ example.query }}</code>
+                </td>
+                <td>{{ example.summary }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div class="direct-search-quick-help__examples">
-        <span class="direct-search-quick-help__examples-label">示例</span>
-        <template
-          v-for="(example, index) in quickReference.examples"
-          :key="example"
-        >
-          <span v-if="index > 0" class="direct-search-quick-help__separator"
-            >·</span
+      <div class="direct-search-quick-help__philosophy">
+        <div class="direct-search-quick-help__section-title">设计哲学</div>
+        <ul class="direct-search-quick-help__philosophy-list">
+          <li
+            v-for="item in quickReference.philosophy"
+            :key="item"
+            class="direct-search-quick-help__philosophy-item"
           >
-          <code>{{ example }}</code>
-        </template>
+            {{ item }}
+          </li>
+        </ul>
+      </div>
+
+      <div class="direct-search-quick-help__tables">
+        <div
+          v-for="table in quickReference.tables"
+          :key="table.title"
+          class="direct-search-quick-help__table-card"
+        >
+          <div class="direct-search-quick-help__section-title">
+            {{ table.title }}
+          </div>
+          <div class="direct-search-quick-help__table-wrap">
+            <table class="direct-search-quick-help__table">
+              <thead>
+                <tr>
+                  <th v-for="column in table.columns" :key="column">
+                    {{ column }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in table.rows"
+                  :key="`${table.title}-${row.join('-')}`"
+                >
+                  <td v-for="(cell, index) in row" :key="`${cell}-${index}`">
+                    <code
+                      v-if="
+                        index === 0 || (table.columns.length > 2 && index === 1)
+                      "
+                    >
+                      {{ cell }}
+                    </code>
+                    <template v-else>{{ cell }}</template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -98,8 +137,17 @@ const themeVars = computed(() => getSearchModeThemeVars(modeMeta.value));
 
 <style scoped lang="scss">
 .direct-search-quick-help {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 760px;
+  max-height: min(
+    420px,
+    calc(
+      var(--viewport-height-css, 100vh) - var(--search-bar-total-height, 104px) -
+        240px
+    )
+  );
   margin-top: 0;
   padding: 18px 18px 16px;
   border: 1px solid var(--mode-light-border-color);
@@ -117,7 +165,7 @@ const themeVars = computed(() => getSearchModeThemeVars(modeMeta.value));
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .direct-search-quick-help__title-wrap {
@@ -165,8 +213,15 @@ const themeVars = computed(() => getSearchModeThemeVars(modeMeta.value));
 }
 
 .direct-search-quick-help__body {
+  min-height: 0;
+  overflow-y: auto;
   font-size: 13px;
   line-height: 1.65;
+  padding-right: 4px;
+}
+
+.direct-search-quick-help__body > * + * {
+  margin-top: 14px;
 }
 
 .direct-search-quick-help__format-card {
@@ -174,7 +229,6 @@ const themeVars = computed(() => getSearchModeThemeVars(modeMeta.value));
   align-items: center;
   flex-wrap: wrap;
   gap: 8px 10px;
-  margin-bottom: 14px;
   padding: 12px 14px;
   border-radius: 14px;
   background: rgba(15, 23, 42, 0.04);
@@ -187,70 +241,96 @@ const themeVars = computed(() => getSearchModeThemeVars(modeMeta.value));
   color: var(--mode-light-color);
 }
 
-.direct-search-quick-help__columns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
+.direct-search-quick-help__section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mode-light-color);
 }
 
-.direct-search-quick-help__column {
+.direct-search-quick-help__philosophy {
   padding: 13px 14px;
   border-radius: 16px;
   background: rgba(15, 23, 42, 0.038);
-  min-width: 0;
 }
 
-.direct-search-quick-help__heading {
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 8px;
-  color: var(--mode-light-color);
+.direct-search-quick-help__philosophy-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
 }
 
-.direct-search-quick-help__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-  margin: 4px 0;
+.direct-search-quick-help__philosophy-item
+  + .direct-search-quick-help__philosophy-item {
+  margin-top: 6px;
+}
+
+.direct-search-quick-help__philosophy-item {
   color: rgba(15, 23, 42, 0.76);
 }
 
-.direct-search-quick-help__examples {
+.direct-search-quick-help__tables {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding-top: 2px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.direct-search-quick-help__examples-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mode-light-color);
+.direct-search-quick-help__table-card {
+  padding: 13px 14px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.038);
 }
 
-.direct-search-quick-help__separator {
-  opacity: 0.6;
+.direct-search-quick-help__table-wrap {
+  margin-top: 9px;
+  overflow-x: auto;
+}
+
+.direct-search-quick-help__table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+    border: 1px solid rgba(128, 128, 128, 0.14);
+  }
+
+  th {
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  td {
+    color: rgba(15, 23, 42, 0.76);
+  }
 }
 
 .direct-search-quick-help__body code {
   font-family: 'Menlo', 'Consolas', monospace;
   font-size: 12px;
-  padding: 1px 5px;
-  border-radius: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 body.body--light .direct-search-quick-help__format-card,
-body.body--light .direct-search-quick-help__column,
+body.body--light .direct-search-quick-help__philosophy,
+body.body--light .direct-search-quick-help__table-card,
 body.body--light .direct-search-quick-help__summary-item {
   border: 1px solid rgba(15, 23, 42, 0.05);
 }
 
+body.body--light .direct-search-quick-help__table th {
+  background: rgba(15, 23, 42, 0.03);
+}
+
 body.body--light .direct-search-quick-help__body code {
   background: rgba(0, 0, 0, 0.05);
-  color: #c7254e;
+  color: #0f6f82;
 }
 
 body.body--dark .direct-search-quick-help {
@@ -275,35 +355,52 @@ body.body--dark .direct-search-quick-help__title {
 
 body.body--dark .direct-search-quick-help__summary-item,
 body.body--dark .direct-search-quick-help__format-card,
-body.body--dark .direct-search-quick-help__column {
+body.body--dark .direct-search-quick-help__philosophy,
+body.body--dark .direct-search-quick-help__table-card {
   background: rgba(255, 255, 255, 0.045);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 body.body--dark .direct-search-quick-help__format-label,
-body.body--dark .direct-search-quick-help__heading,
-body.body--dark .direct-search-quick-help__examples-label {
+body.body--dark .direct-search-quick-help__section-title {
   color: var(--mode-dark-color);
 }
 
 body.body--dark .direct-search-quick-help__summary-item,
-body.body--dark .direct-search-quick-help__row {
+body.body--dark .direct-search-quick-help__philosophy-item,
+body.body--dark .direct-search-quick-help__table td {
   color: rgba(255, 255, 255, 0.72);
+}
+
+body.body--dark .direct-search-quick-help__table th {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 body.body--dark .direct-search-quick-help__body code {
   background: rgba(255, 255, 255, 0.08);
-  color: #e6db74;
+  color: #82d7e6;
 }
 
 @media (max-width: 720px) {
   .direct-search-quick-help {
+    max-height: min(
+      360px,
+      calc(
+        var(--viewport-height-css, 100vh) -
+          var(--search-bar-total-height, 104px) - 208px
+      )
+    );
     padding: 16px 14px 14px;
     border-radius: 18px;
   }
 
-  .direct-search-quick-help__columns {
-    grid-template-columns: 1fr;
+  .direct-search-quick-help__table {
+    min-width: 0;
+
+    th,
+    td {
+      padding: 7px 8px;
+    }
   }
 }
 </style>
