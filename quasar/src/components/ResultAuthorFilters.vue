@@ -1,12 +1,16 @@
 <template>
-  <div class="row result-author-filters">
-    <span>
-      <span>
-        <q-icon name="o_filter_alt" size="xs" class="q-ma-none" />
+  <div class="result-author-filters">
+    <div class="result-author-filters__content">
+      <span class="result-author-filters__label">
+        <q-icon name="filter_alt" size="xs" class="q-ma-none" />
         只看作者 :
       </span>
-      <span class="result-author-filter-chip">
-        <span v-for="authorFilter in authorFilters" :key="authorFilter.mid">
+      <div class="result-author-filter-chip">
+        <div
+          v-for="authorFilter in authorFilters"
+          :key="authorFilter.mid"
+          class="result-author-filter-chip__group"
+        >
           <q-chip
             outline
             dense
@@ -18,9 +22,9 @@
           <q-chip clickable dense @click="searchAuthor(authorFilter)">
             查看Ta的全部视频
           </q-chip>
-        </span>
-      </span>
-    </span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -49,12 +53,43 @@ function searchAuthor(authorFilter: Dict) {
 </script>
 
 <style scoped>
-.result-author-filter-chip {
-  vertical-align: 1px;
-  margin: 0px;
-}
 .result-author-filters {
-  padding: 2px 0px 6px 4px;
   width: 100%;
+  padding: 2px 0 6px;
+}
+
+.result-author-filters__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  max-width: var(--results-normal-fixed-width, 100%);
+  margin: 0 auto;
+  padding-left: 4px;
+  box-sizing: border-box;
+}
+
+.result-author-filters__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  line-height: 28px;
+  white-space: nowrap;
+}
+
+.result-author-filter-chip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.result-author-filter-chip__group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 </style>

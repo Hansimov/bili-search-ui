@@ -141,6 +141,11 @@ import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
 import { explore, abortExplore } from 'src/functions/explore';
 import {
+  clearDirectHistorySelection,
+  getDirectHistorySelectionRecordId,
+  saveDirectHistorySelection,
+} from 'src/utils/directHistorySelection';
+import {
   submitCurrentModeQuery,
   submitSuggestionByMode,
 } from 'src/functions/chat';
@@ -629,7 +634,7 @@ export default {
     // LLM 聊天仅在用户显式提交（回车/点击发送）时触发
     watch(
       () => route.query.q,
-      (newQuery, oldQuery) => {
+      async (newQuery, oldQuery) => {
         if (newQuery && newQuery !== oldQuery) {
           if (exploreStore.isRestoringSession) {
             return;
@@ -652,6 +657,27 @@ export default {
             queryStore.setQuery({
               newQuery: String(newQuery),
             });
+
+            await searchHistoryStore.loadHistory();
+            const directQuery = String(newQuery);
+            const persistedRecordId =
+              getDirectHistorySelectionRecordId(directQuery);
+            const directHistoryItem = persistedRecordId
+              ? searchHistoryStore.items.find(
+                  (item) =>
+                    item.id === persistedRecordId &&
+                    (item.mode || 'direct') === 'direct' &&
+                    item.query === directQuery
+                )
+              : searchHistoryStore.findLatestRecord(directQuery, 'direct');
+
+            chatStore.setCurrentHistoryRecordId(directHistoryItem?.id || null);
+            if (directHistoryItem) {
+              saveDirectHistorySelection(directHistoryItem.id, directQuery);
+            } else {
+              clearDirectHistorySelection();
+            }
+
             if (
               !exploreStore.hasResults ||
               exploreStore.isExploreLoading === false
@@ -677,6 +703,8 @@ export default {
       async (newChatId) => {
         if (!newChatId) return;
         if (exploreStore.isRestoringSession) return;
+
+        clearDirectHistorySelection();
 
         // 如果当前会话已是该 sessionId，无需恢复
         if (chatStore.currentSessionId === newChatId) return;

@@ -620,6 +620,11 @@ import { useExploreStore } from 'src/stores/exploreStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import type { SearchMode } from 'src/stores/searchModeStore';
 import { getSearchMode } from 'src/config/searchModes';
+import {
+  clearDirectHistorySelection,
+  getDirectHistorySelectionRecordId,
+  saveDirectHistorySelection,
+} from 'src/utils/directHistorySelection';
 import { getDocumentZoom, viewportPxToCssPx } from 'src/utils/zoom';
 import { scheduleAfterInitialRender } from 'src/utils/schedule';
 
@@ -762,6 +767,7 @@ const qrCodeOptions = computed(() => ({
 // Navigation
 const navigateToSearch = async () => {
   chatStore.startNewChat();
+  clearDirectHistorySelection();
   queryStore.setQuery({ newQuery: '' });
   exploreStore.clearStepResults();
   exploreStore.setSubmittedQuery('');
@@ -774,6 +780,7 @@ const navigateToSearch = async () => {
 const onNavigate = () => {
   // Logo click navigates to /, clear all search state
   chatStore.startNewChat();
+  clearDirectHistorySelection();
   queryStore.setQuery({ newQuery: '' });
   exploreStore.clearStepResults();
   exploreStore.setSubmittedQuery('');
@@ -833,6 +840,8 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
     searchModeStore.setMode(mode as SearchMode);
     searchModeStore.resetInitialSessionMode();
     chatStore.startNewChat();
+    chatStore.setCurrentHistoryRecordId(item.id);
+    saveDirectHistorySelection(item.id, query);
     // 尝试从缓存恢复搜索结果，避免重复的网络请求
     const restored = await restoreExploreFromCache(query);
     if (!restored) {
@@ -894,6 +903,7 @@ const confirmClearHistory = () => {
 const resetCurrentViewState = async () => {
   chatStore.clearHistory();
   chatStore.startNewChat();
+  clearDirectHistorySelection();
   queryStore.setQuery({ newQuery: '' });
   exploreStore.clearStepResults();
   exploreStore.setSubmittedQuery('');
@@ -911,8 +921,8 @@ const clearHistory = async () => {
 };
 
 const isHistoryItemActive = (item: SearchHistoryItem): boolean => {
-  if (chatStore.currentHistoryRecordId === item.id) {
-    return true;
+  if (chatStore.currentHistoryRecordId) {
+    return chatStore.currentHistoryRecordId === item.id;
   }
 
   const currentRoute = router.currentRoute.value;
@@ -932,6 +942,19 @@ const isHistoryItemActive = (item: SearchHistoryItem): boolean => {
       (routeMode == null || routeMode === 'direct');
 
     if (isDirectRoute) {
+      const persistedRecordId = getDirectHistorySelectionRecordId(routeQuery);
+      if (persistedRecordId) {
+        return persistedRecordId === item.id;
+      }
+
+      const latestDirectRecord = searchHistoryStore.findLatestRecord(
+        routeQuery,
+        'direct'
+      );
+      if (latestDirectRecord) {
+        return latestDirectRecord.id === item.id;
+      }
+
       return true;
     }
   }

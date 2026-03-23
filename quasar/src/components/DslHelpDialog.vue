@@ -3,7 +3,7 @@
     :model-value="modelValue"
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <q-card class="dsl-help-card">
+    <q-card class="dsl-help-card" :style="themeVars">
       <q-toolbar class="dsl-help-toolbar">
         <q-icon
           :name="modeMeta.icon"
@@ -163,7 +163,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { getSearchMode } from 'src/config/searchModes';
+import { getSearchMode, getSearchModeThemeVars } from 'src/config/searchModes';
 
 defineOptions({ name: 'DslHelpDialog' });
 
@@ -174,6 +174,7 @@ const emit = defineEmits<{
 
 const modeMeta = getSearchMode('direct');
 const detailedHelp = computed(() => modeMeta.detailedHelp);
+const themeVars = computed(() => getSearchModeThemeVars(modeMeta));
 const dontShowAgain = ref(!!localStorage.getItem('dslHelpDismissed'));
 
 const isCodeColumn = (columnCount: number, cellIndex: number) => {
@@ -204,18 +205,27 @@ watch(
   width: 90vw;
   max-width: 720px;
   max-height: 70vh;
-  border-radius: 12px;
+  border-radius: 18px;
+  border: 1px solid var(--mode-light-border-color);
+  background: linear-gradient(
+      180deg,
+      var(--mode-light-soft-background),
+      transparent 78%
+    ),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 54px rgba(15, 23, 42, 0.12);
 }
 
 .dsl-help-toolbar {
   flex-shrink: 0;
   min-height: 48px;
   padding: 0 12px 0 16px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.12);
 }
 
 .dsl-help-title {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .dsl-help-notice {
@@ -223,37 +233,49 @@ watch(
   align-items: flex-start;
   font-size: 13px;
   line-height: 1.6;
-  padding: 12px 20px;
-  opacity: 0.85;
+  padding: 14px 20px;
+  margin: 14px 16px 0;
+  border-radius: 14px;
+  border: 1px solid var(--mode-light-border-color);
+  opacity: 0.9;
 }
 
 .dsl-help-body {
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 16px 20px 18px;
   font-size: 13px;
   line-height: 1.7;
 }
 
 .dsl-section {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .dsl-format {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(128, 128, 128, 0.12);
 }
 
 .dsl-heading {
   font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 8px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--mode-light-color);
 }
 
 .dsl-subheading {
   font-size: 13px;
-  font-weight: 600;
-  margin: 12px 0 6px;
+  font-weight: 700;
+  margin: 14px 0 8px;
+  color: var(--mode-light-color);
 }
 
 .dsl-desc {
@@ -263,13 +285,16 @@ watch(
 
 .dsl-table {
   width: 100%;
+  background: rgba(15, 23, 42, 0.025);
   border-collapse: collapse;
   margin: 8px 0;
+  border-radius: 14px;
+  overflow: hidden;
 
   th,
   td {
     text-align: left;
-    padding: 5px 10px;
+    padding: 8px 10px;
     border: 1px solid rgba(128, 128, 128, 0.2);
   }
 
@@ -306,6 +331,7 @@ watch(
 .dsl-help-actions {
   flex-shrink: 0;
   padding: 8px 16px;
+  border-top: 1px solid rgba(128, 128, 128, 0.12);
 }
 
 .dsl-dismiss-checkbox {
@@ -315,7 +341,7 @@ watch(
 
 body.body--light {
   .dsl-help-notice {
-    background: rgba(0, 137, 123, 0.06);
+    background: var(--mode-light-background);
   }
 
   .dsl-table {
@@ -332,8 +358,30 @@ body.body--light {
 }
 
 body.body--dark {
+  .dsl-help-card {
+    border-color: var(--mode-dark-border-color);
+    background: linear-gradient(
+        180deg,
+        var(--mode-dark-soft-background),
+        transparent 78%
+      ),
+      rgba(20, 20, 20, 0.96);
+    box-shadow: none;
+  }
+
   .dsl-help-notice {
-    background: rgba(0, 137, 123, 0.12);
+    background: var(--mode-dark-background);
+    border-color: var(--mode-dark-border-color);
+  }
+
+  .dsl-format,
+  .dsl-table {
+    background: rgba(255, 255, 255, 0.045);
+  }
+
+  .dsl-heading,
+  .dsl-subheading {
+    color: var(--mode-dark-color);
   }
 
   .dsl-table {

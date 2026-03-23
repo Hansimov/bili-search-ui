@@ -72,6 +72,7 @@ const {
         recentItems: [] as SearchHistoryItem[],
         totalCount: 1,
         isLoaded: true,
+        findLatestRecord: vi.fn(),
         loadHistory: vi.fn().mockResolvedValue(undefined),
         clearAll: vi.fn().mockResolvedValue(undefined),
         removeRecord: vi.fn().mockResolvedValue(undefined),
@@ -233,9 +234,11 @@ describe('AppSidebar history interactions', () => {
         mockSearchHistoryStore.recentItems = [];
         mockSearchHistoryStore.totalCount = 1;
         mockSearchHistoryStore.isLoaded = true;
+        mockSearchHistoryStore.findLatestRecord.mockReturnValue(undefined);
         mockChatStore.currentHistoryRecordId = null;
         mockChatStore.currentSessionId = 'session-current';
         localStorage.clear();
+        sessionStorage.clear();
     });
 
     it('清除历史按钮应使用原生 title 属性', () => {
@@ -306,5 +309,67 @@ describe('AppSidebar history interactions', () => {
             query: { q: 'direct query', mode: 'smart' },
         };
         expect(setupState.isHistoryItemActive(directItem)).toBe(false);
+    });
+
+    it('direct 模式重复 query 只高亮当前记录', () => {
+        const wrapper = mountSidebar();
+        const setupState = wrapper.vm as unknown as SidebarSetupState;
+
+        const olderDirect: SearchHistoryItem = {
+            id: 'direct-old',
+            query: '同一个查询',
+            timestamp: Date.now() - 1000,
+            pinned: false,
+            mode: 'direct',
+        };
+        const currentDirect: SearchHistoryItem = {
+            id: 'direct-current',
+            query: '同一个查询',
+            timestamp: Date.now(),
+            pinned: false,
+            mode: 'direct',
+        };
+
+        mockChatStore.currentHistoryRecordId = 'direct-current';
+        mockRouter.currentRoute.value = {
+            path: '/chat',
+            query: { q: '同一个查询' },
+        };
+
+        expect(setupState.isHistoryItemActive(olderDirect)).toBe(false);
+        expect(setupState.isHistoryItemActive(currentDirect)).toBe(true);
+    });
+
+    it('刷新后应优先按持久化的 direct 记录 ID 恢复高亮', () => {
+        const wrapper = mountSidebar();
+        const setupState = wrapper.vm as unknown as SidebarSetupState;
+
+        const olderDirect: SearchHistoryItem = {
+            id: 'direct-old',
+            query: '同一个查询',
+            timestamp: Date.now() - 1000,
+            pinned: false,
+            mode: 'direct',
+        };
+        const currentDirect: SearchHistoryItem = {
+            id: 'direct-current',
+            query: '同一个查询',
+            timestamp: Date.now(),
+            pinned: false,
+            mode: 'direct',
+        };
+
+        sessionStorage.setItem(
+            'direct-history-selection.v1',
+            JSON.stringify({ recordId: 'direct-old', query: '同一个查询' })
+        );
+        mockRouter.currentRoute.value = {
+            path: '/chat',
+            query: { q: '同一个查询' },
+        };
+        mockSearchHistoryStore.findLatestRecord.mockReturnValue(currentDirect);
+
+        expect(setupState.isHistoryItemActive(olderDirect)).toBe(true);
+        expect(setupState.isHistoryItemActive(currentDirect)).toBe(false);
     });
 });

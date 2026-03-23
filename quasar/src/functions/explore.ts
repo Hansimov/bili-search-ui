@@ -4,8 +4,10 @@ import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
+import { useChatStore } from 'src/stores/chatStore';
 import { cacheService, STORE_NAMES, EXPLORE_CACHE_TTL } from 'src/services/cacheService';
 import { getSmartSuggestService } from 'src/services/smartSuggestService';
+import { saveDirectHistorySelection } from 'src/utils/directHistorySelection';
 import type { ExploreResponse, ExploreStepResult } from 'src/stores/resultStore';
 
 let exploreAbortController = new AbortController();
@@ -84,6 +86,7 @@ export const explore = async ({
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
     const searchHistoryStore = useSearchHistoryStore();
+    const chatStore = useChatStore();
 
     layoutStore.setIsSuggestVisible(false);
     exploreStore.clearAuthorFilters();
@@ -143,11 +146,13 @@ export const explore = async ({
                 (sum, step) => sum + (Array.isArray(step.output?.hits) ? step.output.hits.length : 0), 0
             );
             if (currentMode === 'direct') {
-                searchHistoryStore.addRecord(
+                const recordId = await searchHistoryStore.addRecord(
                     queryValue,
                     totalHits,
                     currentMode,
-                ).catch(console.error);
+                );
+                chatStore.setCurrentHistoryRecordId(recordId);
+                saveDirectHistorySelection(recordId, queryValue);
             }
         } else {
             console.warn('[EMPTY_DATA]: No step results in response');
@@ -155,11 +160,13 @@ export const explore = async ({
             const searchModeStore = useSearchModeStore();
             const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
             if (currentMode === 'direct') {
-                searchHistoryStore.addRecord(
+                const recordId = await searchHistoryStore.addRecord(
                     queryValue,
                     0,
                     currentMode,
-                ).catch(console.error);
+                );
+                chatStore.setCurrentHistoryRecordId(recordId);
+                saveDirectHistorySelection(recordId, queryValue);
             }
         }
 
