@@ -120,6 +120,7 @@ describe('SearchModeStore', () => {
         it('chat 模式应该有对应参数', () => {
             const think = SEARCH_MODES.find((m) => m.value === 'think');
             expect(think?.chatParams?.thinking).toBe(true);
+            expect(think?.icon).toBe('lightbulb');
 
             const research = SEARCH_MODES.find((m) => m.value === 'research');
             expect(research?.chatParams?.researchMode).toBe(true);

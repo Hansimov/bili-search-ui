@@ -76,10 +76,10 @@
               flat
               no-caps
               size="sm"
+              :style="getModeThemeVars(mode.value)"
               :class="{
                 'mode-btn': true,
                 'mode-btn-disabled': true,
-                [`mode-btn-${mode.value}`]: true,
               }"
               title="正在测试，即将推出：生成深度研究报告"
               @mouseenter="hoveredMode = mode.value"
@@ -95,10 +95,10 @@
               flat
               no-caps
               size="sm"
+              :style="getModeThemeVars(mode.value)"
               :class="{
                 'mode-btn': true,
                 'mode-btn-active': currentMode === mode.value,
-                [`mode-btn-${mode.value}`]: true,
               }"
               :title="mode.description"
               @click="selectMode(mode.value)"
@@ -136,6 +136,7 @@ import {
   SEARCH_MODE_PLACEHOLDERS,
   type SearchMode,
 } from 'src/stores/searchModeStore';
+import { getSearchMode, getSearchModeThemeVars } from 'src/config/searchModes';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
 import { explore, abortExplore } from 'src/functions/explore';
@@ -156,14 +157,6 @@ import {
 } from 'src/utils/zoom';
 
 const DslHelpDialog = defineAsyncComponent(() => import('./DslHelpDialog.vue'));
-
-/** 各模式的 icon color */
-const MODE_ICON_COLORS: Record<SearchMode, string> = {
-  direct: 'teal-5',
-  smart: 'blue-5',
-  think: 'purple-5',
-  research: 'deep-orange-5',
-};
 
 /** textarea 单行高度 & 最大行数 */
 const TEXTAREA_LINE_HEIGHT = 24; // px, matches CSS line-height
@@ -234,7 +227,7 @@ export default {
       () => searchModeStore.currentModeOption.icon
     );
     const currentModeIconColor = computed(
-      () => MODE_ICON_COLORS[searchModeStore.currentMode]
+      () => getSearchMode(searchModeStore.currentMode).theme.quasarColor
     );
     const stopButtonColor = computed(() =>
       searchModeStore.currentMode === 'direct'
@@ -277,6 +270,8 @@ export default {
       }
       return SHORT_MODE_LABELS[mode.value];
     };
+
+    const getModeThemeVars = (mode: SearchMode) => getSearchModeThemeVars(mode);
 
     // ====== Textarea auto-resize ======
 
@@ -753,6 +748,7 @@ export default {
       clearQuery,
       hoveredMode,
       getModeDisplayLabel,
+      getModeThemeVars,
       minRows,
       showDslHelp,
     };
@@ -922,38 +918,12 @@ body.body--light {
   }
   .mode-btn-active {
     font-weight: 500;
+    color: var(--mode-light-color) !important;
+    background-color: var(--mode-light-background) !important;
   }
-  .mode-btn-direct.mode-btn-active {
-    color: #00897b !important;
-    background-color: rgba(0, 137, 123, 0.1) !important;
-  }
-  .mode-btn-smart.mode-btn-active {
-    color: #1976d2 !important;
-    background-color: rgba(25, 118, 210, 0.1) !important;
-  }
-  .mode-btn-think.mode-btn-active {
-    color: #8e24aa !important;
-    background-color: rgba(142, 36, 170, 0.1) !important;
-  }
-  .mode-btn-research.mode-btn-active {
-    color: #e64a19 !important;
-    background-color: rgba(230, 74, 25, 0.1) !important;
-  }
-  .mode-btn-direct:hover:not(.mode-btn-active) {
-    color: #00897b;
-    background-color: rgba(0, 137, 123, 0.06);
-  }
-  .mode-btn-smart:hover:not(.mode-btn-active) {
-    color: #1976d2;
-    background-color: rgba(25, 118, 210, 0.06);
-  }
-  .mode-btn-think:hover:not(.mode-btn-active) {
-    color: #8e24aa;
-    background-color: rgba(142, 36, 170, 0.06);
-  }
-  .mode-btn-research:hover:not(.mode-btn-active) {
-    color: #e64a19;
-    background-color: rgba(230, 74, 25, 0.06);
+  .mode-btn:hover:not(.mode-btn-active) {
+    color: var(--mode-light-color);
+    background-color: var(--mode-light-hover-background);
   }
 }
 
@@ -974,38 +944,12 @@ body.body--dark {
   }
   .mode-btn-active {
     font-weight: 500;
+    color: var(--mode-dark-color) !important;
+    background-color: var(--mode-dark-background) !important;
   }
-  .mode-btn-direct.mode-btn-active {
-    color: #4db6ac !important;
-    background-color: rgba(0, 150, 136, 0.18) !important;
-  }
-  .mode-btn-smart.mode-btn-active {
-    color: #64b5f6 !important;
-    background-color: rgba(33, 150, 243, 0.18) !important;
-  }
-  .mode-btn-think.mode-btn-active {
-    color: #ce93d8 !important;
-    background-color: rgba(156, 39, 176, 0.18) !important;
-  }
-  .mode-btn-research.mode-btn-active {
-    color: #ff8a65 !important;
-    background-color: rgba(255, 87, 34, 0.18) !important;
-  }
-  .mode-btn-direct:hover:not(.mode-btn-active) {
-    color: #4db6ac;
-    background-color: rgba(0, 150, 136, 0.1);
-  }
-  .mode-btn-smart:hover:not(.mode-btn-active) {
-    color: #64b5f6;
-    background-color: rgba(33, 150, 243, 0.1);
-  }
-  .mode-btn-think:hover:not(.mode-btn-active) {
-    color: #ce93d8;
-    background-color: rgba(156, 39, 176, 0.1);
-  }
-  .mode-btn-research:hover:not(.mode-btn-active) {
-    color: #ff8a65;
-    background-color: rgba(255, 87, 34, 0.1);
+  .mode-btn:hover:not(.mode-btn-active) {
+    color: var(--mode-dark-color);
+    background-color: var(--mode-dark-hover-background);
   }
 }
 </style>

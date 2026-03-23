@@ -137,7 +137,7 @@
                     :name="getHistoryItemIcon(item)"
                     size="14px"
                     class="history-item-icon"
-                    :class="getHistoryItemIconClass(item)"
+                    :style="getHistoryItemIconStyle(item)"
                   />
                   <span class="history-item-text">
                     {{ item.displayName || item.query }}
@@ -183,7 +183,7 @@
                     :name="getHistoryItemIcon(item)"
                     size="14px"
                     class="history-item-icon"
-                    :class="getHistoryItemIconClass(item)"
+                    :style="getHistoryItemIconStyle(item)"
                   />
                   <span class="history-item-text">
                     {{ item.displayName || item.query }}
@@ -619,6 +619,7 @@ import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import type { SearchMode } from 'src/stores/searchModeStore';
+import { getSearchMode } from 'src/config/searchModes';
 import { getDocumentZoom, viewportPxToCssPx } from 'src/utils/zoom';
 import { scheduleAfterInitialRender } from 'src/utils/schedule';
 
@@ -942,13 +943,7 @@ const isHistoryItemActive = (item: SearchHistoryItem): boolean => {
 const getItemTooltip = (item: SearchHistoryItem): string => {
   const displayText = item.displayName || item.query;
   const timeText = formatFullTime(item.timestamp);
-  const modeLabels: Record<string, string> = {
-    direct: '直接查找',
-    smart: '快速问答',
-    think: '智能思考',
-    research: '深度研究',
-  };
-  const modeLabel = item.mode ? modeLabels[item.mode] || '' : '';
+  const modeLabel = item.mode ? getSearchMode(item.mode).label || '' : '';
   if (item.displayName && item.displayName !== item.query) {
     return `${displayText}\n原始查询：${item.query}${
       modeLabel ? `\n模式：${modeLabel}` : ''
@@ -962,34 +957,24 @@ const getItemTooltip = (item: SearchHistoryItem): string => {
 /** 根据搜索模式返回历史项图标 */
 const getHistoryItemIcon = (item: SearchHistoryItem): string => {
   if (item.pinned) return 'push_pin';
-  switch (item.mode) {
-    case 'direct':
-      return 'search';
-    case 'smart':
-      return 'auto_awesome';
-    case 'think':
-      return 'psychology';
-    case 'research':
-      return 'biotech';
-    default:
-      return 'schedule';
-  }
+  return item.mode ? getSearchMode(item.mode).icon : 'schedule';
 };
 
-/** 根据搜索模式返回历史项图标颜色类 */
-const getHistoryItemIconClass = (item: SearchHistoryItem): string => {
-  switch (item.mode) {
-    case 'direct':
-      return 'history-icon-direct';
-    case 'smart':
-      return 'history-icon-smart';
-    case 'think':
-      return 'history-icon-think';
-    case 'research':
-      return 'history-icon-research';
-    default:
-      return '';
+/** 根据搜索模式返回历史项图标样式 */
+const getHistoryItemIconStyle = (
+  item: SearchHistoryItem
+): Record<string, string> => {
+  if (item.pinned) {
+    return {
+      opacity: '0.76',
+    };
   }
+
+  const theme = getSearchMode(item.mode || 'direct').theme;
+  return {
+    color: isDark.value ? theme.dark.color : theme.light.color,
+    opacity: '0.72',
+  };
 };
 
 // Rename
@@ -1690,38 +1675,6 @@ body.body--dark .history-item-active {
   line-height: 1;
   opacity: 0.5;
   transform: translateY(-0.5px);
-}
-
-.history-icon-direct {
-  color: #00897b;
-  opacity: 0.72;
-}
-
-.history-icon-smart {
-  color: #1976d2;
-  opacity: 0.72;
-}
-.history-icon-think {
-  color: #8e24aa;
-  opacity: 0.72;
-}
-.history-icon-research {
-  color: #e64a19;
-  opacity: 0.72;
-}
-
-body.body--dark .history-icon-direct {
-  color: #4db6ac;
-}
-
-body.body--dark .history-icon-smart {
-  color: #64b5f6;
-}
-body.body--dark .history-icon-think {
-  color: #ce93d8;
-}
-body.body--dark .history-icon-research {
-  color: #ff8a65;
 }
 
 .history-item-text {

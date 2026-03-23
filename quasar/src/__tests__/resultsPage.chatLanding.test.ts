@@ -28,6 +28,10 @@ const mockSearchModeStore = {
     shouldUseInlineLayout: false,
 };
 
+const mockQueryStore = {
+    query: '',
+};
+
 const mockChatStore = {
     conversationHistory: [] as unknown[],
     currentSession: {
@@ -48,6 +52,9 @@ const mockChatStore = {
 
 const mockExploreStore = {
     latestHitsResult: null,
+    hasResults: false,
+    isExploreLoading: false,
+    submittedQuery: '',
 };
 
 vi.mock('src/stores/layoutStore', () => ({
@@ -64,6 +71,10 @@ vi.mock('src/stores/chatStore', () => ({
 
 vi.mock('src/stores/exploreStore', () => ({
     useExploreStore: () => mockExploreStore,
+}));
+
+vi.mock('src/stores/queryStore', () => ({
+    useQueryStore: () => mockQueryStore,
 }));
 
 vi.mock('src/functions/chat', () => ({
@@ -102,6 +113,10 @@ describe('ResultsPage chat landing', () => {
         mockChatStore.hasError = false;
         mockChatStore.isDone = false;
         mockChatStore.isAborted = false;
+        mockQueryStore.query = '';
+        mockExploreStore.hasResults = false;
+        mockExploreStore.isExploreLoading = false;
+        mockExploreStore.submittedQuery = '';
     });
 
     it('smart 空会话时应显示 chat 面板', () => {
@@ -116,5 +131,6 @@ describe('ResultsPage chat landing', () => {
         const wrapper = mountResultsPage();
 
         expect((wrapper.vm as unknown as { showChatPanel: boolean }).showChatPanel).toBe(false);
+        expect((wrapper.vm as unknown as { showDirectEmptyLanding: boolean }).showDirectEmptyLanding).toBe(true);
     });
 });

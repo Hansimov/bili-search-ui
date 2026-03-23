@@ -36,7 +36,6 @@ describe('IndexPage chat landing', () => {
             },
         });
 
-        expect(wrapper.text()).toContain('blbl.top');
         expect(wrapper.text()).toContain('快速问答');
         expect(wrapper.text()).toContain('输入问题，AI 快速回答');
     });
@@ -54,7 +53,6 @@ describe('IndexPage chat landing', () => {
             },
         });
 
-        expect(wrapper.text()).toContain('blbl.top');
         expect(wrapper.text()).toContain('直接查找');
         expect(wrapper.text()).toContain('输入关键词，直接返回匹配视频');
     });

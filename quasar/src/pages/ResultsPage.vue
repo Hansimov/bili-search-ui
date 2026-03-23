@@ -31,7 +31,15 @@
 
     <!-- 直接查找模式：正常显示搜索结果 -->
     <div v-if="!showChatPanel" class="results-panels-card">
+      <SearchModeEmptyState
+        v-if="showDirectEmptyLanding"
+        mode="direct"
+        variant="page"
+        show-direct-quick-help
+        class="results-empty-landing"
+      />
       <q-tab-panels
+        v-else
         keep-alive
         v-model="activeTab"
         transition-prev="fade"
@@ -89,8 +97,10 @@ import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useChatStore } from 'src/stores/chatStore';
 import { useExploreStore } from 'src/stores/exploreStore';
+import { useQueryStore } from 'src/stores/queryStore';
 import { chat } from 'src/functions/chat';
 import ResultsList from 'src/components/ResultsList.vue';
+import SearchModeEmptyState from 'src/components/SearchModeEmptyState.vue';
 
 const ChatResponsePanel = defineAsyncComponent(() =>
   import('src/components/ChatResponsePanel.vue')
@@ -103,12 +113,14 @@ export default {
   components: {
     ResultsList,
     ChatResponsePanel,
+    SearchModeEmptyState,
   },
   setup() {
     const layoutStore = useLayoutStore();
     const searchModeStore = useSearchModeStore();
     const chatStore = useChatStore();
     const exploreStore = useExploreStore();
+    const queryStore = useQueryStore();
 
     /**
      * 是否显示聊天面板（inline 布局）
@@ -136,6 +148,19 @@ export default {
       }
 
       return isEmptyChatLanding;
+    });
+
+    const showDirectEmptyLanding = computed(() => {
+      const hasDraftQuery = !!queryStore.query?.trim();
+      const hasSubmittedQuery = !!exploreStore.submittedQuery?.trim();
+      return (
+        searchModeStore.currentMode === 'direct' &&
+        !isChatMode.value &&
+        !hasDraftQuery &&
+        !hasSubmittedQuery &&
+        !exploreStore.isExploreLoading &&
+        !exploreStore.hasResults
+      );
     });
 
     /** 搜索结果摘要文本 */
@@ -255,6 +280,7 @@ export default {
     return {
       activeTab: computed(() => layoutStore.activeTab || 'videos'),
       showChatPanel: isChatMode,
+      showDirectEmptyLanding,
       resultsSummaryText,
       showResultsDialog,
       openResultsDialog,
@@ -297,11 +323,17 @@ body.body--dark .search-bar-row {
   background: transparent;
   display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
   min-height: 0;
   width: 100%;
   overflow-x: hidden;
   overflow-y: hidden;
+}
+
+.results-empty-landing {
+  max-width: var(--search-input-max-width, 95vw);
 }
 
 .results-panels-card :deep(.q-tab-panels) {

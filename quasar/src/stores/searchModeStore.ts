@@ -1,84 +1,19 @@
-/**
- * SearchModeStore - 搜索模式管理
- *
- * 管理搜索输入框的模式选择：
- * - direct: 直接查找（默认），使用 explore 接口
- * - smart: 快速问答，使用 LLM chat 接口
- * - think: 智能思考，使用 LLM chat + thinking 模式
- * - research: 深度研究，使用 LLM chat + research prompt
- */
-
 import { defineStore } from 'pinia';
+import {
+    SEARCH_MODE_PLACEHOLDERS,
+    SEARCH_MODES,
+    getSearchMode,
+    type SearchMode,
+    type SearchModeOption,
+} from 'src/config/searchModes';
 
-/** 搜索模式类型 */
-export type SearchMode = 'direct' | 'smart' | 'think' | 'research';
-
-/** 各模式的 placeholder / landing 副标题文案 */
-export const SEARCH_MODE_PLACEHOLDERS: Record<SearchMode, string> = {
-    direct: '直接查找 · 输入关键词，直接返回匹配视频',
-    smart: '快速问答 · 输入问题，AI 快速回答',
-    think: '智能思考 · 输入问题，返回 AI 思考过程和回答',
-    research: '深度研究 · 输入研究计划，返回 AI 深度研究报告',
+export {
+    SEARCH_MODE_PLACEHOLDERS,
+    SEARCH_MODES,
+    getSearchMode,
+    type SearchMode,
+    type SearchModeOption,
 };
-
-/** 搜索模式定义 */
-export interface SearchModeOption {
-    /** 模式标识 */
-    value: SearchMode;
-    /** 中文标签 */
-    label: string;
-    /** 图标 */
-    icon: string;
-    /** 描述 */
-    description: string;
-    /** 对应的后端调用方式 */
-    apiType: 'explore' | 'chat';
-    /** LLM 参数（仅 chat 类型） */
-    chatParams?: {
-        thinking?: boolean;
-        researchMode?: boolean;
-    };
-}
-
-/** 所有可用模式（顺序：快速问答、智能思考、直接查找、深度研究） */
-export const SEARCH_MODES: SearchModeOption[] = [
-    {
-        value: 'smart',
-        label: '快速问答',
-        icon: 'auto_awesome',
-        description: '快速提问，AI 快速回答',
-        apiType: 'chat',
-        chatParams: {},
-    },
-    {
-        value: 'think',
-        label: '智能思考',
-        icon: 'psychology',
-        description: '智能思考，AI 先思考再回答',
-        apiType: 'chat',
-        chatParams: { thinking: true },
-    },
-    {
-        value: 'direct',
-        label: '直接查找',
-        icon: 'search',
-        description: '直接查找，返回匹配视频',
-        apiType: 'explore',
-    },
-    {
-        value: 'research',
-        label: '深度研究',
-        icon: 'biotech',
-        description: '深度研究，AI 生成深度研究报告',
-        apiType: 'chat',
-        chatParams: { researchMode: true },
-    },
-];
-
-/** 根据模式值查找模式选项 */
-export function getSearchMode(mode: SearchMode): SearchModeOption {
-    return SEARCH_MODES.find((m) => m.value === mode) || SEARCH_MODES[0];
-}
 
 export const useSearchModeStore = defineStore('searchMode', {
     state: () => ({
