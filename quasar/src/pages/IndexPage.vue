@@ -1,6 +1,24 @@
 <template>
   <q-card flat class="index-page-card">
-    <div class="index-content">
+    <div
+      class="index-content"
+      :class="{ 'index-content-direct': isDirectMode }"
+    >
+      <div
+        class="index-chat-empty-state"
+        :class="{ 'index-chat-empty-state-direct': isDirectMode }"
+      >
+        <div class="index-chat-empty-brand">blbl.top</div>
+        <p class="index-chat-empty-subtitle">
+          <span class="index-mode-pill" :class="currentModeAccentClass">
+            {{ currentModeLabel }}
+          </span>
+          <span class="index-chat-empty-subtitle-rest">
+            {{ currentModeSubtitleText }}
+          </span>
+        </p>
+      </div>
+
       <!-- 直接查找模式：内联 DSL 语法帮助 -->
       <div v-if="isDirectMode" class="index-dsl-help">
         <div class="dsl-inline-title">
@@ -88,7 +106,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useSearchModeStore } from 'src/stores/searchModeStore';
+import {
+  SEARCH_MODE_PLACEHOLDERS,
+  useSearchModeStore,
+} from 'src/stores/searchModeStore';
 
 defineOptions({
   name: 'IndexPage',
@@ -97,6 +118,23 @@ defineOptions({
 const searchModeStore = useSearchModeStore();
 
 const isDirectMode = computed(() => searchModeStore.isDirectMode);
+const currentMode = computed(() => searchModeStore.currentMode);
+const currentModePlaceholder = computed(
+  () => SEARCH_MODE_PLACEHOLDERS[currentMode.value]
+);
+const currentModeLabel = computed(
+  () =>
+    currentModePlaceholder.value.split(' · ')[0] || currentModePlaceholder.value
+);
+const currentModeSubtitleText = computed(() => {
+  const parts = currentModePlaceholder.value.split(' · ');
+  return parts.length > 1
+    ? parts.slice(1).join(' · ')
+    : currentModePlaceholder.value;
+});
+const currentModeAccentClass = computed(
+  () => `index-mode-pill-${currentMode.value}`
+);
 </script>
 
 <style lang="scss" scoped>
@@ -121,10 +159,124 @@ const isDirectMode = computed(() => searchModeStore.isDirectMode);
   padding: 0 16px;
 }
 
+.index-content-direct {
+  justify-content: flex-start;
+  gap: 20px;
+  padding-top: 40px;
+}
+
+.index-chat-empty-state {
+  display: flex;
+  min-height: min(46vh, 360px);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-align: center;
+}
+
+.index-chat-empty-state-direct {
+  min-height: auto;
+  padding-top: 8px;
+}
+
+.index-chat-empty-brand {
+  font-size: clamp(32px, 5vw, 44px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.index-chat-empty-subtitle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: min(720px, 92vw);
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.index-mode-pill {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.index-chat-empty-subtitle-rest {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.body--light .index-chat-empty-brand {
+  color: #202020;
+}
+
+body.body--dark .index-chat-empty-brand {
+  color: #f2f2f2;
+}
+
+body.body--light .index-mode-pill-direct {
+  color: #00897b;
+  background: rgba(0, 137, 123, 0.1);
+}
+
+body.body--light .index-mode-pill-smart {
+  color: #1976d2;
+  background: rgba(25, 118, 210, 0.08);
+}
+
+body.body--light .index-mode-pill-think {
+  color: #8e24aa;
+  background: rgba(142, 36, 170, 0.1);
+}
+
+body.body--light .index-mode-pill-research {
+  color: #e64a19;
+  background: rgba(230, 74, 25, 0.1);
+}
+
+body.body--dark .index-mode-pill-direct {
+  color: #4db6ac;
+  background: rgba(77, 182, 172, 0.16);
+}
+
+body.body--dark .index-mode-pill-smart {
+  color: #90caf9;
+  background: rgba(144, 202, 249, 0.12);
+}
+
+body.body--dark .index-mode-pill-think {
+  color: #ce93d8;
+  background: rgba(206, 147, 216, 0.14);
+}
+
+body.body--dark .index-mode-pill-research {
+  color: #ff8a65;
+  background: rgba(255, 138, 101, 0.14);
+}
+
+body.body--light .index-chat-empty-subtitle {
+  color: rgba(0, 0, 0, 0.62);
+}
+
+body.body--dark .index-chat-empty-subtitle {
+  color: rgba(255, 255, 255, 0.62);
+}
+
 /* ============ 内联 DSL 语法帮助 ============ */
 .index-dsl-help {
   width: 100%;
   max-width: 700px;
+  margin-top: 0;
 }
 
 .dsl-inline-title {

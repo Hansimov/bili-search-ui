@@ -47,11 +47,27 @@ export const useSearchStore = defineStore('search', {
             };
         },
         isSuggestionsListVisible(): boolean {
-            return this.suggestions.length > 0;
+            const queryStore = useQueryStore();
+            const query = queryStore.query?.trim();
+            if (!query) {
+                return false;
+            }
+
+            return (this.suggestResultCache[query]?.hits?.length || 0) > 0;
         },
         isSuggestReplaceVisible(): boolean {
             const queryStore = useQueryStore();
-            return (!!queryStore.query && queryStore.query.trim() !== '');
+            const query = queryStore.query?.trim();
+            if (!query) {
+                return false;
+            }
+
+            const rewriteInfo = this.suggestResultCache[query]?.rewrite_info;
+            if (!rewriteInfo) {
+                return false;
+            }
+
+            return rewriteInfo.rewrited_word_exprs.length > 0;
         },
         relatedAuthorsList(): RelatedAuthorsList {
             const queryStore = useQueryStore();

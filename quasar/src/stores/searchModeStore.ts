@@ -13,6 +13,14 @@ import { defineStore } from 'pinia';
 /** 搜索模式类型 */
 export type SearchMode = 'direct' | 'smart' | 'think' | 'research';
 
+/** 各模式的 placeholder / landing 副标题文案 */
+export const SEARCH_MODE_PLACEHOLDERS: Record<SearchMode, string> = {
+    direct: '直接查找 · 输入关键词，直接返回匹配视频',
+    smart: '快速问答 · 输入问题，AI 快速回答',
+    think: '智能思考 · 输入问题，返回 AI 思考过程和回答',
+    research: '深度研究 · 输入研究计划，返回 AI 深度研究报告',
+};
+
 /** 搜索模式定义 */
 export interface SearchModeOption {
     /** 模式标识 */

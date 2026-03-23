@@ -43,7 +43,7 @@
           round
           dense
           icon="stop"
-          color="negative"
+          :color="stopButtonColor"
           class="send-btn stop-btn"
           size="sm"
           title="停止"
@@ -133,6 +133,7 @@ import { useExploreStore } from 'src/stores/exploreStore';
 import { useChatStore } from 'src/stores/chatStore';
 import {
   useSearchModeStore,
+  SEARCH_MODE_PLACEHOLDERS,
   type SearchMode,
 } from 'src/stores/searchModeStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
@@ -155,14 +156,6 @@ import {
 } from 'src/utils/zoom';
 
 const DslHelpDialog = defineAsyncComponent(() => import('./DslHelpDialog.vue'));
-
-/** 各模式的 placeholder 文本 */
-const MODE_PLACEHOLDERS: Record<SearchMode, string> = {
-  direct: '直接查找 · 输入关键词，直接返回匹配视频',
-  smart: '快速问答 · 输入问题，AI 快速回答',
-  think: '智能思考 · 输入问题，返回 AI 思考过程和回答',
-  research: '深度研究 · 输入研究计划，返回 AI 深度研究报告',
-};
 
 /** 各模式的 icon color */
 const MODE_ICON_COLORS: Record<SearchMode, string> = {
@@ -242,6 +235,11 @@ export default {
     );
     const currentModeIconColor = computed(
       () => MODE_ICON_COLORS[searchModeStore.currentMode]
+    );
+    const stopButtonColor = computed(() =>
+      searchModeStore.currentMode === 'direct'
+        ? 'grey-6'
+        : currentModeIconColor.value
     );
 
     const selectMode = (mode: SearchMode) => {
@@ -727,7 +725,7 @@ export default {
     });
 
     const searchInputPlaceholder = computed(
-      () => MODE_PLACEHOLDERS[searchModeStore.currentMode]
+      () => SEARCH_MODE_PLACEHOLDERS[searchModeStore.currentMode]
     );
 
     return {
@@ -738,6 +736,7 @@ export default {
       currentMode,
       currentModeIcon,
       currentModeIconColor,
+      stopButtonColor,
       modeOptions,
       selectMode,
       handleFocus,
@@ -850,7 +849,7 @@ export default {
 
 /* 停止按钮（方形图标，红色提示） */
 .stop-btn {
-  opacity: 0.9;
+  opacity: 0.78;
   &:hover {
     opacity: 1;
   }

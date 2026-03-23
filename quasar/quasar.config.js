@@ -85,20 +85,8 @@ module.exports = configure(function (/* ctx */) {
                     const parts = id.split('node_modules/');
                     const pkg = parts[parts.length - 1];
 
-                    if (pkg.startsWith('showdown')) {
-                        return 'markdown';
-                    }
-
-                    if (pkg.startsWith('@chenfengyuan/vue-qrcode') || pkg.startsWith('qrcode/')) {
-                        return 'qrcode';
-                    }
-
                     if (pkg.startsWith('@vue-flow/')) {
                         return 'vue-flow';
-                    }
-
-                    if (pkg.startsWith('pinyin') || pkg.startsWith('segmentit')) {
-                        return 'pinyin';
                     }
 
                     if (

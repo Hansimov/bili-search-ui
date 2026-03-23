@@ -14,6 +14,11 @@
       @tooltip-leave="onTooltipLeave"
       @tooltip-wheel="onTooltipWheel"
     />
+    <div v-if="showEmptyState" class="chat-empty-state">
+      <div class="chat-empty-state-brand">blbl.top</div>
+      <div class="chat-empty-state-mode">{{ emptyStateModeLabel }}</div>
+      <p class="chat-empty-state-subtitle">{{ emptyStateSubtitle }}</p>
+    </div>
     <!-- 多轮对话：历史消息 -->
     <template v-for="(msg, msgIdx) in historyMessages" :key="msg.id">
       <!-- 用户消息 -->
@@ -372,6 +377,7 @@ import {
 } from 'src/stores/chatStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { useSearchModeStore } from 'src/stores/searchModeStore';
 import type {
   ToolEvent,
   ToolCall,
@@ -421,6 +427,18 @@ export default defineComponent({
     const chatStore = useChatStore();
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
+    const searchModeStore = useSearchModeStore();
+
+    const EMPTY_STATE_COPY = {
+      smart: {
+        label: '快速问答',
+        subtitle: '快速问答模式已就绪，直接输入问题，AI 会给出简洁明确的回答。',
+      },
+      think: {
+        label: '智能思考',
+        subtitle: '智能思考模式已就绪，AI 会先整理思路，再给出更完整的回答。',
+      },
+    } as const;
 
     const readPersistedVideoLinkView = (
       sessionId?: string | null
@@ -480,6 +498,32 @@ export default defineComponent({
       () => chatStore.currentSession.error || '请求失败'
     );
     const userQuery = computed(() => chatStore.currentSession.query || '');
+    const currentMode = computed(() => searchModeStore.currentMode);
+    const showEmptyState = computed(() => {
+      return (
+        (currentMode.value === 'smart' || currentMode.value === 'think') &&
+        historyMessages.value.length === 0 &&
+        !userQuery.value &&
+        !isLoading.value &&
+        !hasContent.value &&
+        !hasThinkingContent.value &&
+        !hasError.value &&
+        !isAborted.value &&
+        allToolCalls.value.length === 0
+      );
+    });
+    const emptyStateModeLabel = computed(() => {
+      if (currentMode.value === 'think') {
+        return EMPTY_STATE_COPY.think.label;
+      }
+      return EMPTY_STATE_COPY.smart.label;
+    });
+    const emptyStateSubtitle = computed(() => {
+      if (currentMode.value === 'think') {
+        return EMPTY_STATE_COPY.think.subtitle;
+      }
+      return EMPTY_STATE_COPY.smart.subtitle;
+    });
 
     /**
      * 从所有 tool events 中提取扁平的 tool calls 列表。
@@ -1074,6 +1118,9 @@ export default defineComponent({
       allToolCalls,
       isThinking,
       errorMessage,
+      showEmptyState,
+      emptyStateModeLabel,
+      emptyStateSubtitle,
       userQuery,
       historyMessages,
       loadingText,
@@ -1131,6 +1178,65 @@ export default defineComponent({
   padding: 16px 14px; /* 两侧内缩 14px，与输入框圆角内边距对齐 */
   font-size: 15px;
   line-height: 1.7;
+}
+
+.chat-empty-state {
+  display: flex;
+  min-height: min(42vh, 320px);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 12px 28px;
+  text-align: center;
+}
+
+.chat-empty-state-brand {
+  font-size: clamp(28px, 4.4vw, 40px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.chat-empty-state-mode {
+  margin-top: 14px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.chat-empty-state-subtitle {
+  max-width: 540px;
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+body.body--light .chat-empty-state-brand {
+  color: #202020;
+}
+
+body.body--dark .chat-empty-state-brand {
+  color: #f2f2f2;
+}
+
+body.body--light .chat-empty-state-mode {
+  color: #1976d2;
+  background: rgba(25, 118, 210, 0.08);
+}
+
+body.body--dark .chat-empty-state-mode {
+  color: #90caf9;
+  background: rgba(144, 202, 249, 0.12);
+}
+
+body.body--light .chat-empty-state-subtitle {
+  color: rgba(0, 0, 0, 0.62);
+}
+
+body.body--dark .chat-empty-state-subtitle {
+  color: rgba(255, 255, 255, 0.62);
 }
 
 /* 窄屏时减少垂直 padding */

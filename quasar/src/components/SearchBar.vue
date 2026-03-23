@@ -4,15 +4,15 @@
       <SearchInput />
     </div>
     <div
+      v-if="isSuggestVisible && hasSuggestContent"
       class="search-sub-container"
       :class="{
         'search-sub-bottom': true,
-        'search-sub-bordered': isSuggestVisible && hasSuggestContent,
+        'search-sub-bordered': true,
       }"
     >
       <div
         class="suggest-container"
-        v-show="isSuggestVisible && hasSuggestContent"
         :class="{
           'suggest-container-reverse': true,
         }"
@@ -20,27 +20,27 @@
         <div class="search-sub-space-top"></div>
 
         <!-- 智能补全建议（输入内容时显示） -->
-        <SmartSuggestions v-if="!isQueryEmpty" />
+        <SmartSuggestions v-if="hasSmartSuggestions" />
 
         <!-- 纠错建议 -->
-        <SuggestReplace v-if="isSuggestRepaceVisible" />
+        <SuggestReplace v-if="showSuggestReplace" />
 
         <q-separator
           inset
           class="suggest-component-sep"
-          v-if="isSuggestAuthorsListVisible"
+          v-if="showSuggestAuthors"
         />
-        <SuggestAuthorsList v-if="isSuggestAuthorsListVisible" />
+        <SuggestAuthorsList v-if="showSuggestAuthors" />
 
         <q-separator
           inset
           class="suggest-component-sep"
-          v-if="isSuggestionsListVisible"
+          v-if="showSuggestionsList"
         />
-        <SuggestionsList v-if="isSuggestionsListVisible" />
+        <SuggestionsList v-if="showSuggestionsList" />
 
         <!-- 搜索历史（无输入时显示） -->
-        <SearchHistoryPanel v-if="isQueryEmpty" />
+        <SearchHistoryPanel v-if="showSearchHistory" />
 
         <div class="search-sub-space-bottom"></div>
       </div>
@@ -50,6 +50,7 @@
 
 <script>
 import { computed, defineAsyncComponent } from 'vue';
+import { useQueryStore } from 'src/stores/queryStore';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import SearchInput from './SearchInput.vue';
@@ -85,6 +86,7 @@ export default {
     SearchHistoryPanel,
   },
   setup() {
+    const queryStore = useQueryStore();
     const searchStore = useSearchStore();
     const layoutStore = useLayoutStore();
     const inputHistoryStore = useInputHistoryStore();
@@ -99,28 +101,57 @@ export default {
     const isSuggestAuthorsListVisible = computed(
       () => searchStore.isSuggestAuthorsListVisible
     );
+    const currentQuery = computed(() => queryStore.query?.trim() || '');
+    const currentSuggestResult = computed(() => {
+      if (!currentQuery.value) {
+        return null;
+      }
+      return searchStore.suggestResultCache[currentQuery.value] || null;
+    });
+    const hasSmartSuggestions = computed(() => {
+      if (isQueryEmpty.value) {
+        return false;
+      }
+
+      void suggestIndexVersion.value;
+      const q = currentQuery.value;
+      return !!(
+        q &&
+        q.trim() &&
+        getSmartSuggestService().suggest(q).length > 0
+      );
+    });
+    const showSuggestReplace = computed(
+      () =>
+        !isQueryEmpty.value &&
+        !!currentSuggestResult.value?.rewrite_info?.rewrited_word_exprs?.length
+    );
+    const showSuggestAuthors = computed(
+      () =>
+        !isQueryEmpty.value &&
+        Object.keys(
+          currentSuggestResult.value?.suggest_info?.related_authors || {}
+        ).length > 0
+    );
+    const showSuggestionsList = computed(
+      () => !isQueryEmpty.value && !!currentSuggestResult.value?.hits?.length
+    );
+    const showSearchHistory = computed(
+      () => isQueryEmpty.value && inputHistoryStore.sortedItems.length > 0
+    );
     // 有任何下拉内容要显示
     const hasSuggestContent = computed(() => {
       if (!isSuggestVisible.value) {
         return false;
       }
 
-      // 触发响应式依赖
-      void suggestIndexVersion.value;
-      if (!isQueryEmpty.value) {
-        // 有输入时，检查是否有任何子组件会渲染
-        const q = searchStore.query;
-        const hasSmartSuggestions =
-          q && q.trim() && getSmartSuggestService().suggest(q).length > 0;
-        return (
-          hasSmartSuggestions ||
-          isSuggestionsListVisible.value ||
-          isSuggestRepaceVisible.value ||
-          isSuggestAuthorsListVisible.value
-        );
-      }
-      // 输入为空时，只有输入历史存在才显示
-      return inputHistoryStore.sortedItems.length > 0;
+      return (
+        hasSmartSuggestions.value ||
+        showSuggestReplace.value ||
+        showSuggestAuthors.value ||
+        showSuggestionsList.value ||
+        showSearchHistory.value
+      );
     });
     const mouseEnter = () => {
       layoutStore.setIsMouseInSearchBar(true);
@@ -134,6 +165,13 @@ export default {
       isQueryEmpty,
       isSuggestVisible,
       hasSuggestContent,
+      hasSmartSuggestions,
+      showSuggestReplace,
+      showSuggestAuthors,
+      showSuggestionsList,
+      showSearchHistory,
+      currentQuery,
+      currentSuggestResult,
       isSuggestionsListVisible,
       isSuggestRepaceVisible,
       isSuggestAuthorsListVisible,

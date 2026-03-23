@@ -84,14 +84,17 @@
 </template>
 
 <script>
-import { computed, ref, watch, nextTick } from 'vue';
+import { computed, defineAsyncComponent, ref, watch, nextTick } from 'vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useChatStore } from 'src/stores/chatStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { chat } from 'src/functions/chat';
 import ResultsList from 'src/components/ResultsList.vue';
-import ChatResponsePanel from 'src/components/ChatResponsePanel.vue';
+
+const ChatResponsePanel = defineAsyncComponent(() =>
+  import('src/components/ChatResponsePanel.vue')
+);
 
 /** 判断滚动容器是否接近底部的阈值（px） */
 const SCROLL_BOTTOM_THRESHOLD = 60;
@@ -113,18 +116,26 @@ export default {
      * 这样在对话过程中切换模式不会导致布局跳变
      */
     const isChatMode = computed(() => {
+      const hasChatActivity =
+        chatStore.conversationHistory.length > 0 ||
+        !!chatStore.currentSession.query ||
+        chatStore.isLoading ||
+        chatStore.hasContent ||
+        chatStore.hasError ||
+        chatStore.isDone ||
+        chatStore.isAborted;
+
+      const isEmptyChatLanding =
+        (searchModeStore.currentMode === 'smart' ||
+          searchModeStore.currentMode === 'think') &&
+        !hasChatActivity;
+
       // 如果首次会话是 chat 模式，一直显示 inline 布局
       if (searchModeStore.shouldUseInlineLayout) {
-        return (
-          chatStore.isLoading ||
-          chatStore.hasContent ||
-          chatStore.hasError ||
-          chatStore.isDone ||
-          chatStore.isAborted
-        );
+        return true;
       }
-      // 否则不显示聊天面板（使用全屏结果列表）
-      return false;
+
+      return isEmptyChatLanding;
     });
 
     /** 搜索结果摘要文本 */
