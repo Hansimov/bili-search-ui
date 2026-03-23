@@ -34,6 +34,7 @@
           <table class="direct-search-quick-help__table">
             <thead>
               <tr>
+                <th>场景</th>
                 <th>查询</th>
                 <th>用途</th>
               </tr>
@@ -43,6 +44,7 @@
                 v-for="example in quickReference.examples"
                 :key="example.query"
               >
+                <td>{{ example.group || '常用样例' }}</td>
                 <td>
                   <code>{{ example.query }}</code>
                 </td>

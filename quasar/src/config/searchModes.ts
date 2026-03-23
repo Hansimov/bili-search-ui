@@ -7,6 +7,7 @@ export interface SearchModeQuickReferenceTable {
 }
 
 export interface SearchModeQuickReferenceExample {
+    group?: string;
     query: string;
     summary: string;
 }
@@ -135,18 +136,22 @@ const DIRECT_QUICK_REFERENCE: SearchModeQuickReference = {
     ],
     examples: [
         {
+            group: '近期热门',
             query: '黑神话 :view>=1w :date<=30d',
             summary: '30 天内、播放至少 1 万的黑神话相关视频',
         },
         {
+            group: '作者定向',
             query: ':u=影视飓风 :date<=7d',
             summary: '指定 UP 主最近 7 天的视频',
         },
         {
+            group: '内容清洗',
             query: 'Python 教程 -广告 :view>=1k',
             summary: '排除广告，并要求至少有基础播放量',
         },
         {
+            group: '主题扩展',
             query: '(芯片 | 半导体) :date<=90d q=wvr',
             summary: '主题扩展 + 近 90 天范围 + 开启重排序',
         },
@@ -285,30 +290,37 @@ const DIRECT_DETAILED_HELP: SearchModeDetailedHelp = {
     ],
     examples: [
         {
+            group: '近期热门',
             query: '黑神话 :view>=1w :date<=30d',
             summary: '搜索黑神话相关视频，并要求 30 天内、播放至少 1 万',
         },
         {
+            group: '作者定向',
             query: ':u=影视飓风 :date<=7d',
             summary: '查看指定 UP 主最近 7 天的视频',
         },
         {
+            group: '内容清洗',
             query: 'Python 教程 -广告 :date<=1y :view>=1k',
             summary: '查 Python 教程，排除广告，限定 1 年内且至少 1 千播放',
         },
         {
+            group: '作者定向',
             query: ':u=["老番茄","影视飓风"] :date<=30d',
             summary: '同时看多个 UP 主最近 30 天的视频',
         },
         {
+            group: '主题扩展',
             query: '(芯片 | 半导体) :date<=90d q=wvr',
             summary: '做主题扩展，同时限制近期内容并启用重排序',
         },
         {
+            group: '内容清洗',
             query: '游戏评测 +黑神话 :view>=5w',
             summary: '游戏评测里强制包含黑神话，且播放至少 5 万',
         },
         {
+            group: '作者定向',
             query: ':u=何同学 :t>10m',
             summary: '查看何同学时长超过 10 分钟的视频',
         },

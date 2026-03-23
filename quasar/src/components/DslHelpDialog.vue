@@ -49,26 +49,32 @@
           <p class="dsl-desc">
             先从最接近你目标的写法开始，再按需补过滤器，通常比从零拼 DSL 更快。
           </p>
-          <div class="dsl-table-wrap">
-            <table class="dsl-table">
-              <thead>
-                <tr>
-                  <th>查询</th>
-                  <th>用途</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="example in detailedHelp.examples"
-                  :key="example.query"
-                >
-                  <td>
-                    <code>{{ example.query }}</code>
-                  </td>
-                  <td>{{ example.summary }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="dsl-example-groups">
+            <section
+              v-for="group in groupedExamples"
+              :key="group.label"
+              class="dsl-example-group"
+            >
+              <div class="dsl-example-group-title">{{ group.label }}</div>
+              <div class="dsl-table-wrap">
+                <table class="dsl-table">
+                  <thead>
+                    <tr>
+                      <th>查询</th>
+                      <th>用途</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="example in group.items" :key="example.query">
+                      <td>
+                        <code>{{ example.query }}</code>
+                      </td>
+                      <td>{{ example.summary }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
         </div>
 
@@ -196,6 +202,28 @@ const modeMeta = getSearchMode('direct');
 const detailedHelp = computed(() => modeMeta.detailedHelp);
 const themeVars = computed(() => getSearchModeThemeVars(modeMeta));
 const dontShowAgain = ref(!!localStorage.getItem('dslHelpDismissed'));
+const groupedExamples = computed(() => {
+  const items = detailedHelp.value?.examples || [];
+  const groups: Array<{
+    label: string;
+    items: typeof items;
+  }> = [];
+
+  for (const item of items) {
+    const label = item.group || '常用样例';
+    const existing = groups.find((group) => group.label === label);
+    if (existing) {
+      existing.items.push(item);
+      continue;
+    }
+    groups.push({
+      label,
+      items: [item],
+    });
+  }
+
+  return groups;
+});
 
 const isCodeColumn = (columnCount: number, cellIndex: number) => {
   return cellIndex === 0 || (columnCount === 3 && cellIndex === 2);
@@ -305,6 +333,20 @@ watch(
 
 .dsl-table-wrap {
   overflow-x: auto;
+}
+
+.dsl-example-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dsl-example-group-title {
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  opacity: 0.62;
 }
 
 .dsl-table {

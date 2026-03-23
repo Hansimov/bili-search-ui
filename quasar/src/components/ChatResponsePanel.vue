@@ -386,8 +386,16 @@ import type {
   Usage,
 } from 'src/services/chatService';
 import { renderMarkdown } from 'src/utils/markdown';
-import { humanReadableNumber, secondsToDuration } from 'src/utils/convert';
-import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
+import {
+  VIDEO_VIEW_OPTIONS,
+  hasRenderableBvLinks,
+  persistVideoLinkView,
+  readPersistedVideoLinkView,
+  renderAnswerMarkdownWithVideoView,
+  type VideoHit,
+  type VideoLinkViewMode,
+} from 'src/utils/chatVideoLinkView';
+import { normalizeVideoHit } from 'src/utils/videoHit';
 import ToolCallDisplay from './ToolCallDisplay.vue';
 import BiliVideoTooltip from './BiliVideoTooltip.vue';
 import SearchModeEmptyState from './SearchModeEmptyState.vue';
@@ -398,25 +406,6 @@ const TOOL_LABELS: Record<string, string> = {
   check_author: '查询作者',
   read_spec: '阅读文档',
 };
-
-const RENDERED_BV_LINK_RE =
-  /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="bili-video-ref"[^>]*>(.*?)<\/a>/g;
-const RENDERED_BV_LINK_DETECT_RE =
-  /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="bili-video-ref"[^>]*>/;
-const VIDEO_LINK_VIEW_STORAGE_KEY = 'chat-response-video-link-view';
-const VIDEO_LINK_VIEW_SESSION_KEY_PREFIX = 'chat-response-video-link-view:';
-
-type VideoLinkViewMode = 'text' | 'card' | 'compact';
-
-const VIDEO_VIEW_OPTIONS: Array<{
-  value: VideoLinkViewMode;
-  label: string;
-  icon: string;
-}> = [
-  { value: 'text', label: '文本', icon: 'article' },
-  { value: 'card', label: '卡片', icon: 'view_agenda' },
-  { value: 'compact', label: '紧凑', icon: 'grid_view' },
-];
 
 export default defineComponent({
   name: 'ChatResponsePanel',
@@ -431,45 +420,6 @@ export default defineComponent({
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
     const searchModeStore = useSearchModeStore();
-
-    const readPersistedVideoLinkView = (
-      sessionId?: string | null
-    ): VideoLinkViewMode => {
-      if (typeof window === 'undefined') return 'text';
-
-      if (sessionId) {
-        const storedForSession = window.localStorage.getItem(
-          `${VIDEO_LINK_VIEW_SESSION_KEY_PREFIX}${sessionId}`
-        );
-        if (
-          storedForSession === 'text' ||
-          storedForSession === 'card' ||
-          storedForSession === 'compact'
-        ) {
-          return storedForSession;
-        }
-      }
-
-      const stored = window.localStorage.getItem(VIDEO_LINK_VIEW_STORAGE_KEY);
-      if (stored === 'text' || stored === 'card' || stored === 'compact') {
-        return stored;
-      }
-      return 'text';
-    };
-
-    const persistVideoLinkView = (
-      mode: VideoLinkViewMode,
-      sessionId?: string | null
-    ) => {
-      if (typeof window === 'undefined') return;
-      window.localStorage.setItem(VIDEO_LINK_VIEW_STORAGE_KEY, mode);
-      if (sessionId) {
-        window.localStorage.setItem(
-          `${VIDEO_LINK_VIEW_SESSION_KEY_PREFIX}${sessionId}`,
-          mode
-        );
-      }
-    };
 
     const thinkingExpanded = ref(false);
     const currentAnswerExpanded = ref(true);
@@ -540,111 +490,12 @@ export default defineComponent({
       return '思考过程';
     });
 
-    const stripHtml = (value: string): string => {
-      return value
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    };
-
-    const escapeHtml = (value: string): string => {
-      return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    };
-
-    const formatVideoViews = (views?: number): string => {
-      if (views == null) return '';
-      return `${humanReadableNumber(views)} 播放`;
-    };
-
-    const formatVideoDuration = (duration?: number): string => {
-      if (!duration) return '';
-      return secondsToDuration(duration);
-    };
-
-    const formatVideoCompactStats = (video: VideoHit): string => {
-      const author = escapeHtml(video.owner?.name || '');
-      const views = escapeHtml(formatVideoViews(video.stat?.view));
-
-      if (!author && !views) {
-        return '';
-      }
-
-      if (!author) {
-        return `<span class="bili-video-compact-views">${views}</span>`;
-      }
-
-      if (!views) {
-        return `<span class="bili-video-compact-author">${author}</span>`;
-      }
-
-      return `<span class="bili-video-compact-author">${author}</span><span class="bili-video-compact-stat-separator">·</span><span class="bili-video-compact-views">${views}</span>`;
-    };
-
     const renderAnswerMd = (text: string): string => {
-      const html = renderMarkdown(text);
-      if (!html || videoLinkView.value === 'text') {
-        return html;
-      }
-
-      return html.replace(RENDERED_BV_LINK_RE, (match, bvid, innerHtml) => {
-        const video = videoMap.value.get(bvid);
-        if (!video) {
-          return match;
-        }
-
-        const coverUrl = normalizeVideoPicUrl(video.pic);
-        const title = escapeHtml(video.title || stripHtml(innerHtml) || bvid);
-        const author = escapeHtml(video.owner?.name || '');
-        const viewText = escapeHtml(formatVideoViews(video.stat?.view));
-        const duration = escapeHtml(formatVideoDuration(video.duration));
-        const compactStats = formatVideoCompactStats(video);
-
-        if (videoLinkView.value === 'compact') {
-          return `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-compact-ref" data-bvid="${bvid}" target="_blank" rel="noopener"><span class="bili-video-compact-cover-wrap">${
-            coverUrl
-              ? `<img src="${escapeHtml(
-                  coverUrl
-                )}" class="bili-video-compact-cover" loading="lazy" referrerpolicy="no-referrer" />`
-              : '<span class="bili-video-compact-cover bili-video-compact-cover-placeholder"></span>'
-          }${
-            duration
-              ? `<span class="bili-video-compact-duration">${duration}</span>`
-              : ''
-          }</span><span class="bili-video-compact-meta"><span class="bili-video-compact-title">${title}</span>${
-            compactStats
-              ? `<span class="bili-video-compact-stats">${compactStats}</span>`
-              : ''
-          }</span></a>`;
-        }
-
-        return `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-card-ref" data-bvid="${bvid}" target="_blank" rel="noopener"><span class="bili-video-card-cover-wrap">${
-          coverUrl
-            ? `<img src="${escapeHtml(
-                coverUrl
-              )}" class="bili-video-card-cover" loading="lazy" referrerpolicy="no-referrer" />`
-            : '<span class="bili-video-card-cover bili-video-card-cover-placeholder"></span>'
-        }${
-          duration
-            ? `<span class="bili-video-card-duration">${duration}</span>`
-            : ''
-        }</span><span class="bili-video-card-meta"><span class="bili-video-card-title">${title}</span><span class="bili-video-card-subline">${
-          author ? `<span class="bili-video-card-author">${author}</span>` : ''
-        }${
-          viewText
-            ? `<span class="bili-video-card-views">${viewText}</span>`
-            : ''
-        }</span></span></a>`;
-      });
-    };
-
-    const hasRenderableBvLinks = (text: string): boolean => {
-      if (!text) return false;
-      return RENDERED_BV_LINK_DETECT_RE.test(renderMarkdown(text));
+      return renderAnswerMarkdownWithVideoView(
+        text,
+        videoLinkView.value,
+        videoMap.value
+      );
     };
 
     /** 渲染 Markdown 内容为 HTML */
@@ -950,19 +801,6 @@ export default defineComponent({
     };
 
     // ── Video tooltip (hover preview for BV links) ──
-
-    interface VideoHit {
-      bvid?: string;
-      title?: string;
-      pic?: string;
-      duration?: number;
-      owner?: { name?: string; mid?: number };
-      stat?: { view?: number };
-      pubdate?: number;
-      region_name?: string;
-      region_parent_name?: string;
-      score?: number;
-    }
 
     /** Build a bvid→videoInfo lookup from all tool call results */
     const videoMap = computed((): Map<string, VideoHit> => {
@@ -1632,6 +1470,146 @@ export default defineComponent({
     margin: 4px 0;
   }
 
+  :deep(.bili-video-rich-flow) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  :deep(.bili-video-rich-text) {
+    display: block;
+    min-width: 0;
+  }
+
+  :deep(.bili-video-rich-cards) {
+    display: flex;
+    width: 100%;
+  }
+
+  :deep(.bili-video-rich-cards--card) {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  :deep(.bili-video-compact-gallery) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, 188px);
+    justify-content: flex-start;
+    align-items: start;
+    column-gap: 10px;
+    row-gap: 6px;
+    margin: 8px 0;
+  }
+
+  :deep(.bili-video-compact-gallery--indexed) {
+    grid-template-columns: repeat(var(--compact-gallery-columns, 1), 188px);
+  }
+
+  :deep(.bili-video-compact-section) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin: 8px 0;
+  }
+
+  :deep(.bili-video-compact-gallery--standalone) {
+    margin: 8px 0;
+  }
+
+  :deep(.bili-video-compact-section > .bili-video-compact-gallery) {
+    margin: 0;
+  }
+
+  :deep(.bili-video-compact-entry) {
+    min-width: 0;
+    width: 188px;
+  }
+
+  :deep(.bili-video-compact-entry--single) {
+    width: 188px;
+  }
+
+  :deep(.bili-video-compact-gallery--indexed .bili-video-compact-entry) {
+    grid-column: var(--compact-column-start, auto);
+    grid-row: 1;
+  }
+
+  :deep(
+      .bili-video-compact-gallery--indexed.bili-video-compact-gallery--with-notes
+        .bili-video-compact-entry
+    ) {
+    grid-row: 2;
+  }
+
+  :deep(.bili-video-compact-entry-cards) {
+    display: block;
+  }
+
+  :deep(.bili-video-compact-entry-cards--single) {
+    display: block;
+  }
+
+  :deep(.bili-video-compact-note-block) {
+    padding: 0 2px;
+    font-size: 11px;
+    line-height: 1.5;
+    opacity: 0.64;
+    word-break: break-word;
+  }
+
+  :deep(.bili-video-compact-gallery--indexed .bili-video-compact-note-block) {
+    grid-column: var(--compact-column-start, 1) / span
+      var(--compact-column-span, 1);
+    grid-row: 1;
+    align-self: end;
+  }
+
+  :deep(.bili-video-compact-context-block) {
+    padding: 0 2px;
+    font-size: 12px;
+    line-height: 1.5;
+    opacity: 0.76;
+    word-break: break-word;
+  }
+
+  :deep(.bili-video-compact-context-block--heading) {
+    font-weight: 600;
+    opacity: 0.92;
+  }
+
+  :deep(.bili-video-compact-context-block--h2) {
+    font-size: 15px;
+  }
+
+  :deep(.bili-video-compact-context-block--h3) {
+    font-size: 14px;
+  }
+
+  :deep(.bili-video-compact-context-block--h4),
+  :deep(.bili-video-compact-context-block--h5),
+  :deep(.bili-video-compact-context-block--h6) {
+    font-size: 13px;
+  }
+
+  :deep(.bili-video-compact-fallback-list) {
+    align-self: start;
+    grid-column: 1 / -1;
+    margin: 8px 0;
+    padding-left: 20px;
+  }
+
+  :deep(.bili-video-compact-fallback-item) {
+    margin: 4px 0;
+  }
+
+  :deep(li.bili-video-rich-item) {
+    list-style: none;
+    margin-left: -20px;
+    padding-left: 0;
+  }
+
   :deep(a) {
     color: #1976d2;
     text-decoration: none;
@@ -1657,7 +1635,7 @@ export default defineComponent({
     display: flex;
     align-items: stretch;
     gap: 10px;
-    margin: 10px 0;
+    margin: 0;
     padding: 8px;
     border: 1px solid rgba(128, 128, 128, 0.08);
     border-radius: 10px;
@@ -1722,6 +1700,7 @@ export default defineComponent({
     display: -webkit-box;
     overflow: hidden;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     font-size: 13px;
     line-height: 1.45;
@@ -1740,10 +1719,10 @@ export default defineComponent({
 
   :deep(a.bili-video-compact-ref) {
     display: inline-flex;
-    width: calc((100% - 24px) / 3);
-    min-width: 156px;
-    max-width: 188px;
-    margin: 8px 10px 8px 0;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
     flex-direction: column;
     vertical-align: top;
     border: 1px solid rgba(128, 128, 128, 0.08);
@@ -1807,6 +1786,7 @@ export default defineComponent({
     display: -webkit-box;
     overflow: hidden;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     font-size: 12px;
     line-height: 1.4;
@@ -1840,19 +1820,56 @@ export default defineComponent({
   }
 
   @media (max-width: 900px) {
-    :deep(a.bili-video-compact-ref) {
-      width: calc((100% - 12px) / 2);
-      min-width: 0;
-      max-width: none;
-      margin-right: 8px;
+    :deep(.bili-video-compact-gallery) {
+      grid-template-columns: repeat(auto-fit, 176px);
+    }
+
+    :deep(.bili-video-compact-gallery--indexed) {
+      grid-template-columns: repeat(var(--compact-gallery-columns, 1), 176px);
+    }
+
+    :deep(.bili-video-compact-entry) {
+      width: 176px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    :deep(.bili-video-compact-gallery) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: stretch;
+    }
+
+    :deep(.bili-video-compact-gallery--indexed) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    :deep(.bili-video-compact-gallery--indexed .bili-video-compact-entry),
+    :deep(.bili-video-compact-gallery--indexed .bili-video-compact-note-block) {
+      grid-column: auto;
+      grid-row: auto;
+    }
+
+    :deep(.bili-video-compact-note-block) {
+      grid-column: 1 / -1;
+    }
+
+    :deep(.bili-video-compact-entry) {
+      width: 100%;
     }
   }
 
   @media (max-width: 560px) {
+    :deep(.bili-video-compact-gallery) {
+      grid-template-columns: 1fr;
+    }
+
     :deep(a.bili-video-compact-ref) {
       display: flex;
       width: 100%;
-      margin-right: 0;
+    }
+
+    :deep(li.bili-video-rich-item) {
+      margin-left: -18px;
     }
   }
 
