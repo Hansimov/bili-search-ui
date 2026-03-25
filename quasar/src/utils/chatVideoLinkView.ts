@@ -239,40 +239,32 @@ const createCompactNoteBlock = (noteText: string): HTMLDivElement => {
     return note;
 };
 
-const createCompactGallery = (groups: CompactGroup[]): HTMLDivElement => {
-    const gallery = document.createElement('div');
-    gallery.className = 'bili-video-compact-gallery bili-video-compact-gallery--indexed';
-    const totalColumns = Math.max(
-        1,
-        groups.reduce((sum, group) => sum + group.entries.length, 0)
+const createCompactGalleryGroup = (group: CompactGroup): HTMLDivElement => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'bili-video-compact-group';
+    wrapper.style.setProperty(
+        '--compact-group-columns',
+        String(Math.max(1, group.entries.length))
     );
-    gallery.style.setProperty('--compact-gallery-columns', String(totalColumns));
 
-    if (groups.some((group) => group.noteText)) {
-        gallery.classList.add('bili-video-compact-gallery--with-notes');
+    if (group.noteText) {
+        wrapper.classList.add('bili-video-compact-group--with-note');
+        wrapper.append(createCompactNoteBlock(group.noteText));
     }
 
-    let currentColumn = 1;
+    const cards = document.createElement('div');
+    cards.className = 'bili-video-compact-group-cards';
+    group.entries.forEach((entry) => cards.append(entry));
+    wrapper.append(cards);
+
+    return wrapper;
+};
+
+const createCompactGallery = (groups: CompactGroup[]): HTMLDivElement => {
+    const gallery = document.createElement('div');
+    gallery.className = 'bili-video-compact-gallery';
     groups.forEach((group) => {
-        if (group.noteText) {
-            const note = createCompactNoteBlock(group.noteText);
-            note.style.setProperty('--compact-column-start', String(currentColumn));
-            note.style.setProperty(
-                '--compact-column-span',
-                String(Math.max(1, group.entries.length))
-            );
-            gallery.append(note);
-        }
-
-        group.entries.forEach((entry, index) => {
-            entry.style.setProperty(
-                '--compact-column-start',
-                String(currentColumn + index)
-            );
-            gallery.append(entry);
-        });
-
-        currentColumn += group.entries.length;
+        gallery.append(createCompactGalleryGroup(group));
     });
     return gallery;
 };

@@ -1493,17 +1493,45 @@ export default defineComponent({
   }
 
   :deep(.bili-video-compact-gallery) {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, 188px);
-    justify-content: flex-start;
+    --compact-gap: 10px;
+    --compact-card-min: 152px;
+    --compact-card-max: 188px;
+    --compact-gallery-columns: 4;
+    display: flex;
+    flex-wrap: wrap;
     align-items: start;
-    column-gap: 10px;
-    row-gap: 6px;
+    gap: var(--compact-gap);
     margin: 8px 0;
   }
 
-  :deep(.bili-video-compact-gallery--indexed) {
-    grid-template-columns: repeat(var(--compact-gallery-columns, 1), 188px);
+  :deep(.bili-video-compact-group) {
+    display: flex;
+    flex: 0 0
+      calc(
+        (100% - (var(--compact-gallery-columns) - 1) * var(--compact-gap)) *
+          min(var(--compact-group-columns, 1), var(--compact-gallery-columns)) /
+          var(--compact-gallery-columns) +
+          (
+            min(var(--compact-group-columns, 1), var(--compact-gallery-columns)) -
+              1
+          ) * var(--compact-gap)
+      );
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  :deep(.bili-video-compact-group-cards) {
+    display: grid;
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(min(100%, var(--compact-card-min)), 1fr)
+    );
+    justify-content: stretch;
+    align-items: start;
+    gap: var(--compact-gap);
+    max-width: 100%;
   }
 
   :deep(.bili-video-compact-section) {
@@ -1524,23 +1552,11 @@ export default defineComponent({
 
   :deep(.bili-video-compact-entry) {
     min-width: 0;
-    width: 188px;
+    width: 100%;
   }
 
   :deep(.bili-video-compact-entry--single) {
-    width: 188px;
-  }
-
-  :deep(.bili-video-compact-gallery--indexed .bili-video-compact-entry) {
-    grid-column: var(--compact-column-start, auto);
-    grid-row: 1;
-  }
-
-  :deep(
-      .bili-video-compact-gallery--indexed.bili-video-compact-gallery--with-notes
-        .bili-video-compact-entry
-    ) {
-    grid-row: 2;
+    width: 100%;
   }
 
   :deep(.bili-video-compact-entry-cards) {
@@ -1557,13 +1573,6 @@ export default defineComponent({
     line-height: 1.5;
     opacity: 0.64;
     word-break: break-word;
-  }
-
-  :deep(.bili-video-compact-gallery--indexed .bili-video-compact-note-block) {
-    grid-column: var(--compact-column-start, 1) / span
-      var(--compact-column-span, 1);
-    grid-row: 1;
-    align-self: end;
   }
 
   :deep(.bili-video-compact-context-block) {
@@ -1819,48 +1828,35 @@ export default defineComponent({
     transform: translateY(-0.5px);
   }
 
-  @media (max-width: 900px) {
-    :deep(.bili-video-compact-gallery) {
-      grid-template-columns: repeat(auto-fit, 176px);
-    }
-
-    :deep(.bili-video-compact-gallery--indexed) {
-      grid-template-columns: repeat(var(--compact-gallery-columns, 1), 176px);
-    }
-
-    :deep(.bili-video-compact-entry) {
-      width: 176px;
-    }
-  }
-
   @media (max-width: 640px) {
     :deep(.bili-video-compact-gallery) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      --compact-card-min: 144px;
+      --compact-gallery-columns: 2;
       align-items: stretch;
     }
 
-    :deep(.bili-video-compact-gallery--indexed) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    :deep(.bili-video-compact-group) {
+      flex-basis: calc(
+        (100% - (var(--compact-gallery-columns) - 1) * var(--compact-gap)) *
+          min(var(--compact-group-columns, 1), var(--compact-gallery-columns)) /
+          var(--compact-gallery-columns) +
+          (
+            min(var(--compact-group-columns, 1), var(--compact-gallery-columns)) -
+              1
+          ) * var(--compact-gap)
+      );
     }
+  }
 
-    :deep(.bili-video-compact-gallery--indexed .bili-video-compact-entry),
-    :deep(.bili-video-compact-gallery--indexed .bili-video-compact-note-block) {
-      grid-column: auto;
-      grid-row: auto;
-    }
-
-    :deep(.bili-video-compact-note-block) {
-      grid-column: 1 / -1;
-    }
-
-    :deep(.bili-video-compact-entry) {
-      width: 100%;
+  @media (max-width: 900px) and (min-width: 641px) {
+    :deep(.bili-video-compact-gallery) {
+      --compact-gallery-columns: 3;
     }
   }
 
   @media (max-width: 560px) {
     :deep(.bili-video-compact-gallery) {
-      grid-template-columns: 1fr;
+      --compact-card-min: 100%;
     }
 
     :deep(a.bili-video-compact-ref) {
