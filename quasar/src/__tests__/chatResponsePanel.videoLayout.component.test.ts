@@ -457,4 +457,31 @@ describe('ChatResponsePanel video layout', () => {
         expect(wrapper.html()).toContain('bili-owner-ref');
         expect(wrapper.html()).toContain('https://space.bilibili.com/946974');
     });
+
+    it('renders compact owner links with avatar, uid, and fans only', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '推荐关注 https://space.bilibili.com/946974',
+            'compact',
+            new Map(),
+            new Map([
+                [
+                    '946974',
+                    {
+                        mid: '946974',
+                        name: '影视飓风',
+                        face: 'https://example.com/owner-face.jpg',
+                        sign: '用影像记录世界',
+                        fans: 2230000,
+                    },
+                ],
+            ])
+        );
+
+        expect(html).toContain('bili-owner-compact-ref');
+        expect(html).toContain('UID 946974');
+        expect(html).toContain('223');
+        expect(html).toContain('粉丝');
+        expect(html).not.toContain('用影像记录世界');
+        expect(html).not.toContain('影视飓风</span><span class="bili-owner-compact-stats"');
+    });
 });

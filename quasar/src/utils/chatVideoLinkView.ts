@@ -160,10 +160,10 @@ const buildRenderedOwnerLink = (
         return `<a href="${escapeHtml(href)}" class="bili-owner-compact-ref bili-rich-compact-ref" data-mid="${mid}" data-inline-label="${inlineLabel}" target="_blank" rel="noopener"><span class="bili-owner-compact-cover-wrap bili-rich-compact-cover-wrap">${avatarUrl
             ? `<img src="${escapeHtml(avatarUrl)}" class="bili-owner-compact-cover bili-rich-compact-cover" loading="lazy" referrerpolicy="no-referrer" />`
             : '<span class="bili-owner-compact-cover bili-owner-compact-cover-placeholder bili-rich-compact-cover bili-rich-compact-cover-placeholder"></span>'
-            }</span><span class="bili-owner-compact-meta bili-rich-compact-meta"><span class="bili-owner-compact-title bili-rich-compact-title">${name}</span>${statLine
-                ? `<span class="bili-owner-compact-stats">${statLine}</span>`
+            }</span><span class="bili-owner-compact-meta bili-rich-compact-meta"><span class="bili-owner-compact-title bili-rich-compact-title">${uidText}</span>${fansText
+                ? `<span class="bili-owner-compact-stats">${fansText}</span>`
                 : ''
-            }${sign ? `<span class="bili-owner-compact-sign">${sign}</span>` : ''}</span></a>`;
+            }</span></a>`;
     }
 
     if (viewMode === 'card') {

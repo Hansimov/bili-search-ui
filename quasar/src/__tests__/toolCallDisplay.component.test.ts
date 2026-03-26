@@ -91,7 +91,7 @@ describe('ToolCallDisplay component', () => {
         expect(sources.some((source) => source.text() === 'Google')).toBe(false);
     });
 
-    it('renders search_owners with a friendly label and compact owner cards', async () => {
+    it('renders search_owners with a friendly label and compact text items', async () => {
         const wrapper = mount(ToolCallDisplay, {
             props: {
                 toolCalls: [searchOwnersCall],
@@ -116,17 +116,13 @@ describe('ToolCallDisplay component', () => {
         const ownerCards = wrapper.findAll('.tool-owner-result');
         expect(ownerCards).toHaveLength(2);
         expect(ownerCards[0]?.text()).toContain('老师好我叫何同学');
-        expect(ownerCards[0]?.text()).toContain('#1');
         expect(ownerCards[0]?.text()).toContain('UID 163637592');
         expect(ownerCards[0]?.text()).not.toContain('代表作');
-        expect(ownerCards[0]?.find('.bili-owner-compact-cover').attributes('src')).toContain(
-            'https://i0.hdslb.com/bfs/face/example-face.jpg'
-        );
-        expect(ownerCards[0]?.find('.tool-owner-compact-ref').attributes('href')).toBe(
+        expect(ownerCards[0]?.find('.tool-owner-mini-ref').attributes('href')).toBe(
             'https://space.bilibili.com/163637592'
         );
         expect(ownerCards[1]?.text()).toContain('何同学切片');
-        expect(ownerCards[1]?.text()).toContain('#2');
-        expect(ownerCards[1]?.find('.tool-owner-compact-ref').exists()).toBe(true);
+        expect(ownerCards[1]?.find('.tool-owner-mini-ref').exists()).toBe(true);
+        expect(ownerCards[0]?.text()).not.toContain('粉丝');
     });
 });

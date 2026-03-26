@@ -2436,17 +2436,25 @@ export default defineComponent({
   }
 
   :deep(.bili-owner-compact-cover-wrap) {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
     aspect-ratio: 1;
     border-radius: 999px;
   }
 
   :deep(a.bili-owner-compact-ref) {
     display: inline-flex;
-    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    flex-direction: row;
   }
 
   :deep(.bili-owner-compact-meta) {
-    justify-content: initial;
+    justify-content: center;
+    padding: 0;
+    gap: 2px;
   }
 
   :deep(.bili-video-compact-cover),
@@ -2494,12 +2502,12 @@ export default defineComponent({
   :deep(.bili-rich-compact-title) {
     display: -webkit-box;
     overflow: hidden;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
     -webkit-box-orient: vertical;
-    font-size: 12px;
-    line-height: 1.4;
-    font-weight: 500;
+    font-size: 11px;
+    line-height: 1.3;
+    font-weight: 600;
     color: inherit;
   }
 
@@ -2516,16 +2524,18 @@ export default defineComponent({
   :deep(.bili-owner-compact-stats),
   :deep(.bili-owner-compact-sign) {
     font-size: 10px;
-    line-height: 1.35;
-    opacity: 0.56;
+    line-height: 1.25;
+    opacity: 0.62;
   }
 
   :deep(.bili-owner-compact-sign) {
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
+    display: none;
+  }
+
+  :deep(.bili-video-compact-gallery:has(a.bili-owner-compact-ref)) {
+    --compact-card-min: 108px;
+    --compact-card-max: 132px;
+    --compact-gallery-columns: 5;
   }
 
   :deep(.bili-video-compact-author),
@@ -2550,6 +2560,11 @@ export default defineComponent({
       align-items: stretch;
     }
 
+    :deep(.bili-video-compact-gallery:has(a.bili-owner-compact-ref)) {
+      --compact-card-min: 120px;
+      --compact-gallery-columns: 2;
+    }
+
     :deep(.bili-video-compact-group) {
       flex-basis: calc(
         (100% - (var(--compact-gallery-columns) - 1) * var(--compact-gap)) *
@@ -2567,6 +2582,11 @@ export default defineComponent({
     :deep(.bili-video-compact-gallery) {
       --compact-gallery-columns: 3;
     }
+
+    :deep(.bili-video-compact-gallery:has(a.bili-owner-compact-ref)) {
+      --compact-gallery-columns: 4;
+      --compact-card-min: 114px;
+    }
   }
 
   @media (max-width: 560px) {
@@ -2574,11 +2594,27 @@ export default defineComponent({
       --compact-card-min: 100%;
     }
 
+    :deep(.bili-video-compact-gallery:has(a.bili-owner-compact-ref)) {
+      --compact-card-min: 116px;
+      --compact-gallery-columns: 2;
+    }
+
     :deep(a.bili-video-compact-ref),
     :deep(a.bili-owner-compact-ref),
     :deep(a.bili-rich-compact-ref) {
       display: flex;
       width: 100%;
+    }
+
+    :deep(a.bili-owner-compact-ref) {
+      gap: 7px;
+      padding: 7px 8px;
+    }
+
+    :deep(.bili-owner-compact-cover-wrap) {
+      width: 34px;
+      min-width: 34px;
+      height: 34px;
     }
 
     :deep(li.bili-video-rich-item) {
