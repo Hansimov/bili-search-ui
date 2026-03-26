@@ -16,6 +16,7 @@ import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import type { SearchMode } from 'src/stores/searchModeStore';
+import type { ConversationMessage } from 'src/stores/chatStore';
 import type { SmartSuggestion } from 'src/services/smartSuggestService';
 
 /**
@@ -31,11 +32,13 @@ export const chat = async ({
     mode = 'smart',
     setQuery = true,
     setRoute = false,
+    baseHistory,
 }: {
     queryValue: string;
     mode?: 'smart' | 'think';
     setQuery?: boolean;
     setRoute?: boolean;
+    baseHistory?: ConversationMessage[];
 }) => {
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
@@ -68,11 +71,12 @@ export const chat = async ({
     // 且不在历史恢复时重复记录（已预设 recordId）
     if (chatStore.conversationHistory.length === 0 && !chatStore.currentHistoryRecordId) {
         const sessionId = chatStore.currentSessionId;
+        const initialSnapshot = chatStore.exportSnapshot();
         const recordId = await searchHistoryStore.addRecord(
             queryValue,
             undefined,
             mode,
-            undefined,
+            initialSnapshot,
             sessionId || undefined,
         );
         if (recordId) {
@@ -81,7 +85,7 @@ export const chat = async ({
     }
 
     // 发送聊天请求（流式）
-    await chatStore.sendChat(queryValue, mode);
+    await chatStore.sendChat(queryValue, mode, baseHistory);
 };
 
 /**

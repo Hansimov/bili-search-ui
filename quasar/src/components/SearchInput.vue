@@ -168,6 +168,12 @@ const TEXTAREA_LINE_HEIGHT = 24; // px, matches CSS line-height
 const TEXTAREA_MAX_ROWS = 6;
 /** 窗口高度低于此值时，输入框默认 1 行；否则 2 行 */
 const COMPACT_WINDOW_HEIGHT = 500;
+const SEARCH_INPUT_FOCUS_EVENT = 'bili-search:focus-input';
+
+type SearchInputFocusDetail = {
+  selectAll?: boolean;
+  placeCaretAtEnd?: boolean;
+};
 
 export default {
   components: {
@@ -185,6 +191,22 @@ export default {
     const textareaRef = ref<HTMLTextAreaElement | null>(null);
     const wrapperRef = ref<HTMLElement | null>(null);
     let resizeObserver: ResizeObserver | null = null;
+    const handleExternalFocusRequest = (event: Event) => {
+      const detail =
+        (event as CustomEvent<SearchInputFocusDetail>).detail || {};
+      nextTick(() => {
+        const el = textareaRef.value;
+        if (!el) return;
+        el.focus();
+        if (detail.selectAll) {
+          el.select();
+        } else if (detail.placeCaretAtEnd !== false) {
+          const len = el.value.length;
+          el.setSelectionRange(len, len);
+        }
+        autoResize();
+      });
+    };
 
     /** 默认 1 行，窗口高度足够时可自动增长到多行 */
     const minRows = ref(1);
@@ -559,6 +581,10 @@ export default {
     onMounted(() => {
       document.addEventListener('click', handleGlobalClick);
       window.addEventListener('resize', handleWindowResize);
+      window.addEventListener(
+        SEARCH_INPUT_FOCUS_EVENT,
+        handleExternalFocusRequest as EventListener
+      );
       // 初始化高度
       autoResize();
       updateSearchBarHeight();
@@ -574,6 +600,10 @@ export default {
     onBeforeUnmount(() => {
       document.removeEventListener('click', handleGlobalClick);
       window.removeEventListener('resize', handleWindowResize);
+      window.removeEventListener(
+        SEARCH_INPUT_FOCUS_EVENT,
+        handleExternalFocusRequest as EventListener
+      );
       resizeObserver?.disconnect();
     });
 

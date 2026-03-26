@@ -793,10 +793,34 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
   const query = item.query;
   const mode = item.mode || 'direct';
   const isChatMode = mode === 'smart' || mode === 'think';
+  const fallbackChatSnapshot = isChatMode
+    ? item.chatSnapshot || {
+        session: {
+          ...chatStore.currentSession,
+          sessionId: item.sessionId || chatStore.currentSessionId,
+          query,
+          mode: mode as 'smart' | 'think',
+          content: '',
+          thinkingContent: '',
+          isLoading: false,
+          isThinkingPhase: false,
+          isDone: false,
+          isAborted: true,
+          error: null,
+          perfStats: null,
+          usage: null,
+          toolEvents: [],
+          streamSegments: [],
+          thinking: mode === 'think',
+          createdAt: item.timestamp || Date.now(),
+        },
+        conversationHistory: [],
+      }
+    : null;
 
-  if (isChatMode && item.chatSnapshot) {
-    // Chat 模式 + 有快照：恢复完整的对话状态
-    chatStore.restoreFromSnapshot(item.chatSnapshot);
+  if (isChatMode && fallbackChatSnapshot) {
+    // Chat 模式：优先恢复完整快照；旧数据缺快照时退化为静态恢复，但不自动重提问
+    chatStore.restoreFromSnapshot(fallbackChatSnapshot);
     // 设置搜索模式和布局
     searchModeStore.setMode(mode);
     searchModeStore.forceInitialSessionMode(mode);
@@ -810,31 +834,6 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
     // 关联历史记录 ID 以便后续更新快照
     chatStore.setCurrentHistoryRecordId(item.id);
     setTimeout(() => exploreStore.setRestoringSession(false), 200);
-  } else if (isChatMode && !item.chatSnapshot) {
-    // Chat 模式 + 无快照：重新发起聊天
-    chatStore.startNewChat();
-    searchModeStore.setMode(mode);
-    searchModeStore.forceInitialSessionMode(mode);
-    // 防止 URL watcher 触发 explore
-    exploreStore.setRestoringSession(true);
-    // 使用新生成的 sessionId 设置路由，不填充输入框
-    const sessionId = chatStore.currentSessionId;
-    queryStore.setChatRoute(sessionId);
-    queryStore.setQuery({ newQuery: '' });
-    exploreStore.setSubmittedQuery(query);
-    // 预设历史记录 ID，避免 chat.ts 重复添加记录
-    chatStore.setCurrentHistoryRecordId(item.id);
-    // 更新历史记录的 sessionId
-    searchHistoryStore.updateSessionId(item.id, sessionId);
-    setTimeout(() => exploreStore.setRestoringSession(false), 200);
-    // 重新发起聊天请求
-    const { chat: chatFn } = await import('src/functions/chat');
-    await chatFn({
-      queryValue: query,
-      mode: mode as 'smart' | 'think',
-      setQuery: false,
-      setRoute: false,
-    });
   } else {
     // Direct 模式：恢复搜索结果
     searchModeStore.setMode(mode as SearchMode);

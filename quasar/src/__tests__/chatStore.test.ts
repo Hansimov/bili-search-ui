@@ -6,6 +6,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useChatStore } from 'src/stores/chatStore';
 
+const searchHistoryStoreMock = vi.hoisted(() => ({
+    updateChatSnapshot: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock localStorage
 const localStorageMock = (() => {
     let store: Record<string, string> = {};
@@ -27,11 +31,16 @@ vi.mock('src/services/chatService', () => ({
     chatCompletion: vi.fn(),
 }));
 
+vi.mock('src/stores/searchHistoryStore', () => ({
+    useSearchHistoryStore: () => searchHistoryStoreMock,
+}));
+
 describe('ChatStore', () => {
     beforeEach(() => {
         setActivePinia(createPinia());
         localStorageMock.clear();
         vi.restoreAllMocks();
+        searchHistoryStoreMock.updateChatSnapshot.mockClear();
     });
 
     describe('初始状态', () => {
@@ -176,6 +185,34 @@ describe('ChatStore', () => {
             });
 
             fetchSpy.mockRestore();
+        });
+
+        it('abortCurrentRequest 应持久化已中止会话的快照', async () => {
+            const store = useChatStore();
+            const controller = new AbortController();
+            store._abortController = controller;
+            store.setCurrentHistoryRecordId('history-1');
+            store.currentSession.query = '中止问题';
+            store.currentSession.content = '部分回答';
+            store.currentSession.isLoading = true;
+
+            store.abortCurrentRequest();
+            await Promise.resolve();
+            await Promise.resolve();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            expect(searchHistoryStoreMock.updateChatSnapshot).toHaveBeenCalledWith(
+                'history-1',
+                expect.objectContaining({
+                    session: expect.objectContaining({
+                        query: '中止问题',
+                        content: '部分回答',
+                        isAborted: true,
+                        isDone: false,
+                    }),
+                    conversationHistory: [],
+                })
+            );
         });
 
         it('_saveToHistory 应该追加会话', () => {
@@ -743,6 +780,54 @@ describe('ChatStore 扩展功能', () => {
             await store.sendChat('问题2', 'smart');
             expect(store._conversationLengthBeforeCurrentRound).toBe(2);
         });
+
+        it('retryCurrentRound 应基于当前轮之前的历史重试同一问题', async () => {
+            const { chatCompletionStream } = await import('src/services/chatService');
+            const mockStream = vi.mocked(chatCompletionStream);
+            const sentMessages: Array<Array<{ role: string; content: string }>> = [];
+
+            let callCount = 0;
+            mockStream.mockImplementation(async (params, callbacks) => {
+                sentMessages.push([...params.messages]);
+                callCount += 1;
+                callbacks.onContent?.(`回答${callCount}`);
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('问题1', 'smart');
+            await store.retryCurrentRound();
+
+            expect(sentMessages).toHaveLength(2);
+            expect(sentMessages[1]).toEqual([
+                { role: 'user', content: '问题1' },
+            ]);
+        });
+
+        it('continueCurrentRound 应在已完成回合后追加继续追问', async () => {
+            const { chatCompletionStream } = await import('src/services/chatService');
+            const mockStream = vi.mocked(chatCompletionStream);
+            const sentMessages: Array<Array<{ role: string; content: string }>> = [];
+
+            let callCount = 0;
+            mockStream.mockImplementation(async (params, callbacks) => {
+                sentMessages.push([...params.messages]);
+                callCount += 1;
+                callbacks.onContent?.(`回答${callCount}`);
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('问题1', 'smart');
+            await store.continueCurrentRound();
+
+            expect(sentMessages).toHaveLength(2);
+            expect(sentMessages[1]).toEqual([
+                { role: 'user', content: '问题1' },
+                { role: 'assistant', content: '回答1' },
+                { role: 'user', content: '继续' },
+            ]);
+        });
     });
 
     describe('快照恢复', () => {
@@ -813,6 +898,43 @@ describe('ChatStore 扩展功能', () => {
             store.restoreFromSnapshot(snapshot);
             expect(store.conversationHistory[0].id).toBeTruthy();
             expect(store.conversationHistory[1].id).toBeTruthy();
+        });
+
+        it('restoreFromSnapshot 应保留中止态并显示完整历史消息', () => {
+            const store = useChatStore();
+            const snapshot = {
+                session: {
+                    sessionId: 'aborted-session-1',
+                    query: '当前中止问题',
+                    mode: 'smart' as const,
+                    content: '中止前的部分回答',
+                    thinkingContent: '中止前思考',
+                    isLoading: false,
+                    isThinkingPhase: false,
+                    isDone: false,
+                    isAborted: true,
+                    error: null,
+                    perfStats: null,
+                    usage: null,
+                    toolEvents: [],
+                    streamSegments: [],
+                    thinking: false,
+                    createdAt: Date.now(),
+                },
+                conversationHistory: [
+                    { id: 'u-1', role: 'user' as const, content: '上一轮问题' },
+                    { id: 'a-1', role: 'assistant' as const, content: '上一轮回答' },
+                ],
+            };
+
+            store.restoreFromSnapshot(snapshot);
+
+            expect(store.currentSession.isAborted).toBe(true);
+            expect(store.currentSession.isDone).toBe(false);
+            expect(store.currentSession.content).toBe('中止前的部分回答');
+            expect(store.historyMessages).toHaveLength(2);
+            expect(store.historyMessages[0].content).toBe('上一轮问题');
+            expect(store.historyMessages[1].content).toBe('上一轮回答');
         });
     });
 

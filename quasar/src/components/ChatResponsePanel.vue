@@ -23,9 +23,37 @@
     <!-- 多轮对话：历史消息 -->
     <template v-for="(msg, msgIdx) in historyMessages" :key="msg.id">
       <!-- 用户消息 -->
-      <component
-        :is="getHistoryLinkedAssistant(msgIdx) ? 'button' : 'div'"
-        v-if="msg.role === 'user'"
+      <div
+        v-if="msg.role === 'user' && isEditingHistoryQuery(msg.id)"
+        class="chat-user-query chat-user-query-editor"
+      >
+        <textarea
+          ref="editingTextareaRef"
+          v-model="editingQueryDraft"
+          class="chat-query-editor-input"
+          rows="2"
+        ></textarea>
+        <div class="chat-query-editor-actions">
+          <button
+            type="button"
+            class="chat-inline-action-btn"
+            @click="submitHistoryQueryEdit(msgIdx)"
+          >
+            <q-icon name="check" size="14px" />
+            <span>提交</span>
+          </button>
+          <button
+            type="button"
+            class="chat-inline-action-btn"
+            @click="cancelEditingQuery"
+          >
+            <q-icon name="close" size="14px" />
+            <span>取消</span>
+          </button>
+        </div>
+      </div>
+      <div
+        v-else-if="msg.role === 'user'"
         class="chat-user-query"
         :class="{
           'is-toggle': !!getHistoryLinkedAssistant(msgIdx),
@@ -33,38 +61,52 @@
             getHistoryLinkedAssistant(msgIdx)?.id || ''
           ),
         }"
-        :type="getHistoryLinkedAssistant(msgIdx) ? 'button' : undefined"
+        :role="getHistoryLinkedAssistant(msgIdx) ? 'button' : undefined"
+        :tabindex="getHistoryLinkedAssistant(msgIdx) ? 0 : undefined"
         @click="
           getHistoryLinkedAssistant(msgIdx) &&
             toggleHistoryAnswerByIndex(msgIdx)
         "
+        @keydown.enter.prevent="toggleHistoryAnswerByIndex(msgIdx)"
+        @keydown.space.prevent="toggleHistoryAnswerByIndex(msgIdx)"
       >
         <span class="user-query-text">{{ msg.content }}</span>
-        <span
-          v-if="getHistoryLinkedAssistant(msgIdx)"
-          class="chat-round-toggle-bar-state"
-        >
-          <span>
-            {{
-              isHistoryAnswerExpanded(
-                getHistoryLinkedAssistant(msgIdx)?.id || ''
-              )
-                ? '收起回复'
-                : '展开回复'
-            }}
+        <span class="chat-user-query-controls">
+          <button
+            type="button"
+            class="chat-inline-action-btn"
+            title="编辑问题"
+            @click.stop="startEditingHistoryQuery(msg, msgIdx)"
+          >
+            <q-icon name="edit" size="14px" />
+            <span>编辑</span>
+          </button>
+          <span
+            v-if="getHistoryLinkedAssistant(msgIdx)"
+            class="chat-round-toggle-bar-state"
+          >
+            <span>
+              {{
+                isHistoryAnswerExpanded(
+                  getHistoryLinkedAssistant(msgIdx)?.id || ''
+                )
+                  ? '收起回复'
+                  : '展开回复'
+              }}
+            </span>
+            <q-icon
+              :name="
+                isHistoryAnswerExpanded(
+                  getHistoryLinkedAssistant(msgIdx)?.id || ''
+                )
+                  ? 'expand_less'
+                  : 'expand_more'
+              "
+              size="16px"
+            />
           </span>
-          <q-icon
-            :name="
-              isHistoryAnswerExpanded(
-                getHistoryLinkedAssistant(msgIdx)?.id || ''
-              )
-                ? 'expand_less'
-                : 'expand_more'
-            "
-            size="16px"
-          />
         </span>
-      </component>
+      </div>
       <!-- 助手消息（历史） -->
       <div v-else-if="msg.role === 'assistant'" class="chat-history-assistant">
         <div
@@ -172,38 +214,118 @@
             <div v-if="getHistoryPerfStats(msg)" class="chat-perf-stats">
               <span class="perf-text">{{ getHistoryPerfStats(msg) }}</span>
             </div>
+
+            <div
+              v-if="showHistoryAnswerActions(msgIdx, msg)"
+              class="chat-answer-actions"
+            >
+              <button
+                v-if="msg.content"
+                type="button"
+                class="chat-inline-action-btn"
+                @click="copyAnswerMarkdown(msg.content)"
+              >
+                <q-icon name="content_copy" size="14px" />
+                <span>复制</span>
+              </button>
+              <button
+                v-if="msg.content"
+                type="button"
+                class="chat-inline-action-btn"
+                @click="continueFromHistory(msgIdx)"
+              >
+                <q-icon name="subdirectory_arrow_right" size="14px" />
+                <span>继续</span>
+              </button>
+              <button
+                type="button"
+                class="chat-inline-action-btn"
+                @click="retryFromHistory(msgIdx)"
+              >
+                <q-icon name="refresh" size="14px" />
+                <span>重试</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </template>
 
     <!-- 当前回合：用户提问 -->
-    <component
-      :is="shouldShowCurrentAnswerToggle ? 'button' : 'div'"
-      v-if="userQuery"
+    <div
+      v-if="userQuery && isEditingCurrentQuery"
+      class="chat-user-query chat-user-query-editor"
+    >
+      <textarea
+        ref="editingTextareaRef"
+        v-model="editingQueryDraft"
+        class="chat-query-editor-input"
+        rows="2"
+      ></textarea>
+      <div class="chat-query-editor-actions">
+        <button
+          type="button"
+          class="chat-inline-action-btn"
+          @click="submitCurrentQueryEdit"
+        >
+          <q-icon name="check" size="14px" />
+          <span>提交</span>
+        </button>
+        <button
+          type="button"
+          class="chat-inline-action-btn"
+          @click="cancelEditingQuery"
+        >
+          <q-icon name="close" size="14px" />
+          <span>取消</span>
+        </button>
+      </div>
+    </div>
+    <div
+      v-else-if="userQuery"
       class="chat-user-query"
       :class="{
         'is-toggle': shouldShowCurrentAnswerToggle,
         'is-expanded': currentAnswerExpanded,
       }"
-      :type="shouldShowCurrentAnswerToggle ? 'button' : undefined"
+      :role="shouldShowCurrentAnswerToggle ? 'button' : undefined"
+      :tabindex="shouldShowCurrentAnswerToggle ? 0 : undefined"
       @click="
+        shouldShowCurrentAnswerToggle &&
+          (currentAnswerExpanded = !currentAnswerExpanded)
+      "
+      @keydown.enter.prevent="
+        shouldShowCurrentAnswerToggle &&
+          (currentAnswerExpanded = !currentAnswerExpanded)
+      "
+      @keydown.space.prevent="
         shouldShowCurrentAnswerToggle &&
           (currentAnswerExpanded = !currentAnswerExpanded)
       "
     >
       <span class="user-query-text">{{ userQuery }}</span>
-      <span
-        v-if="shouldShowCurrentAnswerToggle"
-        class="chat-round-toggle-bar-state"
-      >
-        <span>{{ currentAnswerExpanded ? '收起回复' : '展开回复' }}</span>
-        <q-icon
-          :name="currentAnswerExpanded ? 'expand_less' : 'expand_more'"
-          size="16px"
-        />
+      <span class="chat-user-query-controls">
+        <button
+          type="button"
+          class="chat-inline-action-btn"
+          title="编辑问题"
+          @click.stop="startEditingCurrentQuery"
+        >
+          <q-icon name="edit" size="14px" />
+          <span>编辑</span>
+        </button>
+        <span
+          v-if="shouldShowCurrentAnswerToggle"
+          class="chat-round-toggle-bar-state"
+        >
+          <span>{{ currentAnswerExpanded ? '收起回复' : '展开回复' }}</span>
+          <q-icon
+            :name="currentAnswerExpanded ? 'expand_less' : 'expand_more'"
+            size="16px"
+          />
+        </span>
       </span>
-    </component>
+    </div>
 
     <div
       class="chat-answer-collapse-wrapper"
@@ -356,15 +478,46 @@
             @click="$emit('retry')"
           />
         </div>
+
+        <div v-if="showCurrentAnswerActions" class="chat-answer-actions">
+          <button
+            v-if="hasContent"
+            type="button"
+            class="chat-inline-action-btn"
+            @click="copyAnswerMarkdown(chatStore.content)"
+          >
+            <q-icon name="content_copy" size="14px" />
+            <span>复制</span>
+          </button>
+          <button
+            v-if="canContinueCurrentAnswer"
+            type="button"
+            class="chat-inline-action-btn"
+            @click="$emit('continue')"
+          >
+            <q-icon name="subdirectory_arrow_right" size="14px" />
+            <span>继续</span>
+          </button>
+          <button
+            type="button"
+            class="chat-inline-action-btn"
+            @click="$emit('retry')"
+          >
+            <q-icon name="refresh" size="14px" />
+            <span>重试</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script lang="ts">
+import { Notify, copyToClipboard } from 'quasar';
 import {
   computed,
   defineComponent,
+  nextTick,
   ref,
   reactive,
   watch,
@@ -414,7 +567,7 @@ export default defineComponent({
     BiliVideoTooltip,
     SearchModeEmptyState,
   },
-  emits: ['retry', 'showResults'],
+  emits: ['retry', 'continue', 'edit', 'showResults'],
   setup(_props, { emit }) {
     const chatStore = useChatStore();
     const exploreStore = useExploreStore();
@@ -424,6 +577,10 @@ export default defineComponent({
     const thinkingExpanded = ref(false);
     const currentAnswerExpanded = ref(true);
     const videoLinkView = ref<VideoLinkViewMode>('text');
+    const editingTextareaRef = ref<HTMLTextAreaElement | null>(null);
+    const editingQueryTarget = ref<string | null>(null);
+    const editingQueryDraft = ref('');
+    const CURRENT_QUERY_EDIT_TARGET = '__current_query__';
 
     const isLoading = computed(() => chatStore.isLoading);
     const hasContent = computed(() => chatStore.hasContent);
@@ -440,6 +597,7 @@ export default defineComponent({
       () => chatStore.currentSession.error || '请求失败'
     );
     const userQuery = computed(() => chatStore.currentSession.query || '');
+    const currentSessionMode = computed(() => chatStore.currentSession.mode);
     const currentMode = computed(() => searchModeStore.currentMode);
     const showEmptyState = computed(() => {
       return (
@@ -544,6 +702,22 @@ export default defineComponent({
           hasError.value ||
           !!perfStats.value)
       );
+    });
+
+    const showCurrentAnswerActions = computed(() => {
+      return (
+        !isLoading.value &&
+        !!userQuery.value &&
+        (hasContent.value || hasError.value || isAborted.value || isDone.value)
+      );
+    });
+
+    const canContinueCurrentAnswer = computed(() => {
+      return isDone.value || (isAborted.value && hasContent.value);
+    });
+
+    const isEditingCurrentQuery = computed(() => {
+      return editingQueryTarget.value === CURRENT_QUERY_EDIT_TARGET;
     });
 
     watch(
@@ -683,6 +857,16 @@ export default defineComponent({
       return nextMsg;
     };
 
+    const getHistoryLinkedUser = (
+      msgIdx: number
+    ): ConversationMessage | null => {
+      const previousMsg = historyMessages.value[msgIdx - 1];
+      if (!previousMsg || previousMsg.role !== 'user') {
+        return null;
+      }
+      return previousMsg;
+    };
+
     const toggleHistoryAnswer = (msgId: string) => {
       historyAnswerExpandedMap[msgId] = !isHistoryAnswerExpanded(msgId);
     };
@@ -736,6 +920,117 @@ export default defineComponent({
     const getHistoryPerfStats = (msg: ConversationMessage): string => {
       if (!msg.perfStats) return '';
       return formatPerfStatsString(msg.perfStats, msg.usage);
+    };
+
+    const showHistoryAnswerActions = (
+      msgIdx: number,
+      msg: ConversationMessage
+    ): boolean => {
+      return msg.role === 'assistant' && !!getHistoryLinkedUser(msgIdx);
+    };
+
+    const focusEditingTextarea = () => {
+      void nextTick(() => {
+        const el = editingTextareaRef.value;
+        if (!el) return;
+        if (typeof el.focus === 'function') {
+          el.focus();
+        }
+        if (typeof el.setSelectionRange === 'function') {
+          const length = el.value.length;
+          el.setSelectionRange(length, length);
+        }
+      });
+    };
+
+    const isEditingHistoryQuery = (msgId: string): boolean => {
+      return editingQueryTarget.value === msgId;
+    };
+
+    const startEditingCurrentQuery = () => {
+      editingQueryTarget.value = CURRENT_QUERY_EDIT_TARGET;
+      editingQueryDraft.value = userQuery.value;
+      currentAnswerExpanded.value = true;
+      focusEditingTextarea();
+    };
+
+    const startEditingHistoryQuery = (
+      msg: ConversationMessage,
+      msgIdx: number
+    ) => {
+      editingQueryTarget.value = msg.id;
+      editingQueryDraft.value = msg.content;
+      const linkedAssistant = getHistoryLinkedAssistant(msgIdx);
+      if (linkedAssistant) {
+        historyAnswerExpandedMap[linkedAssistant.id] = true;
+      }
+      focusEditingTextarea();
+    };
+
+    const cancelEditingQuery = () => {
+      editingQueryTarget.value = null;
+      editingQueryDraft.value = '';
+    };
+
+    const submitCurrentQueryEdit = () => {
+      const query = editingQueryDraft.value.trim();
+      if (!query) return;
+      cancelEditingQuery();
+      emit('retry', {
+        query,
+        mode: currentSessionMode.value,
+        baseHistory: [...historyMessages.value],
+      });
+    };
+
+    const submitHistoryQueryEdit = (msgIdx: number) => {
+      const query = editingQueryDraft.value.trim();
+      if (!query) return;
+      cancelEditingQuery();
+      emit('retry', {
+        query,
+        mode: currentSessionMode.value,
+        baseHistory: historyMessages.value.slice(0, msgIdx),
+      });
+    };
+
+    const copyAnswerMarkdown = async (content: string) => {
+      const text = (content || '').trim();
+      if (!text) return;
+      try {
+        await copyToClipboard(text);
+        Notify.create({
+          message: '已复制 Markdown',
+          color: 'positive',
+          position: 'bottom',
+          timeout: 1200,
+        });
+      } catch {
+        Notify.create({
+          message: '复制失败',
+          color: 'negative',
+          position: 'bottom',
+          timeout: 1500,
+        });
+      }
+    };
+
+    const retryFromHistory = (msgIdx: number) => {
+      const userMsg = getHistoryLinkedUser(msgIdx);
+      if (!userMsg) return;
+      emit('retry', {
+        query: userMsg.content,
+        mode: currentSessionMode.value,
+        baseHistory: historyMessages.value.slice(0, Math.max(0, msgIdx - 1)),
+      });
+    };
+
+    const continueFromHistory = (msgIdx: number) => {
+      emit('continue', {
+        query: '继续',
+        mode: currentSessionMode.value,
+        baseHistory: historyMessages.value.slice(0, msgIdx + 1),
+      });
     };
 
     /** 查看历史消息中某个 tool call 的搜索结果 */
@@ -946,6 +1241,10 @@ export default defineComponent({
       showEmptyState,
       currentMode,
       userQuery,
+      chatStore,
+      currentSessionMode,
+      editingTextareaRef,
+      editingQueryDraft,
       historyMessages,
       loadingText,
       thinkingHeaderLabel,
@@ -958,6 +1257,9 @@ export default defineComponent({
       renderAnswerMd,
       renderedThinkingContent,
       shouldShowCurrentAnswerToggle,
+      showCurrentAnswerActions,
+      canContinueCurrentAnswer,
+      isEditingCurrentQuery,
       formattedPerfStats,
       formatToolEvent,
       hasSearchTool,
@@ -968,6 +1270,13 @@ export default defineComponent({
       isLastThinkingSegment,
       getSegmentToolCalls,
       getHistoryLinkedAssistant,
+      getHistoryLinkedUser,
+      isEditingHistoryQuery,
+      startEditingCurrentQuery,
+      startEditingHistoryQuery,
+      cancelEditingQuery,
+      submitCurrentQueryEdit,
+      submitHistoryQueryEdit,
       toggleHistoryAnswerByIndex,
       isHistoryAnswerExpanded,
       hasHistoryThinking,
@@ -975,6 +1284,10 @@ export default defineComponent({
       isHistoryThinkingExpanded,
       getHistoryToolCalls,
       getHistoryPerfStats,
+      showHistoryAnswerActions,
+      copyAnswerMarkdown,
+      retryFromHistory,
+      continueFromHistory,
       handleViewHistoricalResults,
       handleViewCurrentResults,
       // Video tooltip
@@ -1071,6 +1384,45 @@ export default defineComponent({
   font-weight: 520;
 }
 
+.chat-user-query-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.chat-user-query-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.chat-query-editor-input {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid rgba(128, 128, 128, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
+.chat-query-editor-input:focus {
+  border-color: rgba(128, 128, 128, 0.28);
+}
+
+.chat-query-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .chat-round-toggle-bar-state {
   display: inline-flex;
   align-items: center;
@@ -1080,6 +1432,36 @@ export default defineComponent({
   line-height: 1.2;
   opacity: 0.58;
   white-space: nowrap;
+}
+
+.chat-answer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.chat-inline-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border: 1px solid rgba(128, 128, 128, 0.1);
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.028);
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  opacity: 0.72;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+
+  &:hover {
+    opacity: 0.92;
+    background: rgba(128, 128, 128, 0.05);
+    border-color: rgba(128, 128, 128, 0.16);
+  }
 }
 
 /* 历史助手消息 */

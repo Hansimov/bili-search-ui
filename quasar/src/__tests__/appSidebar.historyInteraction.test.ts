@@ -18,6 +18,7 @@ const {
     mockSearchModeStore,
     mockExplore,
     mockRestoreExploreFromCache,
+    mockChatFn,
 } = vi.hoisted(() => ({
     mockRouter: {
         push: vi.fn().mockResolvedValue(undefined),
@@ -83,6 +84,24 @@ const {
     mockChatStore: {
         currentHistoryRecordId: null as string | null,
         currentSessionId: 'session-current',
+        currentSession: {
+            sessionId: 'session-current',
+            query: '',
+            mode: 'smart',
+            content: '',
+            thinkingContent: '',
+            isLoading: false,
+            isThinkingPhase: false,
+            isDone: false,
+            isAborted: false,
+            error: null,
+            perfStats: null,
+            usage: null,
+            toolEvents: [],
+            streamSegments: [],
+            thinking: false,
+            createdAt: 0,
+        },
         restoreFromSnapshot: vi.fn(),
         setCurrentHistoryRecordId: vi.fn((id: string | null) => {
             mockChatStore.currentHistoryRecordId = id;
@@ -112,6 +131,7 @@ const {
     },
     mockExplore: vi.fn().mockResolvedValue(undefined),
     mockRestoreExploreFromCache: vi.fn().mockResolvedValue(false),
+    mockChatFn: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('vue-router', () => ({
@@ -161,6 +181,10 @@ vi.mock('src/stores/searchModeStore', () => ({
 vi.mock('src/functions/explore', () => ({
     explore: mockExplore,
     restoreExploreFromCache: mockRestoreExploreFromCache,
+}));
+
+vi.mock('src/functions/chat', () => ({
+    chat: mockChatFn,
 }));
 
 vi.mock('src/utils/zoom', () => ({
@@ -371,5 +395,37 @@ describe('AppSidebar history interactions', () => {
 
         expect(setupState.isHistoryItemActive(olderDirect)).toBe(true);
         expect(setupState.isHistoryItemActive(currentDirect)).toBe(false);
+    });
+
+    it('缺少 chatSnapshot 的 chat 历史应静态恢复而不是重新提交', async () => {
+        const wrapper = mountSidebar();
+        const setupState = wrapper.vm as unknown as SidebarSetupState & {
+            searchFromHistory: (item: SearchHistoryItem) => Promise<void>;
+        };
+
+        const item: SearchHistoryItem = {
+            id: 'smart-aborted',
+            query: '中止问题',
+            timestamp: Date.now(),
+            pinned: false,
+            mode: 'smart',
+            sessionId: 'session-aborted',
+        };
+
+        await setupState.searchFromHistory(item);
+
+        expect(mockChatStore.restoreFromSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({
+                session: expect.objectContaining({
+                    sessionId: 'session-aborted',
+                    query: '中止问题',
+                    isAborted: true,
+                    isDone: false,
+                }),
+                conversationHistory: [],
+            })
+        );
+        expect(mockQueryStore.setChatRoute).toHaveBeenCalledWith('session-aborted');
+        expect(mockChatFn).not.toHaveBeenCalled();
     });
 });

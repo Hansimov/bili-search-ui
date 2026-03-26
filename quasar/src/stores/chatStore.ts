@@ -38,9 +38,9 @@ function generateSessionId(): string {
 /**
  * 流式响应时间线中的一个片段。
  * 保留 thinking / tool_event 的原始时间顺序，
- * 使前端能按真实到达顺序渲染。
  */
 export interface StreamSegment {
+    /** 片段类型：thinking 文本或 tool 事件 */
     type: 'thinking' | 'tool';
     /** type='thinking' 时的文本内容 */
     content?: string;
@@ -70,6 +70,37 @@ export interface ConversationMessage {
 let _msgIdCounter = 0;
 function nextMsgId(): string {
     return `msg_${++_msgIdCounter}_${Date.now()}`;
+}
+
+function sessionHasRenderableState(session: ChatSession): boolean {
+    return !!(
+        session.query ||
+        session.content ||
+        session.thinkingContent ||
+        session.toolEvents.length > 0 ||
+        session.streamSegments.length > 0 ||
+        session.error
+    );
+}
+
+function isSessionIncludedInConversationHistory(
+    session: ChatSession,
+    conversationHistory: ConversationMessage[],
+): boolean {
+    if (conversationHistory.length < 2) {
+        return false;
+    }
+
+    const lastUser = conversationHistory[conversationHistory.length - 2];
+    const lastAssistant = conversationHistory[conversationHistory.length - 1];
+    if (lastUser.role !== 'user' || lastAssistant.role !== 'assistant') {
+        return false;
+    }
+
+    return (
+        lastUser.content === (session.query || '') &&
+        lastAssistant.content === (session.content || '')
+    );
 }
 
 /** 上下文管理：最多保留的对话轮数（每轮 = 1 user + 1 assistant） */
@@ -237,6 +268,15 @@ export const useChatStore = defineStore('chat', {
     },
 
     actions: {
+        exportSnapshot() {
+            return {
+                session: { ...this.currentSession },
+                conversationHistory: this.conversationHistory.map((message) => ({
+                    ...message,
+                })),
+            };
+        },
+
         /** 中止当前正在进行的请求 */
         abortCurrentRequest() {
             const wasLoading = this.currentSession.isLoading;
@@ -262,6 +302,10 @@ export const useChatStore = defineStore('chat', {
                 this.currentSession.isLoading = false;
                 this.currentSession.isThinkingPhase = false;
                 this.currentSession.isAborted = true;
+                this.currentSession.isDone = false;
+                if (this._currentHistoryRecordId && sessionHasRenderableState(this.currentSession)) {
+                    void this._updateHistorySnapshot();
+                }
             }
         },
 
@@ -316,10 +360,14 @@ export const useChatStore = defineStore('chat', {
          * 构建发送给后端的完整消息列表
          * 包含对话历史 + 当前用户消息
          */
-        _buildMessages(query: string): ChatMessage[] {
+        _buildMessages(
+            query: string,
+            history?: ConversationMessage[],
+        ): ChatMessage[] {
+            const sourceHistory = history ?? this.conversationHistory;
             const messages: ChatMessage[] = [];
             // 添加历史消息
-            for (const msg of this.conversationHistory) {
+            for (const msg of sourceHistory) {
                 messages.push({
                     role: msg.role,
                     content: msg.content,
@@ -377,13 +425,99 @@ export const useChatStore = defineStore('chat', {
             });
         },
 
+        _buildAssistantMessageFromSession(
+            session?: ChatSession,
+        ): ConversationMessage | null {
+            const sourceSession = session ?? this.currentSession;
+            const hasAssistantState =
+                !!sourceSession.content ||
+                !!sourceSession.thinkingContent ||
+                sourceSession.toolEvents.length > 0 ||
+                sourceSession.streamSegments.length > 0;
+
+            if (!hasAssistantState) {
+                return null;
+            }
+
+            return {
+                id: nextMsgId(),
+                role: 'assistant',
+                content: sourceSession.content,
+                thinkingContent: sourceSession.thinkingContent || undefined,
+                toolEvents:
+                    sourceSession.toolEvents.length > 0
+                        ? [...sourceSession.toolEvents]
+                        : undefined,
+                streamSegments:
+                    sourceSession.streamSegments.length > 0
+                        ? [...sourceSession.streamSegments]
+                        : undefined,
+                perfStats: sourceSession.perfStats || undefined,
+                usage: sourceSession.usage || undefined,
+            };
+        },
+
+        _currentRoundBaseHistory(): ConversationMessage[] {
+            return this.conversationHistory.slice(
+                0,
+                this._conversationLengthBeforeCurrentRound
+            );
+        },
+
+        _currentRoundContinuationHistory(): ConversationMessage[] {
+            if (this.currentSession.isDone) {
+                return [...this.conversationHistory];
+            }
+
+            const baseHistory = this._currentRoundBaseHistory();
+            if (this.currentSession.query) {
+                baseHistory.push({
+                    id: nextMsgId(),
+                    role: 'user',
+                    content: this.currentSession.query,
+                });
+            }
+
+            const assistantMessage = this._buildAssistantMessageFromSession();
+            if (assistantMessage) {
+                baseHistory.push(assistantMessage);
+            }
+
+            return baseHistory;
+        },
+
+        async retryCurrentRound() {
+            if (!this.currentSession.query) return;
+            await this.sendChat(
+                this.currentSession.query,
+                this.currentSession.mode,
+                this._currentRoundBaseHistory()
+            );
+        },
+
+        async continueCurrentRound() {
+            const canContinue = this.currentSession.isDone || !!this.currentSession.content;
+            if (!canContinue) return;
+
+            await this.sendChat(
+                '继续',
+                this.currentSession.mode,
+                this._currentRoundContinuationHistory()
+            );
+        },
+
         /**
          * 发送聊天请求（流式、多轮）
          *
          * @param query - 用户查询文本
          * @param mode - 搜索模式 ('smart' | 'think')
          */
-        async sendChat(query: string, mode: 'smart' | 'think') {
+        async sendChat(
+            query: string,
+            mode: 'smart' | 'think',
+            baseHistory?: ConversationMessage[]
+        ) {
+            const sourceHistory = baseHistory ?? this.conversationHistory;
             // 中止之前的请求
             this.abortCurrentRequest();
 
@@ -394,7 +528,7 @@ export const useChatStore = defineStore('chat', {
             const sessionId = this.currentSessionId;
 
             // 记录当前回合开始前的历史长度，用于显示分离
-            this._conversationLengthBeforeCurrentRound = this.conversationHistory.length;
+            this._conversationLengthBeforeCurrentRound = sourceHistory.length;
 
             // 重置当前会话（保留对话历史）
             this.currentSession = {
@@ -410,7 +544,7 @@ export const useChatStore = defineStore('chat', {
             this._abortController = abortController;
 
             // 构建含历史的完整消息列表
-            const messages = this._buildMessages(query);
+            const messages = this._buildMessages(query, sourceHistory);
 
             try {
                 await chatCompletionStream(
@@ -587,10 +721,7 @@ export const useChatStore = defineStore('chat', {
                 const searchHistoryStore = useSearchHistoryStore();
                 await searchHistoryStore.updateChatSnapshot(
                     this._currentHistoryRecordId,
-                    {
-                        session: { ...this.currentSession },
-                        conversationHistory: this.conversationHistory.map(m => ({ ...m })),
-                    },
+                    this.exportSnapshot(),
                 );
             } catch (error) {
                 console.error('[ChatStore] Failed to update history snapshot:', error);
@@ -627,17 +758,25 @@ export const useChatStore = defineStore('chat', {
                 ...m,
                 id: m.id || nextMsgId(),
             }));
-            // 当前会话是最后一轮，显示其他历史消息作为历史
-            this._conversationLengthBeforeCurrentRound = Math.max(0, this.conversationHistory.length - 2);
-            // 恢复当前会话状态（确保标记为已完成、非加载状态）
+            const includedInHistory = isSessionIncludedInConversationHistory(
+                snapshot.session,
+                this.conversationHistory,
+            );
+            this._conversationLengthBeforeCurrentRound = includedInHistory
+                ? Math.max(0, this.conversationHistory.length - 2)
+                : this.conversationHistory.length;
+            // 恢复当前会话状态；历史恢复不应继续流式请求，但应保留完成/中止语义
             this.currentSession = {
                 ...snapshot.session,
                 sessionId,
                 isLoading: false,
                 isThinkingPhase: false,
-                isDone: true,
-                error: null,
+                isDone: snapshot.session.isDone,
+                isAborted: snapshot.session.isAborted,
+                error: snapshot.session.error,
             };
+            this._abortController = null;
+            this._streamId = null;
         },
 
         /** 清空所有会话历史 */

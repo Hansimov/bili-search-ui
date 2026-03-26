@@ -161,96 +161,125 @@ export async function chatCompletionStream(
     const decoder = new TextDecoder();
     let buffer = '';
 
+    const processEvent = (rawEvent: string): boolean => {
+        const lines = rawEvent
+            .split('\n')
+            .map((line) => line.replace(/\r$/, ''));
+
+        const dataLines: string[] = [];
+        for (const line of lines) {
+            if (!line || line.startsWith(':')) continue;
+            if (line.startsWith('data: ')) {
+                dataLines.push(line.slice(6));
+            } else if (line.startsWith('data:')) {
+                dataLines.push(line.slice(5));
+            }
+        }
+
+        if (dataLines.length === 0) {
+            return false;
+        }
+
+        const dataStr = dataLines.join('\n').trim();
+        if (!dataStr) {
+            return false;
+        }
+
+        if (dataStr === '[DONE]') {
+            return true;
+        }
+
+        try {
+            const parsed = JSON.parse(dataStr);
+
+            if (parsed.error) {
+                callbacks.onError?.(new Error(parsed.error));
+                return true;
+            }
+
+            if (parsed.stream_id && !parsed.choices) {
+                callbacks.onStreamId?.(parsed.stream_id);
+                return false;
+            }
+
+            const chunk = parsed as ChatStreamChunk;
+            const choice = chunk.choices?.[0];
+            if (!choice) return false;
+
+            const delta = choice.delta;
+
+            if (delta.role === 'assistant') {
+                callbacks.onStart?.(chunk);
+            }
+
+            if (delta.retract_content) {
+                callbacks.onRetractContent?.();
+                return false;
+            }
+
+            if (delta.reasoning_content) {
+                callbacks.onThinking?.(delta.reasoning_content);
+            }
+
+            if (delta.content) {
+                callbacks.onContent?.(delta.content);
+            }
+
+            if (chunk.tool_events) {
+                for (const event of chunk.tool_events) {
+                    callbacks.onToolEvent?.(event);
+                }
+            }
+
+            if (choice.finish_reason === 'stop') {
+                callbacks.onDone?.(
+                    chunk.perf_stats,
+                    chunk.usage,
+                );
+            }
+        } catch {
+            // Skip malformed JSON chunks
+        }
+
+        return false;
+    };
+
+    const processBufferedEvents = (flush = false): boolean => {
+        buffer = buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+        let separatorIndex = buffer.indexOf('\n\n');
+        while (separatorIndex >= 0) {
+            const rawEvent = buffer.slice(0, separatorIndex);
+            buffer = buffer.slice(separatorIndex + 2);
+            if (processEvent(rawEvent)) {
+                return true;
+            }
+            separatorIndex = buffer.indexOf('\n\n');
+        }
+
+        if (flush && buffer.trim()) {
+            const rawEvent = buffer;
+            buffer = '';
+            if (processEvent(rawEvent)) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
     try {
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) {
+                buffer += decoder.decode();
+                processBufferedEvents(true);
+                break;
+            }
 
             buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            // Keep the last incomplete line in the buffer
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed) continue;
-
-                // SSE format: "data: ..." or "data:..."
-                let dataStr = '';
-                if (trimmed.startsWith('data: ')) {
-                    dataStr = trimmed.slice(6);
-                } else if (trimmed.startsWith('data:')) {
-                    dataStr = trimmed.slice(5);
-                } else {
-                    continue;
-                }
-
-                if (dataStr === '[DONE]') {
-                    return;
-                }
-
-                try {
-                    const parsed = JSON.parse(dataStr);
-
-                    // 检测后端错误事件（tool loop 或 LLM 阶段的错误）
-                    if (parsed.error) {
-                        callbacks.onError?.(new Error(parsed.error));
-                        return;
-                    }
-
-                    // Stream ID event (first event from backend, for explicit abort)
-                    if (parsed.stream_id && !parsed.choices) {
-                        callbacks.onStreamId?.(parsed.stream_id);
-                        continue;
-                    }
-
-                    const chunk = parsed as ChatStreamChunk;
-                    const choice = chunk.choices?.[0];
-                    if (!choice) continue;
-
-                    const delta = choice.delta;
-
-                    // First chunk with role — signal start
-                    if (delta.role === 'assistant') {
-                        callbacks.onStart?.(chunk);
-                    }
-
-                    // Retract content: backend signals that streamed content was
-                    // analysis text for a tool-calling iteration, not the final
-                    // answer.  Ask the frontend to clear the content area.
-                    if (delta.retract_content) {
-                        callbacks.onRetractContent?.();
-                        continue;
-                    }
-
-                    // Reasoning/thinking content delta
-                    if (delta.reasoning_content) {
-                        callbacks.onThinking?.(delta.reasoning_content);
-                    }
-
-                    // Content delta
-                    if (delta.content) {
-                        callbacks.onContent?.(delta.content);
-                    }
-
-                    // Tool events — yield individually
-                    if (chunk.tool_events) {
-                        for (const event of chunk.tool_events) {
-                            callbacks.onToolEvent?.(event);
-                        }
-                    }
-
-                    // Final chunk with finish_reason
-                    if (choice.finish_reason === 'stop') {
-                        callbacks.onDone?.(
-                            chunk.perf_stats,
-                            chunk.usage,
-                        );
-                    }
-                } catch {
-                    // Skip malformed JSON chunks
-                    continue;
-                }
+            if (processBufferedEvents()) {
+                return;
             }
         }
     } catch (error) {

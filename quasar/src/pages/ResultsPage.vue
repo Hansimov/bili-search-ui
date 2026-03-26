@@ -11,7 +11,12 @@
       class="chat-results-container"
       @scroll="handleChatScroll"
     >
-      <ChatResponsePanel @retry="retryChat" @showResults="openResultsDialog" />
+      <ChatResponsePanel
+        @retry="retryChat"
+        @continue="continueChat"
+        @edit="editChatQuery"
+        @showResults="openResultsDialog"
+      />
     </div>
 
     <!-- 回到底部按钮 -->
@@ -178,16 +183,55 @@ export default {
       showResultsDialog.value = true;
     };
 
-    const retryChat = () => {
-      const session = chatStore.currentSession;
-      if (session.query) {
-        chat({
-          queryValue: session.query,
-          mode: session.mode,
+    const requestSearchInputFocus = (detail = { placeCaretAtEnd: true }) => {
+      window.dispatchEvent(
+        new CustomEvent('bili-search:focus-input', {
+          detail,
+        })
+      );
+    };
+
+    const retryChat = async (payload = null) => {
+      if (payload?.query) {
+        await chat({
+          queryValue: payload.query,
+          mode: payload.mode || chatStore.currentSession.mode,
           setQuery: false,
           setRoute: false,
+          baseHistory: payload.baseHistory,
         });
+        return;
       }
+
+      await chatStore.retryCurrentRound();
+    };
+
+    const continueChat = async (payload = null) => {
+      if (payload?.baseHistory) {
+        await chat({
+          queryValue: payload.query || '继续',
+          mode: payload.mode || chatStore.currentSession.mode,
+          setQuery: false,
+          setRoute: false,
+          baseHistory: payload.baseHistory,
+        });
+        return;
+      }
+
+      await chatStore.continueCurrentRound();
+    };
+
+    const editChatQuery = async (payload) => {
+      if (!payload?.query) return;
+      if (payload.mode) {
+        searchModeStore.setMode(payload.mode);
+      }
+      queryStore.setQuery({
+        newQuery: payload.query,
+        setRoute: false,
+      });
+      await nextTick();
+      requestSearchInputFocus({ placeCaretAtEnd: true });
     };
 
     // ====== Auto-scroll & "回到底部" 按钮逻辑 ======
@@ -285,6 +329,8 @@ export default {
       showResultsDialog,
       openResultsDialog,
       retryChat,
+      continueChat,
+      editChatQuery,
       chatContainerRef,
       handleChatScroll,
       scrollToBottom,
