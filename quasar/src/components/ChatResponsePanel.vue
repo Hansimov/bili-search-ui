@@ -540,13 +540,16 @@ import type {
 } from 'src/services/chatService';
 import { renderMarkdown } from 'src/utils/markdown';
 import {
+  normalizeOwnerRichInfo,
+  type OwnerRichInfo,
+} from 'src/utils/ownerRichView';
+import {
   VIDEO_VIEW_OPTIONS,
   extractOwnerMidsFromText,
   hasRenderableRichLinks,
   persistVideoLinkView,
   readPersistedVideoLinkView,
   renderAnswerMarkdownWithVideoView,
-  type OwnerLinkInfo,
   type VideoHit,
   type VideoLinkViewMode,
 } from 'src/utils/chatVideoLinkView';
@@ -1138,11 +1141,11 @@ export default defineComponent({
       return map;
     });
 
-    const fetchedOwnerMap = ref<Map<string, OwnerLinkInfo>>(new Map());
+    const fetchedOwnerMap = ref<Map<string, OwnerRichInfo>>(new Map());
     const pendingOwnerMids = new Set<string>();
 
-    const ownerMap = computed((): Map<string, OwnerLinkInfo> => {
-      const map = new Map<string, OwnerLinkInfo>();
+    const ownerMap = computed((): Map<string, OwnerRichInfo> => {
+      const map = new Map<string, OwnerRichInfo>();
       const events = [...toolEvents.value];
       for (const msg of historyMessages.value) {
         if (msg.toolEvents) events.push(...msg.toolEvents);
@@ -1154,16 +1157,24 @@ export default defineComponent({
         face?: string;
         sign?: string;
         fans?: number;
+        sample_title?: string;
+        sample_bvid?: string;
+        sample_pic?: string;
+        sample_view?: number;
       }) => {
-        const mid = String(owner.mid || '').trim();
-        if (!mid) return;
-        const existing = map.get(mid) || { mid };
-        map.set(mid, {
-          mid,
-          name: owner.name || existing.name,
-          face: owner.face || existing.face,
-          sign: owner.sign || existing.sign,
-          fans: owner.fans ?? existing.fans,
+        const normalized = normalizeOwnerRichInfo(owner);
+        if (!normalized) return;
+        const existing = map.get(normalized.mid) || { mid: normalized.mid };
+        map.set(normalized.mid, {
+          mid: normalized.mid,
+          name: normalized.name || existing.name,
+          face: normalized.face || existing.face,
+          sign: normalized.sign || existing.sign,
+          fans: normalized.fans ?? existing.fans,
+          sample_title: normalized.sample_title || existing.sample_title,
+          sample_bvid: normalized.sample_bvid || existing.sample_bvid,
+          sample_pic: normalized.sample_pic || existing.sample_pic,
+          sample_view: normalized.sample_view ?? existing.sample_view,
         });
       };
 
@@ -1179,6 +1190,10 @@ export default defineComponent({
                 mid: owner.mid as string | number | undefined,
                 name: owner.name as string | undefined,
                 face: owner.face as string | undefined,
+                sample_title: owner.sample_title as string | undefined,
+                sample_bvid: owner.sample_bvid as string | undefined,
+                sample_pic: owner.sample_pic as string | undefined,
+                sample_view: owner.sample_view as number | undefined,
               })
             );
           }
@@ -2228,7 +2243,15 @@ export default defineComponent({
     width: 84px;
     min-width: 84px;
     aspect-ratio: 1;
-    border-radius: 18px;
+    border-radius: 999px;
+  }
+
+  :deep(.bili-owner-card-main) {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: stretch;
+    gap: 10px;
   }
 
   :deep(.bili-video-card-cover),
@@ -2308,6 +2331,75 @@ export default defineComponent({
     opacity: 0.62;
   }
 
+  :deep(.bili-owner-card-work) {
+    display: none;
+  }
+
+  @media (min-width: 900px) {
+    :deep(a.bili-owner-card-ref.bili-owner-card-ref--with-work) {
+      justify-content: space-between;
+    }
+
+    :deep(.bili-owner-card-ref--with-work .bili-owner-card-work) {
+      display: flex;
+      min-width: 172px;
+      max-width: 172px;
+      flex-direction: column;
+      gap: 6px;
+      padding-left: 10px;
+      border-left: 1px solid rgba(128, 128, 128, 0.08);
+    }
+
+    :deep(.bili-owner-card-work-label) {
+      font-size: 10px;
+      line-height: 1.3;
+      letter-spacing: 0.04em;
+      opacity: 0.46;
+    }
+
+    :deep(.bili-owner-card-work-preview) {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    :deep(.bili-owner-card-work-cover-wrap) {
+      width: 68px;
+      min-width: 68px;
+      aspect-ratio: 16 / 10;
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(128, 128, 128, 0.08);
+    }
+
+    :deep(.bili-owner-card-work-cover) {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    :deep(.bili-owner-card-work-cover--placeholder) {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: rgba(128, 128, 128, 0.08);
+    }
+
+    :deep(.bili-owner-card-work-title) {
+      display: -webkit-box;
+      min-width: 0;
+      overflow: hidden;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+      -webkit-box-orient: vertical;
+      font-size: 11px;
+      line-height: 1.4;
+      opacity: 0.72;
+    }
+  }
+
   :deep(a.bili-video-compact-ref),
   :deep(a.bili-owner-compact-ref),
   :deep(a.bili-rich-compact-ref) {
@@ -2345,6 +2437,16 @@ export default defineComponent({
 
   :deep(.bili-owner-compact-cover-wrap) {
     aspect-ratio: 1;
+    border-radius: 999px;
+  }
+
+  :deep(a.bili-owner-compact-ref) {
+    display: inline-flex;
+    flex-direction: column;
+  }
+
+  :deep(.bili-owner-compact-meta) {
+    justify-content: initial;
   }
 
   :deep(.bili-video-compact-cover),

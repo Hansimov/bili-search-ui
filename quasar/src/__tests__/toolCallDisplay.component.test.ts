@@ -91,7 +91,7 @@ describe('ToolCallDisplay component', () => {
         expect(sources.some((source) => source.text() === 'Google')).toBe(false);
     });
 
-    it('renders search_owners with a friendly label and owner cards', async () => {
+    it('renders search_owners with a friendly label and compact owner cards', async () => {
         const wrapper = mount(ToolCallDisplay, {
             props: {
                 toolCalls: [searchOwnersCall],
@@ -113,29 +113,20 @@ describe('ToolCallDisplay component', () => {
 
         await wrapper.find('.tool-call-header').trigger('click');
 
-        expect(wrapper.find('.tool-owner-results-header').text()).toContain('排序');
-        expect(wrapper.find('.tool-owner-results-header').text()).toContain('作者');
-        expect(wrapper.find('.tool-owner-results-header').text()).toContain('代表作');
-        expect(wrapper.text().match(/代表作/g)?.length).toBe(1);
-
         const ownerCards = wrapper.findAll('.tool-owner-result');
         expect(ownerCards).toHaveLength(2);
         expect(ownerCards[0]?.text()).toContain('老师好我叫何同学');
         expect(ownerCards[0]?.text()).toContain('#1');
         expect(ownerCards[0]?.text()).toContain('UID 163637592');
-        expect(ownerCards[0]?.text()).toContain('苹果为什么不做这 5 个功能？');
-        expect(ownerCards[0]?.text()).not.toContain('来源');
-        expect(ownerCards[0]?.find('.tool-owner-result-avatar').attributes('src')).toContain(
+        expect(ownerCards[0]?.text()).not.toContain('代表作');
+        expect(ownerCards[0]?.find('.bili-owner-compact-cover').attributes('src')).toContain(
             'https://i0.hdslb.com/bfs/face/example-face.jpg'
         );
-        expect(ownerCards[0]?.find('.tool-owner-result-work-card').attributes('href')).toBe(
-            'https://www.bilibili.com/video/BV1xx411c7mD'
-        );
-        expect(ownerCards[0]?.find('.tool-owner-result-work-cover').attributes('src')).toContain(
-            'https://i0.hdslb.com/bfs/archive/example-cover.jpg'
+        expect(ownerCards[0]?.find('.tool-owner-compact-ref').attributes('href')).toBe(
+            'https://space.bilibili.com/163637592'
         );
         expect(ownerCards[1]?.text()).toContain('何同学切片');
         expect(ownerCards[1]?.text()).toContain('#2');
-        expect(ownerCards[1]?.find('.tool-owner-result-work-card--muted').exists()).toBe(true);
+        expect(ownerCards[1]?.find('.tool-owner-compact-ref').exists()).toBe(true);
     });
 });

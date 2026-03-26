@@ -244,112 +244,89 @@
               v-else-if="call.type === 'search_owners'"
               class="tool-owner-results"
             >
-              <div class="tool-owner-results-header">
-                <span class="tool-owner-results-header-rank">排序</span>
-                <span class="tool-owner-results-header-author">作者</span>
-                <span class="tool-owner-results-header-work">代表作</span>
-              </div>
               <div
                 v-for="(owner, oidx) in getOwnerResults(call)"
                 :key="`${owner.mid || owner.name || 'owner'}-${oidx}`"
                 class="tool-owner-result"
               >
                 <div class="tool-owner-result-rank">#{{ oidx + 1 }}</div>
-                <div class="tool-owner-result-author">
-                  <a
-                    v-if="owner.mid"
-                    class="tool-owner-result-avatar-link"
-                    :href="`https://space.bilibili.com/${owner.mid}`"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    @click.stop
+                <a
+                  v-if="owner.mid"
+                  class="bili-owner-compact-ref tool-owner-compact-ref"
+                  :href="getOwnerHref(owner.mid)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  @click.stop
+                >
+                  <span
+                    class="bili-owner-compact-cover-wrap tool-owner-compact-cover-wrap"
                   >
                     <img
                       v-if="getOwnerAvatarUrl(owner)"
                       :src="getOwnerAvatarUrl(owner)"
-                      class="tool-owner-result-avatar"
+                      class="bili-owner-compact-cover tool-owner-compact-cover"
                       loading="lazy"
                       referrerpolicy="no-referrer"
                     />
                     <span
                       v-else
-                      class="tool-owner-result-avatar tool-owner-result-avatar--placeholder"
+                      class="bili-owner-compact-cover bili-owner-compact-cover-placeholder tool-owner-compact-cover tool-owner-compact-cover--placeholder"
                     >
                       <q-icon name="person" size="18px" />
                     </span>
-                  </a>
-                  <span
-                    v-else
-                    class="tool-owner-result-avatar tool-owner-result-avatar--placeholder"
-                  >
-                    <q-icon name="person" size="18px" />
                   </span>
-                  <div class="tool-owner-result-main">
-                    <a
-                      v-if="owner.mid"
-                      class="tool-owner-result-name tool-owner-result-link"
-                      :href="`https://space.bilibili.com/${owner.mid}`"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      @click.stop
+                  <span class="bili-owner-compact-meta tool-owner-compact-meta">
+                    <span
+                      class="bili-owner-compact-title tool-owner-compact-title"
                     >
-                      {{ owner.name || `UP 主 ${owner.mid}` }}
-                    </a>
-                    <span v-else class="tool-owner-result-name">
-                      {{ owner.name || '未命名作者' }}
+                      {{ getOwnerDisplayName(owner) }}
                     </span>
-                    <span v-if="owner.mid" class="tool-owner-result-mid">
-                      UID {{ owner.mid }}
+                    <span
+                      v-if="getOwnerCompactStats(owner)"
+                      class="bili-owner-compact-stats tool-owner-compact-stats"
+                    >
+                      {{ getOwnerCompactStats(owner) }}
                     </span>
-                  </div>
-                </div>
-                <div class="tool-owner-result-work">
-                  <a
-                    v-if="getOwnerSampleHref(owner)"
-                    class="tool-owner-result-work-card"
-                    :href="getOwnerSampleHref(owner)"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    @click.stop
+                    <span
+                      v-if="owner.sign"
+                      class="bili-owner-compact-sign tool-owner-compact-sign"
+                    >
+                      {{ owner.sign }}
+                    </span>
+                  </span>
+                </a>
+                <div
+                  v-else
+                  class="bili-owner-compact-ref tool-owner-compact-ref tool-owner-compact-ref--disabled"
+                >
+                  <span
+                    class="bili-owner-compact-cover-wrap tool-owner-compact-cover-wrap"
                   >
-                    <span class="tool-owner-result-work-cover-wrap">
-                      <img
-                        v-if="getOwnerSampleCoverUrl(owner)"
-                        :src="getOwnerSampleCoverUrl(owner)"
-                        class="tool-owner-result-work-cover"
-                        loading="lazy"
-                        referrerpolicy="no-referrer"
-                      />
-                      <span
-                        v-else
-                        class="tool-owner-result-work-cover tool-owner-result-work-cover--placeholder"
-                      >
-                        <q-icon name="smart_display" size="18px" />
-                      </span>
+                    <span
+                      class="bili-owner-compact-cover bili-owner-compact-cover-placeholder tool-owner-compact-cover tool-owner-compact-cover--placeholder"
+                    >
+                      <q-icon name="person" size="18px" />
                     </span>
-                    <span class="tool-owner-result-work-meta">
-                      <span class="tool-owner-result-work-title">
-                        {{ getOwnerSampleTitle(owner) }}
-                      </span>
+                  </span>
+                  <span class="bili-owner-compact-meta tool-owner-compact-meta">
+                    <span
+                      class="bili-owner-compact-title tool-owner-compact-title"
+                    >
+                      {{ getOwnerDisplayName(owner, '未命名作者') }}
                     </span>
-                  </a>
-                  <div
-                    v-else
-                    class="tool-owner-result-work-card tool-owner-result-work-card--muted"
-                  >
-                    <span class="tool-owner-result-work-cover-wrap">
-                      <span
-                        class="tool-owner-result-work-cover tool-owner-result-work-cover--placeholder"
-                      >
-                        <q-icon name="smart_display" size="18px" />
-                      </span>
+                    <span
+                      v-if="getOwnerCompactStats(owner)"
+                      class="bili-owner-compact-stats tool-owner-compact-stats"
+                    >
+                      {{ getOwnerCompactStats(owner) }}
                     </span>
-                    <span class="tool-owner-result-work-meta">
-                      <span class="tool-owner-result-work-title">
-                        {{ getOwnerSampleTitle(owner) }}
-                      </span>
+                    <span
+                      v-if="owner.sign"
+                      class="bili-owner-compact-sign tool-owner-compact-sign"
+                    >
+                      {{ owner.sign }}
                     </span>
-                  </div>
+                  </span>
                 </div>
               </div>
             </div>
@@ -363,6 +340,12 @@
 <script lang="ts">
 import { defineComponent, ref, watch, nextTick, PropType } from 'vue';
 import type { ToolCall } from 'src/services/chatService';
+import {
+  getOwnerAvatarUrl,
+  getOwnerDisplayName,
+  getOwnerHref,
+  getOwnerStatLine,
+} from 'src/utils/ownerRichView';
 import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
 import { formatToolCallArgs } from 'src/utils/toolCall';
 
@@ -395,10 +378,13 @@ interface GoogleResult {
 interface OwnerResult {
   mid?: number;
   name?: string;
+  sign?: string;
+  fans?: number;
   score?: number;
   sample_title?: string;
   sample_bvid?: string;
   sample_pic?: string;
+  sample_view?: number;
   sources?: string[];
   face?: string;
 }
@@ -607,26 +593,14 @@ export default defineComponent({
       return Array.isArray(owners) ? (owners as OwnerResult[]) : [];
     };
 
-    const getOwnerAvatarUrl = (owner: OwnerResult): string => {
-      return owner.face ? normalizePicUrl(owner.face) : '';
-    };
-
-    const getOwnerSampleCoverUrl = (owner: OwnerResult): string => {
-      return owner.sample_pic ? normalizePicUrl(owner.sample_pic) : '';
-    };
-
-    const getOwnerSampleHref = (owner: OwnerResult): string => {
-      if (owner.sample_bvid) {
-        return `https://www.bilibili.com/video/${owner.sample_bvid}`;
-      }
-      if (owner.sample_title && /^https?:\/\//.test(owner.sample_title)) {
-        return owner.sample_title;
-      }
-      return '';
-    };
-
-    const getOwnerSampleTitle = (owner: OwnerResult): string => {
-      return owner.sample_title?.trim() || '暂无代表作';
+    const getOwnerCompactStats = (owner: OwnerResult): string => {
+      return getOwnerStatLine(
+        {
+          mid: owner.mid ? String(owner.mid) : '',
+          fans: owner.fans,
+        },
+        { includeUid: true }
+      );
     };
 
     /** Normalize bilibili pic URL to include https: protocol */
@@ -722,9 +696,9 @@ export default defineComponent({
       getGoogleDisplayedUrl,
       getOwnerResults,
       getOwnerAvatarUrl,
-      getOwnerSampleCoverUrl,
-      getOwnerSampleHref,
-      getOwnerSampleTitle,
+      getOwnerDisplayName,
+      getOwnerHref,
+      getOwnerCompactStats,
       normalizePicUrl,
       openVideoPage,
     };
@@ -997,54 +971,24 @@ export default defineComponent({
   gap: 10px;
 }
 
-.tool-owner-results-header,
 .tool-owner-result {
   display: grid;
-  grid-template-columns: 64px minmax(176px, 0.82fr) minmax(0, 1.75fr);
-  column-gap: 12px;
-  align-items: center;
-}
-
-.tool-owner-results-header {
-  padding: 0 4px;
-  font-size: 11px;
-  line-height: 1.35;
-  opacity: 0.44;
-}
-
-.tool-owner-results-header-rank {
-  white-space: nowrap;
-}
-
-.tool-owner-results-header-rank,
-.tool-owner-results-header-author,
-.tool-owner-results-header-work {
-  min-width: 0;
+  grid-template-columns: 52px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: stretch;
 }
 
 .tool-owner-result {
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(128, 128, 128, 0.03);
-}
-
-.tool-owner-result-author {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.tool-owner-result-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .tool-owner-result-rank {
-  justify-self: start;
-  min-width: 36px;
+  display: inline-flex;
+  align-self: center;
+  justify-content: center;
+  min-width: 34px;
   padding: 4px 6px;
   border-radius: 999px;
   background: rgba(128, 128, 128, 0.08);
@@ -1055,68 +999,13 @@ export default defineComponent({
   text-align: center;
 }
 
-.tool-owner-result-avatar-link {
-  display: inline-flex;
-  text-decoration: none;
-}
-
-.tool-owner-result-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  object-fit: cover;
-  display: inline-flex;
+.tool-owner-compact-ref {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background: rgba(128, 128, 128, 0.08);
-  color: rgba(128, 128, 128, 0.48);
-  flex-shrink: 0;
-}
-
-.tool-owner-result-avatar--placeholder {
-  border: 1px solid rgba(128, 128, 128, 0.08);
-}
-
-.tool-owner-result-name {
-  font-size: 13px;
-  line-height: 1.35;
-  font-weight: 600;
-  opacity: 0.9;
-  word-break: break-word;
-}
-
-.tool-owner-result-link {
-  color: inherit;
-  text-decoration: none;
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
-.tool-owner-result-mid,
-.tool-owner-results-header {
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.tool-owner-result-mid {
-  opacity: 0.5;
-}
-
-.tool-owner-result-work {
-  display: flex;
-  min-width: 0;
-}
-
-.tool-owner-result-work-card {
-  display: flex;
-  align-items: stretch;
   width: 100%;
   min-width: 0;
-  gap: 10px;
-  padding: 8px;
+  gap: 12px;
+  padding: 9px 10px;
   border-radius: 10px;
   border: 1px solid rgba(128, 128, 128, 0.08);
   background: rgba(128, 128, 128, 0.025);
@@ -1131,27 +1020,28 @@ export default defineComponent({
   }
 }
 
-.tool-owner-result-work-card--muted {
-  opacity: 0.74;
+.tool-owner-compact-ref--disabled {
+  opacity: 0.82;
 }
 
-.tool-owner-result-work-cover-wrap {
-  width: 112px;
-  min-width: 112px;
-  aspect-ratio: 16 / 10;
-  border-radius: 8px;
+.tool-owner-compact-cover-wrap {
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
+  aspect-ratio: 1;
+  border-radius: 999px;
   overflow: hidden;
   background: rgba(128, 128, 128, 0.08);
 }
 
-.tool-owner-result-work-cover {
+.tool-owner-compact-cover {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.tool-owner-result-work-cover--placeholder {
+.tool-owner-compact-cover--placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1159,112 +1049,85 @@ export default defineComponent({
   background: rgba(128, 128, 128, 0.08);
 }
 
-.tool-owner-result-work-meta {
+.tool-owner-compact-meta {
   display: flex;
+  flex-direction: column;
   min-width: 0;
   flex: 1;
-  align-items: center;
+  justify-content: center;
+  gap: 3px;
 }
 
-.tool-owner-result-work-title {
+.tool-owner-compact-title {
   display: -webkit-box;
   overflow: hidden;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
-  font-size: 13px;
-  line-height: 1.45;
-  font-weight: 500;
-  opacity: 0.86;
+  font-size: 14px;
+  line-height: 1.42;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.tool-owner-compact-stats,
+.tool-owner-compact-sign {
+  font-size: 12px;
+  line-height: 1.42;
+  opacity: 0.7;
+}
+
+.tool-owner-compact-sign {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 @media (max-width: 780px) {
-  .tool-owner-results-header,
   .tool-owner-result {
-    grid-template-columns: 56px minmax(150px, 0.76fr) minmax(0, 1.9fr);
+    grid-template-columns: 48px minmax(0, 1fr);
     column-gap: 10px;
   }
 
-  .tool-owner-result {
-    padding: 9px 10px;
-  }
-
-  .tool-owner-result-work-cover-wrap {
-    width: 92px;
-    min-width: 92px;
+  .tool-owner-compact-cover-wrap {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
   }
 }
 
 @media (max-width: 620px) {
-  .tool-owner-results-header {
-    display: none;
-  }
-
   .tool-owner-result {
-    grid-template-columns: 52px minmax(0, 1fr);
-    row-gap: 10px;
-    column-gap: 10px;
-    align-items: start;
-  }
-
-  .tool-owner-result-author {
-    grid-column: 2;
-    align-items: flex-start;
-  }
-
-  .tool-owner-result-work {
-    grid-column: 1 / -1;
+    grid-template-columns: 44px minmax(0, 1fr);
+    column-gap: 8px;
   }
 
   .tool-owner-result-rank {
-    align-self: start;
-    margin-top: 2px;
-  }
-
-  .tool-owner-result-work-card {
-    gap: 8px;
-  }
-
-  .tool-owner-result-work-cover-wrap {
-    width: 96px;
-    min-width: 96px;
+    align-self: center;
   }
 }
 
 @media (max-width: 460px) {
-  .tool-owner-result {
-    padding: 8px;
-    row-gap: 8px;
+  .tool-owner-compact-ref {
+    gap: 10px;
+    padding: 7px 8px;
   }
 
-  .tool-owner-result-author {
-    gap: 8px;
-  }
-
-  .tool-owner-result-avatar {
+  .tool-owner-compact-cover-wrap {
     width: 38px;
+    min-width: 38px;
     height: 38px;
   }
 
-  .tool-owner-result-work-card {
-    flex-direction: column;
-    padding: 7px;
+  .tool-owner-compact-title {
+    font-size: 13px;
   }
 
-  .tool-owner-result-work-cover-wrap {
-    width: 100%;
-    min-width: 0;
-    max-width: none;
-    aspect-ratio: 16 / 9;
-  }
-
-  .tool-owner-result-work-meta {
-    align-items: flex-start;
-  }
-
-  .tool-owner-result-work-title {
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
+  .tool-owner-compact-stats,
+  .tool-owner-compact-sign {
+    font-size: 11px;
   }
 }
 

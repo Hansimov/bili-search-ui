@@ -1,5 +1,14 @@
 import { humanReadableNumber, secondsToDuration } from 'src/utils/convert';
 import { renderMarkdown } from 'src/utils/markdown';
+import {
+    formatOwnerFans,
+    getOwnerAvatarUrl,
+    getOwnerSampleCoverUrl,
+    getOwnerSampleTitle,
+    getOwnerStatLine,
+    hasOwnerSample,
+    type OwnerRichInfo,
+} from 'src/utils/ownerRichView';
 import type { NormalizedVideoHit } from 'src/utils/videoHit';
 import { normalizeVideoPicUrl } from 'src/utils/videoHit';
 
@@ -18,13 +27,7 @@ const VIDEO_LINK_VIEW_SESSION_KEY_PREFIX = 'chat-response-video-link-view:';
 export type VideoLinkViewMode = 'text' | 'card' | 'compact';
 export type VideoHit = NormalizedVideoHit;
 
-export interface OwnerLinkInfo {
-    mid: string;
-    name?: string;
-    face?: string;
-    sign?: string;
-    fans?: number;
-}
+export type OwnerLinkInfo = OwnerRichInfo;
 
 type OwnerMentionCandidate = {
     mid: string;
@@ -65,11 +68,6 @@ const formatVideoViews = (views?: number): string => {
 const formatVideoDuration = (duration?: number): string => {
     if (!duration) return '';
     return secondsToDuration(duration);
-};
-
-const formatOwnerFans = (fans?: number): string => {
-    if (fans == null) return '';
-    return `${humanReadableNumber(fans)} 粉丝`;
 };
 
 const formatVideoCompactStats = (video: VideoHit): string => {
@@ -148,12 +146,15 @@ const buildRenderedOwnerLink = (
         ? `UP 主 ${mid}`
         : innerText || `UP 主 ${mid}`;
     const name = escapeHtml(owner?.name || fallbackName);
-    const avatarUrl = owner?.face ? normalizeVideoPicUrl(owner.face) : '';
+    const avatarUrl = getOwnerAvatarUrl(owner || { mid });
     const sign = escapeHtml(owner?.sign || '');
     const fansText = escapeHtml(formatOwnerFans(owner?.fans));
     const inlineLabel = escapeHtml(owner?.name || fallbackName);
     const uidText = escapeHtml(`UID ${mid}`);
-    const statLine = [fansText, uidText].filter(Boolean).join(' · ');
+    const statLine = escapeHtml(getOwnerStatLine({ ...owner, mid })) || uidText;
+    const ownerHasSample = hasOwnerSample(owner || { mid });
+    const sampleTitle = escapeHtml(getOwnerSampleTitle(owner || { mid }) || '代表作');
+    const sampleCoverUrl = getOwnerSampleCoverUrl(owner || { mid });
 
     if (viewMode === 'compact') {
         return `<a href="${escapeHtml(href)}" class="bili-owner-compact-ref bili-rich-compact-ref" data-mid="${mid}" data-inline-label="${inlineLabel}" target="_blank" rel="noopener"><span class="bili-owner-compact-cover-wrap bili-rich-compact-cover-wrap">${avatarUrl
@@ -166,10 +167,13 @@ const buildRenderedOwnerLink = (
     }
 
     if (viewMode === 'card') {
-        return `<a href="${escapeHtml(href)}" class="bili-owner-card-ref bili-rich-card-ref" data-mid="${mid}" target="_blank" rel="noopener"><span class="bili-owner-card-cover-wrap bili-rich-card-cover-wrap bili-rich-card-cover-wrap--owner">${avatarUrl
+        return `<a href="${escapeHtml(href)}" class="bili-owner-card-ref bili-rich-card-ref${ownerHasSample ? ' bili-owner-card-ref--with-work' : ''}" data-mid="${mid}" target="_blank" rel="noopener"><span class="bili-owner-card-main"><span class="bili-owner-card-cover-wrap bili-rich-card-cover-wrap bili-rich-card-cover-wrap--owner">${avatarUrl
             ? `<img src="${escapeHtml(avatarUrl)}" class="bili-owner-card-cover bili-rich-card-cover" loading="lazy" referrerpolicy="no-referrer" />`
             : '<span class="bili-owner-card-cover bili-owner-card-cover-placeholder bili-rich-card-cover bili-rich-card-cover-placeholder"></span>'
-            }</span><span class="bili-owner-card-meta bili-rich-card-meta"><span class="bili-owner-card-title bili-rich-card-title">${name}</span><span class="bili-owner-card-subline bili-rich-card-subline">${statLine || uidText}</span>${sign ? `<span class="bili-owner-card-sign">${sign}</span>` : ''}</span></a>`;
+            }</span><span class="bili-owner-card-meta bili-rich-card-meta"><span class="bili-owner-card-title bili-rich-card-title">${name}</span><span class="bili-owner-card-subline bili-rich-card-subline">${statLine}</span>${sign ? `<span class="bili-owner-card-sign">${sign}</span>` : ''}</span></span>${ownerHasSample ? `<span class="bili-owner-card-work" aria-hidden="true"><span class="bili-owner-card-work-label">代表作</span><span class="bili-owner-card-work-preview"><span class="bili-owner-card-work-cover-wrap">${sampleCoverUrl
+                ? `<img src="${escapeHtml(sampleCoverUrl)}" class="bili-owner-card-work-cover" loading="lazy" referrerpolicy="no-referrer" />`
+                : '<span class="bili-owner-card-work-cover bili-owner-card-work-cover--placeholder"></span>'
+                }</span><span class="bili-owner-card-work-title">${sampleTitle}</span></span></span>` : ''}</a>`;
     }
 
     return `<a href="${escapeHtml(href)}" class="bili-owner-ref bili-rich-inline-ref" data-mid="${mid}" target="_blank" rel="noopener">${avatarUrl

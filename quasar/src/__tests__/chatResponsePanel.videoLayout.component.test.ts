@@ -380,6 +380,8 @@ describe('ChatResponsePanel video layout', () => {
                         face: 'https://example.com/owner-face.jpg',
                         sign: '用影像记录世界',
                         fans: 2230000,
+                        sample_title: '影视飓风年度混剪',
+                        sample_pic: 'https://example.com/sample-cover.jpg',
                     },
                 ],
             ])
@@ -389,6 +391,8 @@ describe('ChatResponsePanel video layout', () => {
         expect(html).toContain('影视飓风');
         expect(html).toContain('用影像记录世界');
         expect(html).toContain('https://example.com/owner-face.jpg');
+        expect(html).toContain('bili-owner-card-work');
+        expect(html).toContain('影视飓风年度混剪');
     });
 
     it('renders plain owner-name mentions as owner cards through the shared rich-link pipeline', () => {
