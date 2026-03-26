@@ -9,7 +9,6 @@
         'tool-call-completed': call.status === 'completed',
       }"
     >
-      <!-- 工具图标和名称 -->
       <div class="tool-call-header" @click="toggleExpand(idx)">
         <div class="tool-call-left">
           <q-icon
@@ -36,8 +35,9 @@
           <span
             v-else-if="getQueryList(call).length <= 1"
             class="tool-call-args-full"
-            >{{ getQueryList(call)[0] || '' }}</span
           >
+            {{ getQueryList(call)[0] || '' }}
+          </span>
         </div>
         <div class="tool-call-right">
           <span
@@ -85,7 +85,7 @@
           />
         </div>
       </div>
-      <!-- 多 query 子列表（search_videos 有 2+ queries 时显示） -->
+
       <div
         v-if="call.type === 'search_videos' && getQueryList(call).length > 1"
         class="tool-query-list"
@@ -100,7 +100,6 @@
         </div>
       </div>
 
-      <!-- 搜索结果预览（可折叠，带动画） -->
       <div
         v-if="call.status === 'completed' && hasResults(call)"
         class="tool-call-results-wrapper"
@@ -109,7 +108,6 @@
         <div class="tool-call-results-inner">
           <div class="tool-call-results">
             <div v-if="call.type === 'search_videos'">
-              <!-- 多 query 分组显示 -->
               <template v-if="getPerQueryResults(call).length > 1">
                 <div
                   v-for="(qr, qridx) in getPerQueryResults(call)"
@@ -150,7 +148,7 @@
                   </div>
                 </div>
               </template>
-              <!-- 单 query 扁平显示 -->
+
               <div v-else class="tool-results-grid">
                 <div
                   v-for="(hit, hidx) in getAllVideoHits(call)"
@@ -178,7 +176,7 @@
                   </div>
                 </div>
               </div>
-              <!-- 底部收起栏：整个 bar 可点击收起 -->
+
               <div
                 v-if="getAllVideoHits(call).length > 0"
                 class="tool-result-collapse-bar"
@@ -191,6 +189,7 @@
                 />
               </div>
             </div>
+
             <div
               v-else-if="call.type === 'check_author'"
               class="tool-result-author-info"
@@ -205,6 +204,7 @@
               </div>
               <div v-else class="author-not-found">未找到该作者</div>
             </div>
+
             <div
               v-else-if="call.type === 'search_google'"
               class="tool-google-results"
@@ -239,16 +239,51 @@
                 </div>
               </a>
             </div>
+
             <div
               v-else-if="call.type === 'search_owners'"
               class="tool-owner-results"
             >
+              <div class="tool-owner-results-header">
+                <span class="tool-owner-results-header-rank">排序</span>
+                <span class="tool-owner-results-header-author">作者</span>
+                <span class="tool-owner-results-header-work">代表作</span>
+              </div>
               <div
                 v-for="(owner, oidx) in getOwnerResults(call)"
                 :key="`${owner.mid || owner.name || 'owner'}-${oidx}`"
                 class="tool-owner-result"
               >
-                <div class="tool-owner-result-head">
+                <div class="tool-owner-result-rank">#{{ oidx + 1 }}</div>
+                <div class="tool-owner-result-author">
+                  <a
+                    v-if="owner.mid"
+                    class="tool-owner-result-avatar-link"
+                    :href="`https://space.bilibili.com/${owner.mid}`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    @click.stop
+                  >
+                    <img
+                      v-if="getOwnerAvatarUrl(owner)"
+                      :src="getOwnerAvatarUrl(owner)"
+                      class="tool-owner-result-avatar"
+                      loading="lazy"
+                      referrerpolicy="no-referrer"
+                    />
+                    <span
+                      v-else
+                      class="tool-owner-result-avatar tool-owner-result-avatar--placeholder"
+                    >
+                      <q-icon name="person" size="18px" />
+                    </span>
+                  </a>
+                  <span
+                    v-else
+                    class="tool-owner-result-avatar tool-owner-result-avatar--placeholder"
+                  >
+                    <q-icon name="person" size="18px" />
+                  </span>
                   <div class="tool-owner-result-main">
                     <a
                       v-if="owner.mid"
@@ -267,24 +302,54 @@
                       UID {{ owner.mid }}
                     </span>
                   </div>
-                  <span
-                    v-if="typeof owner.score === 'number' && owner.score > 0"
-                    class="tool-owner-result-score"
+                </div>
+                <div class="tool-owner-result-work">
+                  <a
+                    v-if="getOwnerSampleHref(owner)"
+                    class="tool-owner-result-work-card"
+                    :href="getOwnerSampleHref(owner)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    @click.stop
                   >
-                    匹配 {{ owner.score.toFixed(2) }}
-                  </span>
-                </div>
-                <div v-if="owner.sample_title" class="tool-owner-result-sample">
-                  代表内容：{{ owner.sample_title }}
-                </div>
-                <div
-                  v-if="owner.sources && owner.sources.length > 0"
-                  class="tool-owner-result-sources"
-                >
-                  <span class="tool-owner-result-sources-label">来源</span>
-                  <span class="tool-owner-result-sources-text">
-                    {{ owner.sources.join('、') }}
-                  </span>
+                    <span class="tool-owner-result-work-cover-wrap">
+                      <img
+                        v-if="getOwnerSampleCoverUrl(owner)"
+                        :src="getOwnerSampleCoverUrl(owner)"
+                        class="tool-owner-result-work-cover"
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                      />
+                      <span
+                        v-else
+                        class="tool-owner-result-work-cover tool-owner-result-work-cover--placeholder"
+                      >
+                        <q-icon name="smart_display" size="18px" />
+                      </span>
+                    </span>
+                    <span class="tool-owner-result-work-meta">
+                      <span class="tool-owner-result-work-title">
+                        {{ getOwnerSampleTitle(owner) }}
+                      </span>
+                    </span>
+                  </a>
+                  <div
+                    v-else
+                    class="tool-owner-result-work-card tool-owner-result-work-card--muted"
+                  >
+                    <span class="tool-owner-result-work-cover-wrap">
+                      <span
+                        class="tool-owner-result-work-cover tool-owner-result-work-cover--placeholder"
+                      >
+                        <q-icon name="smart_display" size="18px" />
+                      </span>
+                    </span>
+                    <span class="tool-owner-result-work-meta">
+                      <span class="tool-owner-result-work-title">
+                        {{ getOwnerSampleTitle(owner) }}
+                      </span>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -332,7 +397,10 @@ interface OwnerResult {
   name?: string;
   score?: number;
   sample_title?: string;
+  sample_bvid?: string;
+  sample_pic?: string;
   sources?: string[];
+  face?: string;
 }
 
 /** 工具名称中英对照 */
@@ -539,6 +607,28 @@ export default defineComponent({
       return Array.isArray(owners) ? (owners as OwnerResult[]) : [];
     };
 
+    const getOwnerAvatarUrl = (owner: OwnerResult): string => {
+      return owner.face ? normalizePicUrl(owner.face) : '';
+    };
+
+    const getOwnerSampleCoverUrl = (owner: OwnerResult): string => {
+      return owner.sample_pic ? normalizePicUrl(owner.sample_pic) : '';
+    };
+
+    const getOwnerSampleHref = (owner: OwnerResult): string => {
+      if (owner.sample_bvid) {
+        return `https://www.bilibili.com/video/${owner.sample_bvid}`;
+      }
+      if (owner.sample_title && /^https?:\/\//.test(owner.sample_title)) {
+        return owner.sample_title;
+      }
+      return '';
+    };
+
+    const getOwnerSampleTitle = (owner: OwnerResult): string => {
+      return owner.sample_title?.trim() || '暂无代表作';
+    };
+
     /** Normalize bilibili pic URL to include https: protocol */
     const normalizePicUrl = (pic: string): string => {
       return normalizeVideoPicUrl(pic);
@@ -631,6 +721,10 @@ export default defineComponent({
       getGoogleResults,
       getGoogleDisplayedUrl,
       getOwnerResults,
+      getOwnerAvatarUrl,
+      getOwnerSampleCoverUrl,
+      getOwnerSampleHref,
+      getOwnerSampleTitle,
       normalizePicUrl,
       openVideoPage,
     };
@@ -900,31 +994,88 @@ export default defineComponent({
 .tool-owner-results {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+}
+
+.tool-owner-results-header,
+.tool-owner-result {
+  display: grid;
+  grid-template-columns: 64px minmax(176px, 0.82fr) minmax(0, 1.75fr);
+  column-gap: 12px;
+  align-items: center;
+}
+
+.tool-owner-results-header {
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0.44;
+}
+
+.tool-owner-results-header-rank {
+  white-space: nowrap;
+}
+
+.tool-owner-results-header-rank,
+.tool-owner-results-header-author,
+.tool-owner-results-header-work {
+  min-width: 0;
 }
 
 .tool-owner-result {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   padding: 10px 12px;
   border-radius: 8px;
   background: rgba(128, 128, 128, 0.03);
 }
 
-.tool-owner-result-head {
+.tool-owner-result-author {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .tool-owner-result-main {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
+}
+
+.tool-owner-result-rank {
+  justify-self: start;
+  min-width: 36px;
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.08);
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  opacity: 0.72;
+  text-align: center;
+}
+
+.tool-owner-result-avatar-link {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.tool-owner-result-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: rgba(128, 128, 128, 0.08);
+  color: rgba(128, 128, 128, 0.48);
+  flex-shrink: 0;
+}
+
+.tool-owner-result-avatar--placeholder {
+  border: 1px solid rgba(128, 128, 128, 0.08);
 }
 
 .tool-owner-result-name {
@@ -932,6 +1083,7 @@ export default defineComponent({
   line-height: 1.35;
   font-weight: 600;
   opacity: 0.9;
+  word-break: break-word;
 }
 
 .tool-owner-result-link {
@@ -944,24 +1096,176 @@ export default defineComponent({
 }
 
 .tool-owner-result-mid,
-.tool-owner-result-score,
-.tool-owner-result-sources-label {
+.tool-owner-results-header {
   font-size: 11px;
   line-height: 1.35;
+}
+
+.tool-owner-result-mid {
   opacity: 0.5;
 }
 
-.tool-owner-result-sample,
-.tool-owner-result-sources-text {
-  font-size: 12px;
-  line-height: 1.45;
-  opacity: 0.68;
+.tool-owner-result-work {
+  display: flex;
+  min-width: 0;
 }
 
-.tool-owner-result-sources {
+.tool-owner-result-work-card {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(128, 128, 128, 0.08);
+  background: rgba(128, 128, 128, 0.025);
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+
+  &:hover {
+    background: rgba(128, 128, 128, 0.05);
+    border-color: rgba(128, 128, 128, 0.12);
+    text-decoration: none;
+  }
+}
+
+.tool-owner-result-work-card--muted {
+  opacity: 0.74;
+}
+
+.tool-owner-result-work-cover-wrap {
+  width: 112px;
+  min-width: 112px;
+  aspect-ratio: 16 / 10;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(128, 128, 128, 0.08);
+}
+
+.tool-owner-result-work-cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tool-owner-result-work-cover--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(128, 128, 128, 0.35);
+  background: rgba(128, 128, 128, 0.08);
+}
+
+.tool-owner-result-work-meta {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+}
+
+.tool-owner-result-work-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+  opacity: 0.86;
+}
+
+@media (max-width: 780px) {
+  .tool-owner-results-header,
+  .tool-owner-result {
+    grid-template-columns: 56px minmax(150px, 0.76fr) minmax(0, 1.9fr);
+    column-gap: 10px;
+  }
+
+  .tool-owner-result {
+    padding: 9px 10px;
+  }
+
+  .tool-owner-result-work-cover-wrap {
+    width: 92px;
+    min-width: 92px;
+  }
+}
+
+@media (max-width: 620px) {
+  .tool-owner-results-header {
+    display: none;
+  }
+
+  .tool-owner-result {
+    grid-template-columns: 52px minmax(0, 1fr);
+    row-gap: 10px;
+    column-gap: 10px;
+    align-items: start;
+  }
+
+  .tool-owner-result-author {
+    grid-column: 2;
+    align-items: flex-start;
+  }
+
+  .tool-owner-result-work {
+    grid-column: 1 / -1;
+  }
+
+  .tool-owner-result-rank {
+    align-self: start;
+    margin-top: 2px;
+  }
+
+  .tool-owner-result-work-card {
+    gap: 8px;
+  }
+
+  .tool-owner-result-work-cover-wrap {
+    width: 96px;
+    min-width: 96px;
+  }
+}
+
+@media (max-width: 460px) {
+  .tool-owner-result {
+    padding: 8px;
+    row-gap: 8px;
+  }
+
+  .tool-owner-result-author {
+    gap: 8px;
+  }
+
+  .tool-owner-result-avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .tool-owner-result-work-card {
+    flex-direction: column;
+    padding: 7px;
+  }
+
+  .tool-owner-result-work-cover-wrap {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    aspect-ratio: 16 / 9;
+  }
+
+  .tool-owner-result-work-meta {
+    align-items: flex-start;
+  }
+
+  .tool-owner-result-work-title {
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
 }
 
 .tool-google-result {
