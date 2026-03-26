@@ -458,7 +458,7 @@ describe('ChatResponsePanel video layout', () => {
         expect(wrapper.html()).toContain('https://space.bilibili.com/946974');
     });
 
-    it('renders compact owner links with avatar, uid, and fans only', () => {
+    it('renders compact owner links with hover details for uid and intro', () => {
         const html = renderAnswerMarkdownWithVideoView(
             '推荐关注 https://space.bilibili.com/946974',
             'compact',
@@ -478,10 +478,11 @@ describe('ChatResponsePanel video layout', () => {
         );
 
         expect(html).toContain('bili-owner-compact-ref');
+        expect(html).toContain('影视飓风');
+        expect(html).toContain('bili-owner-compact-hover-card');
         expect(html).toContain('UID 946974');
         expect(html).toContain('223');
         expect(html).toContain('粉丝');
-        expect(html).not.toContain('用影像记录世界');
-        expect(html).not.toContain('影视飓风</span><span class="bili-owner-compact-stats"');
+        expect(html).toContain('用影像记录世界');
     });
 });

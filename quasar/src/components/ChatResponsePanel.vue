@@ -2449,6 +2449,8 @@ export default defineComponent({
     gap: 8px;
     padding: 8px 10px;
     flex-direction: row;
+    position: relative;
+    overflow: visible;
   }
 
   :deep(.bili-owner-compact-meta) {
@@ -2532,10 +2534,60 @@ export default defineComponent({
     display: none;
   }
 
+  :deep(.bili-owner-compact-hover-card) {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 8px);
+    z-index: 15;
+    display: flex;
+    width: min(240px, calc(100vw - 32px));
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid rgba(128, 128, 128, 0.12);
+    border-radius: 12px;
+    background: rgba(24, 24, 24, 0.96);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(4px);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+  }
+
+  :deep(a.bili-owner-compact-ref:hover .bili-owner-compact-hover-card),
+  :deep(a.bili-owner-compact-ref:focus-visible .bili-owner-compact-hover-card) {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  :deep(.bili-owner-compact-hover-title) {
+    font-size: 13px;
+    line-height: 1.4;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  :deep(.bili-owner-compact-hover-meta) {
+    font-size: 11px;
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  :deep(.bili-owner-compact-hover-sign) {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    font-size: 11px;
+    line-height: 1.42;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
   :deep(.bili-video-compact-gallery:has(a.bili-owner-compact-ref)) {
     --compact-card-min: 108px;
     --compact-card-max: 132px;
-    --compact-gallery-columns: 5;
+    --compact-gallery-columns: 4;
   }
 
   :deep(.bili-video-compact-author),
@@ -2584,7 +2636,7 @@ export default defineComponent({
     }
 
     :deep(.bili-video-compact-gallery:has(a.bili-owner-compact-ref)) {
-      --compact-gallery-columns: 4;
+      --compact-gallery-columns: 3;
       --compact-card-min: 114px;
     }
   }

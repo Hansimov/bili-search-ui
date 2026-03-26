@@ -903,8 +903,8 @@ export default defineComponent({
 }
 
 .tool-owner-results {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -962,12 +962,22 @@ export default defineComponent({
 }
 
 @media (max-width: 780px) {
+  .tool-owner-results {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
+  .tool-owner-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 460px) {
+  .tool-owner-results {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .tool-owner-mini-ref {
     padding: 7px 8px;
   }

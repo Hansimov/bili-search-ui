@@ -48,7 +48,6 @@ export class BiliApiClient {
     // 获取用户卡片信息 (web-interface/card)
     static async fetchMidCard(mid: string, useAuth = false): Promise<MidCard | null> {
         try {
-            console.log('Fetching mid card for mid:', mid);
             const headers = useAuth ? CookieManager.getAuthHeaders() : { 'Content-Type': 'application/json' };
 
             const response = await fetch(`/bili-api/x/web-interface/card?mid=${mid}&photo=true`, {
@@ -57,18 +56,14 @@ export class BiliApiClient {
                 credentials: 'include',
             });
 
-            console.log('MidCard response status:', response.status);
-
             if (!response.ok) {
                 console.error('MidCard request failed with status:', response.status);
                 return null;
             }
 
             const data = await response.json();
-            console.log('MidCard response data:', data);
 
             if (data.code === 0 && data.data) {
-                console.log('MidCard processed successfully');
                 return data.data as MidCard;
             } else {
                 console.error('MidCard API returned error:', data.code, data.message);
