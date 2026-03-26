@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineComponent, nextTick } from 'vue';
 import ChatResponsePanel from 'src/components/ChatResponsePanel.vue';
+import { renderMarkdown } from 'src/utils/markdown';
+import { renderAnswerMarkdownWithVideoView } from 'src/utils/chatVideoLinkView';
 
 const {
     mockChatStore,
@@ -314,5 +316,18 @@ describe('ChatResponsePanel video layout', () => {
             .join(' ');
 
         expect(contextText).toContain('推荐先看这条');
+    });
+
+    it('keeps normal markdown output in compact mode when no video cards are produced', () => {
+        const source = '普通段落一\n\n- 普通列表项';
+        const compactHtml = renderAnswerMarkdownWithVideoView(
+            source,
+            'compact',
+            new Map()
+        );
+
+        expect(compactHtml).toBe(renderMarkdown(source));
+        expect(compactHtml.includes('bili-video-compact-context-block')).toBe(false);
+        expect(compactHtml.includes('bili-video-compact-gallery')).toBe(false);
     });
 });

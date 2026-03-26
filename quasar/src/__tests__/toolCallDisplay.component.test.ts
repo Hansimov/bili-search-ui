@@ -29,6 +29,31 @@ const searchGoogleCall: ToolCall = {
     },
 };
 
+const searchOwnersCall: ToolCall = {
+    type: 'search_owners',
+    args: { text: '何同学', mode: 'name' },
+    status: 'completed',
+    result: {
+        text: '何同学',
+        total_owners: 2,
+        owners: [
+            {
+                mid: 163637592,
+                name: '老师好我叫何同学',
+                score: 12.5,
+                sample_title: '苹果为什么不做这 5 个功能？',
+                sources: ['name'],
+            },
+            {
+                mid: 946974,
+                name: '何同学切片',
+                score: 4.2,
+                sample_title: '何同学高能片段合集',
+            },
+        ],
+    },
+};
+
 describe('ToolCallDisplay component', () => {
     it('renders Google search results as expandable cards', async () => {
         const wrapper = mount(ToolCallDisplay, {
@@ -62,5 +87,36 @@ describe('ToolCallDisplay component', () => {
         expect(sources[0]?.text()).toBe('blog.google/gemini/release-notes');
         expect(sources[1]?.text()).toBe('ai.google.dev/gemini-api/changelog');
         expect(sources.some((source) => source.text() === 'Google')).toBe(false);
+    });
+
+    it('renders search_owners with a friendly label and owner cards', async () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [searchOwnersCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('搜索作者');
+        expect(wrapper.text()).toContain('2 位作者');
+
+        await wrapper.find('.tool-call-header').trigger('click');
+
+        const ownerCards = wrapper.findAll('.tool-owner-result');
+        expect(ownerCards).toHaveLength(2);
+        expect(ownerCards[0]?.text()).toContain('老师好我叫何同学');
+        expect(ownerCards[0]?.text()).toContain('UID 163637592');
+        expect(ownerCards[0]?.text()).toContain('代表内容：苹果为什么不做这 5 个功能？');
+        expect(ownerCards[0]?.text()).toContain('来源');
+        expect(ownerCards[1]?.text()).toContain('何同学切片');
     });
 });

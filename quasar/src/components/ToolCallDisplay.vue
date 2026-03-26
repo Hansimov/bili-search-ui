@@ -239,6 +239,55 @@
                 </div>
               </a>
             </div>
+            <div
+              v-else-if="call.type === 'search_owners'"
+              class="tool-owner-results"
+            >
+              <div
+                v-for="(owner, oidx) in getOwnerResults(call)"
+                :key="`${owner.mid || owner.name || 'owner'}-${oidx}`"
+                class="tool-owner-result"
+              >
+                <div class="tool-owner-result-head">
+                  <div class="tool-owner-result-main">
+                    <a
+                      v-if="owner.mid"
+                      class="tool-owner-result-name tool-owner-result-link"
+                      :href="`https://space.bilibili.com/${owner.mid}`"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      @click.stop
+                    >
+                      {{ owner.name || `UP 主 ${owner.mid}` }}
+                    </a>
+                    <span v-else class="tool-owner-result-name">
+                      {{ owner.name || '未命名作者' }}
+                    </span>
+                    <span v-if="owner.mid" class="tool-owner-result-mid">
+                      UID {{ owner.mid }}
+                    </span>
+                  </div>
+                  <span
+                    v-if="typeof owner.score === 'number' && owner.score > 0"
+                    class="tool-owner-result-score"
+                  >
+                    匹配 {{ owner.score.toFixed(2) }}
+                  </span>
+                </div>
+                <div v-if="owner.sample_title" class="tool-owner-result-sample">
+                  代表内容：{{ owner.sample_title }}
+                </div>
+                <div
+                  v-if="owner.sources && owner.sources.length > 0"
+                  class="tool-owner-result-sources"
+                >
+                  <span class="tool-owner-result-sources-label">来源</span>
+                  <span class="tool-owner-result-sources-text">
+                    {{ owner.sources.join('、') }}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -278,11 +327,20 @@ interface GoogleResult {
   display_link?: string;
 }
 
+interface OwnerResult {
+  mid?: number;
+  name?: string;
+  score?: number;
+  sample_title?: string;
+  sources?: string[];
+}
+
 /** 工具名称中英对照 */
 const TOOL_LABELS: Record<string, string> = {
   search_videos: '搜索视频',
-  check_author: '查询作者',
-  search_google: '搜索 Google',
+  search_owners: '搜索作者',
+  check_author: '搜索作者',
+  search_google: '搜索网页',
   related_tokens_by_tokens: '相关词补全',
   related_owners_by_tokens: '相关作者',
   related_videos_by_videos: '相关视频',
@@ -295,6 +353,7 @@ const TOOL_LABELS: Record<string, string> = {
 /** 工具图标 */
 const TOOL_ICONS: Record<string, string> = {
   search_videos: 'search',
+  search_owners: 'person_search',
   check_author: 'person_search',
   search_google: 'travel_explore',
   related_tokens_by_tokens: 'token',
@@ -368,6 +427,10 @@ export default defineComponent({
         const result = call.result as Record<string, unknown>;
         return Array.isArray(result?.results) && result.results.length > 0;
       }
+      if (call.type === 'search_owners') {
+        const result = call.result as Record<string, unknown>;
+        return Array.isArray(result?.owners) && result.owners.length > 0;
+      }
       return false;
     };
 
@@ -435,6 +498,13 @@ export default defineComponent({
         );
         return `${total} 条结果`;
       }
+      if (call.type === 'search_owners') {
+        const result = call.result as Record<string, unknown>;
+        const total = Number(
+          result?.total_owners || getOwnerResults(call).length || 0
+        );
+        return `${total} 位作者`;
+      }
       if (call.type === 'check_author') {
         const found = (call.result as Record<string, unknown>)?.found;
         return found ? '已找到' : '未找到';
@@ -461,6 +531,12 @@ export default defineComponent({
 
     const getGoogleDisplayedUrl = (result: GoogleResult): string => {
       return result.displayed_url || result.display_link || '';
+    };
+
+    const getOwnerResults = (call: ToolCall): OwnerResult[] => {
+      if (call.type !== 'search_owners' || !call.result) return [];
+      const owners = (call.result as Record<string, unknown>)?.owners;
+      return Array.isArray(owners) ? (owners as OwnerResult[]) : [];
     };
 
     /** Normalize bilibili pic URL to include https: protocol */
@@ -554,6 +630,7 @@ export default defineComponent({
       getAuthorResult,
       getGoogleResults,
       getGoogleDisplayedUrl,
+      getOwnerResults,
       normalizePicUrl,
       openVideoPage,
     };
@@ -818,6 +895,73 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.tool-owner-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-owner-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.03);
+}
+
+.tool-owner-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tool-owner-result-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.tool-owner-result-name {
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.tool-owner-result-link {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.tool-owner-result-mid,
+.tool-owner-result-score,
+.tool-owner-result-sources-label {
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0.5;
+}
+
+.tool-owner-result-sample,
+.tool-owner-result-sources-text {
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.68;
+}
+
+.tool-owner-result-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .tool-google-result {

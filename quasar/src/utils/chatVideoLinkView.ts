@@ -622,5 +622,9 @@ export const renderAnswerMarkdownWithVideoView = (
         }
     );
 
+    if (replacedHtml === html) {
+        return html;
+    }
+
     return enhanceRenderedVideoLayout(replacedHtml, viewMode);
 };

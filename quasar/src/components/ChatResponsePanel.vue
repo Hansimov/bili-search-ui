@@ -556,7 +556,9 @@ import SearchModeEmptyState from './SearchModeEmptyState.vue';
 /** 工具名称中英对照 */
 const TOOL_LABELS: Record<string, string> = {
   search_videos: '搜索视频',
-  check_author: '查询作者',
+  search_owners: '搜索作者',
+  check_author: '搜索作者',
+  search_google: '搜索网页',
   read_spec: '阅读文档',
 };
 
