@@ -717,6 +717,21 @@ describe('ChatStore 扩展功能', () => {
     });
 
     describe('消息 ID 与历史分离', () => {
+        it('sendChat 在流式开始前抛错时应退出加载态', async () => {
+            const { chatCompletionStream } = await import('src/services/chatService');
+            const mockStream = vi.mocked(chatCompletionStream);
+            mockStream.mockImplementation(async () => {
+                throw new Error('pre-stream failure');
+            });
+
+            const store = useChatStore();
+            await store.sendChat('问题', 'smart');
+
+            expect(store.isLoading).toBe(false);
+            expect(store.isThinkingPhase).toBe(false);
+            expect(store.currentSession.error).toBe('pre-stream failure');
+        });
+
         it('sendChat 完成后消息应有唯一 ID', async () => {
             const { chatCompletionStream } = await import('src/services/chatService');
             const mockStream = vi.mocked(chatCompletionStream);

@@ -543,10 +543,10 @@ export const useChatStore = defineStore('chat', {
             const abortController = new AbortController();
             this._abortController = abortController;
 
-            // 构建含历史的完整消息列表
-            const messages = this._buildMessages(query, sourceHistory);
-
             try {
+                // 构建消息也纳入 try，避免前置异常把 UI 卡在加载态。
+                const messages = this._buildMessages(query, sourceHistory);
+
                 await chatCompletionStream(
                     {
                         messages,
@@ -697,8 +697,10 @@ export const useChatStore = defineStore('chat', {
             } catch (error) {
                 if ((error as Error).name !== 'AbortError') {
                     this.currentSession.isLoading = false;
+                    this.currentSession.isThinkingPhase = false;
                     this.currentSession.error = (error as Error).message;
                     this._abortController = null;
+                    this._streamId = null;
                     console.error('[ChatStore] Request error:', error);
                 }
             }

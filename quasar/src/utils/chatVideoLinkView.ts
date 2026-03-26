@@ -7,11 +7,29 @@ const RENDERED_BV_LINK_RE =
     /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="bili-video-ref"[^>]*>(.*?)<\/a>/g;
 const RENDERED_BV_LINK_DETECT_RE =
     /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="bili-video-ref"[^>]*>/;
+const RENDERED_SPACE_LINK_RE =
+    /<a\s+href="(https:\/\/space\.bilibili\.com\/(\d+)(?:\/[^"#?]*)?(?:\?[^"#]*)?(?:#[^"]*)?)"[^>]*>(.*?)<\/a>/g;
+const RENDERED_SPACE_LINK_DETECT_RE =
+    /<a\s+href="https:\/\/space\.bilibili\.com\/(\d+)(?:\/[^"#?]*)?(?:\?[^"#]*)?(?:#[^"]*)?"[^>]*>/;
+const RAW_SPACE_LINK_RE = /https?:\/\/space\.bilibili\.com\/(\d+)(?:[/?#][^\s)]*)?/g;
 const VIDEO_LINK_VIEW_STORAGE_KEY = 'chat-response-video-link-view';
 const VIDEO_LINK_VIEW_SESSION_KEY_PREFIX = 'chat-response-video-link-view:';
 
 export type VideoLinkViewMode = 'text' | 'card' | 'compact';
 export type VideoHit = NormalizedVideoHit;
+
+export interface OwnerLinkInfo {
+    mid: string;
+    name?: string;
+    face?: string;
+    sign?: string;
+    fans?: number;
+}
+
+type OwnerMentionCandidate = {
+    mid: string;
+    name: string;
+};
 
 export const VIDEO_VIEW_OPTIONS: Array<{
     value: VideoLinkViewMode;
@@ -47,6 +65,11 @@ const formatVideoViews = (views?: number): string => {
 const formatVideoDuration = (duration?: number): string => {
     if (!duration) return '';
     return secondsToDuration(duration);
+};
+
+const formatOwnerFans = (fans?: number): string => {
+    if (fans == null) return '';
+    return `${humanReadableNumber(fans)} 粉丝`;
 };
 
 const formatVideoCompactStats = (video: VideoHit): string => {
@@ -88,41 +111,226 @@ const buildRenderedVideoLink = (
     const compactStats = formatVideoCompactStats(video);
 
     if (viewMode === 'compact') {
-        return `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-compact-ref" data-bvid="${bvid}" data-inline-label="${inlineLabel}" target="_blank" rel="noopener"><span class="bili-video-compact-cover-wrap">${coverUrl
+        return `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-compact-ref bili-rich-compact-ref" data-bvid="${bvid}" data-inline-label="${inlineLabel}" target="_blank" rel="noopener"><span class="bili-video-compact-cover-wrap bili-rich-compact-cover-wrap">${coverUrl
             ? `<img src="${escapeHtml(
                 coverUrl
-            )}" class="bili-video-compact-cover" loading="lazy" referrerpolicy="no-referrer" />`
-            : '<span class="bili-video-compact-cover bili-video-compact-cover-placeholder"></span>'
+            )}" class="bili-video-compact-cover bili-rich-compact-cover" loading="lazy" referrerpolicy="no-referrer" />`
+            : '<span class="bili-video-compact-cover bili-video-compact-cover-placeholder bili-rich-compact-cover bili-rich-compact-cover-placeholder"></span>'
             }${duration
                 ? `<span class="bili-video-compact-duration">${duration}</span>`
                 : ''
-            }</span><span class="bili-video-compact-meta"><span class="bili-video-compact-title">${title}</span>${compactStats
+            }</span><span class="bili-video-compact-meta bili-rich-compact-meta"><span class="bili-video-compact-title bili-rich-compact-title">${title}</span>${compactStats
                 ? `<span class="bili-video-compact-stats">${compactStats}</span>`
                 : ''
             }</span></a>`;
     }
 
-    return `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-card-ref" data-bvid="${bvid}" target="_blank" rel="noopener"><span class="bili-video-card-cover-wrap">${coverUrl
+    return `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-card-ref bili-rich-card-ref" data-bvid="${bvid}" target="_blank" rel="noopener"><span class="bili-video-card-cover-wrap bili-rich-card-cover-wrap">${coverUrl
         ? `<img src="${escapeHtml(
             coverUrl
-        )}" class="bili-video-card-cover" loading="lazy" referrerpolicy="no-referrer" />`
-        : '<span class="bili-video-card-cover bili-video-card-cover-placeholder"></span>'
+        )}" class="bili-video-card-cover bili-rich-card-cover" loading="lazy" referrerpolicy="no-referrer" />`
+        : '<span class="bili-video-card-cover bili-video-card-cover-placeholder bili-rich-card-cover bili-rich-card-cover-placeholder"></span>'
         }${duration ? `<span class="bili-video-card-duration">${duration}</span>` : ''
-        }</span><span class="bili-video-card-meta"><span class="bili-video-card-title">${title}</span><span class="bili-video-card-subline">${author ? `<span class="bili-video-card-author">${author}</span>` : ''
+        }</span><span class="bili-video-card-meta bili-rich-card-meta"><span class="bili-video-card-title bili-rich-card-title">${title}</span><span class="bili-video-card-subline bili-rich-card-subline">${author ? `<span class="bili-video-card-author">${author}</span>` : ''
         }${viewText ? `<span class="bili-video-card-views">${viewText}</span>` : ''}</span></span></a>`;
+};
+
+const buildRenderedOwnerLink = (
+    href: string,
+    mid: string,
+    innerHtml: string,
+    viewMode: VideoLinkViewMode,
+    ownerMap: Map<string, OwnerLinkInfo>
+): string => {
+    const owner = ownerMap.get(mid);
+    const innerText = stripHtml(innerHtml);
+    const fallbackName = /^https?:\/\/space\.bilibili\.com\//.test(innerText)
+        ? `UP 主 ${mid}`
+        : innerText || `UP 主 ${mid}`;
+    const name = escapeHtml(owner?.name || fallbackName);
+    const avatarUrl = owner?.face ? normalizeVideoPicUrl(owner.face) : '';
+    const sign = escapeHtml(owner?.sign || '');
+    const fansText = escapeHtml(formatOwnerFans(owner?.fans));
+    const inlineLabel = escapeHtml(owner?.name || fallbackName);
+    const uidText = escapeHtml(`UID ${mid}`);
+    const statLine = [fansText, uidText].filter(Boolean).join(' · ');
+
+    if (viewMode === 'compact') {
+        return `<a href="${escapeHtml(href)}" class="bili-owner-compact-ref bili-rich-compact-ref" data-mid="${mid}" data-inline-label="${inlineLabel}" target="_blank" rel="noopener"><span class="bili-owner-compact-cover-wrap bili-rich-compact-cover-wrap">${avatarUrl
+            ? `<img src="${escapeHtml(avatarUrl)}" class="bili-owner-compact-cover bili-rich-compact-cover" loading="lazy" referrerpolicy="no-referrer" />`
+            : '<span class="bili-owner-compact-cover bili-owner-compact-cover-placeholder bili-rich-compact-cover bili-rich-compact-cover-placeholder"></span>'
+            }</span><span class="bili-owner-compact-meta bili-rich-compact-meta"><span class="bili-owner-compact-title bili-rich-compact-title">${name}</span>${statLine
+                ? `<span class="bili-owner-compact-stats">${statLine}</span>`
+                : ''
+            }${sign ? `<span class="bili-owner-compact-sign">${sign}</span>` : ''}</span></a>`;
+    }
+
+    if (viewMode === 'card') {
+        return `<a href="${escapeHtml(href)}" class="bili-owner-card-ref bili-rich-card-ref" data-mid="${mid}" target="_blank" rel="noopener"><span class="bili-owner-card-cover-wrap bili-rich-card-cover-wrap bili-rich-card-cover-wrap--owner">${avatarUrl
+            ? `<img src="${escapeHtml(avatarUrl)}" class="bili-owner-card-cover bili-rich-card-cover" loading="lazy" referrerpolicy="no-referrer" />`
+            : '<span class="bili-owner-card-cover bili-owner-card-cover-placeholder bili-rich-card-cover bili-rich-card-cover-placeholder"></span>'
+            }</span><span class="bili-owner-card-meta bili-rich-card-meta"><span class="bili-owner-card-title bili-rich-card-title">${name}</span><span class="bili-owner-card-subline bili-rich-card-subline">${statLine || uidText}</span>${sign ? `<span class="bili-owner-card-sign">${sign}</span>` : ''}</span></a>`;
+    }
+
+    return `<a href="${escapeHtml(href)}" class="bili-owner-ref bili-rich-inline-ref" data-mid="${mid}" target="_blank" rel="noopener">${avatarUrl
+        ? `<img src="${escapeHtml(avatarUrl)}" class="bili-owner-inline-avatar" loading="lazy" referrerpolicy="no-referrer" />`
+        : '<span class="bili-owner-inline-avatar bili-owner-inline-avatar--placeholder"></span>'
+        }<span class="bili-owner-inline-meta"><span class="bili-owner-inline-name">${name}</span>${fansText ? `<span class="bili-owner-inline-stats">${fansText}</span>` : ''}</span></a>`;
 };
 
 const getCompactAnchorLabel = (anchor: HTMLAnchorElement): string => {
     return (
         anchor.dataset.inlineLabel ||
         anchor.textContent ||
+        anchor.dataset.mid ||
         anchor.dataset.bvid ||
         '视频'
     ).trim();
 };
 
+export const extractOwnerMidsFromText = (text: string): string[] => {
+    if (!text) return [];
+    const mids = new Set<string>();
+    for (const match of text.matchAll(RAW_SPACE_LINK_RE)) {
+        const mid = match[1]?.trim();
+        if (mid) mids.add(mid);
+    }
+    return Array.from(mids);
+};
+
 const escapeRegExp = (value: string): string => {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+const buildOwnerMentionCandidates = (
+    ownerMap: Map<string, OwnerLinkInfo>
+): OwnerMentionCandidate[] => {
+    const candidates: OwnerMentionCandidate[] = [];
+    const seen = new Set<string>();
+
+    for (const [mid, owner] of ownerMap.entries()) {
+        const name = (owner.name || '').trim();
+        if (!mid || name.length < 2) {
+            continue;
+        }
+        const key = `${mid}:${name}`;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        candidates.push({ mid, name });
+    }
+
+    candidates.sort((left, right) => right.name.length - left.name.length);
+    return candidates;
+};
+
+const replaceTextNodeOwnerMentions = (
+    textNode: Text,
+    candidates: OwnerMentionCandidate[]
+) => {
+    const text = textNode.textContent || '';
+    if (!text.trim()) {
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    let matched = false;
+
+    while (cursor < text.length) {
+        let nextCandidate: OwnerMentionCandidate | null = null;
+        let nextIndex = -1;
+
+        for (const candidate of candidates) {
+            const index = text.indexOf(candidate.name, cursor);
+            if (index < 0) {
+                continue;
+            }
+            if (nextIndex < 0 || index < nextIndex) {
+                nextIndex = index;
+                nextCandidate = candidate;
+            }
+        }
+
+        if (!nextCandidate || nextIndex < 0) {
+            break;
+        }
+
+        if (nextIndex > cursor) {
+            fragment.append(text.slice(cursor, nextIndex));
+        }
+
+        const anchor = document.createElement('a');
+        anchor.href = `https://space.bilibili.com/${nextCandidate.mid}`;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener';
+        anchor.textContent = nextCandidate.name;
+        fragment.append(anchor);
+
+        cursor = nextIndex + nextCandidate.name.length;
+        matched = true;
+    }
+
+    if (!matched) {
+        return;
+    }
+
+    if (cursor < text.length) {
+        fragment.append(text.slice(cursor));
+    }
+
+    textNode.replaceWith(fragment);
+};
+
+const linkifyOwnerMentionsInRenderedHtml = (
+    html: string,
+    ownerMap: Map<string, OwnerLinkInfo>
+): string => {
+    if (typeof document === 'undefined' || !html || !ownerMap.size) {
+        return html;
+    }
+
+    const candidates = buildOwnerMentionCandidates(ownerMap);
+    if (!candidates.length) {
+        return html;
+    }
+
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const walker = document.createTreeWalker(
+        template.content,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode(node) {
+                const parent = node.parentElement;
+                if (!parent) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                if (parent.closest('a, code, pre, script, style')) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return (node.textContent || '').trim()
+                    ? NodeFilter.FILTER_ACCEPT
+                    : NodeFilter.FILTER_REJECT;
+            },
+        }
+    );
+
+    const textNodes: Text[] = [];
+    let currentNode = walker.nextNode();
+    while (currentNode) {
+        if (currentNode instanceof Text) {
+            textNodes.push(currentNode);
+        }
+        currentNode = walker.nextNode();
+    }
+
+    textNodes.forEach((textNode) => {
+        replaceTextNodeOwnerMentions(textNode, candidates);
+    });
+
+    return template.innerHTML;
 };
 
 const normalizeCompactText = (value: string): string => {
@@ -155,7 +363,7 @@ const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
     const clone = source.cloneNode(true) as HTMLElement;
 
     const anchors = Array.from(
-        clone.querySelectorAll('a.bili-video-compact-ref')
+        clone.querySelectorAll('a.bili-rich-compact-ref')
     ) as HTMLAnchorElement[];
 
     if (!anchors.length) {
@@ -460,17 +668,18 @@ const enhanceRenderedVideoLayout = (
     }
 
     template.content
-        .querySelectorAll('a.bili-video-card-ref, a.bili-video-compact-ref')
+        .querySelectorAll('a.bili-rich-card-ref, a.bili-rich-compact-ref')
         .forEach((anchor) => {
             const listItem = anchor.closest('li');
             if (listItem) {
+                listItem.classList.add('bili-rich-item');
                 listItem.classList.add('bili-video-rich-item');
             }
         });
 
     const containers = new Set<HTMLElement>();
     template.content
-        .querySelectorAll('a.bili-video-card-ref, a.bili-video-compact-ref')
+        .querySelectorAll('a.bili-rich-card-ref, a.bili-rich-compact-ref')
         .forEach((anchor) => {
             const container = anchor.closest('p, li, blockquote, td');
             if (container instanceof HTMLElement) {
@@ -483,8 +692,8 @@ const enhanceRenderedVideoLayout = (
     ): node is HTMLAnchorElement => {
         return (
             node instanceof HTMLAnchorElement &&
-            (node.classList.contains('bili-video-card-ref') ||
-                node.classList.contains('bili-video-compact-ref'))
+            (node.classList.contains('bili-rich-card-ref') ||
+                node.classList.contains('bili-rich-compact-ref'))
         );
     };
 
@@ -605,22 +814,53 @@ export const hasRenderableBvLinks = (text: string): boolean => {
     return RENDERED_BV_LINK_DETECT_RE.test(renderMarkdown(text));
 };
 
+export const hasRenderableRichLinks = (
+    text: string,
+    ownerMap: Map<string, OwnerLinkInfo> = new Map()
+): boolean => {
+    if (!text) return false;
+    const html = linkifyOwnerMentionsInRenderedHtml(renderMarkdown(text), ownerMap);
+    return (
+        RENDERED_BV_LINK_DETECT_RE.test(html) ||
+        RENDERED_SPACE_LINK_DETECT_RE.test(html)
+    );
+};
+
 export const renderAnswerMarkdownWithVideoView = (
     text: string,
     viewMode: VideoLinkViewMode,
-    videoMap: Map<string, VideoHit>
+    videoMap: Map<string, VideoHit>,
+    ownerMap: Map<string, OwnerLinkInfo> = new Map()
 ): string => {
-    const html = renderMarkdown(text);
-    if (!html || viewMode === 'text') {
+    const html = linkifyOwnerMentionsInRenderedHtml(
+        renderMarkdown(text),
+        ownerMap
+    );
+    if (!html) {
         return html;
     }
 
-    const replacedHtml = html.replace(
-        RENDERED_BV_LINK_RE,
-        (match, bvid, innerHtml) => {
-            return buildRenderedVideoLink(bvid, innerHtml, viewMode, videoMap) || match;
-        }
+    let replacedHtml = html.replace(
+        RENDERED_SPACE_LINK_RE,
+        (_match, href, mid, innerHtml) =>
+            buildRenderedOwnerLink(href, mid, innerHtml, viewMode, ownerMap)
     );
+
+    if (viewMode !== 'text') {
+        replacedHtml = replacedHtml.replace(
+            RENDERED_BV_LINK_RE,
+            (match, bvid, innerHtml) => {
+                return (
+                    buildRenderedVideoLink(bvid, innerHtml, viewMode, videoMap) ||
+                    match
+                );
+            }
+        );
+    }
+
+    if (viewMode === 'text') {
+        return replacedHtml;
+    }
 
     if (replacedHtml === html) {
         return html;

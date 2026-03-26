@@ -188,7 +188,7 @@
               @viewAllResults="handleViewHistoricalResults"
             />
             <div
-              v-if="hasRenderableBvLinks(msg.content)"
+              v-if="hasRenderableRichLinks(msg.content, ownerMap)"
               class="chat-content-toolbar"
             >
               <div class="chat-content-view-switch" @click.stop>
@@ -426,7 +426,7 @@
 
         <!-- Markdown 内容渲染 -->
         <div
-          v-if="hasContent && hasCurrentBvLinks"
+          v-if="hasContent && hasCurrentRichLinks"
           class="chat-content-toolbar"
         >
           <div class="chat-content-view-switch" @click.stop>
@@ -541,14 +541,17 @@ import type {
 import { renderMarkdown } from 'src/utils/markdown';
 import {
   VIDEO_VIEW_OPTIONS,
-  hasRenderableBvLinks,
+  extractOwnerMidsFromText,
+  hasRenderableRichLinks,
   persistVideoLinkView,
   readPersistedVideoLinkView,
   renderAnswerMarkdownWithVideoView,
+  type OwnerLinkInfo,
   type VideoHit,
   type VideoLinkViewMode,
 } from 'src/utils/chatVideoLinkView';
 import { normalizeVideoHit } from 'src/utils/videoHit';
+import { BiliApiClient } from 'src/stores/account/apiClient';
 import ToolCallDisplay from './ToolCallDisplay.vue';
 import BiliVideoTooltip from './BiliVideoTooltip.vue';
 import SearchModeEmptyState from './SearchModeEmptyState.vue';
@@ -654,7 +657,8 @@ export default defineComponent({
       return renderAnswerMarkdownWithVideoView(
         text,
         videoLinkView.value,
-        videoMap.value
+        videoMap.value,
+        ownerMap.value
       );
     };
 
@@ -665,8 +669,8 @@ export default defineComponent({
       return renderAnswerMd(raw);
     });
 
-    const hasCurrentBvLinks = computed(() => {
-      return hasRenderableBvLinks(chatStore.content || '');
+    const hasCurrentRichLinks = computed(() => {
+      return hasRenderableRichLinks(chatStore.content || '', ownerMap.value);
     });
 
     const videoViewOptions = VIDEO_VIEW_OPTIONS;
@@ -1134,6 +1138,122 @@ export default defineComponent({
       return map;
     });
 
+    const fetchedOwnerMap = ref<Map<string, OwnerLinkInfo>>(new Map());
+    const pendingOwnerMids = new Set<string>();
+
+    const ownerMap = computed((): Map<string, OwnerLinkInfo> => {
+      const map = new Map<string, OwnerLinkInfo>();
+      const events = [...toolEvents.value];
+      for (const msg of historyMessages.value) {
+        if (msg.toolEvents) events.push(...msg.toolEvents);
+      }
+
+      const upsertOwner = (owner: {
+        mid?: string | number;
+        name?: string;
+        face?: string;
+        sign?: string;
+        fans?: number;
+      }) => {
+        const mid = String(owner.mid || '').trim();
+        if (!mid) return;
+        const existing = map.get(mid) || { mid };
+        map.set(mid, {
+          mid,
+          name: owner.name || existing.name,
+          face: owner.face || existing.face,
+          sign: owner.sign || existing.sign,
+          fans: owner.fans ?? existing.fans,
+        });
+      };
+
+      for (const event of events) {
+        if (!event.calls) continue;
+        for (const call of event.calls) {
+          if (call.type === 'search_owners' && call.result) {
+            const owners =
+              (call.result as { owners?: Array<Record<string, unknown>> })
+                .owners || [];
+            owners.forEach((owner) =>
+              upsertOwner({
+                mid: owner.mid as string | number | undefined,
+                name: owner.name as string | undefined,
+                face: owner.face as string | undefined,
+              })
+            );
+          }
+          if (call.type === 'check_author' && call.result) {
+            const result = call.result as {
+              found?: boolean;
+              mid?: string | number;
+              name?: string;
+            };
+            if (result.found) {
+              upsertOwner({ mid: result.mid, name: result.name });
+            }
+          }
+        }
+      }
+
+      for (const [mid, owner] of fetchedOwnerMap.value.entries()) {
+        upsertOwner({ ...owner, mid });
+      }
+
+      return map;
+    });
+
+    const queueOwnerCardFetch = async (mid: string) => {
+      if (!mid || pendingOwnerMids.has(mid) || fetchedOwnerMap.value.has(mid)) {
+        return;
+      }
+      pendingOwnerMids.add(mid);
+      try {
+        const card = await BiliApiClient.fetchMidCard(mid);
+        const ownerCard = card?.card;
+        if (!ownerCard) return;
+        const next = new Map(fetchedOwnerMap.value);
+        next.set(mid, {
+          mid,
+          name: ownerCard.name,
+          face: ownerCard.face,
+          sign: ownerCard.sign,
+          fans: ownerCard.fans,
+        });
+        fetchedOwnerMap.value = next;
+      } finally {
+        pendingOwnerMids.delete(mid);
+      }
+    };
+
+    watch(
+      [() => chatStore.content, historyMessages],
+      ([content, history]) => {
+        const mids = new Set<string>();
+        extractOwnerMidsFromText(content || '').forEach((mid) => mids.add(mid));
+        for (const msg of history) {
+          extractOwnerMidsFromText(msg.content || '').forEach((mid) =>
+            mids.add(mid)
+          );
+        }
+        mids.forEach((mid) => {
+          void queueOwnerCardFetch(mid);
+        });
+      },
+      { immediate: true, deep: true }
+    );
+
+    watch(
+      ownerMap,
+      (owners) => {
+        for (const [mid, owner] of owners.entries()) {
+          if (!mid) continue;
+          if (owner.face && owner.sign && owner.fans != null) continue;
+          void queueOwnerCardFetch(mid);
+        }
+      },
+      { immediate: true }
+    );
+
     // Tooltip reactive state
     const tooltipVisible = ref(false);
     const tooltipVideoInfo = ref<VideoHit | null>(null);
@@ -1251,11 +1371,12 @@ export default defineComponent({
       loadingText,
       thinkingHeaderLabel,
       renderedContent,
-      hasCurrentBvLinks,
+      hasCurrentRichLinks,
+      ownerMap,
       videoLinkView,
       videoViewOptions,
       setVideoLinkView,
-      hasRenderableBvLinks,
+      hasRenderableRichLinks,
       renderAnswerMd,
       renderedThinkingContent,
       shouldShowCurrentAnswerToggle,
@@ -2024,7 +2145,54 @@ export default defineComponent({
     }
   }
 
-  :deep(a.bili-video-card-ref) {
+  :deep(a.bili-owner-ref) {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 2px 0;
+    color: inherit;
+    text-decoration: none;
+    vertical-align: middle;
+
+    &:hover {
+      text-decoration: none;
+    }
+  }
+
+  :deep(.bili-owner-inline-avatar) {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(128, 128, 128, 0.08);
+    flex-shrink: 0;
+  }
+
+  :deep(.bili-owner-inline-avatar--placeholder) {
+    display: inline-block;
+  }
+
+  :deep(.bili-owner-inline-meta) {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  :deep(.bili-owner-inline-name) {
+    color: #00a1d6;
+    font-weight: 600;
+  }
+
+  :deep(.bili-owner-inline-stats) {
+    font-size: 11px;
+    line-height: 1.35;
+    opacity: 0.56;
+  }
+
+  :deep(a.bili-video-card-ref),
+  :deep(a.bili-owner-card-ref),
+  :deep(a.bili-rich-card-ref) {
     display: flex;
     align-items: stretch;
     gap: 10px;
@@ -2044,7 +2212,9 @@ export default defineComponent({
     }
   }
 
-  :deep(.bili-video-card-cover-wrap) {
+  :deep(.bili-video-card-cover-wrap),
+  :deep(.bili-owner-card-cover-wrap),
+  :deep(.bili-rich-card-cover-wrap) {
     position: relative;
     width: 112px;
     min-width: 112px;
@@ -2054,14 +2224,25 @@ export default defineComponent({
     background: rgba(128, 128, 128, 0.08);
   }
 
-  :deep(.bili-video-card-cover) {
+  :deep(.bili-owner-card-cover-wrap) {
+    width: 84px;
+    min-width: 84px;
+    aspect-ratio: 1;
+    border-radius: 18px;
+  }
+
+  :deep(.bili-video-card-cover),
+  :deep(.bili-owner-card-cover),
+  :deep(.bili-rich-card-cover) {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
   }
 
-  :deep(.bili-video-card-cover-placeholder) {
+  :deep(.bili-video-card-cover-placeholder),
+  :deep(.bili-owner-card-cover-placeholder),
+  :deep(.bili-rich-card-cover-placeholder) {
     display: block;
     width: 100%;
     height: 100%;
@@ -2080,7 +2261,9 @@ export default defineComponent({
     line-height: 1.4;
   }
 
-  :deep(.bili-video-card-meta) {
+  :deep(.bili-video-card-meta),
+  :deep(.bili-owner-card-meta),
+  :deep(.bili-rich-card-meta) {
     display: flex;
     min-width: 0;
     flex: 1;
@@ -2089,7 +2272,9 @@ export default defineComponent({
     gap: 6px;
   }
 
-  :deep(.bili-video-card-title) {
+  :deep(.bili-video-card-title),
+  :deep(.bili-owner-card-title),
+  :deep(.bili-rich-card-title) {
     display: -webkit-box;
     overflow: hidden;
     -webkit-line-clamp: 2;
@@ -2101,7 +2286,9 @@ export default defineComponent({
     color: inherit;
   }
 
-  :deep(.bili-video-card-subline) {
+  :deep(.bili-video-card-subline),
+  :deep(.bili-owner-card-subline),
+  :deep(.bili-rich-card-subline) {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
@@ -2110,7 +2297,20 @@ export default defineComponent({
     opacity: 0.56;
   }
 
-  :deep(a.bili-video-compact-ref) {
+  :deep(.bili-owner-card-sign) {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: 11px;
+    line-height: 1.45;
+    opacity: 0.62;
+  }
+
+  :deep(a.bili-video-compact-ref),
+  :deep(a.bili-owner-compact-ref),
+  :deep(a.bili-rich-compact-ref) {
     display: inline-flex;
     width: 100%;
     min-width: 0;
@@ -2133,7 +2333,9 @@ export default defineComponent({
     }
   }
 
-  :deep(.bili-video-compact-cover-wrap) {
+  :deep(.bili-video-compact-cover-wrap),
+  :deep(.bili-owner-compact-cover-wrap),
+  :deep(.bili-rich-compact-cover-wrap) {
     position: relative;
     width: 100%;
     aspect-ratio: 16 / 10;
@@ -2141,14 +2343,22 @@ export default defineComponent({
     background: rgba(128, 128, 128, 0.08);
   }
 
-  :deep(.bili-video-compact-cover) {
+  :deep(.bili-owner-compact-cover-wrap) {
+    aspect-ratio: 1;
+  }
+
+  :deep(.bili-video-compact-cover),
+  :deep(.bili-owner-compact-cover),
+  :deep(.bili-rich-compact-cover) {
     display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
 
-  :deep(.bili-video-compact-cover-placeholder) {
+  :deep(.bili-video-compact-cover-placeholder),
+  :deep(.bili-owner-compact-cover-placeholder),
+  :deep(.bili-rich-compact-cover-placeholder) {
     display: block;
     width: 100%;
     height: 100%;
@@ -2167,7 +2377,9 @@ export default defineComponent({
     line-height: 1.4;
   }
 
-  :deep(.bili-video-compact-meta) {
+  :deep(.bili-video-compact-meta),
+  :deep(.bili-owner-compact-meta),
+  :deep(.bili-rich-compact-meta) {
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -2175,7 +2387,9 @@ export default defineComponent({
     min-width: 0;
   }
 
-  :deep(.bili-video-compact-title) {
+  :deep(.bili-video-compact-title),
+  :deep(.bili-owner-compact-title),
+  :deep(.bili-rich-compact-title) {
     display: -webkit-box;
     overflow: hidden;
     -webkit-line-clamp: 2;
@@ -2195,6 +2409,21 @@ export default defineComponent({
     font-size: 10px;
     line-height: 1.35;
     opacity: 0.54;
+  }
+
+  :deep(.bili-owner-compact-stats),
+  :deep(.bili-owner-compact-sign) {
+    font-size: 10px;
+    line-height: 1.35;
+    opacity: 0.56;
+  }
+
+  :deep(.bili-owner-compact-sign) {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   :deep(.bili-video-compact-author),
@@ -2243,7 +2472,9 @@ export default defineComponent({
       --compact-card-min: 100%;
     }
 
-    :deep(a.bili-video-compact-ref) {
+    :deep(a.bili-video-compact-ref),
+    :deep(a.bili-owner-compact-ref),
+    :deep(a.bili-rich-compact-ref) {
       display: flex;
       width: 100%;
     }
@@ -2450,7 +2681,17 @@ body.body--dark {
       }
     }
 
-    :deep(a.bili-video-card-ref) {
+    :deep(a.bili-owner-ref) {
+      color: inherit;
+    }
+
+    :deep(.bili-owner-inline-name) {
+      color: #23ade5;
+    }
+
+    :deep(a.bili-video-card-ref),
+    :deep(a.bili-owner-card-ref),
+    :deep(a.bili-rich-card-ref) {
       background: rgba(255, 255, 255, 0.022);
       border-color: rgba(255, 255, 255, 0.08);
 
@@ -2460,7 +2701,9 @@ body.body--dark {
       }
     }
 
-    :deep(a.bili-video-compact-ref) {
+    :deep(a.bili-video-compact-ref),
+    :deep(a.bili-owner-compact-ref),
+    :deep(a.bili-rich-compact-ref) {
       background: rgba(255, 255, 255, 0.022);
       border-color: rgba(255, 255, 255, 0.08);
 

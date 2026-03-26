@@ -4,8 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineComponent, nextTick } from 'vue';
 import ChatResponsePanel from 'src/components/ChatResponsePanel.vue';
+import { BiliApiClient } from 'src/stores/account/apiClient';
 import { renderMarkdown } from 'src/utils/markdown';
-import { renderAnswerMarkdownWithVideoView } from 'src/utils/chatVideoLinkView';
+import {
+    hasRenderableRichLinks,
+    renderAnswerMarkdownWithVideoView,
+} from 'src/utils/chatVideoLinkView';
 
 const {
     mockChatStore,
@@ -121,11 +125,26 @@ const makeVideoSearchEvent = (...bvids: string[]) => ({
     ],
 });
 
+const makeOwnerSearchEvent = (...owners: Array<Record<string, unknown>>) => ({
+    calls: [
+        {
+            type: 'search_owners',
+            args: { text: '红警', mode: 'topic' },
+            result: {
+                text: '红警',
+                total_owners: owners.length,
+                owners,
+            },
+        },
+    ],
+});
+
 describe('ChatResponsePanel video layout', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         localStorage.clear();
         sessionStorage.clear();
+        vi.spyOn(BiliApiClient, 'fetchMidCard').mockResolvedValue(null);
         mockChatStore.toolEvents = [
             makeVideoSearchEvent('BV1AA411c7mD', 'BV1BB411c7mE', 'BV1CC411c7mF'),
         ];
@@ -329,5 +348,109 @@ describe('ChatResponsePanel video layout', () => {
         expect(compactHtml).toBe(renderMarkdown(source));
         expect(compactHtml.includes('bili-video-compact-context-block')).toBe(false);
         expect(compactHtml.includes('bili-video-compact-gallery')).toBe(false);
+    });
+
+    it('detects author space links as renderable rich links', () => {
+        expect(hasRenderableRichLinks('作者主页：https://space.bilibili.com/946974')).toBe(true);
+    });
+
+    it('detects plain owner-name mentions as renderable rich links when owner results exist', () => {
+        expect(
+            hasRenderableRichLinks(
+                '推荐关注影视飓风和飓多多StormCrew。',
+                new Map([
+                    ['946974', { mid: '946974', name: '影视飓风' }],
+                    ['1780480185', { mid: '1780480185', name: '飓多多StormCrew' }],
+                ])
+            )
+        ).toBe(true);
+    });
+
+    it('renders author space links as owner cards through the shared rich-link pipeline', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '推荐关注 https://space.bilibili.com/946974',
+            'card',
+            new Map(),
+            new Map([
+                [
+                    '946974',
+                    {
+                        mid: '946974',
+                        name: '影视飓风',
+                        face: 'https://example.com/owner-face.jpg',
+                        sign: '用影像记录世界',
+                        fans: 2230000,
+                    },
+                ],
+            ])
+        );
+
+        expect(html).toContain('bili-owner-card-ref');
+        expect(html).toContain('影视飓风');
+        expect(html).toContain('用影像记录世界');
+        expect(html).toContain('https://example.com/owner-face.jpg');
+    });
+
+    it('renders plain owner-name mentions as owner cards through the shared rich-link pipeline', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '推荐关注影视飓风，也可以看看飓多多StormCrew。',
+            'card',
+            new Map(),
+            new Map([
+                [
+                    '946974',
+                    {
+                        mid: '946974',
+                        name: '影视飓风',
+                        face: 'https://example.com/owner-face.jpg',
+                        sign: '用影像记录世界',
+                        fans: 2230000,
+                    },
+                ],
+                [
+                    '1780480185',
+                    {
+                        mid: '1780480185',
+                        name: '飓多多StormCrew',
+                        face: 'https://example.com/stormcrew-face.jpg',
+                    },
+                ],
+            ])
+        );
+
+        expect(html).toContain('bili-owner-card-ref');
+        expect(html).toContain('https://space.bilibili.com/946974');
+        expect(html).toContain('https://space.bilibili.com/1780480185');
+        expect(html).toContain('影视飓风');
+        expect(html).toContain('飓多多StormCrew');
+    });
+
+    it('shows the shared view switch for author links in chat content', async () => {
+        mockChatStore.toolEvents = [];
+
+        const wrapper = await mountPanel('作者主页：https://space.bilibili.com/946974');
+
+        expect(wrapper.find('.chat-content-toolbar').exists()).toBe(true);
+        const options = wrapper.findAll('.chat-content-view-option');
+        expect(options).toHaveLength(3);
+        expect(options.map((node) => node.text())).toEqual(
+            expect.arrayContaining(['文本', '卡片', '紧凑'])
+        );
+    });
+
+    it('shows the shared view switch for plain owner-name mentions when search_owners returned candidates', async () => {
+        mockChatStore.toolEvents = [
+            makeOwnerSearchEvent({
+                mid: 946974,
+                name: '影视飓风',
+                face: 'https://example.com/owner-face.jpg',
+            }),
+        ];
+
+        const wrapper = await mountPanel('推荐几个红警的up主：影视飓风。');
+
+        expect(wrapper.find('.chat-content-toolbar').exists()).toBe(true);
+        expect(wrapper.html()).toContain('bili-owner-ref');
+        expect(wrapper.html()).toContain('https://space.bilibili.com/946974');
     });
 });
