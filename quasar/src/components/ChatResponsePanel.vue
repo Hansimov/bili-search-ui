@@ -2007,7 +2007,17 @@ export default defineComponent({
     width: 100%;
   }
 
+  :deep(.bili-video-rich-cards--owner),
+  :deep(.bili-video-rich-cards--video) {
+    min-width: 0;
+  }
+
   :deep(.bili-video-rich-cards--card) {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  :deep(.bili-video-rich-cards--compact) {
     flex-direction: column;
     gap: 10px;
   }
@@ -2043,6 +2053,13 @@ export default defineComponent({
   }
 
   :deep(.bili-video-compact-group-cards) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--compact-gap);
+    max-width: 100%;
+  }
+
+  :deep(.bili-video-compact-group-cards-section) {
     display: grid;
     grid-template-columns: repeat(
       auto-fit,
@@ -2331,75 +2348,6 @@ export default defineComponent({
     opacity: 0.62;
   }
 
-  :deep(.bili-owner-card-work) {
-    display: none;
-  }
-
-  @media (min-width: 900px) {
-    :deep(a.bili-owner-card-ref.bili-owner-card-ref--with-work) {
-      justify-content: space-between;
-    }
-
-    :deep(.bili-owner-card-ref--with-work .bili-owner-card-work) {
-      display: flex;
-      min-width: 172px;
-      max-width: 172px;
-      flex-direction: column;
-      gap: 6px;
-      padding-left: 10px;
-      border-left: 1px solid rgba(128, 128, 128, 0.08);
-    }
-
-    :deep(.bili-owner-card-work-label) {
-      font-size: 10px;
-      line-height: 1.3;
-      letter-spacing: 0.04em;
-      opacity: 0.46;
-    }
-
-    :deep(.bili-owner-card-work-preview) {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-    }
-
-    :deep(.bili-owner-card-work-cover-wrap) {
-      width: 68px;
-      min-width: 68px;
-      aspect-ratio: 16 / 10;
-      border-radius: 8px;
-      overflow: hidden;
-      background: rgba(128, 128, 128, 0.08);
-    }
-
-    :deep(.bili-owner-card-work-cover) {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    :deep(.bili-owner-card-work-cover--placeholder) {
-      display: block;
-      width: 100%;
-      height: 100%;
-      background: rgba(128, 128, 128, 0.08);
-    }
-
-    :deep(.bili-owner-card-work-title) {
-      display: -webkit-box;
-      min-width: 0;
-      overflow: hidden;
-      -webkit-line-clamp: 3;
-      line-clamp: 3;
-      -webkit-box-orient: vertical;
-      font-size: 11px;
-      line-height: 1.4;
-      opacity: 0.72;
-    }
-  }
-
   :deep(a.bili-video-compact-ref),
   :deep(a.bili-owner-compact-ref),
   :deep(a.bili-rich-compact-ref) {
@@ -2436,9 +2384,9 @@ export default defineComponent({
   }
 
   :deep(.bili-owner-compact-cover-wrap) {
-    width: 40px;
-    min-width: 40px;
-    height: 40px;
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
     aspect-ratio: 1;
     border-radius: 999px;
   }
@@ -2446,11 +2394,9 @@ export default defineComponent({
   :deep(a.bili-owner-compact-ref) {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
+    gap: 6px;
+    padding: 6px 8px;
     flex-direction: row;
-    position: relative;
-    overflow: visible;
   }
 
   :deep(.bili-owner-compact-meta) {
@@ -2495,7 +2441,7 @@ export default defineComponent({
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 8px 9px 9px;
+    padding: 6px 7px 7px;
     min-width: 0;
   }
 
@@ -2532,56 +2478,6 @@ export default defineComponent({
 
   :deep(.bili-owner-compact-sign) {
     display: none;
-  }
-
-  :deep(.bili-owner-compact-hover-card) {
-    position: absolute;
-    left: 0;
-    top: calc(100% + 8px);
-    z-index: 15;
-    display: flex;
-    width: min(240px, calc(100vw - 32px));
-    flex-direction: column;
-    gap: 4px;
-    padding: 10px 12px;
-    border: 1px solid rgba(128, 128, 128, 0.12);
-    border-radius: 12px;
-    background: rgba(24, 24, 24, 0.96);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(4px);
-    transition: opacity 0.16s ease, transform 0.16s ease;
-  }
-
-  :deep(a.bili-owner-compact-ref:hover .bili-owner-compact-hover-card),
-  :deep(a.bili-owner-compact-ref:focus-visible .bili-owner-compact-hover-card) {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  :deep(.bili-owner-compact-hover-title) {
-    font-size: 13px;
-    line-height: 1.4;
-    font-weight: 600;
-    color: #fff;
-  }
-
-  :deep(.bili-owner-compact-hover-meta) {
-    font-size: 11px;
-    line-height: 1.35;
-    color: rgba(255, 255, 255, 0.74);
-  }
-
-  :deep(.bili-owner-compact-hover-sign) {
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    -webkit-box-orient: vertical;
-    font-size: 11px;
-    line-height: 1.42;
-    color: rgba(255, 255, 255, 0.82);
   }
 
   :deep(.bili-video-compact-gallery:has(a.bili-owner-compact-ref)) {
@@ -2659,14 +2555,14 @@ export default defineComponent({
     }
 
     :deep(a.bili-owner-compact-ref) {
-      gap: 7px;
-      padding: 7px 8px;
+      gap: 6px;
+      padding: 6px 7px;
     }
 
     :deep(.bili-owner-compact-cover-wrap) {
-      width: 34px;
-      min-width: 34px;
-      height: 34px;
+      width: 32px;
+      min-width: 32px;
+      height: 32px;
     }
 
     :deep(li.bili-video-rich-item) {

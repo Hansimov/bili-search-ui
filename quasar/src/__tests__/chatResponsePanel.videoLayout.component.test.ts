@@ -313,6 +313,23 @@ describe('ChatResponsePanel video layout', () => {
         expect(wrapper.findAll('.bili-video-compact-entry-cards a.bili-video-compact-ref')).toHaveLength(4);
     });
 
+    it('splits long compact video groups into sections of at most five cards', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '推荐：[视频1](BV1AA411c7mD) [视频2](BV1BB411c7mE) [视频3](BV1CC411c7mF) [视频4](BV1DD411c7mG) [视频5](BV1EE411c7mH) [视频6](BV1FF411c7mI)',
+            'compact',
+            new Map([
+                ['BV1AA411c7mD', { bvid: 'BV1AA411c7mD', title: '视频1', pic: 'https://example.com/1.jpg', duration: 60, owner: { name: '作者1' }, stat: { view: 1 } }],
+                ['BV1BB411c7mE', { bvid: 'BV1BB411c7mE', title: '视频2', pic: 'https://example.com/2.jpg', duration: 60, owner: { name: '作者2' }, stat: { view: 2 } }],
+                ['BV1CC411c7mF', { bvid: 'BV1CC411c7mF', title: '视频3', pic: 'https://example.com/3.jpg', duration: 60, owner: { name: '作者3' }, stat: { view: 3 } }],
+                ['BV1DD411c7mG', { bvid: 'BV1DD411c7mG', title: '视频4', pic: 'https://example.com/4.jpg', duration: 60, owner: { name: '作者4' }, stat: { view: 4 } }],
+                ['BV1EE411c7mH', { bvid: 'BV1EE411c7mH', title: '视频5', pic: 'https://example.com/5.jpg', duration: 60, owner: { name: '作者5' }, stat: { view: 5 } }],
+                ['BV1FF411c7mI', { bvid: 'BV1FF411c7mI', title: '视频6', pic: 'https://example.com/6.jpg', duration: 60, owner: { name: '作者6' }, stat: { view: 6 } }],
+            ])
+        );
+
+        expect(html.match(/bili-video-compact-group-cards-section--video/g)?.length).toBe(2);
+    });
+
     it('turns headings into ordered compact context blocks', async () => {
         mockChatStore.toolEvents = [makeVideoSearchEvent('BV1nGckzuESu')];
 
@@ -391,8 +408,9 @@ describe('ChatResponsePanel video layout', () => {
         expect(html).toContain('影视飓风');
         expect(html).toContain('用影像记录世界');
         expect(html).toContain('https://example.com/owner-face.jpg');
-        expect(html).toContain('bili-owner-card-work');
-        expect(html).toContain('影视飓风年度混剪');
+        expect(html).not.toContain('bili-owner-card-work');
+        expect(html).not.toContain('影视飓风年度混剪');
+        expect(html).not.toContain('代表作');
     });
 
     it('renders plain owner-name mentions as owner cards through the shared rich-link pipeline', () => {
@@ -458,7 +476,7 @@ describe('ChatResponsePanel video layout', () => {
         expect(wrapper.html()).toContain('https://space.bilibili.com/946974');
     });
 
-    it('renders compact owner links with hover details for uid and intro', () => {
+    it('renders compact owner links with native title details', () => {
         const html = renderAnswerMarkdownWithVideoView(
             '推荐关注 https://space.bilibili.com/946974',
             'compact',
@@ -479,10 +497,83 @@ describe('ChatResponsePanel video layout', () => {
 
         expect(html).toContain('bili-owner-compact-ref');
         expect(html).toContain('影视飓风');
-        expect(html).toContain('bili-owner-compact-hover-card');
+        expect(html).toContain('title="影视飓风');
         expect(html).toContain('UID 946974');
         expect(html).toContain('223');
         expect(html).toContain('粉丝');
         expect(html).toContain('用影像记录世界');
+        expect(html).not.toContain('bili-owner-compact-hover-card');
+    });
+
+    it('keeps mixed owner and video links clean in card mode without owner work preview', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '先看 [主视频](BV1AA411c7mD)，再关注 [影视飓风](https://space.bilibili.com/946974)。',
+            'card',
+            new Map([
+                [
+                    'BV1AA411c7mD',
+                    {
+                        bvid: 'BV1AA411c7mD',
+                        title: '主视频',
+                        pic: 'https://example.com/BV1AA411c7mD.jpg',
+                        duration: 360,
+                        owner: { name: '作者 1' },
+                        stat: { view: 10000 },
+                    },
+                ],
+            ]),
+            new Map([
+                [
+                    '946974',
+                    {
+                        mid: '946974',
+                        name: '影视飓风',
+                        face: 'https://example.com/owner-face.jpg',
+                        sign: '用影像记录世界',
+                        fans: 2230000,
+                        sample_title: '影视飓风年度混剪',
+                    },
+                ],
+            ])
+        );
+
+        expect(html).toContain('bili-video-card-ref');
+        expect(html).toContain('bili-owner-card-ref');
+        expect(html).not.toContain('代表作');
+    });
+
+    it('separates mixed owner and video links into distinct compact sections', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '先看 [主视频](BV1AA411c7mD)，再关注 [影视飓风](https://space.bilibili.com/946974)。',
+            'compact',
+            new Map([
+                [
+                    'BV1AA411c7mD',
+                    {
+                        bvid: 'BV1AA411c7mD',
+                        title: '主视频',
+                        pic: 'https://example.com/BV1AA411c7mD.jpg',
+                        duration: 360,
+                        owner: { name: '作者 1' },
+                        stat: { view: 10000 },
+                    },
+                ],
+            ]),
+            new Map([
+                [
+                    '946974',
+                    {
+                        mid: '946974',
+                        name: '影视飓风',
+                        face: 'https://example.com/owner-face.jpg',
+                        sign: '用影像记录世界',
+                        fans: 2230000,
+                    },
+                ],
+            ])
+        );
+
+        expect(html).toContain('bili-video-compact-group-cards-section--video');
+        expect(html).toContain('bili-video-compact-group-cards-section--owner');
     });
 });

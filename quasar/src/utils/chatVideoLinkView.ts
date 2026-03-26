@@ -3,10 +3,7 @@ import { renderMarkdown } from 'src/utils/markdown';
 import {
     formatOwnerFans,
     getOwnerAvatarUrl,
-    getOwnerSampleCoverUrl,
-    getOwnerSampleTitle,
     getOwnerStatLine,
-    hasOwnerSample,
     type OwnerRichInfo,
 } from 'src/utils/ownerRichView';
 import type { NormalizedVideoHit } from 'src/utils/videoHit';
@@ -152,29 +149,27 @@ const buildRenderedOwnerLink = (
     const inlineLabel = escapeHtml(owner?.name || fallbackName);
     const uidText = escapeHtml(`UID ${mid}`);
     const statLine = escapeHtml(getOwnerStatLine({ ...owner, mid })) || uidText;
-    const ownerHasSample = hasOwnerSample(owner || { mid });
-    const sampleTitle = escapeHtml(getOwnerSampleTitle(owner || { mid }) || '代表作');
-    const sampleCoverUrl = getOwnerSampleCoverUrl(owner || { mid });
+    const compactTitle = escapeHtml(
+        [owner?.name || fallbackName, getOwnerStatLine({ ...owner, mid }), owner?.sign]
+            .filter((value): value is string => Boolean(value && value.trim()))
+            .join('\n')
+    );
 
     if (viewMode === 'compact') {
-        return `<a href="${escapeHtml(href)}" class="bili-owner-compact-ref bili-rich-compact-ref" data-mid="${mid}" data-inline-label="${inlineLabel}" target="_blank" rel="noopener"><span class="bili-owner-compact-cover-wrap bili-rich-compact-cover-wrap">${avatarUrl
+        return `<a href="${escapeHtml(href)}" class="bili-owner-compact-ref bili-rich-compact-ref" data-mid="${mid}" data-inline-label="${inlineLabel}" title="${compactTitle}" target="_blank" rel="noopener"><span class="bili-owner-compact-cover-wrap bili-rich-compact-cover-wrap">${avatarUrl
             ? `<img src="${escapeHtml(avatarUrl)}" class="bili-owner-compact-cover bili-rich-compact-cover" loading="lazy" referrerpolicy="no-referrer" />`
             : '<span class="bili-owner-compact-cover bili-owner-compact-cover-placeholder bili-rich-compact-cover bili-rich-compact-cover-placeholder"></span>'
             }</span><span class="bili-owner-compact-meta bili-rich-compact-meta"><span class="bili-owner-compact-title bili-rich-compact-title">${name}</span>${fansText
                 ? `<span class="bili-owner-compact-stats">${fansText}</span>`
                 : ''
-            }</span><span class="bili-owner-compact-hover-card" aria-hidden="true"><span class="bili-owner-compact-hover-title">${name}</span><span class="bili-owner-compact-hover-meta">${statLine}</span>${sign ? `<span class="bili-owner-compact-hover-sign">${sign}</span>` : ''}
             }</span></a>`;
     }
 
     if (viewMode === 'card') {
-        return `<a href="${escapeHtml(href)}" class="bili-owner-card-ref bili-rich-card-ref${ownerHasSample ? ' bili-owner-card-ref--with-work' : ''}" data-mid="${mid}" target="_blank" rel="noopener"><span class="bili-owner-card-main"><span class="bili-owner-card-cover-wrap bili-rich-card-cover-wrap bili-rich-card-cover-wrap--owner">${avatarUrl
+        return `<a href="${escapeHtml(href)}" class="bili-owner-card-ref bili-rich-card-ref" data-mid="${mid}" target="_blank" rel="noopener"><span class="bili-owner-card-main"><span class="bili-owner-card-cover-wrap bili-rich-card-cover-wrap bili-rich-card-cover-wrap--owner">${avatarUrl
             ? `<img src="${escapeHtml(avatarUrl)}" class="bili-owner-card-cover bili-rich-card-cover" loading="lazy" referrerpolicy="no-referrer" />`
             : '<span class="bili-owner-card-cover bili-owner-card-cover-placeholder bili-rich-card-cover bili-rich-card-cover-placeholder"></span>'
-            }</span><span class="bili-owner-card-meta bili-rich-card-meta"><span class="bili-owner-card-title bili-rich-card-title">${name}</span><span class="bili-owner-card-subline bili-rich-card-subline">${statLine}</span>${sign ? `<span class="bili-owner-card-sign">${sign}</span>` : ''}</span></span>${ownerHasSample ? `<span class="bili-owner-card-work" aria-hidden="true"><span class="bili-owner-card-work-label">代表作</span><span class="bili-owner-card-work-preview"><span class="bili-owner-card-work-cover-wrap">${sampleCoverUrl
-                ? `<img src="${escapeHtml(sampleCoverUrl)}" class="bili-owner-card-work-cover" loading="lazy" referrerpolicy="no-referrer" />`
-                : '<span class="bili-owner-card-work-cover bili-owner-card-work-cover--placeholder"></span>'
-                }</span><span class="bili-owner-card-work-title">${sampleTitle}</span></span></span>` : ''}</a>`;
+            }</span><span class="bili-owner-card-meta bili-rich-card-meta"><span class="bili-owner-card-title bili-rich-card-title">${name}</span><span class="bili-owner-card-subline bili-rich-card-subline">${statLine}</span>${sign ? `<span class="bili-owner-card-sign">${sign}</span>` : ''}</span></span></a>`;
     }
 
     return `<a href="${escapeHtml(href)}" class="bili-owner-ref bili-rich-inline-ref" data-mid="${mid}" target="_blank" rel="noopener">${avatarUrl
@@ -191,6 +186,24 @@ const getCompactAnchorLabel = (anchor: HTMLAnchorElement): string => {
         anchor.dataset.bvid ||
         '视频'
     ).trim();
+};
+
+const getRenderedAnchorKind = (
+    anchor: HTMLAnchorElement
+): 'video' | 'owner' | 'other' => {
+    if (
+        anchor.classList.contains('bili-owner-card-ref') ||
+        anchor.classList.contains('bili-owner-compact-ref')
+    ) {
+        return 'owner';
+    }
+    if (
+        anchor.classList.contains('bili-video-card-ref') ||
+        anchor.classList.contains('bili-video-compact-ref')
+    ) {
+        return 'video';
+    }
+    return 'other';
 };
 
 export const extractOwnerMidsFromText = (text: string): string[] => {
@@ -346,13 +359,14 @@ const normalizeCompactText = (value: string): string => {
 };
 
 type CompactGroup = {
-    entries: HTMLDivElement[];
+    entries: Array<{
+        element: HTMLDivElement;
+        kind: 'video' | 'owner' | 'other';
+    }>;
     noteText: string;
 };
 
-const createCompactCardEntry = (
-    anchor: HTMLAnchorElement
-) => {
+const createCompactCardEntry = (anchor: HTMLAnchorElement) => {
     const cardsWrap = document.createElement('div');
     cardsWrap.className =
         'bili-video-compact-entry-cards bili-video-compact-entry-cards--single';
@@ -361,7 +375,10 @@ const createCompactCardEntry = (
     entry.className = 'bili-video-compact-entry bili-video-compact-entry--single';
     cardsWrap.append(anchor.cloneNode(true));
     entry.append(cardsWrap);
-    return entry;
+    return {
+        element: entry,
+        kind: getRenderedAnchorKind(anchor),
+    };
 };
 
 const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
@@ -467,7 +484,31 @@ const createCompactGalleryGroup = (group: CompactGroup): HTMLDivElement => {
 
     const cards = document.createElement('div');
     cards.className = 'bili-video-compact-group-cards';
-    group.entries.forEach((entry) => cards.append(entry));
+    let currentSection: HTMLDivElement | null = null;
+    let currentKind: 'video' | 'owner' | 'other' | null = null;
+    let currentSectionCount = 0;
+
+    group.entries.forEach((entry) => {
+        if (
+            !currentSection ||
+            currentKind !== entry.kind ||
+            currentSectionCount >= 5
+        ) {
+            currentSection = document.createElement('div');
+            currentSection.className = 'bili-video-compact-group-cards-section';
+            if (entry.kind !== 'other') {
+                currentSection.classList.add(
+                    `bili-video-compact-group-cards-section--${entry.kind}`
+                );
+            }
+            cards.append(currentSection);
+            currentKind = entry.kind;
+            currentSectionCount = 0;
+        }
+
+        currentSection.append(entry.element);
+        currentSectionCount += 1;
+    });
     wrapper.append(cards);
 
     return wrapper;
@@ -661,10 +702,7 @@ const enhanceRenderedVideoLayout = (
             const gallery = document.createElement('div');
             gallery.className =
                 'bili-video-compact-gallery bili-video-compact-gallery--standalone';
-            if (group.noteText) {
-                gallery.append(createCompactNoteBlock(group.noteText));
-            }
-            group.entries.forEach((entry) => gallery.append(entry));
+            gallery.append(createCompactGalleryGroup(group));
             block.replaceWith(gallery);
         });
 
@@ -708,6 +746,7 @@ const enhanceRenderedVideoLayout = (
 
         let textSegment: HTMLSpanElement | null = null;
         let cardsSegment: HTMLSpanElement | null = null;
+        let cardsSegmentKind: 'video' | 'owner' | 'other' | null = null;
 
         const ensureTextSegment = () => {
             if (!textSegment) {
@@ -742,12 +781,21 @@ const enhanceRenderedVideoLayout = (
                 flow.append(cardsSegment);
             }
             cardsSegment = null;
+            cardsSegmentKind = null;
         };
 
         for (const child of Array.from(container.childNodes)) {
             if (isRenderedVideoAnchor(child)) {
+                const anchorKind = getRenderedAnchorKind(child);
                 flushTextSegment();
-                ensureCardsSegment().append(child.cloneNode(true));
+                if (cardsSegment && cardsSegmentKind && cardsSegmentKind !== anchorKind) {
+                    flushCardsSegment();
+                }
+                cardsSegmentKind = anchorKind;
+                const segment = ensureCardsSegment();
+                segment.classList.toggle('bili-video-rich-cards--owner', anchorKind === 'owner');
+                segment.classList.toggle('bili-video-rich-cards--video', anchorKind === 'video');
+                segment.append(child.cloneNode(true));
                 continue;
             }
 
