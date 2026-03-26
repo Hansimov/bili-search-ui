@@ -171,7 +171,7 @@ const buildRenderedOwnerLink = (
     }
 
     if (viewMode === 'card') {
-        return `<a href="${escapeHtml(href)}" class="bili-owner-card-ref bili-rich-card-ref" data-mid="${mid}" target="_blank" rel="noopener"><span class="bili-owner-card-main"><span class="bili-owner-card-cover-wrap bili-rich-card-cover-wrap bili-rich-card-cover-wrap--owner">${avatarUrl
+        return `<a href="${escapeHtml(href)}" class="bili-owner-card-ref bili-rich-card-ref" data-mid="${mid}" data-inline-label="${inlineLabel}" target="_blank" rel="noopener"><span class="bili-owner-card-main"><span class="bili-owner-card-cover-wrap bili-rich-card-cover-wrap bili-rich-card-cover-wrap--owner">${avatarUrl
             ? `<img src="${escapeHtml(avatarUrl)}" class="bili-owner-card-cover bili-rich-card-cover" loading="lazy" referrerpolicy="no-referrer" />`
             : '<span class="bili-owner-card-cover bili-owner-card-cover-placeholder bili-rich-card-cover bili-rich-card-cover-placeholder"></span>'
             }</span><span class="bili-owner-card-meta bili-rich-card-meta"><span class="bili-owner-card-title bili-rich-card-title">${name}</span><span class="bili-owner-card-subline bili-rich-card-subline">${statLine}</span>${sign ? `<span class="bili-owner-card-sign">${sign}</span>` : ''}</span></span></a>`;
@@ -365,12 +365,169 @@ const normalizeCompactText = (value: string): string => {
         .trim();
 };
 
+const COMPACT_DECORATION_RE =
+    /^[\s\-•*·:："“”'‘’()（）\[\]【】,，.。!?！？;；]+/;
+
+const replaceAnchorsWithInlineLabels = (
+    root: HTMLElement,
+    selector: string
+): string[] => {
+    const anchors = Array.from(root.querySelectorAll(selector)) as HTMLAnchorElement[];
+    const labels = anchors.map((anchor) => getCompactAnchorLabel(anchor));
+
+    anchors.forEach((anchor, index) => {
+        anchor.replaceWith(document.createTextNode(labels[index] || ''));
+    });
+
+    return labels;
+};
+
+const removeEmptyCompactWrappers = (root: HTMLElement) => {
+    Array.from(root.querySelectorAll('*'))
+        .reverse()
+        .forEach((node) => {
+            if (!(node instanceof HTMLElement)) {
+                return;
+            }
+            if (node.childNodes.length > 0) {
+                return;
+            }
+            if ((node.textContent || '').trim()) {
+                return;
+            }
+            node.remove();
+        });
+};
+
+const stripLeadingTextAcrossNodes = (
+    root: HTMLElement,
+    text: string
+): boolean => {
+    if (!text) {
+        return true;
+    }
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let remaining = text;
+    let started = false;
+    let currentNode = walker.nextNode();
+
+    while (currentNode && remaining.length > 0) {
+        const textNode = currentNode as Text;
+        let value = textNode.textContent || '';
+
+        if (!started) {
+            const trimmedStart = value.replace(/^\s+/, '');
+            if (!trimmedStart) {
+                currentNode = walker.nextNode();
+                continue;
+            }
+            if (trimmedStart !== value) {
+                textNode.textContent = trimmedStart;
+                value = trimmedStart;
+            }
+            started = true;
+        }
+
+        if (!value) {
+            currentNode = walker.nextNode();
+            continue;
+        }
+
+        const expectedSlice = remaining.slice(0, value.length);
+        if (value.slice(0, expectedSlice.length) !== expectedSlice) {
+            return false;
+        }
+
+        const consumedLength = expectedSlice.length;
+        textNode.textContent = value.slice(consumedLength);
+        remaining = remaining.slice(consumedLength);
+        currentNode = walker.nextNode();
+    }
+
+    if (remaining.length > 0) {
+        return false;
+    }
+
+    removeEmptyCompactWrappers(root);
+    return true;
+};
+
+const stripLeadingDecorations = (root: HTMLElement) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let currentNode = walker.nextNode();
+
+    while (currentNode) {
+        const textNode = currentNode as Text;
+        const value = textNode.textContent || '';
+        if (!value.trim()) {
+            currentNode = walker.nextNode();
+            continue;
+        }
+
+        textNode.textContent = value.replace(COMPACT_DECORATION_RE, '');
+        break;
+    }
+
+    removeEmptyCompactWrappers(root);
+};
+
+const buildCompactMarkupHtml = (
+    source: HTMLElement,
+    labels: string[]
+): string => {
+    const clone = source.cloneNode(true) as HTMLElement;
+
+    replaceAnchorsWithInlineLabels(clone, 'a.bili-rich-compact-ref');
+    clone
+        .querySelectorAll(
+            'ul, ol, .bili-video-compact-gallery, .bili-video-compact-fallback-list'
+        )
+        .forEach((node) => node.remove());
+
+    if (labels.length === 1) {
+        stripLeadingTextAcrossNodes(clone, labels[0]);
+        stripLeadingDecorations(clone);
+    }
+
+    removeEmptyCompactWrappers(clone);
+    return clone.innerHTML.trim();
+};
+
+const hasStandaloneOwnerOnlyContent = (
+    container: HTMLElement,
+    ownerAnchors: HTMLAnchorElement[]
+): boolean => {
+    if (!ownerAnchors.length) {
+        return false;
+    }
+
+    const clone = container.cloneNode(true) as HTMLElement;
+    const labels = replaceAnchorsWithInlineLabels(clone, 'a.bili-owner-card-ref');
+
+    let residual = normalizeCompactText(clone.textContent || '');
+    labels
+        .slice()
+        .sort((left, right) => right.length - left.length)
+        .forEach((label) => {
+            residual = normalizeCompactText(residual.replace(label, ' '));
+        });
+
+    residual = residual.replace(
+        /^[\s\-•*·:："“”'‘’()（）\[\]【】,，.。!?！？;；]+|[\s\-•*·:："“”'‘’()（）\[\]【】,，.。!?！？;；]+$/g,
+        ''
+    );
+
+    return residual.length === 0;
+};
+
 type CompactGroup = {
     entries: Array<{
         element: HTMLDivElement;
         kind: 'video' | 'owner' | 'other';
     }>;
     noteText: string;
+    noteHtml: string;
 };
 
 const createCompactCardEntry = (anchor: HTMLAnchorElement) => {
@@ -399,11 +556,7 @@ const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
         return null;
     }
 
-    const labels = anchors.map((anchor) => getCompactAnchorLabel(anchor));
-
-    anchors.forEach((anchor, index) => {
-        anchor.replaceWith(document.createTextNode(labels[index] || ''));
-    });
+    const labels = replaceAnchorsWithInlineLabels(clone, 'a.bili-rich-compact-ref');
 
     clone
         .querySelectorAll(
@@ -421,6 +574,7 @@ const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
 
     const combinedLabels = normalizeCompactText(labels.join(' '));
     noteText = noteText.replace(/^[-—–:：,，]\s*/, '').trim();
+    const noteHtml = noteText ? buildCompactMarkupHtml(source, labels) : '';
     if (!noteText || noteText === combinedLabels) {
         noteText = '';
     }
@@ -429,12 +583,14 @@ const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
         return {
             entries: [createCompactCardEntry(anchors[0])],
             noteText,
+            noteHtml: noteText ? noteHtml : '',
         };
     }
 
     return {
         entries: anchors.map((anchor) => createCompactCardEntry(anchor)),
         noteText,
+        noteHtml: noteText ? noteHtml : '',
     };
 };
 
@@ -453,26 +609,25 @@ const buildCompactFallbackItem = (source: HTMLLIElement): HTMLLIElement => {
 };
 
 const createCompactContextBlock = (
-    text: string,
+    source: HTMLElement,
     variant: 'body' | 'heading' = 'body',
     headingTag?: string
-): HTMLDivElement => {
-    const block = document.createElement('div');
-    block.className = 'bili-video-compact-context-block';
+): HTMLElement => {
+    const block = source.cloneNode(true) as HTMLElement;
+    block.classList.add('bili-video-compact-context-block');
     if (variant === 'heading') {
         block.classList.add('bili-video-compact-context-block--heading');
     }
     if (headingTag) {
         block.classList.add(`bili-video-compact-context-block--${headingTag}`);
     }
-    block.textContent = text;
     return block;
 };
 
-const createCompactNoteBlock = (noteText: string): HTMLDivElement => {
+const createCompactNoteBlock = (noteHtml: string): HTMLDivElement => {
     const note = document.createElement('div');
     note.className = 'bili-video-compact-note-block';
-    note.textContent = noteText;
+    note.innerHTML = noteHtml;
     return note;
 };
 
@@ -520,8 +675,8 @@ const createCompactGallery = (groups: CompactGroup[]): HTMLDivElement => {
     const gallery = document.createElement('div');
     gallery.className = 'bili-video-compact-gallery';
     groups.forEach((group) => {
-        if (group.noteText) {
-            gallery.append(createCompactNoteBlock(group.noteText));
+        if (group.noteText && group.noteHtml) {
+            gallery.append(createCompactNoteBlock(group.noteHtml));
         }
         gallery.append(createCompactGalleryGroup(group));
     });
@@ -550,7 +705,11 @@ const compactifyHeadingsAndContext = (template: HTMLTemplateElement) => {
             return;
         }
         heading.replaceWith(
-            createCompactContextBlock(text, 'heading', heading.tagName.toLowerCase())
+            createCompactContextBlock(
+                heading,
+                'heading',
+                heading.tagName.toLowerCase()
+            )
         );
     });
 
@@ -569,7 +728,7 @@ const compactifyHeadingsAndContext = (template: HTMLTemplateElement) => {
             return;
         }
 
-        block.replaceWith(createCompactContextBlock(text));
+        block.replaceWith(createCompactContextBlock(block));
     });
 
     const topLevelNodes = Array.from(template.content.childNodes);
@@ -707,8 +866,8 @@ const enhanceRenderedVideoLayout = (
             const gallery = document.createElement('div');
             gallery.className =
                 'bili-video-compact-gallery bili-video-compact-gallery--standalone';
-            if (group.noteText) {
-                gallery.append(createCompactNoteBlock(group.noteText));
+            if (group.noteText && group.noteHtml) {
+                gallery.append(createCompactNoteBlock(group.noteHtml));
             }
             gallery.append(createCompactGalleryGroup(group));
             block.replaceWith(gallery);
@@ -749,6 +908,28 @@ const enhanceRenderedVideoLayout = (
     };
 
     containers.forEach((container) => {
+        const trailingOwnerCards: HTMLAnchorElement[] = [];
+
+        if (viewMode === 'card') {
+            const ownerAnchors = Array.from(
+                container.querySelectorAll('a.bili-owner-card-ref')
+            ) as HTMLAnchorElement[];
+
+            const ownerOnlyBlock = hasStandaloneOwnerOnlyContent(
+                container,
+                ownerAnchors
+            );
+
+            if (!ownerOnlyBlock) {
+                ownerAnchors.forEach((anchor) => {
+                    trailingOwnerCards.push(anchor.cloneNode(true) as HTMLAnchorElement);
+                    anchor.replaceWith(
+                        document.createTextNode(getCompactAnchorLabel(anchor))
+                    );
+                });
+            }
+        }
+
         const flow = document.createElement('span');
         flow.className = `bili-video-rich-flow bili-video-rich-flow--${viewMode}`;
 
@@ -820,6 +1001,15 @@ const enhanceRenderedVideoLayout = (
 
         flushTextSegment();
         flushCardsSegment();
+
+        if (trailingOwnerCards.length) {
+            const trailingCards = document.createElement('span');
+            trailingCards.className =
+                `bili-video-rich-cards bili-video-rich-cards--${viewMode} ` +
+                'bili-video-rich-cards--owner bili-video-rich-cards--owner-trailing';
+            trailingOwnerCards.forEach((card) => trailingCards.append(card));
+            flow.append(trailingCards);
+        }
 
         if (!flow.children.length) {
             return;

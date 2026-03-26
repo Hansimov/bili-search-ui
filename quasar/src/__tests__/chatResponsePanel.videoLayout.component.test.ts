@@ -145,6 +145,13 @@ describe('ChatResponsePanel video layout', () => {
         localStorage.clear();
         sessionStorage.clear();
         vi.spyOn(BiliApiClient, 'fetchMidCard').mockResolvedValue(null);
+        mockChatStore.isLoading = false;
+        mockChatStore.hasContent = true;
+        mockChatStore.hasThinkingContent = false;
+        mockChatStore.isThinkingPhase = false;
+        mockChatStore.isDone = true;
+        mockChatStore.isAborted = false;
+        mockChatStore.hasError = false;
         mockChatStore.toolEvents = [
             makeVideoSearchEvent('BV1AA411c7mD', 'BV1BB411c7mE', 'BV1CC411c7mF'),
         ];
@@ -405,6 +412,8 @@ describe('ChatResponsePanel video layout', () => {
         );
 
         expect(html).toContain('bili-owner-card-ref');
+        expect(html).toContain('推荐关注 影视飓风');
+        expect(html).toContain('bili-video-rich-cards--owner-trailing');
         expect(html).toContain('影视飓风');
         expect(html).toContain('用影像记录世界');
         expect(html).toContain('https://example.com/owner-face.jpg');
@@ -559,7 +568,99 @@ describe('ChatResponsePanel video layout', () => {
 
         expect(html).toContain('bili-video-card-ref');
         expect(html).toContain('bili-owner-card-ref');
+        expect(html).toContain('再关注 影视飓风');
+        expect(html).toContain('bili-video-rich-cards--owner-trailing');
         expect(html).not.toContain('代表作');
+    });
+
+    it('keeps emphasized owner names inline in card mode and moves the owner card below', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '**[红警HBK08](https://space.bilibili.com/1629347259)**：已找到对应的UP主。',
+            'card',
+            new Map(),
+            new Map([
+                [
+                    '1629347259',
+                    {
+                        mid: '1629347259',
+                        name: '红警HBK08',
+                        face: 'https://example.com/hbk08-face.jpg',
+                        sign: '红色警戒原版全国全能王冠军',
+                        fans: 2207000,
+                    },
+                ],
+            ])
+        );
+
+        expect(html).toContain('<strong>红警HBK08</strong>：已找到对应的UP主。');
+        expect(html).toContain('bili-video-rich-cards--owner-trailing');
+        expect(html).toContain('bili-owner-card-ref');
+    });
+
+    it('keeps standalone owner-only list items as direct cards in card mode', async () => {
+        mockChatStore.toolEvents = [];
+
+        const wrapper = await mountPanel(
+            '- [红警HBK08](https://space.bilibili.com/1629347259)'
+        );
+
+        (wrapper.vm as unknown as { setVideoLinkView: (mode: string) => void }).setVideoLinkView(
+            'card'
+        );
+        await nextTick();
+
+        const html = wrapper.find('.chat-content').html();
+        expect(html).toContain('bili-owner-card-ref');
+        expect(html).not.toContain('bili-video-rich-cards--owner-trailing');
+        expect(html).not.toContain('bili-video-rich-text');
+    });
+
+    it('keeps plain owner-only list items as direct cards in card mode', async () => {
+        mockChatStore.toolEvents = [
+            makeOwnerSearchEvent({
+                mid: 1629347259,
+                name: '红警HBK08',
+                face: 'https://example.com/hbk08-face.jpg',
+            }),
+        ];
+
+        const wrapper = await mountPanel('- 红警HBK08');
+
+        (wrapper.vm as unknown as { setVideoLinkView: (mode: string) => void }).setVideoLinkView(
+            'card'
+        );
+        await nextTick();
+
+        const html = wrapper.find('.chat-content').html();
+        expect(html).toContain('bili-owner-card-ref');
+        expect(html).not.toContain('bili-video-rich-cards--owner-trailing');
+        expect(html).not.toContain('bili-video-rich-text');
+    });
+
+    it('preserves inline markdown styling in compact note and context blocks', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '## **红警专题**\n\n**系列说明**：先看 [主视频](BV1AA411c7mD)，再读 `战术分析`。',
+            'compact',
+            new Map([
+                [
+                    'BV1AA411c7mD',
+                    {
+                        bvid: 'BV1AA411c7mD',
+                        title: '主视频',
+                        pic: 'https://example.com/BV1AA411c7mD.jpg',
+                        duration: 360,
+                        owner: { name: '作者 1' },
+                        stat: { view: 10000 },
+                    },
+                ],
+            ])
+        );
+
+        expect(html).toContain('bili-video-compact-context-block--heading');
+        expect(html).toContain('<strong>红警专题</strong>');
+        expect(html).toContain('bili-video-compact-note-block');
+        expect(html).toContain('<strong>系列说明</strong>');
+        expect(html).toContain('<code>战术分析</code>');
     });
 
     it('separates mixed owner and video links into distinct compact sections', () => {
