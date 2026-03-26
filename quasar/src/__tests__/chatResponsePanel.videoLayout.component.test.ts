@@ -474,6 +474,26 @@ describe('ChatResponsePanel video layout', () => {
         expect(wrapper.find('.chat-content-toolbar').exists()).toBe(true);
         expect(wrapper.html()).toContain('bili-owner-ref');
         expect(wrapper.html()).toContain('https://space.bilibili.com/946974');
+        expect(wrapper.html()).toContain('bili-owner-inline-avatar');
+    });
+
+    it('keeps the current streaming answer in text mode to avoid rich-card image flicker', async () => {
+        mockChatStore.isLoading = true;
+        mockChatStore.isDone = false;
+        mockChatStore.isAborted = false;
+
+        const wrapper = await mountPanel('推荐看 [主视频](BV1AA411c7mD)');
+
+        (wrapper.vm as unknown as { setVideoLinkView: (mode: string) => void }).setVideoLinkView(
+            'compact'
+        );
+        await nextTick();
+
+        const html = wrapper.find('.chat-content').html();
+        expect(html).not.toContain('bili-video-compact-ref');
+        expect(html).not.toContain('bili-video-card-ref');
+        expect(html).toContain('bili-video-ref');
+        expect(html).not.toContain('bili-owner-inline-avatar');
     });
 
     it('renders compact owner links with native title details', () => {

@@ -446,6 +446,7 @@
         <div
           v-if="hasContent"
           class="chat-content markdown-body"
+          :class="{ 'chat-content--rich-reveal': currentRichRevealActive }"
           v-html="renderedContent"
         ></div>
 
@@ -589,6 +590,8 @@ export default defineComponent({
     const editingQueryTarget = ref<string | null>(null);
     const editingQueryDraft = ref('');
     const CURRENT_QUERY_EDIT_TARGET = '__current_query__';
+    const currentRichRevealActive = ref(false);
+    let currentRichRevealTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const isLoading = computed(() => chatStore.isLoading);
     const hasContent = computed(() => chatStore.hasContent);
@@ -656,12 +659,26 @@ export default defineComponent({
       return '思考过程';
     });
 
+    const currentAnswerViewMode = computed<VideoLinkViewMode>(() => {
+      if (isLoading.value && !isDone.value && !isAborted.value) {
+        return 'text';
+      }
+      return videoLinkView.value;
+    });
+
     const renderAnswerMd = (text: string): string => {
       return renderAnswerMarkdownWithVideoView(
         text,
-        videoLinkView.value,
+        currentAnswerViewMode.value,
         videoMap.value,
-        ownerMap.value
+        ownerMap.value,
+        {
+          disableInlineOwnerAvatar:
+            currentAnswerViewMode.value === 'text' &&
+            isLoading.value &&
+            !isDone.value &&
+            !isAborted.value,
+        }
       );
     };
 
@@ -683,6 +700,20 @@ export default defineComponent({
       persistVideoLinkView(mode, chatStore.currentSessionId);
     };
 
+    const triggerCurrentRichReveal = () => {
+      if (currentRichRevealTimeout) {
+        clearTimeout(currentRichRevealTimeout);
+      }
+      currentRichRevealActive.value = false;
+      void nextTick(() => {
+        currentRichRevealActive.value = true;
+        currentRichRevealTimeout = setTimeout(() => {
+          currentRichRevealActive.value = false;
+          currentRichRevealTimeout = null;
+        }, 220);
+      });
+    };
+
     watch(
       () => chatStore.currentSessionId,
       (sessionId) => {
@@ -690,6 +721,27 @@ export default defineComponent({
       },
       { immediate: true }
     );
+
+    watch(currentAnswerViewMode, (mode, previousMode) => {
+      if (
+        previousMode === 'text' &&
+        mode !== 'text' &&
+        hasContent.value &&
+        hasCurrentRichLinks.value &&
+        !isLoading.value
+      ) {
+        triggerCurrentRichReveal();
+        return;
+      }
+
+      if (mode === 'text') {
+        currentRichRevealActive.value = false;
+        if (currentRichRevealTimeout) {
+          clearTimeout(currentRichRevealTimeout);
+          currentRichRevealTimeout = null;
+        }
+      }
+    });
 
     /** 渲染思考内容为 HTML（去除末尾空行） */
     const renderedThinkingContent = computed(() => {
@@ -1356,6 +1408,7 @@ export default defineComponent({
         el.removeEventListener('mouseover', onPanelMouseOver);
         el.removeEventListener('mouseout', onPanelMouseOut);
       }
+      if (currentRichRevealTimeout) clearTimeout(currentRichRevealTimeout);
       if (hideTimeout) clearTimeout(hideTimeout);
     });
 
@@ -1394,6 +1447,7 @@ export default defineComponent({
       hasRenderableRichLinks,
       renderAnswerMd,
       renderedThinkingContent,
+      currentRichRevealActive,
       shouldShowCurrentAnswerToggle,
       showCurrentAnswerActions,
       canContinueCurrentAnswer,
@@ -1855,6 +1909,10 @@ export default defineComponent({
   margin: 4px 0 8px;
 }
 
+.chat-content--rich-reveal {
+  animation: current-rich-reveal 0.22s ease-out;
+}
+
 .chat-content-view-switch {
   display: inline-flex;
   align-items: center;
@@ -1910,6 +1968,18 @@ export default defineComponent({
   }
   50% {
     opacity: 0;
+  }
+}
+
+@keyframes current-rich-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -2105,10 +2175,15 @@ export default defineComponent({
   }
 
   :deep(.bili-video-compact-note-block) {
+    display: block;
+    width: 100%;
+    flex: 0 0 100%;
+    align-self: stretch;
     padding: 0 2px;
-    font-size: 11px;
-    line-height: 1.5;
-    opacity: 0.64;
+    font-size: 13px;
+    line-height: 1.6;
+    color: inherit;
+    opacity: 1;
     word-break: break-word;
   }
 

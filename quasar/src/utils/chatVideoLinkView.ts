@@ -26,6 +26,10 @@ export type VideoHit = NormalizedVideoHit;
 
 export type OwnerLinkInfo = OwnerRichInfo;
 
+type RenderAnswerOptions = {
+    disableInlineOwnerAvatar?: boolean;
+};
+
 type OwnerMentionCandidate = {
     mid: string;
     name: string;
@@ -135,7 +139,8 @@ const buildRenderedOwnerLink = (
     mid: string,
     innerHtml: string,
     viewMode: VideoLinkViewMode,
-    ownerMap: Map<string, OwnerLinkInfo>
+    ownerMap: Map<string, OwnerLinkInfo>,
+    options: RenderAnswerOptions = {}
 ): string => {
     const owner = ownerMap.get(mid);
     const innerText = stripHtml(innerHtml);
@@ -172,9 +177,11 @@ const buildRenderedOwnerLink = (
             }</span><span class="bili-owner-card-meta bili-rich-card-meta"><span class="bili-owner-card-title bili-rich-card-title">${name}</span><span class="bili-owner-card-subline bili-rich-card-subline">${statLine}</span>${sign ? `<span class="bili-owner-card-sign">${sign}</span>` : ''}</span></span></a>`;
     }
 
-    return `<a href="${escapeHtml(href)}" class="bili-owner-ref bili-rich-inline-ref" data-mid="${mid}" target="_blank" rel="noopener">${avatarUrl
-        ? `<img src="${escapeHtml(avatarUrl)}" class="bili-owner-inline-avatar" loading="lazy" referrerpolicy="no-referrer" />`
-        : '<span class="bili-owner-inline-avatar bili-owner-inline-avatar--placeholder"></span>'
+    return `<a href="${escapeHtml(href)}" class="bili-owner-ref bili-rich-inline-ref" data-mid="${mid}" target="_blank" rel="noopener">${options.disableInlineOwnerAvatar
+        ? ''
+        : avatarUrl
+            ? `<img src="${escapeHtml(avatarUrl)}" class="bili-owner-inline-avatar" loading="lazy" referrerpolicy="no-referrer" />`
+            : '<span class="bili-owner-inline-avatar bili-owner-inline-avatar--placeholder"></span>'
         }<span class="bili-owner-inline-meta"><span class="bili-owner-inline-name">${name}</span>${fansText ? `<span class="bili-owner-inline-stats">${fansText}</span>` : ''}</span></a>`;
 };
 
@@ -477,11 +484,6 @@ const createCompactGalleryGroup = (group: CompactGroup): HTMLDivElement => {
         String(Math.max(1, group.entries.length))
     );
 
-    if (group.noteText) {
-        wrapper.classList.add('bili-video-compact-group--with-note');
-        wrapper.append(createCompactNoteBlock(group.noteText));
-    }
-
     const cards = document.createElement('div');
     cards.className = 'bili-video-compact-group-cards';
     let currentSection: HTMLDivElement | null = null;
@@ -518,6 +520,9 @@ const createCompactGallery = (groups: CompactGroup[]): HTMLDivElement => {
     const gallery = document.createElement('div');
     gallery.className = 'bili-video-compact-gallery';
     groups.forEach((group) => {
+        if (group.noteText) {
+            gallery.append(createCompactNoteBlock(group.noteText));
+        }
         gallery.append(createCompactGalleryGroup(group));
     });
     return gallery;
@@ -702,6 +707,9 @@ const enhanceRenderedVideoLayout = (
             const gallery = document.createElement('div');
             gallery.className =
                 'bili-video-compact-gallery bili-video-compact-gallery--standalone';
+            if (group.noteText) {
+                gallery.append(createCompactNoteBlock(group.noteText));
+            }
             gallery.append(createCompactGalleryGroup(group));
             block.replaceWith(gallery);
         });
@@ -883,7 +891,8 @@ export const renderAnswerMarkdownWithVideoView = (
     text: string,
     viewMode: VideoLinkViewMode,
     videoMap: Map<string, VideoHit>,
-    ownerMap: Map<string, OwnerLinkInfo> = new Map()
+    ownerMap: Map<string, OwnerLinkInfo> = new Map(),
+    options: RenderAnswerOptions = {}
 ): string => {
     const html = linkifyOwnerMentionsInRenderedHtml(
         renderMarkdown(text),
@@ -896,7 +905,7 @@ export const renderAnswerMarkdownWithVideoView = (
     let replacedHtml = html.replace(
         RENDERED_SPACE_LINK_RE,
         (_match, href, mid, innerHtml) =>
-            buildRenderedOwnerLink(href, mid, innerHtml, viewMode, ownerMap)
+            buildRenderedOwnerLink(href, mid, innerHtml, viewMode, ownerMap, options)
     );
 
     if (viewMode !== 'text') {
