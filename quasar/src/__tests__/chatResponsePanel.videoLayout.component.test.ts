@@ -663,6 +663,82 @@ describe('ChatResponsePanel video layout', () => {
         expect(html).toContain('<code>战术分析</code>');
     });
 
+    it('attaches short single-line compact notes above single video cards for multi-column layout', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '#### [红警HBK08](https://space.bilibili.com/1629347259)\n\n- [红警全油田一排排！](BV1QywoziEqj) 15.6万播放，7天前，9分21秒\n- [红警2v2中间富的流油！](BV1h2wozNEop) 12.8万播放，7天前，6分50秒',
+            'compact',
+            new Map([
+                [
+                    'BV1QywoziEqj',
+                    {
+                        bvid: 'BV1QywoziEqj',
+                        title: '红警全油田一排排！',
+                        pic: 'https://example.com/BV1QywoziEqj.jpg',
+                        duration: 561,
+                        owner: { name: '红警HBK08' },
+                        stat: { view: 157000 },
+                    },
+                ],
+                [
+                    'BV1h2wozNEop',
+                    {
+                        bvid: 'BV1h2wozNEop',
+                        title: '红警2v2中间富的流油！',
+                        pic: 'https://example.com/BV1h2wozNEop.jpg',
+                        duration: 410,
+                        owner: { name: '红警HBK08' },
+                        stat: { view: 129000 },
+                    },
+                ],
+            ]),
+            new Map([
+                [
+                    '1629347259',
+                    {
+                        mid: '1629347259',
+                        name: '红警HBK08',
+                        face: 'https://example.com/hbk08-face.jpg',
+                        fans: 2207000,
+                    },
+                ],
+            ])
+        );
+
+        const host = document.createElement('div');
+        host.innerHTML = html;
+
+        expect(host.querySelectorAll('.bili-video-compact-entry--with-note')).toHaveLength(2);
+        expect(host.querySelectorAll('.bili-video-compact-note-block--attached')).toHaveLength(2);
+        expect(host.querySelectorAll('.bili-video-compact-gallery > .bili-video-compact-note-block')).toHaveLength(0);
+        expect(host.querySelector('.bili-video-compact-context-block--heading')).not.toBeNull();
+    });
+
+    it('keeps long single-video compact notes as full-width prose blocks', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '- [主视频](BV1AA411c7mD) 这条视频详细解释了开局思路、运营路径和对抗节奏，适合作为完整入门说明。',
+            'compact',
+            new Map([
+                [
+                    'BV1AA411c7mD',
+                    {
+                        bvid: 'BV1AA411c7mD',
+                        title: '主视频',
+                        pic: 'https://example.com/BV1AA411c7mD.jpg',
+                        duration: 360,
+                        owner: { name: '作者 1' },
+                        stat: { view: 10000 },
+                    },
+                ],
+            ])
+        );
+
+        const host = document.createElement('div');
+        host.innerHTML = html;
+
+        expect(host.querySelectorAll('.bili-video-compact-note-block--attached')).toHaveLength(0);
+        expect(host.querySelectorAll('.bili-video-compact-gallery > .bili-video-compact-note-block')).toHaveLength(1);
+    });
+
     it('separates mixed owner and video links into distinct compact sections', () => {
         const html = renderAnswerMarkdownWithVideoView(
             '先看 [主视频](BV1AA411c7mD)，再关注 [影视飓风](https://space.bilibili.com/946974)。',

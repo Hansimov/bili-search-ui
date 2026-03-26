@@ -2162,6 +2162,12 @@ export default defineComponent({
     width: 100%;
   }
 
+  :deep(.bili-video-compact-entry--with-note) {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
   :deep(.bili-video-compact-entry--single) {
     width: 100%;
   }
@@ -2185,6 +2191,22 @@ export default defineComponent({
     color: inherit;
     opacity: 1;
     word-break: break-word;
+  }
+
+  :deep(.bili-video-compact-note-block--attached) {
+    flex: 0 0 auto;
+    padding: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    opacity: 0.78;
+  }
+
+  :deep(.bili-video-compact-note-block--attached strong) {
+    font-weight: 600;
+  }
+
+  :deep(.bili-video-compact-note-block--attached code) {
+    font-size: 0.92em;
   }
 
   :deep(.bili-video-compact-context-block) {

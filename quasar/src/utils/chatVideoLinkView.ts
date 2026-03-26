@@ -528,15 +528,47 @@ type CompactGroup = {
     }>;
     noteText: string;
     noteHtml: string;
+    noteDisplay: 'full' | 'attached' | 'none';
 };
 
-const createCompactCardEntry = (anchor: HTMLAnchorElement) => {
+const shouldAttachCompactNote = (
+    noteText: string,
+    noteHtml: string,
+    entryCount: number
+): boolean => {
+    if (entryCount !== 1 || !noteText || !noteHtml) {
+        return false;
+    }
+
+    if (noteText.length > 40) {
+        return false;
+    }
+
+    if (/[。！？.!?]$/.test(noteText)) {
+        return false;
+    }
+
+    if (/<(p|div|ul|ol|blockquote|table|tr|td|th|pre|hr|br)\b/i.test(noteHtml)) {
+        return false;
+    }
+
+    return true;
+};
+
+const createCompactCardEntry = (
+    anchor: HTMLAnchorElement,
+    attachedNoteHtml = ''
+) => {
     const cardsWrap = document.createElement('div');
     cardsWrap.className =
         'bili-video-compact-entry-cards bili-video-compact-entry-cards--single';
 
     const entry = document.createElement('div');
     entry.className = 'bili-video-compact-entry bili-video-compact-entry--single';
+    if (attachedNoteHtml) {
+        entry.classList.add('bili-video-compact-entry--with-note');
+        entry.append(createCompactNoteBlock(attachedNoteHtml, 'attached'));
+    }
     cardsWrap.append(anchor.cloneNode(true));
     entry.append(cardsWrap);
     return {
@@ -579,11 +611,23 @@ const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
         noteText = '';
     }
 
+    const noteDisplay: CompactGroup['noteDisplay'] = noteText
+        ? shouldAttachCompactNote(noteText, noteHtml, anchors.length)
+            ? 'attached'
+            : 'full'
+        : 'none';
+
     if (anchors.length === 1) {
         return {
-            entries: [createCompactCardEntry(anchors[0])],
+            entries: [
+                createCompactCardEntry(
+                    anchors[0],
+                    noteDisplay === 'attached' ? noteHtml : ''
+                ),
+            ],
             noteText,
             noteHtml: noteText ? noteHtml : '',
+            noteDisplay,
         };
     }
 
@@ -591,6 +635,7 @@ const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
         entries: anchors.map((anchor) => createCompactCardEntry(anchor)),
         noteText,
         noteHtml: noteText ? noteHtml : '',
+        noteDisplay,
     };
 };
 
@@ -624,9 +669,15 @@ const createCompactContextBlock = (
     return block;
 };
 
-const createCompactNoteBlock = (noteHtml: string): HTMLDivElement => {
+const createCompactNoteBlock = (
+    noteHtml: string,
+    variant: 'full' | 'attached' = 'full'
+): HTMLDivElement => {
     const note = document.createElement('div');
     note.className = 'bili-video-compact-note-block';
+    if (variant === 'attached') {
+        note.classList.add('bili-video-compact-note-block--attached');
+    }
     note.innerHTML = noteHtml;
     return note;
 };
@@ -675,7 +726,11 @@ const createCompactGallery = (groups: CompactGroup[]): HTMLDivElement => {
     const gallery = document.createElement('div');
     gallery.className = 'bili-video-compact-gallery';
     groups.forEach((group) => {
-        if (group.noteText && group.noteHtml) {
+        if (
+            group.noteDisplay === 'full' &&
+            group.noteText &&
+            group.noteHtml
+        ) {
             gallery.append(createCompactNoteBlock(group.noteHtml));
         }
         gallery.append(createCompactGalleryGroup(group));
@@ -866,7 +921,11 @@ const enhanceRenderedVideoLayout = (
             const gallery = document.createElement('div');
             gallery.className =
                 'bili-video-compact-gallery bili-video-compact-gallery--standalone';
-            if (group.noteText && group.noteHtml) {
+            if (
+                group.noteDisplay === 'full' &&
+                group.noteText &&
+                group.noteHtml
+            ) {
                 gallery.append(createCompactNoteBlock(group.noteHtml));
             }
             gallery.append(createCompactGalleryGroup(group));

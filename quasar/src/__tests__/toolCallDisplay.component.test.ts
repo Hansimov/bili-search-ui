@@ -56,7 +56,72 @@ const searchOwnersCall: ToolCall = {
     },
 };
 
+const multiQuerySearchVideosCall: ToolCall = {
+    type: 'search_videos',
+    args: {
+        queries: [':uid=1629347259 :date<=30d', ':uid=674510452 :date<=30d'],
+    },
+    status: 'completed',
+    result: {
+        results: [
+            {
+                query: ':uid=1629347259 :date<=30d',
+                total_hits: 12,
+                hits: [
+                    {
+                        bvid: 'BV108A',
+                        title: '08 最近更新 1',
+                        pic: 'https://example.com/BV108A.jpg',
+                        owner: { name: '红警HBK08', mid: 1629347259 },
+                        stat: { view: 12345 },
+                    },
+                ],
+            },
+            {
+                query: ':uid=674510452 :date<=30d',
+                total_hits: 7,
+                hits: [
+                    {
+                        bvid: 'BVmoon3',
+                        title: '月亮3 最近更新 1',
+                        pic: 'https://example.com/BVmoon3.jpg',
+                        owner: { name: '红警月亮3', mid: 674510452 },
+                        stat: { view: 67890 },
+                    },
+                ],
+            },
+        ],
+    },
+};
+
 describe('ToolCallDisplay component', () => {
+    it('keeps completed multi-query search_videos collapsed by default while preserving results', async () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [multiQuerySearchVideosCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('在新窗口中查看 2 条结果');
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).not.toContain('expanded');
+
+        await wrapper.find('.tool-call-header').trigger('click');
+
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).toContain('expanded');
+        expect(wrapper.text()).toContain('08 最近更新 1');
+        expect(wrapper.text()).toContain('月亮3 最近更新 1');
+    });
+
     it('renders Google search results as expandable cards', async () => {
         const wrapper = mount(ToolCallDisplay, {
             props: {
