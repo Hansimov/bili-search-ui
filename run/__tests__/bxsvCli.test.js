@@ -1,10 +1,24 @@
 import { createRequire } from 'module';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { spawnSync } from 'child_process';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const { parseArgs } = require('../lib/cli');
 const { composeContent } = require('../lib/dockerRuntime');
+const { resolveSource } = require('../lib/sourceManager');
 const { buildInstanceId } = require('../lib/utils');
+
+function runGit(cwd, args) {
+    const result = spawnSync('git', args, {
+        cwd,
+        encoding: 'utf8',
+    });
+    expect(result.status).toBe(0);
+    return (result.stdout || '').trim();
+}
 
 describe('bxsv cli', () => {
     it('parses shared service arguments', () => {
@@ -69,5 +83,51 @@ describe('bxsv cli', () => {
         expect(yaml).toContain('host.docker.internal:host-gateway');
         expect(yaml).toContain('/tmp/bili-search-ui:/workspace');
         expect(yaml).toContain('quasar dev --host 0.0.0.0 --port 21002');
+    });
+
+    it('materializes local-git sources without corrupting git archive tar streams', () => {
+        const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bxsv-local-git-'));
+        let sourceRoot = null;
+
+        try {
+            runGit(repoDir, ['init']);
+            runGit(repoDir, ['config', 'user.email', 'bxsv-test@example.com']);
+            runGit(repoDir, ['config', 'user.name', 'bxsv test']);
+
+            fs.mkdirSync(path.join(repoDir, 'quasar'), { recursive: true });
+            fs.writeFileSync(
+                path.join(repoDir, 'quasar', 'package.json'),
+                JSON.stringify({ name: 'fixture-ui', version: '0.0.1' }, null, 2),
+                'utf8'
+            );
+            fs.writeFileSync(
+                path.join(repoDir, 'README.md'),
+                'fixture readme\n',
+                'utf8'
+            );
+
+            runGit(repoDir, ['add', '.']);
+            runGit(repoDir, ['commit', '-m', 'fixture']);
+            const gitRef = runGit(repoDir, ['rev-parse', 'HEAD']);
+
+            const source = resolveSource({
+                source: 'local-git',
+                gitRepo: repoDir,
+                gitRef,
+            });
+            sourceRoot = source.rootDir;
+
+            expect(source.kind).toBe('local-git');
+            expect(fs.existsSync(path.join(sourceRoot, 'quasar', 'package.json'))).toBe(true);
+            expect(
+                JSON.parse(fs.readFileSync(path.join(sourceRoot, 'quasar', 'package.json'), 'utf8')).name
+            ).toBe('fixture-ui');
+            expect(fs.readFileSync(path.join(sourceRoot, 'README.md'), 'utf8')).toBe('fixture readme\n');
+        } finally {
+            if (sourceRoot) {
+                fs.rmSync(sourceRoot, { recursive: true, force: true });
+            }
+            fs.rmSync(repoDir, { recursive: true, force: true });
+        }
     });
 });

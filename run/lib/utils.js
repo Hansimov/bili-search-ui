@@ -77,7 +77,7 @@ function runCommand(command, args, options = {}) {
         cwd: options.cwd,
         env: options.env,
         stdio: options.stdio || 'pipe',
-        encoding: options.encoding || 'utf8',
+        encoding: options.encoding === undefined ? 'utf8' : options.encoding,
         input: options.input,
         maxBuffer: options.maxBuffer || 256 * 1024 * 1024,
     });
