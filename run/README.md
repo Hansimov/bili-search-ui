@@ -55,9 +55,7 @@ bxsv template --name <template> [options]
 --host <host>                    前端监听地址，默认 0.0.0.0
 -fp --frontend-port <port>       前端端口，默认 21002
 -bp --backend-port <port>        后端 API 端口，默认 21001
--wp --websocket-port <port>      WebSocket 端口，默认 21003
 --backend-host <host>            后端 API 主机覆盖
---websocket-host <host>          WebSocket 主机覆盖
 --foreground                     本地模式前台运行
 --force                          强制替换已存在的本地实例
 -n --lines <n>                   日志尾部行数
@@ -127,7 +125,7 @@ bxsv template --name docker-pro --output json
 ```bash
 bxsv start --template local-dev
 bxsv start --template local-pro --foreground
-bxsv start --template docker-dev -fp 21012 -bp 21011 -wp 21013
+bxsv start --template docker-dev -fp 21012 -bp 21011
 bxsv check --template docker-pro --expected-status 200
 bxsv status --template local-dev --output json
 ```
@@ -167,14 +165,14 @@ bxsv start --runtime local --mode pro --source workspace --foreground
 
 ```bash
 bxsv start --runtime docker --mode dev --source workspace \
-  -fp 21012 -bp 21011 -wp 21013
+  -fp 21012 -bp 21011
 ```
 
 工作区代码，Docker 生产：
 
 ```bash
 bxsv start --runtime docker --mode pro --source workspace \
-  -fp 21102 -bp 21101 -wp 21103
+  -fp 21102 -bp 21101
 ```
 
 本地 Git 版本，Docker 生产：
@@ -182,7 +180,7 @@ bxsv start --runtime docker --mode pro --source workspace \
 ```bash
 bxsv start --runtime docker --mode pro \
   --source local-git --git-ref v0.3.0 \
-  -fp 21202 -bp 21201 -wp 21203
+  -fp 21202 -bp 21201
 ```
 
 远程 Git 版本，Docker 开发：
@@ -192,5 +190,11 @@ bxsv start --runtime docker --mode dev \
   --source remote-git \
   --git-url https://github.com/Hansimov/bili-search-ui.git \
   --git-ref main \
-  -fp 21302 -bp 21301 -wp 21303
+  -fp 21302 -bp 21301
 ```
+
+## 端口稳定性
+
+- `bxsv` 现在只管理前端端口和后端端口，不再额外暴露业务 WebSocket 端口。
+- 本地 `dev` 模式要求显式绑定到配置端口，默认 `21002`。如果该端口被占用，启动会直接失败，而不会静默漂移到 `21004` 之类的新端口。
+- 这样可以避免 Quasar/Vite 运行时端口与控制面记录不一致，进而引发 HMR 重连和异常刷新。

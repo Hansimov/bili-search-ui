@@ -5,7 +5,6 @@ const {
     DEFAULT_BACKEND_PORT,
     DEFAULT_FRONTEND_PORT,
     DEFAULT_HOST,
-    DEFAULT_WEBSOCKET_PORT,
     DOCKER_STATE_DIR,
     RUN_ROOT,
 } = require('./constants');
@@ -16,6 +15,7 @@ const {
     readJson,
     runCommand,
     safeName,
+    sameManagedIdentity,
     writeJson,
     yamlQuote,
 } = require('./utils');
@@ -25,7 +25,6 @@ function normalizeDockerOptions(args, options = {}) {
     const source = resolveSource(args, { materialize: options.materialize === true });
     const frontendPort = Number(args.frontendPort || process.env.FRONTEND_PORT || DEFAULT_FRONTEND_PORT);
     const backendPort = Number(args.backendPort || process.env.BACKEND_PORT || DEFAULT_BACKEND_PORT);
-    const websocketPort = Number(args.websocketPort || process.env.WEBSOCKET_PORT || DEFAULT_WEBSOCKET_PORT);
     const identity = {
         runtime: 'docker',
         mode: args.mode,
@@ -34,9 +33,7 @@ function normalizeDockerOptions(args, options = {}) {
         host: args.host || process.env.HOST || DEFAULT_HOST,
         frontendPort,
         backendPort,
-        websocketPort,
         backendHost: args.backendHost || 'host.docker.internal',
-        websocketHost: args.websocketHost || 'host.docker.internal',
     };
     const instanceId = buildInstanceId(identity);
     const stateDir = path.join(DOCKER_STATE_DIR, instanceId);
@@ -77,9 +74,7 @@ function composeContent(record) {
         '    environment:',
         `      FRONTEND_PORT: ${yamlQuote(record.frontendPort)}`,
         `      BACKEND_PORT: ${yamlQuote(record.backendPort)}`,
-        `      WEBSOCKET_PORT: ${yamlQuote(record.websocketPort)}`,
         `      BACKEND_HOST: ${yamlQuote(record.backendHost)}`,
-        `      WEBSOCKET_HOST: ${yamlQuote(record.websocketHost)}`,
         `      CHOKIDAR_USEPOLLING: ${yamlQuote('1')}`,
         '    ports:',
         `      - ${yamlQuote(`${record.frontendPort}:${record.frontendPort}`)}`,
@@ -133,6 +128,14 @@ function listDockerRecords() {
         .filter(Boolean);
 }
 
+function findMatchingDockerRecord(record) {
+    const current = loadMetadata(record.metadata);
+    if (current) {
+        return current;
+    }
+    return listDockerRecords().find((candidate) => sameManagedIdentity(candidate, record)) || null;
+}
+
 function dockerInspect(instanceId) {
     const result = runCommand(
         'docker',
@@ -159,6 +162,16 @@ function dockerInspect(instanceId) {
 
 function startDocker(args) {
     const record = normalizeDockerOptions(args, { materialize: true });
+    const current = findMatchingDockerRecord(record);
+    if (current) {
+        const existing = dockerInspect(current.instanceId);
+        if (existing) {
+            if (!args.force) {
+                throw new Error(`docker instance already running: ${current.instanceId}`);
+            }
+            stopDocker({ ...args, ...current });
+        }
+    }
     ensureCompose(record);
     runCommand('docker', composeArgs(record, ['up', '-d', '--build']), { stdio: 'inherit' });
     const inspect = dockerInspect(record.instanceId);
@@ -175,22 +188,22 @@ function startDocker(args) {
 
 function stopDocker(args) {
     const record = normalizeDockerOptions(args);
-    const current = loadMetadata(record.metadata);
+    const current = findMatchingDockerRecord(record);
     if (!current) {
         return { ...record, stopped: false, reason: 'not-found' };
     }
-    runCommand('docker', composeArgs(record, ['down', '--remove-orphans']), { stdio: 'inherit', check: false });
-    writeJson(record.metadata, {
+    runCommand('docker', composeArgs(current, ['down', '--remove-orphans']), { stdio: 'inherit', check: false });
+    writeJson(current.metadata || record.metadata, {
         ...current,
         updatedAt: new Date().toISOString(),
         stoppedAt: new Date().toISOString(),
     });
-    return { ...record, stopped: true };
+    return { ...current, stopped: true };
 }
 
 function statusDocker(args) {
     const record = normalizeDockerOptions(args);
-    const current = loadMetadata(record.metadata);
+    const current = findMatchingDockerRecord(record);
     if (!current) {
         return { ...record, status: 'not-found' };
     }
@@ -209,11 +222,15 @@ function restartDocker(args) {
 
 function logsDocker(args) {
     const record = normalizeDockerOptions(args);
+    const current = findMatchingDockerRecord(record);
+    if (!current) {
+        throw new Error('docker instance not found');
+    }
     const extraArgs = ['logs', '--tail', String(args.lines || 50)];
     if (args.follow) {
         extraArgs.push('-f');
     }
-    runCommand('docker', composeArgs(record, extraArgs), { stdio: 'inherit', check: false });
+    runCommand('docker', composeArgs(current, extraArgs), { stdio: 'inherit', check: false });
     return null;
 }
 

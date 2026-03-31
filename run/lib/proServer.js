@@ -8,8 +8,6 @@ const port = Number(process.env.FRONTEND_PORT || 21002);
 const distDir = process.env.DIST_DIR;
 const backendHost = process.env.BACKEND_HOST || '127.0.0.1';
 const backendPort = Number(process.env.BACKEND_PORT || 21001);
-const websocketHost = process.env.WEBSOCKET_HOST || '127.0.0.1';
-const websocketPort = Number(process.env.WEBSOCKET_PORT || 21003);
 
 if (!distDir) {
     throw new Error('DIST_DIR is required');
@@ -27,13 +25,6 @@ const apiProxy = httpProxy.createProxyServer({
     xfwd: true,
 });
 
-const wsProxy = httpProxy.createProxyServer({
-    target: `ws://${websocketHost}:${websocketPort}`,
-    changeOrigin: true,
-    ws: true,
-    xfwd: true,
-});
-
 function sendProxyError(res, error) {
     res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(`Proxy error: ${error.message}`);
@@ -42,12 +33,6 @@ function sendProxyError(res, error) {
 apiProxy.on('error', (error, req, res) => {
     if (res && !res.headersSent) {
         sendProxyError(res, error);
-    }
-});
-
-wsProxy.on('error', (error, req, socket) => {
-    if (socket && !socket.destroyed) {
-        socket.end(`HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nProxy error: ${error.message}`);
     }
 });
 
@@ -142,16 +127,6 @@ const server = http.createServer((req, res) => {
     }
 
     handleStaticRequest(req, res);
-});
-
-server.on('upgrade', (req, socket, head) => {
-    if (!req.url.startsWith('/ws')) {
-        socket.destroy();
-        return;
-    }
-
-    req.url = req.url.replace(/^\/ws/, '') || '/ws';
-    wsProxy.ws(req, socket, head);
 });
 
 server.listen(port, host, () => {

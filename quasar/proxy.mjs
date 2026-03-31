@@ -1,8 +1,6 @@
 // 从环境变量或默认值获取端口配置
 const BACKEND_HOST = process.env.BACKEND_HOST || '127.0.0.1';
 const BACKEND_PORT = process.env.BACKEND_PORT || 21001;
-const WEBSOCKET_HOST = process.env.WEBSOCKET_HOST || '127.0.0.1';
-const WEBSOCKET_PORT = process.env.WEBSOCKET_PORT || 21003;
 
 export default [
     {
@@ -12,16 +10,6 @@ export default [
             changeOrigin: true,
             pathRewrite: { '^/api': '' },
         },
-    },
-    {
-        path: '/ws',
-        rule: {
-            target: `ws://${WEBSOCKET_HOST}:${WEBSOCKET_PORT}/ws`,
-            changeOrigin: true,
-            ws: true,
-            pathRewrite: { '^/ws': '' },
-        },
-
     },
 ];
 // https://quasar.dev/quasar-cli-vite/commands-list#serve

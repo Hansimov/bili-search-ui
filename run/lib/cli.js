@@ -54,9 +54,7 @@ Core options:
   --host <host>                   Frontend bind host, default 0.0.0.0
   -fp, --frontend-port <port>     Frontend port
   -bp, --backend-port <port>      Backend API port
-  -wp, --websocket-port <port>    WebSocket port
   --backend-host <host>           Backend host override
-  --websocket-host <host>         WebSocket host override
     --instance-id <id>              Filter by managed instance id
     --status <running|stopped>      Filter by runtime status
     --template <name>               Apply a built-in runtime template
@@ -79,7 +77,7 @@ Examples:
   bxsv start --runtime local --mode dev
     bxsv start --runtime docker --mode pro --source local-git --git-ref main
   bxsv start --runtime docker --mode dev --backend-host host.docker.internal
-    bxsv start --template docker-pro -fp 21102 -bp 21101 -wp 21103
+        bxsv start --template docker-pro -fp 21102 -bp 21101
     bxsv check --runtime local --mode dev --path /
     bxsv ps --runtime docker --status running --output json
     bxsv templates --output table
@@ -119,7 +117,6 @@ function parseArgs(argv) {
         ['--git-url', ['gitUrl', 'string']],
         ['--host', ['host', 'string']],
         ['--backend-host', ['backendHost', 'string']],
-        ['--websocket-host', ['websocketHost', 'string']],
         ['--instance-id', ['instanceId', 'string']],
         ['--status', ['statusFilter', 'string']],
         ['--template', ['template', 'string']],
@@ -128,8 +125,6 @@ function parseArgs(argv) {
         ['--frontend-port', ['frontendPort', 'number']],
         ['-bp', ['backendPort', 'number']],
         ['--backend-port', ['backendPort', 'number']],
-        ['-wp', ['websocketPort', 'number']],
-        ['--websocket-port', ['websocketPort', 'number']],
         ['--foreground', ['foreground', 'boolean']],
         ['--force', ['force', 'boolean']],
         ['--all', ['all', 'boolean']],
@@ -302,7 +297,6 @@ function buildFilters(args) {
         sourceRef: args._provided.has('gitRef') ? args.gitRef : args.source === 'workspace' && args._provided.has('source') ? 'workspace' : undefined,
         frontendPort: args._provided.has('frontendPort') ? args.frontendPort : undefined,
         backendPort: args._provided.has('backendPort') ? args.backendPort : undefined,
-        websocketPort: args._provided.has('websocketPort') ? args.websocketPort : undefined,
         status: args._provided.has('statusFilter') ? args.statusFilter : undefined,
     };
 }
@@ -315,7 +309,7 @@ function matchesFilters(record, filters) {
         if (key === 'status') {
             return record.status === expected;
         }
-        if (['frontendPort', 'backendPort', 'websocketPort'].includes(key)) {
+        if (['frontendPort', 'backendPort'].includes(key)) {
             return Number(record[key]) === Number(expected);
         }
         return record[key] === expected;

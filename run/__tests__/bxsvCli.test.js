@@ -22,8 +22,6 @@ describe('bxsv cli', () => {
             '21102',
             '-bp',
             '21101',
-            '-wp',
-            '21103',
             '--template',
             'docker-pro',
             '--output',
@@ -37,7 +35,6 @@ describe('bxsv cli', () => {
         expect(parsed.gitRef).toBe('release/v1');
         expect(parsed.frontendPort).toBe(21102);
         expect(parsed.backendPort).toBe(21101);
-        expect(parsed.websocketPort).toBe(21103);
         expect(parsed.template).toBe('docker-pro');
         expect(parsed.output).toBe('json');
     });
@@ -50,7 +47,6 @@ describe('bxsv cli', () => {
             sourceRef: 'workspace',
             frontendPort: 21002,
             backendPort: 21001,
-            websocketPort: 21003,
         });
 
         expect(instanceId).toContain('docker-dev-workspace-workspace');
@@ -67,9 +63,7 @@ describe('bxsv cli', () => {
             dockerfile: '/tmp/bili-search-ui/run/Dockerfile',
             frontendPort: 21002,
             backendPort: 21001,
-            websocketPort: 21003,
             backendHost: 'host.docker.internal',
-            websocketHost: 'host.docker.internal',
         });
 
         expect(yaml).toContain('host.docker.internal:host-gateway');

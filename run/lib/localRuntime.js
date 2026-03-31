@@ -5,8 +5,6 @@ const {
     DEFAULT_BACKEND_HOST,
     DEFAULT_FRONTEND_PORT,
     DEFAULT_BACKEND_PORT,
-    DEFAULT_WEBSOCKET_HOST,
-    DEFAULT_WEBSOCKET_PORT,
     DEFAULT_HOST,
     LOCAL_STATE_DIR,
     RUN_ROOT,
@@ -18,6 +16,7 @@ const {
     processExists,
     readJson,
     runCommand,
+    sameManagedIdentity,
     spawnBackground,
     tailLines,
     terminateProcess,
@@ -30,9 +29,7 @@ function normalizeLocalOptions(args, options = {}) {
     const source = resolveSource(args, { materialize: options.materialize === true });
     const frontendPort = Number(args.frontendPort || process.env.FRONTEND_PORT || DEFAULT_FRONTEND_PORT);
     const backendPort = Number(args.backendPort || process.env.BACKEND_PORT || DEFAULT_BACKEND_PORT);
-    const websocketPort = Number(args.websocketPort || process.env.WEBSOCKET_PORT || DEFAULT_WEBSOCKET_PORT);
     const backendHost = args.backendHost || process.env.BACKEND_HOST || DEFAULT_BACKEND_HOST;
-    const websocketHost = args.websocketHost || process.env.WEBSOCKET_HOST || DEFAULT_WEBSOCKET_HOST;
     const host = args.host || process.env.HOST || DEFAULT_HOST;
     const sourceRef = source.ref || 'workspace';
     const instance = {
@@ -43,9 +40,7 @@ function normalizeLocalOptions(args, options = {}) {
         host,
         frontendPort,
         backendPort,
-        websocketPort,
         backendHost,
-        websocketHost,
     };
     const instanceId = buildInstanceId(instance);
     const stateDir = path.join(LOCAL_STATE_DIR, instanceId);
@@ -88,6 +83,15 @@ function listLocalRecords(includeAll = false) {
         .filter((record) => includeAll || record.status === 'running');
 }
 
+function findMatchingLocalRecord(record) {
+    const current = loadRecord(record.metadata);
+    if (current) {
+        return current;
+    }
+
+    return listLocalRecords(true).find((candidate) => sameManagedIdentity(candidate, record)) || null;
+}
+
 function ensureDependencies(quasarDir) {
     if (fs.existsSync(path.join(quasarDir, 'node_modules', '.bin', 'quasar'))) {
         return;
@@ -101,9 +105,7 @@ function localEnv(record) {
         HOST: record.host,
         FRONTEND_PORT: String(record.frontendPort),
         BACKEND_PORT: String(record.backendPort),
-        WEBSOCKET_PORT: String(record.websocketPort),
         BACKEND_HOST: record.backendHost,
-        WEBSOCKET_HOST: record.websocketHost,
         BROWSERSLIST_IGNORE_OLD_DATA: '1',
     };
 }
@@ -135,7 +137,7 @@ async function startLocal(args) {
     ensureDir(record.stateDir);
     ensureDependencies(record.quasarDir);
 
-    const current = loadRecord(record.metadata);
+    const current = findMatchingLocalRecord(record);
     if (current && processExists(current.pid)) {
         if (!args.force) {
             throw new Error(`local instance already running: ${record.instanceId}`);
@@ -168,9 +170,21 @@ async function startLocal(args) {
         env,
         logFile: record.logFile,
     });
-    writeMetadata(record, pid);
 
     const ready = await waitForPort(record.frontendPort);
+    if (!ready) {
+        const excerpt = fs.existsSync(record.logFile)
+            ? tailLines(record.logFile, 40)
+            : 'service log unavailable';
+        await terminateProcess(pid).catch(() => false);
+        throw new Error(
+            `local frontend failed to bind http://127.0.0.1:${record.frontendPort}/; ` +
+            'bxsv now requires the configured port instead of silently switching ports.\n' +
+            excerpt
+        );
+    }
+
+    writeMetadata(record, pid);
     return {
         ...record,
         pid,
@@ -180,27 +194,27 @@ async function startLocal(args) {
 
 async function stopLocal(args) {
     const record = normalizeLocalOptions(args);
-    const current = loadRecord(record.metadata);
+    const current = findMatchingLocalRecord(record);
     if (!current) {
         return { ...record, stopped: false, reason: 'not-found' };
     }
 
     const stopped = await terminateProcess(current.pid);
     if (stopped || !processExists(current.pid)) {
-        fs.rmSync(record.pidFile, { force: true });
+        fs.rmSync(current.pidFile || record.pidFile, { force: true });
     }
-    writeJson(record.metadata, {
+    writeJson(current.metadata || record.metadata, {
         ...current,
         pid: current.pid,
         updatedAt: new Date().toISOString(),
         stoppedAt: new Date().toISOString(),
     });
-    return { ...record, stopped, pid: current.pid };
+    return { ...current, stopped, pid: current.pid };
 }
 
 function statusLocal(args) {
     const record = normalizeLocalOptions(args);
-    const current = loadRecord(record.metadata);
+    const current = findMatchingLocalRecord(record);
     if (!current) {
         return { ...record, status: 'not-found' };
     }
@@ -217,7 +231,7 @@ async function restartLocal(args) {
 
 function logsLocal(args) {
     const record = normalizeLocalOptions(args);
-    const current = loadRecord(record.metadata);
+    const current = findMatchingLocalRecord(record);
     if (!current || !fs.existsSync(current.logFile || record.logFile)) {
         throw new Error('log file not found');
     }

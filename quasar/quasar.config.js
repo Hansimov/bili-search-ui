@@ -14,8 +14,6 @@ const { configure } = require('quasar/wrappers');
 const BACKEND_HOST = process.env.BACKEND_HOST || '127.0.0.1';
 const BACKEND_PORT = process.env.BACKEND_PORT || 21001;
 const FRONTEND_PORT = process.env.FRONTEND_PORT || 21002;
-const WEBSOCKET_HOST = process.env.WEBSOCKET_HOST || '127.0.0.1';
-const WEBSOCKET_PORT = process.env.WEBSOCKET_PORT || 21003;
 
 module.exports = configure(function (/* ctx */) {
     return {
@@ -167,6 +165,7 @@ module.exports = configure(function (/* ctx */) {
         devServer: {
             // https: true
             open: false, // opens browser window automatically
+            strictPort: true,
             proxy: {
                 // https://quasar.dev/quasar-cli-vite/api-proxying
                 // proxy all requests starting with /api to jsonplaceholder
@@ -174,13 +173,6 @@ module.exports = configure(function (/* ctx */) {
                     target: `http://${BACKEND_HOST}:${BACKEND_PORT}`,
                     changeOrigin: true,
                     rewrite: (path) => path.replace(/^\/api/, ''),
-                },
-                // proxy all websocket requests to websocket server
-                '/ws': {
-                    target: `ws://${WEBSOCKET_HOST}:${WEBSOCKET_PORT}/ws`,
-                    ws: true,
-                    changeOrigin: true,
-                    rewrite: (path) => path.replace(/^\/ws/, ''),
                 },
                 // proxy login requests to passport server
                 '/bili-passport': {
@@ -211,9 +203,6 @@ module.exports = configure(function (/* ctx */) {
 
             },
             port: parseInt(FRONTEND_PORT),
-            hmr: {
-                clientPort: parseInt(FRONTEND_PORT),
-            },
         },
 
         // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#framework
