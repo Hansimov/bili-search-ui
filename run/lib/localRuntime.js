@@ -16,7 +16,6 @@ const {
     processExists,
     readJson,
     runCommand,
-    sameManagedIdentity,
     spawnBackground,
     tailLines,
     terminateProcess,
@@ -83,15 +82,6 @@ function listLocalRecords(includeAll = false) {
         .filter((record) => includeAll || record.status === 'running');
 }
 
-function findMatchingLocalRecord(record) {
-    const current = loadRecord(record.metadata);
-    if (current) {
-        return current;
-    }
-
-    return listLocalRecords(true).find((candidate) => sameManagedIdentity(candidate, record)) || null;
-}
-
 function ensureDependencies(quasarDir) {
     if (fs.existsSync(path.join(quasarDir, 'node_modules', '.bin', 'quasar'))) {
         return;
@@ -137,7 +127,7 @@ async function startLocal(args) {
     ensureDir(record.stateDir);
     ensureDependencies(record.quasarDir);
 
-    const current = findMatchingLocalRecord(record);
+    const current = loadRecord(record.metadata);
     if (current && processExists(current.pid)) {
         if (!args.force) {
             throw new Error(`local instance already running: ${record.instanceId}`);
@@ -194,27 +184,27 @@ async function startLocal(args) {
 
 async function stopLocal(args) {
     const record = normalizeLocalOptions(args);
-    const current = findMatchingLocalRecord(record);
+    const current = loadRecord(record.metadata);
     if (!current) {
         return { ...record, stopped: false, reason: 'not-found' };
     }
 
     const stopped = await terminateProcess(current.pid);
     if (stopped || !processExists(current.pid)) {
-        fs.rmSync(current.pidFile || record.pidFile, { force: true });
+        fs.rmSync(record.pidFile, { force: true });
     }
-    writeJson(current.metadata || record.metadata, {
+    writeJson(record.metadata, {
         ...current,
         pid: current.pid,
         updatedAt: new Date().toISOString(),
         stoppedAt: new Date().toISOString(),
     });
-    return { ...current, stopped, pid: current.pid };
+    return { ...record, stopped, pid: current.pid };
 }
 
 function statusLocal(args) {
     const record = normalizeLocalOptions(args);
-    const current = findMatchingLocalRecord(record);
+    const current = loadRecord(record.metadata);
     if (!current) {
         return { ...record, status: 'not-found' };
     }
@@ -231,7 +221,7 @@ async function restartLocal(args) {
 
 function logsLocal(args) {
     const record = normalizeLocalOptions(args);
-    const current = findMatchingLocalRecord(record);
+    const current = loadRecord(record.metadata);
     if (!current || !fs.existsSync(current.logFile || record.logFile)) {
         throw new Error('log file not found');
     }

@@ -15,7 +15,6 @@ const {
     readJson,
     runCommand,
     safeName,
-    sameManagedIdentity,
     writeJson,
     yamlQuote,
 } = require('./utils');
@@ -128,14 +127,6 @@ function listDockerRecords() {
         .filter(Boolean);
 }
 
-function findMatchingDockerRecord(record) {
-    const current = loadMetadata(record.metadata);
-    if (current) {
-        return current;
-    }
-    return listDockerRecords().find((candidate) => sameManagedIdentity(candidate, record)) || null;
-}
-
 function dockerInspect(instanceId) {
     const result = runCommand(
         'docker',
@@ -162,14 +153,14 @@ function dockerInspect(instanceId) {
 
 function startDocker(args) {
     const record = normalizeDockerOptions(args, { materialize: true });
-    const current = findMatchingDockerRecord(record);
+    const current = loadMetadata(record.metadata);
     if (current) {
         const existing = dockerInspect(current.instanceId);
         if (existing) {
             if (!args.force) {
                 throw new Error(`docker instance already running: ${current.instanceId}`);
             }
-            stopDocker({ ...args, ...current });
+            stopDocker(args);
         }
     }
     ensureCompose(record);
@@ -188,26 +179,26 @@ function startDocker(args) {
 
 function stopDocker(args) {
     const record = normalizeDockerOptions(args);
-    const current = findMatchingDockerRecord(record);
+    const current = loadMetadata(record.metadata);
     if (!current) {
         return { ...record, stopped: false, reason: 'not-found' };
     }
-    runCommand('docker', composeArgs(current, ['down', '--remove-orphans']), { stdio: 'inherit', check: false });
-    writeJson(current.metadata || record.metadata, {
+    runCommand('docker', composeArgs(record, ['down', '--remove-orphans']), { stdio: 'inherit', check: false });
+    writeJson(record.metadata, {
         ...current,
         updatedAt: new Date().toISOString(),
         stoppedAt: new Date().toISOString(),
     });
-    return { ...current, stopped: true };
+    return { ...record, stopped: true };
 }
 
 function statusDocker(args) {
     const record = normalizeDockerOptions(args);
-    const current = findMatchingDockerRecord(record);
+    const current = loadMetadata(record.metadata);
     if (!current) {
         return { ...record, status: 'not-found' };
     }
-    const inspect = dockerInspect(record.instanceId);
+    const inspect = dockerInspect(current.instanceId);
     return {
         ...current,
         container: inspect,
@@ -222,15 +213,14 @@ function restartDocker(args) {
 
 function logsDocker(args) {
     const record = normalizeDockerOptions(args);
-    const current = findMatchingDockerRecord(record);
-    if (!current) {
+    if (!loadMetadata(record.metadata)) {
         throw new Error('docker instance not found');
     }
     const extraArgs = ['logs', '--tail', String(args.lines || 50)];
     if (args.follow) {
         extraArgs.push('-f');
     }
-    runCommand('docker', composeArgs(current, extraArgs), { stdio: 'inherit', check: false });
+    runCommand('docker', composeArgs(record, extraArgs), { stdio: 'inherit', check: false });
     return null;
 }
 

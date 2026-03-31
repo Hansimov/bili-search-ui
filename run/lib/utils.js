@@ -34,17 +34,6 @@ function buildInstanceId(identity) {
     return `${core}-${shortHash(JSON.stringify(identity))}`;
 }
 
-function sameManagedIdentity(left, right) {
-    return (
-        left.runtime === right.runtime &&
-        left.mode === right.mode &&
-        left.sourceKind === right.sourceKind &&
-        (left.sourceRef || 'workspace') === (right.sourceRef || 'workspace') &&
-        Number(left.frontendPort) === Number(right.frontendPort) &&
-        Number(left.backendPort) === Number(right.backendPort)
-    );
-}
-
 function buildDisplaySource(kind, ref) {
     if (kind === 'workspace') {
         return 'workspace';
@@ -271,7 +260,6 @@ module.exports = {
     safeName,
     shortHash,
     buildInstanceId,
-    sameManagedIdentity,
     buildDisplaySource,
     formatTable,
     readJson,
