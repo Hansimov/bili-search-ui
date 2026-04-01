@@ -106,6 +106,8 @@ export interface ChatCompletionParams {
     temperature?: number;
 }
 
+const ANSWER_VISIBLE_GRACE_MS = 400;
+
 /**
  * Send a streaming chat completion request via SSE.
  *
@@ -160,8 +162,40 @@ export async function chatCompletionStream(
 
     const decoder = new TextDecoder();
     let buffer = '';
+    let hasYieldedFirstContent = false;
+    let hasDeliveredAnswerContent = false;
 
-    const processEvent = (rawEvent: string): boolean => {
+    const yieldToUi = async (): Promise<void> => {
+        await new Promise<void>((resolve) => {
+            if (
+                typeof window !== 'undefined' &&
+                typeof window.requestAnimationFrame === 'function'
+            ) {
+                window.requestAnimationFrame(() => {
+                    window.requestAnimationFrame(() => resolve());
+                });
+                return;
+            }
+            setTimeout(resolve, 0);
+        });
+    };
+
+    const allowAnswerToSettle = async (): Promise<void> => {
+        await yieldToUi();
+        await new Promise<void>((resolve) => {
+            setTimeout(resolve, ANSWER_VISIBLE_GRACE_MS);
+        });
+    };
+
+    const processEvent = (rawEvent: string): {
+        shouldStop: boolean;
+        deliveredContent: boolean;
+        shouldYieldToUi: boolean;
+        pendingDone?: {
+            perfStats?: PerfStats;
+            usage?: Usage;
+        };
+    } => {
         const lines = rawEvent
             .split('\n')
             .map((line) => line.replace(/\r$/, ''));
@@ -177,34 +211,75 @@ export async function chatCompletionStream(
         }
 
         if (dataLines.length === 0) {
-            return false;
+            return {
+                shouldStop: false,
+                deliveredContent: false,
+                shouldYieldToUi: false,
+                pendingDone: undefined,
+            };
         }
 
         const dataStr = dataLines.join('\n').trim();
         if (!dataStr) {
-            return false;
+            return {
+                shouldStop: false,
+                deliveredContent: false,
+                shouldYieldToUi: false,
+                pendingDone: undefined,
+            };
         }
 
         if (dataStr === '[DONE]') {
-            return true;
+            return {
+                shouldStop: true,
+                deliveredContent: false,
+                shouldYieldToUi: false,
+                pendingDone: undefined,
+            };
         }
+
+        let deliveredContent = false;
+        let shouldYieldToUi = false;
+        let pendingDone:
+            | {
+                perfStats?: PerfStats;
+                usage?: Usage;
+            }
+            | undefined;
 
         try {
             const parsed = JSON.parse(dataStr);
 
             if (parsed.error) {
                 callbacks.onError?.(new Error(parsed.error));
-                return true;
+                return {
+                    shouldStop: true,
+                    deliveredContent: false,
+                    shouldYieldToUi: false,
+                    pendingDone: undefined,
+                };
             }
 
             if (parsed.stream_id && !parsed.choices) {
                 callbacks.onStreamId?.(parsed.stream_id);
-                return false;
+                return {
+                    shouldStop: false,
+                    deliveredContent: false,
+                    shouldYieldToUi: false,
+                    pendingDone: undefined,
+                };
             }
 
             const chunk = parsed as ChatStreamChunk;
             const choice = chunk.choices?.[0];
-            if (!choice) return false;
+            if (!choice) {
+                return {
+                    shouldStop: false,
+                    deliveredContent: false,
+                    shouldYieldToUi: false,
+                    pendingDone: undefined,
+                };
+            }
 
             const delta = choice.delta;
 
@@ -214,7 +289,12 @@ export async function chatCompletionStream(
 
             if (delta.retract_content) {
                 callbacks.onRetractContent?.();
-                return false;
+                return {
+                    shouldStop: false,
+                    deliveredContent: false,
+                    shouldYieldToUi: false,
+                    pendingDone: undefined,
+                };
             }
 
             if (delta.reasoning_content) {
@@ -223,6 +303,12 @@ export async function chatCompletionStream(
 
             if (delta.content) {
                 callbacks.onContent?.(delta.content);
+                deliveredContent = true;
+                hasDeliveredAnswerContent = true;
+                if (!hasYieldedFirstContent) {
+                    shouldYieldToUi = true;
+                    hasYieldedFirstContent = true;
+                }
             }
 
             if (chunk.tool_events) {
@@ -232,27 +318,45 @@ export async function chatCompletionStream(
             }
 
             if (choice.finish_reason === 'stop') {
-                callbacks.onDone?.(
-                    chunk.perf_stats,
-                    chunk.usage,
-                );
+                pendingDone = {
+                    perfStats: chunk.perf_stats,
+                    usage: chunk.usage,
+                };
             }
         } catch {
             // Skip malformed JSON chunks
         }
 
-        return false;
+        return {
+            shouldStop: false,
+            deliveredContent,
+            shouldYieldToUi,
+            pendingDone,
+        };
     };
 
-    const processBufferedEvents = (flush = false): boolean => {
+    const processBufferedEvents = async (flush = false): Promise<boolean> => {
         buffer = buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
         let separatorIndex = buffer.indexOf('\n\n');
         while (separatorIndex >= 0) {
             const rawEvent = buffer.slice(0, separatorIndex);
             buffer = buffer.slice(separatorIndex + 2);
-            if (processEvent(rawEvent)) {
+            const result = processEvent(rawEvent);
+            if (result.shouldStop) {
                 return true;
+            }
+            if (result.shouldYieldToUi) {
+                await yieldToUi();
+            }
+            if (result.pendingDone) {
+                if (hasDeliveredAnswerContent) {
+                    await allowAnswerToSettle();
+                }
+                callbacks.onDone?.(
+                    result.pendingDone.perfStats,
+                    result.pendingDone.usage,
+                );
             }
             separatorIndex = buffer.indexOf('\n\n');
         }
@@ -260,7 +364,7 @@ export async function chatCompletionStream(
         if (flush && buffer.trim()) {
             const rawEvent = buffer;
             buffer = '';
-            if (processEvent(rawEvent)) {
+            if (processEvent(rawEvent).shouldStop) {
                 return true;
             }
         }
@@ -273,12 +377,12 @@ export async function chatCompletionStream(
             const { done, value } = await reader.read();
             if (done) {
                 buffer += decoder.decode();
-                processBufferedEvents(true);
+                await processBufferedEvents(true);
                 break;
             }
 
             buffer += decoder.decode(value, { stream: true });
-            if (processBufferedEvents()) {
+            if (await processBufferedEvents()) {
                 return;
             }
         }

@@ -580,6 +580,61 @@ describe('ChatStore', () => {
             expect(store.currentSession.isThinkingPhase).toBe(false);
         });
 
+        it('sendChat 在思考模式下应在 onDone 前显示增量答案', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            let resumeStream: (() => void) | undefined;
+            const streamGate = new Promise<void>((resolve) => {
+                resumeStream = resolve;
+            });
+
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callbacks.onStart?.({
+                    id: 'test',
+                    object: 'chat.completion.chunk',
+                    choices: [
+                        {
+                            index: 0,
+                            delta: { role: 'assistant' },
+                            finish_reason: null,
+                        },
+                    ],
+                    thinking: true,
+                });
+                callbacks.onThinking?.('先分析');
+                callbacks.onContent?.('第一段答案');
+
+                await streamGate;
+
+                callbacks.onContent?.('，第二段答案');
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            const pending = store.sendChat('深度问题', 'think');
+
+            await Promise.resolve();
+
+            expect(store.currentSession.thinkingContent).toBe('先分析');
+            expect(store.currentSession.content).toBe('第一段答案');
+            expect(store.currentSession.isLoading).toBe(true);
+            expect(store.currentSession.isDone).toBe(false);
+            expect(store.currentSession.isThinkingPhase).toBe(false);
+
+            if (!resumeStream) {
+                throw new Error('expected stream resume callback');
+            }
+            resumeStream();
+            await pending;
+
+            expect(store.currentSession.content).toBe('第一段答案，第二段答案');
+            expect(store.currentSession.isLoading).toBe(false);
+            expect(store.currentSession.isDone).toBe(true);
+        });
+
         it('sendChat 应该实时更新 toolEvents', async () => {
             const { chatCompletionStream } = await import(
                 'src/services/chatService'
