@@ -2,6 +2,57 @@ import { SpaceMyInfo, MidCard, RelationFollowingResponse, RelationFollowingUserI
 import { CookieManager } from './cookieManager';
 
 export class BiliApiClient {
+    private static async parseJsonResponse<T>(response: Response, label: string): Promise<T | null> {
+        const contentType = response.headers.get('content-type') || '';
+        if (!/json/i.test(contentType)) {
+            const responseText = await response.text();
+            const preview = responseText.replace(/\s+/g, ' ').slice(0, 160);
+            console.error(`${label} expected JSON but received:`, contentType || 'unknown', preview);
+            return null;
+        }
+
+        try {
+            return await response.json() as T;
+        } catch (error) {
+            console.error(`${label} failed to parse JSON:`, error);
+            return null;
+        }
+    }
+
+    private static async requestMidCard(mid: string, useAuth: boolean): Promise<MidCard | null> {
+        const headers = useAuth
+            ? CookieManager.getAuthHeaders()
+            : { 'Accept': 'application/json' };
+
+        const response = await fetch(`/bili-api/x/web-interface/card?mid=${encodeURIComponent(mid)}&photo=true`, {
+            method: 'GET',
+            headers,
+            credentials: useAuth ? 'include' : 'omit',
+        });
+
+        if (!response.ok) {
+            console.error('MidCard request failed with status:', response.status);
+            return null;
+        }
+
+        const data = await this.parseJsonResponse<{
+            code: number;
+            message: string;
+            data?: MidCard;
+        }>(response, 'MidCard response');
+
+        if (!data) {
+            return null;
+        }
+
+        if (data.code === 0 && data.data) {
+            return data.data;
+        }
+
+        console.error('MidCard API returned error:', data.code, data.message);
+        return null;
+    }
+
     // 获取当前用户信息 (space/myinfo)
     static async fetchSpaceMyInfo(): Promise<SpaceMyInfo | null> {
         try {
@@ -48,27 +99,18 @@ export class BiliApiClient {
     // 获取用户卡片信息 (web-interface/card)
     static async fetchMidCard(mid: string, useAuth = false): Promise<MidCard | null> {
         try {
-            const headers = useAuth ? CookieManager.getAuthHeaders() : { 'Content-Type': 'application/json' };
-
-            const response = await fetch(`/bili-api/x/web-interface/card?mid=${mid}&photo=true`, {
-                method: 'GET',
-                headers,
-                credentials: 'include',
-            });
-
-            if (!response.ok) {
-                console.error('MidCard request failed with status:', response.status);
+            const normalizedMid = String(mid || '').trim();
+            if (!normalizedMid) {
                 return null;
             }
 
-            const data = await response.json();
-
-            if (data.code === 0 && data.data) {
-                return data.data as MidCard;
-            } else {
-                console.error('MidCard API returned error:', data.code, data.message);
-                return null;
+            const data = await this.requestMidCard(normalizedMid, useAuth);
+            if (data || !useAuth) {
+                return data;
             }
+
+            console.warn('MidCard auth request failed, retrying without auth:', normalizedMid);
+            return await this.requestMidCard(normalizedMid, false);
         } catch (error) {
             console.error('Error fetching mid card:', error);
             return null;

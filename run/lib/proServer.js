@@ -8,6 +8,10 @@ const port = Number(process.env.FRONTEND_PORT || 21002);
 const distDir = process.env.DIST_DIR;
 const backendHost = process.env.BACKEND_HOST || '127.0.0.1';
 const backendPort = Number(process.env.BACKEND_PORT || 21001);
+const biliApiTarget = process.env.BILI_API_TARGET || 'https://api.bilibili.com';
+const biliUserAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
 
 if (!distDir) {
     throw new Error('DIST_DIR is required');
@@ -25,6 +29,13 @@ const apiProxy = httpProxy.createProxyServer({
     xfwd: true,
 });
 
+const biliApiProxy = httpProxy.createProxyServer({
+    target: biliApiTarget,
+    changeOrigin: true,
+    xfwd: true,
+    secure: biliApiTarget.startsWith('https://'),
+});
+
 function sendProxyError(res, error) {
     res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(`Proxy error: ${error.message}`);
@@ -34,6 +45,18 @@ apiProxy.on('error', (error, req, res) => {
     if (res && !res.headersSent) {
         sendProxyError(res, error);
     }
+});
+
+biliApiProxy.on('error', (error, req, res) => {
+    if (res && !res.headersSent) {
+        sendProxyError(res, error);
+    }
+});
+
+biliApiProxy.on('proxyReq', (proxyReq) => {
+    proxyReq.setHeader('Referer', 'https://www.bilibili.com');
+    proxyReq.setHeader('Origin', 'https://www.bilibili.com');
+    proxyReq.setHeader('User-Agent', biliUserAgent);
 });
 
 function contentType(filePath) {
@@ -120,9 +143,17 @@ function handleStaticRequest(req, res) {
 }
 
 const server = http.createServer((req, res) => {
-    if (req.url.startsWith('/api')) {
+    const requestUrl = req.url || '/';
+
+    if (requestUrl.startsWith('/api')) {
         req.url = req.url.replace(/^\/api/, '') || '/';
         apiProxy.web(req, res);
+        return;
+    }
+
+    if (requestUrl.startsWith('/bili-api')) {
+        req.url = req.url.replace(/^\/bili-api/, '') || '/';
+        biliApiProxy.web(req, res);
         return;
     }
 
