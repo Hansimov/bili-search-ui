@@ -11,10 +11,18 @@ const mockLayoutStore = {
     setCurrentPage: vi.fn(),
 };
 
+const mockExportedSnapshot = {
+    session: {
+        id: 'session-123',
+    },
+    conversationHistory: [] as Array<{ role: string; content: string }>,
+};
+
 const mockChatStore = {
     currentSessionId: 'session-123',
     conversationHistory: [] as Array<{ role: string; content: string }>,
     currentHistoryRecordId: null as string | null,
+    exportSnapshot: vi.fn(() => mockExportedSnapshot),
     setCurrentHistoryRecordId: vi.fn(),
     startNewChat: vi.fn(),
     sendChat: vi.fn(async () => undefined),
@@ -102,13 +110,17 @@ describe('chat.ts flow', () => {
             '测试问题',
             undefined,
             'smart',
-            undefined,
+            mockExportedSnapshot,
             'session-123'
         );
         expect(mockChatStore.setCurrentHistoryRecordId).toHaveBeenCalledWith(
             'record-1'
         );
-        expect(mockChatStore.sendChat).toHaveBeenCalledWith('测试问题', 'smart');
+        expect(mockChatStore.sendChat).toHaveBeenCalledWith(
+            '测试问题',
+            'smart',
+            undefined
+        );
     });
 
     it('chat 在续接对话时不应重复写入会话历史', async () => {
@@ -125,7 +137,11 @@ describe('chat.ts flow', () => {
 
         expect(mockQueryStore.setQuery).not.toHaveBeenCalled();
         expect(mockSearchHistoryStore.addRecord).not.toHaveBeenCalled();
-        expect(mockChatStore.sendChat).toHaveBeenCalledWith('继续追问', 'think');
+        expect(mockChatStore.sendChat).toHaveBeenCalledWith(
+            '继续追问',
+            'think',
+            undefined
+        );
     });
 
     it('submitByMode 应将 direct 分流到 explore，将 smart 分流到 chat', async () => {
@@ -151,7 +167,11 @@ describe('chat.ts flow', () => {
             setRoute: true,
         });
 
-        expect(mockChatStore.sendChat).toHaveBeenCalledWith('smart query', 'smart');
+        expect(mockChatStore.sendChat).toHaveBeenCalledWith(
+            'smart query',
+            'smart',
+            undefined
+        );
     });
 
     it('submitCurrentModeQuery 在 direct 模式应统一走 explore 并记录输入历史', async () => {
@@ -193,7 +213,11 @@ describe('chat.ts flow', () => {
         expect(mockChatStore.startNewChat).not.toHaveBeenCalled();
         expect(mockQueryStore.setQuery).not.toHaveBeenCalled();
         expect(mockQueryStore.setChatRoute).not.toHaveBeenCalled();
-        expect(mockChatStore.sendChat).toHaveBeenCalledWith('follow up', 'smart');
+        expect(mockChatStore.sendChat).toHaveBeenCalledWith(
+            'follow up',
+            'smart',
+            undefined
+        );
     });
 
     it('submitSuggestionByMode 应按当前 chat 模式提交而不是强制 explore', async () => {
@@ -213,7 +237,11 @@ describe('chat.ts flow', () => {
         expect(mockChatStore.startNewChat).toHaveBeenCalledTimes(1);
         expect(mockQueryStore.setQuery).not.toHaveBeenCalled();
         expect(mockQueryStore.setChatRoute).toHaveBeenCalledWith('session-123');
-        expect(mockChatStore.sendChat).toHaveBeenCalledWith('uid=546195', 'think');
+        expect(mockChatStore.sendChat).toHaveBeenCalledWith(
+            'uid=546195',
+            'think',
+            undefined
+        );
         expect(mockExplore).not.toHaveBeenCalled();
     });
 });
