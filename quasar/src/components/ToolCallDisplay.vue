@@ -1,7 +1,7 @@
 <template>
   <div class="tool-call-container">
     <div
-      v-for="(call, idx) in toolCalls"
+      v-for="(call, idx) in visibleToolCalls"
       :key="`${call.type}-${idx}`"
       class="tool-call-item"
       :class="{
@@ -289,7 +289,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch, nextTick, PropType } from 'vue';
+import { computed, defineComponent, ref, watch, nextTick, PropType } from 'vue';
 import type { ToolCall } from 'src/services/chatService';
 import {
   getOwnerDisplayName,
@@ -388,6 +388,9 @@ export default defineComponent({
   emits: ['viewAllResults'],
   setup(props) {
     const expanded = ref<Record<number, boolean>>({});
+    const visibleToolCalls = computed(() =>
+      props.toolCalls.filter((call) => call.visibility !== 'internal')
+    );
 
     // ── Helper functions (must be declared BEFORE the watch to avoid TDZ) ──
 
@@ -561,7 +564,7 @@ export default defineComponent({
     // 先设置为 false（确保 DOM 渲染出 0fr 状态），再通过 nextTick 延迟设为 true
     // 使 CSS grid-template-rows 过渡动画生效
     watch(
-      () => props.toolCalls,
+      () => visibleToolCalls.value,
       (calls) => {
         calls.forEach((call, idx) => {
           if (
@@ -578,7 +581,7 @@ export default defineComponent({
     );
 
     const toggleExpand = (idx: number) => {
-      const call = props.toolCalls[idx];
+      const call = visibleToolCalls.value[idx];
       if (call?.status === 'completed' && hasResults(call)) {
         expanded.value[idx] = !expanded.value[idx];
       }
@@ -618,6 +621,7 @@ export default defineComponent({
 
     return {
       expanded,
+      visibleToolCalls,
       toggleExpand,
       collapseAndScroll,
       getToolLabel,

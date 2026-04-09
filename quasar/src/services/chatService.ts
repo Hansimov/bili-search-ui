@@ -22,6 +22,9 @@ export interface ToolCall {
     type: string;          // tool name: 'search_videos' | 'check_author'
     args: Record<string, unknown>;  // tool arguments
     status: 'pending' | 'completed';
+    visibility?: 'user' | 'internal';
+    result_id?: string;
+    summary?: unknown;
     result?: unknown;      // tool result (only when status === 'completed')
 }
 
