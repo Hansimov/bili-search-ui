@@ -742,6 +742,17 @@ describe('Markdown 渲染', () => {
         expect(html).toContain('https://example.com');
     });
 
+    it('应该将完整 bilibili 视频链接标记为富链接引用', async () => {
+        const { renderMarkdown } = await import('src/utils/markdown');
+        const html = renderMarkdown(
+            '[主视频](https://www.bilibili.com/video/BV1AA411c7mD?p=2)'
+        );
+
+        expect(html).toContain('class="bili-video-ref"');
+        expect(html).toContain('data-bvid="BV1AA411c7mD"');
+        expect(html).toContain('href="https://www.bilibili.com/video/BV1AA411c7mD"');
+    });
+
     it('应该渲染代码块', async () => {
         const { renderMarkdown } = await import('src/utils/markdown');
         const html = renderMarkdown('```js\nconsole.log("hi")\n```');

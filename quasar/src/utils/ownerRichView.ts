@@ -1,5 +1,5 @@
 import { humanReadableNumber } from 'src/utils/convert';
-import { normalizeVideoPicUrl } from 'src/utils/videoHit';
+import { normalizeAvatarPicUrl, normalizeVideoPicUrl } from 'src/utils/videoHit';
 
 export interface OwnerRichInfo {
     mid: string;
@@ -51,7 +51,7 @@ export const getOwnerDisplayName = (
 };
 
 export const getOwnerAvatarUrl = (owner: OwnerRichInput): string => {
-    return owner.face ? normalizeVideoPicUrl(owner.face) : '';
+    return owner.face ? normalizeAvatarPicUrl(owner.face) : '';
 };
 
 export const formatOwnerFans = (fans?: number): string => {

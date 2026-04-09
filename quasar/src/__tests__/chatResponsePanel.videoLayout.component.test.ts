@@ -378,6 +378,12 @@ describe('ChatResponsePanel video layout', () => {
         expect(hasRenderableRichLinks('作者主页：https://space.bilibili.com/946974')).toBe(true);
     });
 
+    it('detects full bilibili video links as renderable rich links', () => {
+        expect(
+            hasRenderableRichLinks('推荐：https://www.bilibili.com/video/BV1AA411c7mD?p=2')
+        ).toBe(true);
+    });
+
     it('detects plain owner-name mentions as renderable rich links when owner results exist', () => {
         expect(
             hasRenderableRichLinks(
@@ -469,6 +475,16 @@ describe('ChatResponsePanel video layout', () => {
         );
     });
 
+    it('shows the shared view switch for full bilibili video links in chat content', async () => {
+        const wrapper = await mountPanel(
+            '推荐：https://www.bilibili.com/video/BV1AA411c7mD?p=2'
+        );
+
+        expect(wrapper.find('.chat-content-toolbar').exists()).toBe(true);
+        expect(wrapper.html()).toContain('bili-video-ref');
+        expect(wrapper.html()).toContain('data-bvid="BV1AA411c7mD"');
+    });
+
     it('shows the shared view switch for plain owner-name mentions when search_owners returned candidates', async () => {
         mockChatStore.toolEvents = [
             makeOwnerSearchEvent({
@@ -503,6 +519,31 @@ describe('ChatResponsePanel video layout', () => {
         expect(html).not.toContain('bili-video-card-ref');
         expect(html).toContain('bili-video-ref');
         expect(html).not.toContain('bili-owner-inline-avatar');
+    });
+
+    it('renders full bilibili video links as rich cards with proxied cover URLs', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '[主视频](https://www.bilibili.com/video/BV1AA411c7mD?p=2)',
+            'card',
+            new Map([
+                [
+                    'BV1AA411c7mD',
+                    {
+                        bvid: 'BV1AA411c7mD',
+                        title: '主视频',
+                        pic: '//i0.hdslb.com/bfs/archive/sample-cover.jpg',
+                        duration: 360,
+                        owner: { name: '作者 1' },
+                        stat: { view: 10000 },
+                    },
+                ],
+            ])
+        );
+
+        expect(html).toContain('bili-video-card-ref');
+        expect(html).toContain(
+            '/bili-img/i0.hdslb.com/bfs/archive/sample-cover.jpg@320w_200h_1c_!web-space-upload-video.webp'
+        );
     });
 
     it('renders compact owner links with native title details', () => {

@@ -23,6 +23,7 @@ import defaultAvatarUrl from 'src/assets/noface.jpg@96w_96h.avif';
 import type { Dict } from 'src/stores/resultStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useCachedImage } from 'src/composables/useCachedImage';
+import { normalizeAvatarPicUrl } from 'src/utils/videoHit';
 
 const props = defineProps<{
   authorItem: Dict;
@@ -31,7 +32,7 @@ const props = defineProps<{
 const exploreStore = useExploreStore();
 
 const authorAvatarUrl = computed(
-  () => props.authorItem.face || defaultAvatarUrl
+  () => normalizeAvatarPicUrl(props.authorItem.face) || defaultAvatarUrl
 );
 
 const { cachedSrc } = useCachedImage(() => authorAvatarUrl.value);

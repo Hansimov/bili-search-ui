@@ -22,6 +22,7 @@ import { computed } from 'vue';
 import defaultAvatarUrl from 'src/assets/noface.jpg@96w_96h.avif';
 import { explore } from 'src/functions/explore';
 import { useCachedImage } from 'src/composables/useCachedImage';
+import { normalizeAvatarPicUrl } from 'src/utils/videoHit';
 
 const props = defineProps<{
   authorName: string;
@@ -29,7 +30,8 @@ const props = defineProps<{
 }>();
 
 const authorAvatarUrl = computed(
-  () => (props.authorInfo.face as string) || defaultAvatarUrl
+  () =>
+    normalizeAvatarPicUrl(props.authorInfo.face as string) || defaultAvatarUrl
 );
 
 const { cachedSrc } = useCachedImage(() => authorAvatarUrl.value);

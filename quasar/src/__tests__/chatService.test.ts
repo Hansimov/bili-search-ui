@@ -144,4 +144,86 @@ describe('chatService SSE parsing', () => {
         );
         expect(callbacks.onError).not.toHaveBeenCalled();
     });
+
+    it('chatCompletionStream 应处理 retract_content 与 pending/completed tool events', async () => {
+        const streamPayload = [
+            'data: {"stream_id":"stream-3"}\n\n',
+            'data: {"id":"chunk-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"先规划一下"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-3","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"retract_content":true},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-4","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"reasoning_content":"先规划一下"},"finish_reason":null}],"tool_events":[{"iteration":1,"tools":["search_videos"],"calls":[{"type":"search_videos","args":{"queries":["黑神话"]},"status":"pending"}]}]}\n\n',
+            'data: {"id":"chunk-5","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":null}],"tool_events":[{"iteration":1,"tools":["search_videos"],"calls":[{"type":"search_videos","args":{"queries":["黑神话"]},"status":"completed","result":{"hits":[]}}]}]}\n\n',
+            'data: {"id":"chunk-6","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"最终答案"},"finish_reason":"stop"}],"usage":{"total_tokens":6}}\n\n',
+            'data: [DONE]\n\n',
+        ];
+
+        const response = new Response(
+            new ReadableStream({
+                start(controller) {
+                    for (const chunk of streamPayload) {
+                        controller.enqueue(encoder.encode(chunk));
+                    }
+                    controller.close();
+                },
+            }),
+            {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            }
+        );
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+
+        const callbacks = {
+            onStreamId: vi.fn(),
+            onStart: vi.fn(),
+            onContent: vi.fn(),
+            onThinking: vi.fn(),
+            onRetractContent: vi.fn(),
+            onToolEvent: vi.fn(),
+            onDone: vi.fn(),
+            onError: vi.fn(),
+        };
+
+        await chatCompletionStream(
+            {
+                messages: [{ role: 'user', content: '测试' }],
+                thinking: true,
+            },
+            callbacks
+        );
+
+        expect(callbacks.onRetractContent).toHaveBeenCalledTimes(1);
+        expect(callbacks.onThinking).toHaveBeenCalledWith('先规划一下');
+        expect(callbacks.onToolEvent).toHaveBeenCalledTimes(2);
+        expect(callbacks.onToolEvent).toHaveBeenNthCalledWith(1, {
+            iteration: 1,
+            tools: ['search_videos'],
+            calls: [
+                {
+                    type: 'search_videos',
+                    args: { queries: ['黑神话'] },
+                    status: 'pending',
+                },
+            ],
+        });
+        expect(callbacks.onToolEvent).toHaveBeenNthCalledWith(2, {
+            iteration: 1,
+            tools: ['search_videos'],
+            calls: [
+                {
+                    type: 'search_videos',
+                    args: { queries: ['黑神话'] },
+                    status: 'completed',
+                    result: { hits: [] },
+                },
+            ],
+        });
+        expect(callbacks.onContent).toHaveBeenCalledWith('先规划一下');
+        expect(callbacks.onContent).toHaveBeenCalledWith('最终答案');
+        expect(callbacks.onDone).toHaveBeenCalledWith(undefined, {
+            total_tokens: 6,
+        });
+        expect(callbacks.onError).not.toHaveBeenCalled();
+    });
 });

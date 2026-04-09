@@ -1,4 +1,5 @@
 import constants from 'src/stores/constants.json';
+import { normalizeBiliImageUrl } from 'src/utils/imageUrl';
 
 export interface VideoHitLike {
     bvid?: string;
@@ -96,15 +97,9 @@ export const normalizeVideoHit = (hit: VideoHitLike): NormalizedVideoHit => {
 };
 
 export const normalizeVideoPicUrl = (pic?: string | null): string => {
-    if (!pic) return '';
-    let normalized = pic;
-    if (normalized.startsWith('//')) {
-        normalized = `https:${normalized}`;
-    } else if (normalized.startsWith('http://')) {
-        normalized = normalized.replace('http://', 'https://');
-    }
-    if (normalized.includes(constants.coverPicSuffix)) {
-        return normalized;
-    }
-    return `${normalized}${constants.coverPicSuffix}`;
+    return normalizeBiliImageUrl(pic, constants.coverPicSuffix);
+};
+
+export const normalizeAvatarPicUrl = (pic?: string | null): string => {
+    return normalizeBiliImageUrl(pic, constants.userPicSuffix);
 };

@@ -10,9 +10,9 @@ import type { NormalizedVideoHit } from 'src/utils/videoHit';
 import { normalizeVideoPicUrl } from 'src/utils/videoHit';
 
 const RENDERED_BV_LINK_RE =
-    /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="bili-video-ref"[^>]*>(.*?)<\/a>/g;
+    /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="[^"]*\bbili-video-ref\b[^"]*"[^>]*>(.*?)<\/a>/g;
 const RENDERED_BV_LINK_DETECT_RE =
-    /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="bili-video-ref"[^>]*>/;
+    /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="[^"]*\bbili-video-ref\b[^"]*"[^>]*>/;
 const RENDERED_SPACE_LINK_RE =
     /<a\s+href="(https:\/\/space\.bilibili\.com\/(\d+)(?:\/[^"#?]*)?(?:\?[^"#]*)?(?:#[^"]*)?)"[^>]*>(.*?)<\/a>/g;
 const RENDERED_SPACE_LINK_DETECT_RE =

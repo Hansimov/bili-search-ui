@@ -9,6 +9,7 @@
  */
 
 import { cacheService, STORE_NAMES, IMAGE_CACHE_TTL } from './cacheService';
+import { getRenderableImageUrl } from 'src/utils/imageUrl';
 
 /** 内存中的 Blob URL 映射，用于快速访问和生命周期管理 */
 const blobUrlMap = new Map<string, string>();
@@ -30,28 +31,31 @@ const pendingRequests = new Map<string, Promise<string | null>>();
 export async function getCachedImageUrl(imageUrl: string): Promise<string> {
     if (!imageUrl) return imageUrl;
 
+    const resolvedUrl = getRenderableImageUrl(imageUrl);
+    if (!resolvedUrl) return resolvedUrl;
+
     // 1. 检查内存中的 Blob URL
-    const memCached = blobUrlMap.get(imageUrl);
+    const memCached = blobUrlMap.get(resolvedUrl);
     if (memCached) {
         return memCached;
     }
 
     // 2. 检查是否有正在进行的请求
-    const pending = pendingRequests.get(imageUrl);
+    const pending = pendingRequests.get(resolvedUrl);
     if (pending) {
         const result = await pending;
-        return result || imageUrl;
+        return result || resolvedUrl;
     }
 
     // 3. 创建新的加载请求
-    const loadPromise = loadAndCacheImage(imageUrl);
-    pendingRequests.set(imageUrl, loadPromise);
+    const loadPromise = loadAndCacheImage(resolvedUrl);
+    pendingRequests.set(resolvedUrl, loadPromise);
 
     try {
         const blobUrl = await loadPromise;
-        return blobUrl || imageUrl;
+        return blobUrl || resolvedUrl;
     } finally {
-        pendingRequests.delete(imageUrl);
+        pendingRequests.delete(resolvedUrl);
     }
 }
 

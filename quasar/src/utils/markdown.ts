@@ -34,6 +34,9 @@ converter.setFlavor('github');
  * 此正则将其扩展为完整的 bilibili 视频链接。
  */
 const BV_LINK_RE = /<a\s+href="(BV[A-Za-z0-9]+)"([^>]*)>(.*?)<\/a>/g;
+const FULL_BILI_VIDEO_LINK_RE =
+    /<a\s+href="https?:\/\/(?:www\.)?bilibili\.com\/video\/(BV[A-Za-z0-9]+)(?:[/?#][^"]*)?"([^>]*)>(.*?)<\/a>/g;
+const CLASS_ATTR_RE = /\sclass="([^"]*)"/;
 
 /**
  * Inline SVG for the bilibili TV icon (simplified path, inherits currentColor).
@@ -44,10 +47,41 @@ const BILI_TV_ICON = '<svg class="bili-tv-inline" viewBox="0 0 24 24" width="14"
  * 将 BV 号链接扩展为完整的 bilibili 视频链接
  */
 function expandBvLinks(html: string): string {
-    return html.replace(BV_LINK_RE, (_match, bvid, attrs, text) => {
+    const decorate = (_match: string, bvid: string, attrs: string, text: string) => {
         const fullUrl = `https://www.bilibili.com/video/${bvid}`;
-        return `<a href="${fullUrl}" class="bili-video-ref" data-bvid="${bvid}" target="_blank" rel="noopener"${attrs}>${BILI_TV_ICON}${text}</a>`;
-    });
+        let nextAttrs = attrs || '';
+
+        if (CLASS_ATTR_RE.test(nextAttrs)) {
+            nextAttrs = nextAttrs.replace(CLASS_ATTR_RE, (_classMatch, classes) => {
+                const mergedClasses = /\bbili-video-ref\b/.test(classes)
+                    ? classes
+                    : `${classes} bili-video-ref`.trim();
+                return ` class="${mergedClasses}"`;
+            });
+        } else {
+            nextAttrs = ` class="bili-video-ref"${nextAttrs}`;
+        }
+
+        if (!/\sdata-bvid=/.test(nextAttrs)) {
+            nextAttrs = ` data-bvid="${bvid}"${nextAttrs}`;
+        }
+        if (!/\starget=/.test(nextAttrs)) {
+            nextAttrs = `${nextAttrs} target="_blank"`;
+        }
+        if (!/\srel=/.test(nextAttrs)) {
+            nextAttrs = `${nextAttrs} rel="noopener"`;
+        }
+
+        const innerHtml = text.includes('bili-tv-inline')
+            ? text
+            : `${BILI_TV_ICON}${text}`;
+
+        return `<a href="${fullUrl}"${nextAttrs}>${innerHtml}</a>`;
+    };
+
+    return html
+        .replace(FULL_BILI_VIDEO_LINK_RE, decorate)
+        .replace(BV_LINK_RE, decorate);
 }
 
 /**
