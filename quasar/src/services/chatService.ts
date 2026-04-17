@@ -95,6 +95,11 @@ export interface ChatStreamChunk {
             role?: string;
             content?: string;
             reasoning_content?: string;
+            /** When true, the frontend should reset the aggregated thinking text
+             *  because a new orchestration phase has started. */
+            reset_reasoning?: boolean;
+            /** Optional backend-provided phase label for reasoning reset events. */
+            reasoning_phase?: string;
             /** When true, the frontend should discard streamed content because
              *  it was analysis text from a tool-calling iteration and belongs
              *  in the thinking section (which will receive it shortly after as
@@ -120,6 +125,8 @@ export interface ChatStreamCallbacks {
     onContent?: (content: string) => void;
     /** Called for each reasoning/thinking content delta */
     onThinking?: (content: string) => void;
+    /** Called when the backend starts a new reasoning phase */
+    onResetThinking?: (phase?: string) => void;
     /** Called when the backend retracts previously streamed content (because
      *  the streamed text was analysis for a tool-calling iteration, not the
      *  final answer).  The frontend should clear the content area. */
@@ -335,6 +342,10 @@ export async function chatCompletionStream(
                     shouldYieldToUi: false,
                     pendingDone: undefined,
                 };
+            }
+
+            if (delta.reset_reasoning) {
+                callbacks.onResetThinking?.(delta.reasoning_phase);
             }
 
             if (delta.reasoning_content) {

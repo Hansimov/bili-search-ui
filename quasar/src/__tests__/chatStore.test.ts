@@ -624,6 +624,46 @@ describe('ChatStore', () => {
             expect(store.currentSession.isThinkingPhase).toBe(false);
         });
 
+        it('sendChat 应在 reasoning reset 后清空聚合思考文本并新开片段', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callbacks.onStart?.({
+                    id: 'test',
+                    object: 'chat.completion.chunk',
+                    choices: [
+                        {
+                            index: 0,
+                            delta: { role: 'assistant' },
+                            finish_reason: null,
+                        },
+                    ],
+                    thinking: true,
+                });
+                callbacks.onThinking?.('先分析工具结果');
+                callbacks.onResetThinking?.('response');
+                callbacks.onThinking?.('再整理最终回答');
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('深度问题', 'think');
+
+            expect(store.currentSession.thinkingContent).toBe('再整理最终回答');
+            expect(store.currentSession.streamSegments).toHaveLength(2);
+            expect(store.currentSession.streamSegments[0]).toEqual({
+                type: 'thinking',
+                content: '先分析工具结果',
+            });
+            expect(store.currentSession.streamSegments[1]).toEqual({
+                type: 'thinking',
+                content: '再整理最终回答',
+            });
+        });
+
         it('sendChat 在思考模式下应在 onDone 前显示增量答案', async () => {
             const { chatCompletionStream } = await import(
                 'src/services/chatService'

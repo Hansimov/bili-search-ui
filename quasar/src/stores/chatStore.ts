@@ -585,6 +585,15 @@ export const useChatStore = defineStore('chat', {
                                 segs.push({ type: 'thinking', content });
                             }
                         },
+                        onResetThinking: () => {
+                            this.currentSession.thinkingContent = '';
+                            this.currentSession.isThinkingPhase = true;
+                            const segs = this.currentSession.streamSegments;
+                            const last = segs[segs.length - 1];
+                            if (last && last.type === 'thinking' && last.content) {
+                                segs.push({ type: 'thinking', content: '' });
+                            }
+                        },
                         onContent: (content) => {
                             this.currentSession.content += content;
                             this.currentSession.isThinkingPhase = false;

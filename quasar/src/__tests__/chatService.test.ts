@@ -229,6 +229,61 @@ describe('chatService SSE parsing', () => {
         expect(callbacks.onError).not.toHaveBeenCalled();
     });
 
+    it('chatCompletionStream 应处理 reasoning reset 事件', async () => {
+        const streamPayload = [
+            'data: {"stream_id":"stream-3b"}\n\n',
+            'data: {"id":"chunk-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"reset_reasoning":true,"reasoning_phase":"planner"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-3","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"reasoning_content":"先读转写"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-4","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"reset_reasoning":true,"reasoning_phase":"response"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-5","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"reasoning_content":"再整理回答"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-6","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"最终答案"},"finish_reason":"stop"}],"usage":{"total_tokens":5}}\n\n',
+            'data: [DONE]\n\n',
+        ];
+
+        const response = new Response(
+            new ReadableStream({
+                start(controller) {
+                    for (const chunk of streamPayload) {
+                        controller.enqueue(encoder.encode(chunk));
+                    }
+                    controller.close();
+                },
+            }),
+            {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            }
+        );
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+
+        const callbacks = {
+            onStreamId: vi.fn(),
+            onStart: vi.fn(),
+            onThinking: vi.fn(),
+            onResetThinking: vi.fn(),
+            onContent: vi.fn(),
+            onDone: vi.fn(),
+            onError: vi.fn(),
+        };
+
+        await chatCompletionStream(
+            {
+                messages: [{ role: 'user', content: '测试' }],
+                thinking: true,
+            },
+            callbacks
+        );
+
+        expect(callbacks.onResetThinking).toHaveBeenNthCalledWith(1, 'planner');
+        expect(callbacks.onResetThinking).toHaveBeenNthCalledWith(2, 'response');
+        expect(callbacks.onThinking).toHaveBeenNthCalledWith(1, '先读转写');
+        expect(callbacks.onThinking).toHaveBeenNthCalledWith(2, '再整理回答');
+        expect(callbacks.onContent).toHaveBeenCalledWith('最终答案');
+        expect(callbacks.onError).not.toHaveBeenCalled();
+    });
+
     it('chatCompletionStream 应在 EOF flush 时保留最后一个 done 事件', async () => {
         vi.useFakeTimers();
 
