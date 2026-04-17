@@ -17,6 +17,7 @@ import {
     type ChatMessage,
     type PerfStats,
     type Usage,
+    type UsageTrace,
     type ToolEvent,
     type ToolCall,
 } from 'src/services/chatService';
@@ -64,6 +65,8 @@ export interface ConversationMessage {
     perfStats?: PerfStats;
     /** Token usage for this assistant message (only for assistant role) */
     usage?: Usage;
+    /** Model routing / usage trace for this assistant message */
+    usageTrace?: UsageTrace;
 }
 
 /** Auto-incrementing message ID for stable v-for keys */
@@ -132,6 +135,8 @@ export interface ChatSession {
     perfStats: PerfStats | null;
     /** Token 用量统计 */
     usage: Usage | null;
+    /** 模型选择与调用轨迹 */
+    usageTrace?: UsageTrace | null;
     /** 工具调用事件 */
     toolEvents: ToolEvent[];
     /** 流式响应时间线片段（保持 thinking/tool 交替顺序） */
@@ -156,6 +161,7 @@ function defaultSession(sessionId?: string): ChatSession {
         error: null,
         perfStats: null,
         usage: null,
+        usageTrace: null,
         toolEvents: [],
         streamSegments: [],
         thinking: false,
@@ -239,6 +245,11 @@ export const useChatStore = defineStore('chat', {
         /** 当前会话的 token 用量 */
         usage(): Usage | null {
             return this.currentSession.usage;
+        },
+
+        /** 当前会话的模型调用轨迹 */
+        usageTrace(): UsageTrace | null {
+            return this.currentSession.usageTrace || null;
         },
 
         /** 当前会话的工具事件 */
@@ -454,6 +465,7 @@ export const useChatStore = defineStore('chat', {
                         : undefined,
                 perfStats: sourceSession.perfStats || undefined,
                 usage: sourceSession.usage || undefined,
+                usageTrace: sourceSession.usageTrace || undefined,
             };
         },
 
@@ -614,7 +626,7 @@ export const useChatStore = defineStore('chat', {
                                 segs.push({ type: 'tool', toolEvent: event });
                             }
                         },
-                        onDone: (perfStats, usage) => {
+                        onDone: (perfStats, usage, usageTrace) => {
                             this.currentSession.isLoading = false;
                             this.currentSession.isThinkingPhase = false;
                             this.currentSession.isDone = true;
@@ -623,6 +635,9 @@ export const useChatStore = defineStore('chat', {
                             }
                             if (usage) {
                                 this.currentSession.usage = usage;
+                            }
+                            if (usageTrace) {
+                                this.currentSession.usageTrace = usageTrace;
                             }
                             // 清除 abort controller 和 stream_id（请求已完成）
                             this._abortController = null;
@@ -643,6 +658,7 @@ export const useChatStore = defineStore('chat', {
                                         : undefined,
                                     perfStats: this.currentSession.perfStats || undefined,
                                     usage: this.currentSession.usage || undefined,
+                                    usageTrace: this.currentSession.usageTrace || undefined,
                                 }
                             );
                             // 修剪历史以控制上下文大小
@@ -665,34 +681,18 @@ export const useChatStore = defineStore('chat', {
                 );
 
                 // 安全兜底：如果流式响应结束但 onDone/onError 都未触发
-                // （例如连接中断、后端未发送 finish_reason），确保清除加载状态
+                // （例如连接中断、前端未拿到最终 finish 事件），确保清除加载状态，
+                // 但不要把这轮误标为“正常完成”。
                 if (this.currentSession.isLoading && this.currentSession.query === query) {
-                    console.warn('[ChatStore] Stream ended without onDone, cleaning up');
+                    console.warn('[ChatStore] Stream ended without onDone, marking as interrupted');
                     this.currentSession.isLoading = false;
                     this.currentSession.isThinkingPhase = false;
-                    this.currentSession.isDone = true;
-                    this._abortController = null;
-                    // 仍然保存已接收到的内容到对话历史
-                    if (this.currentSession.content) {
-                        this.conversationHistory.push(
-                            { id: nextMsgId(), role: 'user', content: query },
-                            {
-                                id: nextMsgId(),
-                                role: 'assistant',
-                                content: this.currentSession.content,
-                                thinkingContent: this.currentSession.thinkingContent || undefined,
-                                toolEvents: this.currentSession.toolEvents.length > 0
-                                    ? [...this.currentSession.toolEvents]
-                                    : undefined,
-                                streamSegments: this.currentSession.streamSegments.length > 0
-                                    ? [...this.currentSession.streamSegments]
-                                    : undefined,
-                            }
-                        );
-                        this._trimConversationHistory();
-                        this._saveToHistory();
-                        this._updateHistorySnapshot();
+                    this.currentSession.isDone = false;
+                    if (!this.currentSession.error) {
+                        this.currentSession.error = '响应流意外结束，请重试';
                     }
+                    this._abortController = null;
+                    this._streamId = null;
                 }
             } catch (error) {
                 if ((error as Error).name !== 'AbortError') {

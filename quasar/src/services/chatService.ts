@@ -14,7 +14,7 @@
 /** A single chat message in OpenAI format */
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
-    content: string;
+    content: string | Array<Record<string, unknown>>;
 }
 
 /** Tool call details - includes request args and results */
@@ -52,6 +52,39 @@ export interface Usage {
     reasoning_tokens?: number;
 }
 
+export interface UsageTraceModel {
+    config: string;
+    model: string;
+    reason?: string;
+    factors?: string[];
+}
+
+export interface UsageTraceIteration {
+    phase: string;
+    iteration: number;
+    model_config: string;
+    model_name: string;
+    model_reason?: string;
+    model_factors?: string[];
+    tool_count?: number;
+    tool_names?: string[];
+}
+
+export interface UsageTrace {
+    intent?: {
+        route_reason?: string;
+        prefers_transcript_lookup?: boolean;
+        [key: string]: unknown;
+    };
+    models?: {
+        planner?: UsageTraceModel;
+        response?: UsageTraceModel;
+        delegate?: UsageTraceModel;
+    };
+    iterations?: UsageTraceIteration[];
+    [key: string]: unknown;
+}
+
 /** Parsed SSE chunk from the streaming response */
 export interface ChatStreamChunk {
     id: string;
@@ -71,6 +104,7 @@ export interface ChatStreamChunk {
         finish_reason: string | null;
     }>;
     usage?: Usage;
+    usage_trace?: UsageTrace;
     perf_stats?: PerfStats;
     tool_events?: ToolEvent[];
     thinking?: boolean;
@@ -96,6 +130,7 @@ export interface ChatStreamCallbacks {
     onDone?: (
         perfStats?: PerfStats,
         usage?: Usage,
+        usageTrace?: UsageTrace,
     ) => void;
     /** Called on error */
     onError?: (error: Error) => void;
@@ -197,6 +232,7 @@ export async function chatCompletionStream(
         pendingDone?: {
             perfStats?: PerfStats;
             usage?: Usage;
+            usageTrace?: UsageTrace;
         };
     } => {
         const lines = rawEvent
@@ -247,6 +283,7 @@ export async function chatCompletionStream(
             | {
                 perfStats?: PerfStats;
                 usage?: Usage;
+                usageTrace?: UsageTrace;
             }
             | undefined;
 
@@ -324,6 +361,7 @@ export async function chatCompletionStream(
                 pendingDone = {
                     perfStats: chunk.perf_stats,
                     usage: chunk.usage,
+                    usageTrace: chunk.usage_trace,
                 };
             }
         } catch {
@@ -359,6 +397,7 @@ export async function chatCompletionStream(
                 callbacks.onDone?.(
                     result.pendingDone.perfStats,
                     result.pendingDone.usage,
+                    result.pendingDone.usageTrace,
                 );
             }
             separatorIndex = buffer.indexOf('\n\n');
@@ -367,7 +406,21 @@ export async function chatCompletionStream(
         if (flush && buffer.trim()) {
             const rawEvent = buffer;
             buffer = '';
-            if (processEvent(rawEvent).shouldStop) {
+            const result = processEvent(rawEvent);
+            if (result.shouldYieldToUi) {
+                await yieldToUi();
+            }
+            if (result.pendingDone) {
+                if (hasDeliveredAnswerContent) {
+                    await allowAnswerToSettle();
+                }
+                callbacks.onDone?.(
+                    result.pendingDone.perfStats,
+                    result.pendingDone.usage,
+                    result.pendingDone.usageTrace,
+                );
+            }
+            if (result.shouldStop) {
                 return true;
             }
         }
@@ -411,6 +464,7 @@ export async function chatCompletion(
     content: string;
     perf_stats?: PerfStats;
     usage?: Usage;
+    usage_trace?: UsageTrace;
     tool_events?: ToolEvent[];
     thinking?: boolean;
 }> {
@@ -442,6 +496,7 @@ export async function chatCompletion(
         content: data.choices?.[0]?.message?.content || '',
         perf_stats: data.perf_stats,
         usage: data.usage,
+        usage_trace: data.usage_trace,
         tool_events: data.tool_events,
         thinking: data.thinking,
     };

@@ -74,7 +74,8 @@ describe('chatService SSE parsing', () => {
             },
             {
                 total_tokens: 3,
-            }
+            },
+            undefined
         );
         expect(callbacks.onError).not.toHaveBeenCalled();
     });
@@ -140,7 +141,8 @@ describe('chatService SSE parsing', () => {
             undefined,
             {
                 total_tokens: 3,
-            }
+            },
+            undefined
         );
         expect(callbacks.onError).not.toHaveBeenCalled();
     });
@@ -223,7 +225,61 @@ describe('chatService SSE parsing', () => {
         expect(callbacks.onContent).toHaveBeenCalledWith('最终答案');
         expect(callbacks.onDone).toHaveBeenCalledWith(undefined, {
             total_tokens: 6,
-        });
+        }, undefined);
+        expect(callbacks.onError).not.toHaveBeenCalled();
+    });
+
+    it('chatCompletionStream 应在 EOF flush 时保留最后一个 done 事件', async () => {
+        vi.useFakeTimers();
+
+        const streamPayload = [
+            'data: {"stream_id":"stream-4"}\n\n',
+            'data: {"id":"chunk-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"最终答案"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-3","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"total_tokens":9}}',
+        ];
+
+        const response = new Response(
+            new ReadableStream({
+                start(controller) {
+                    controller.enqueue(encoder.encode(streamPayload.join('')));
+                    controller.close();
+                },
+            }),
+            {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            }
+        );
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+
+        const callbacks = {
+            onStreamId: vi.fn(),
+            onStart: vi.fn(),
+            onContent: vi.fn(),
+            onDone: vi.fn(),
+            onError: vi.fn(),
+        };
+
+        const streamPromise = chatCompletionStream(
+            {
+                messages: [{ role: 'user', content: '测试 EOF flush' }],
+            },
+            callbacks
+        );
+
+        await vi.runAllTimersAsync();
+        await streamPromise;
+
+        expect(callbacks.onContent).toHaveBeenCalledWith('最终答案');
+        expect(callbacks.onDone).toHaveBeenCalledWith(
+            undefined,
+            {
+                total_tokens: 9,
+            },
+            undefined
+        );
         expect(callbacks.onError).not.toHaveBeenCalled();
     });
 });

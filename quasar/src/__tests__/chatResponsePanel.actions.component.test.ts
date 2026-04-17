@@ -36,6 +36,7 @@ const { mockChatStore, mockExploreStore, mockLayoutStore, mockSearchModeStore } 
                 query: '当前问题',
                 content: '当前回答 markdown',
                 mode: 'smart',
+                usageTrace: null as Record<string, unknown> | null,
             },
             currentSessionId: 'session-actions',
             content: '当前回答 markdown',
@@ -115,6 +116,15 @@ describe('ChatResponsePanel actions', () => {
         mockChatStore.currentSession.query = '当前问题';
         mockChatStore.currentSession.content = '当前回答 markdown';
         mockChatStore.currentSession.mode = 'smart';
+        mockChatStore.currentSession.usageTrace = {
+            models: {
+                planner: { config: 'deepseek', model: 'deepseek-reasoner' },
+                response: {
+                    config: 'doubao-seed-2-0-mini',
+                    model: 'doubao-seed-2-0-mini-260215',
+                },
+            },
+        };
         mockChatStore.content = '当前回答 markdown';
         mockChatStore.hasContent = true;
         mockChatStore.isDone = true;
@@ -163,6 +173,8 @@ describe('ChatResponsePanel actions', () => {
         expect(quasarMocks.copyToClipboard).toHaveBeenCalledWith('当前回答 markdown');
         expect(wrapper.emitted('continue')).toHaveLength(1);
         expect(wrapper.emitted('retry')).toHaveLength(2);
+        expect(wrapper.text()).not.toContain('模型路由');
+        expect(wrapper.text()).not.toContain('规划');
     });
 
     it('emits history retry and continue payloads from historical assistant actions', async () => {
@@ -224,6 +236,19 @@ describe('ChatResponsePanel actions', () => {
 
         expect(wrapper.emitted('continue')).toHaveLength(1);
         expect(wrapper.emitted('retry')).toHaveLength(1);
+    });
+
+    it('does not show current answer actions for a done session without content', async () => {
+        mockChatStore.currentSession.query = '当前问题';
+        mockChatStore.currentSession.content = '';
+        mockChatStore.content = '';
+        mockChatStore.hasContent = false;
+        mockChatStore.isDone = true;
+        mockChatStore.isAborted = false;
+        mockChatStore.hasError = false;
+
+        const wrapper = await mountPanel();
+        expect(wrapper.find('.chat-answer-actions').exists()).toBe(false);
     });
 
     it('edits a historical query inline and retries with the correct base history', async () => {

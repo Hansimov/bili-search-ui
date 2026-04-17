@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useChatStore } from 'src/stores/chatStore';
+import type { ChatMessage } from 'src/services/chatService';
 
 const searchHistoryStoreMock = vi.hoisted(() => ({
     updateChatSnapshot: vi.fn().mockResolvedValue(undefined),
@@ -342,7 +343,7 @@ describe('ChatStore', () => {
             );
             const mockStream = vi.mocked(chatCompletionStream);
 
-            const sentMessages: Array<Array<{ role: string; content: string }>> = [];
+            const sentMessages: ChatMessage[][] = [];
             mockStream.mockImplementation(async (params, callbacks) => {
                 sentMessages.push([...params.messages]);
                 callbacks.onContent?.('回答');
@@ -513,6 +514,49 @@ describe('ChatStore', () => {
 
             // After onDone, _streamId should be cleared
             expect(store._streamId).toBeNull();
+        });
+
+        it('sendChat 在流异常结束且未收到 onDone 时不应误标为完成', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callbacks.onThinking?.('先读取转写');
+                callbacks.onToolEvent?.({
+                    iteration: 1,
+                    tools: ['get_video_transcript'],
+                    calls: [
+                        {
+                            type: 'get_video_transcript',
+                            args: { video_id: 'BV1CY9VB1E5f' },
+                            status: 'pending',
+                        },
+                    ],
+                });
+            });
+
+            const store = useChatStore();
+            await store.sendChat('BV1CY9VB1E5f 这个视频讲了什么', 'smart');
+
+            expect(store.currentSession.isLoading).toBe(false);
+            expect(store.currentSession.isDone).toBe(false);
+            expect(store.currentSession.error).toBe('响应流意外结束，请重试');
+            expect(store.currentSession.toolEvents).toEqual([
+                {
+                    iteration: 1,
+                    tools: ['get_video_transcript'],
+                    calls: [
+                        {
+                            type: 'get_video_transcript',
+                            args: { video_id: 'BV1CY9VB1E5f' },
+                            status: 'pending',
+                        },
+                    ],
+                },
+            ]);
+            expect(store.conversationHistory).toEqual([]);
         });
 
         it('sendChat think 模式应该设置 thinking=true', async () => {
@@ -865,7 +909,7 @@ describe('ChatStore 扩展功能', () => {
         it('retryCurrentRound 应基于当前轮之前的历史重试同一问题', async () => {
             const { chatCompletionStream } = await import('src/services/chatService');
             const mockStream = vi.mocked(chatCompletionStream);
-            const sentMessages: Array<Array<{ role: string; content: string }>> = [];
+            const sentMessages: ChatMessage[][] = [];
 
             let callCount = 0;
             mockStream.mockImplementation(async (params, callbacks) => {
@@ -888,7 +932,7 @@ describe('ChatStore 扩展功能', () => {
         it('continueCurrentRound 应在已完成回合后追加继续追问', async () => {
             const { chatCompletionStream } = await import('src/services/chatService');
             const mockStream = vi.mocked(chatCompletionStream);
-            const sentMessages: Array<Array<{ role: string; content: string }>> = [];
+            const sentMessages: ChatMessage[][] = [];
 
             let callCount = 0;
             mockStream.mockImplementation(async (params, callbacks) => {

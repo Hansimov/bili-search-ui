@@ -563,6 +563,7 @@ import SearchModeEmptyState from './SearchModeEmptyState.vue';
 /** 工具名称中英对照 */
 const TOOL_LABELS: Record<string, string> = {
   search_videos: '搜索视频',
+  get_video_transcript: '读取转写',
   search_owners: '搜索作者',
   check_author: '搜索作者',
   search_google: '搜索网页',
@@ -769,7 +770,7 @@ export default defineComponent({
       return (
         !isLoading.value &&
         !!userQuery.value &&
-        (hasContent.value || hasError.value || isAborted.value || isDone.value)
+        (hasContent.value || hasError.value || isAborted.value)
       );
     });
 
