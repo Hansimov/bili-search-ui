@@ -34,6 +34,7 @@ const mockQueryStore = {
 
 const mockChatStore = {
     conversationHistory: [] as unknown[],
+    exportSessionBundle: vi.fn(() => ({ rounds: [], session: { sessionId: 'session-export' } })),
     currentSession: {
         query: '',
         mode: 'smart',
@@ -92,8 +93,12 @@ const mountResultsPage = () =>
                 'q-dialog': true,
                 'q-toolbar': true,
                 'q-icon': true,
+                'q-separator': true,
+                'q-checkbox': true,
+                'q-space': true,
                 'q-toolbar-title': true,
                 'q-card-section': true,
+                'q-card-actions': true,
                 'q-tab-panels': true,
                 'q-tab-panel': true,
             },

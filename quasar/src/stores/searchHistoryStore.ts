@@ -14,7 +14,7 @@
 import { defineStore } from 'pinia';
 import { cacheService, STORE_NAMES, HISTORY_CACHE_TTL } from 'src/services/cacheService';
 import type { SearchMode } from './searchModeStore';
-import type { ConversationMessage, ChatSession } from './chatStore';
+import type { ChatHistorySnapshot } from './chatStore';
 
 /** 搜索历史记录条目 */
 export interface SearchHistoryItem {
@@ -36,14 +36,6 @@ export interface SearchHistoryItem {
     sessionId?: string;
     /** Chat 模式下的对话历史快照（仅 smart/think 模式） */
     chatSnapshot?: ChatHistorySnapshot;
-}
-
-/** Chat 模式的对话历史快照，用于恢复完整的对话状态 */
-export interface ChatHistorySnapshot {
-    /** 当前会话状态 */
-    session: ChatSession;
-    /** 多轮对话历史 */
-    conversationHistory: ConversationMessage[];
 }
 
 /** 生成唯一 ID */

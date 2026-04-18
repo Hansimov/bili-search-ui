@@ -205,6 +205,8 @@ describe('Input/Search interaction end-to-end flow', () => {
         const chatStore = useChatStore();
 
         const snapshot = {
+            schemaVersion: 2,
+            capturedAt: Date.now(),
             session: {
                 ...chatStore.currentSession,
                 sessionId: 'session-e2e-1',

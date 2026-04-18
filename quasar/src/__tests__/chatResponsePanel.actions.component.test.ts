@@ -170,18 +170,22 @@ describe('ChatResponsePanel actions', () => {
 
         const answerButtons = wrapper.findAll('.chat-answer-actions .chat-inline-action-btn');
         const copyButton = answerButtons.find((node) => node.text().includes('复制'));
+        const exportButton = answerButtons.find((node) => node.text().includes('导出'));
         const continueButton = answerButtons.find((node) => node.text().includes('继续'));
         const retryButton = answerButtons.find((node) => node.text().includes('重试'));
 
         expect(copyButton?.exists()).toBe(true);
+        expect(exportButton?.exists()).toBe(true);
         expect(continueButton?.exists()).toBe(true);
         expect(retryButton?.exists()).toBe(true);
 
         await copyButton?.trigger('click');
+        await exportButton?.trigger('click');
         await continueButton?.trigger('click');
         await retryButton?.trigger('click');
 
         expect(quasarMocks.copyToClipboard).toHaveBeenCalledWith('当前回答 markdown');
+        expect(wrapper.emitted('export')).toHaveLength(1);
         expect(wrapper.emitted('continue')).toHaveLength(1);
         expect(wrapper.emitted('retry')).toHaveLength(2);
         expect(wrapper.text()).not.toContain('模型路由');

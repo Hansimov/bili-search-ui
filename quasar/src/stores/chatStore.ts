@@ -53,6 +53,8 @@ export interface StreamSegment {
 export interface ConversationMessage {
     /** Unique ID for stable v-for keys */
     id: string;
+    /** Message creation timestamp (ms) */
+    createdAt?: number;
     role: 'user' | 'assistant';
     content: string;
     /** LLM 思考/推理内容 */
@@ -113,6 +115,10 @@ function mergeToolEvents(existing: ToolEvent, incoming: ToolEvent): ToolEvent {
     };
 }
 
+function cloneSerializable<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T;
+}
+
 function sessionHasRenderableState(session: ChatSession): boolean {
     return !!(
         session.query ||
@@ -146,6 +152,33 @@ function isSessionIncludedInConversationHistory(
 
 /** 上下文管理：最多保留的对话轮数（每轮 = 1 user + 1 assistant） */
 const MAX_CONVERSATION_TURNS = 5;
+
+/** 当前 chat 快照结构版本 */
+export const CHAT_SNAPSHOT_SCHEMA_VERSION = 2;
+
+export interface ChatHistorySnapshot {
+    schemaVersion: number;
+    capturedAt: number;
+    /** 当前会话状态 */
+    session: ChatSession;
+    /** 多轮对话历史 */
+    conversationHistory: ConversationMessage[];
+}
+
+export interface ChatExportRound {
+    index: number;
+    phase: 'historical' | 'current';
+    status: 'completed' | 'in-progress' | 'aborted' | 'error';
+    user?: ConversationMessage;
+    assistant?: ConversationMessage;
+    error?: string | null;
+}
+
+export interface ChatExportSessionBundle extends ChatHistorySnapshot {
+    exportedAt: number;
+    currentHistoryRecordId: string | null;
+    rounds: ChatExportRound[];
+}
 
 /** 单条聊天会话 */
 export interface ChatSession {
@@ -183,6 +216,150 @@ export interface ChatSession {
     thinking: boolean;
     /** 创建时间戳 */
     createdAt: number;
+}
+
+function buildAssistantMessageFromChatSession(
+    sourceSession: ChatSession,
+): ConversationMessage | null {
+    const hasAssistantState =
+        !!sourceSession.content ||
+        !!sourceSession.thinkingContent ||
+        sourceSession.toolEvents.length > 0 ||
+        sourceSession.streamSegments.length > 0;
+
+    if (!hasAssistantState) {
+        return null;
+    }
+
+    return {
+        id: nextMsgId(),
+        createdAt: sourceSession.createdAt,
+        role: 'assistant',
+        content: sourceSession.content,
+        thinkingContent: sourceSession.thinkingContent || undefined,
+        toolEvents:
+            sourceSession.toolEvents.length > 0
+                ? cloneSerializable(sourceSession.toolEvents)
+                : undefined,
+        streamSegments:
+            sourceSession.streamSegments.length > 0
+                ? cloneSerializable(sourceSession.streamSegments)
+                : undefined,
+        perfStats: sourceSession.perfStats || undefined,
+        usage: sourceSession.usage || undefined,
+        usageTrace: sourceSession.usageTrace || undefined,
+    };
+}
+
+function getRoundStatusFromSession(
+    session: Pick<ChatSession, 'isDone' | 'isLoading' | 'isAborted' | 'error'>,
+): ChatExportRound['status'] {
+    if (session.error) {
+        return 'error';
+    }
+    if (session.isAborted) {
+        return 'aborted';
+    }
+    if (session.isDone) {
+        return 'completed';
+    }
+    return session.isLoading ? 'in-progress' : 'completed';
+}
+
+function buildHistoricalExportRounds(
+    history: ConversationMessage[],
+): ChatExportRound[] {
+    const rounds: ChatExportRound[] = [];
+    let pendingUser: ConversationMessage | undefined;
+
+    for (const message of history) {
+        const clonedMessage = cloneSerializable(message);
+        if (clonedMessage.role === 'user') {
+            if (pendingUser) {
+                rounds.push({
+                    index: rounds.length + 1,
+                    phase: 'historical',
+                    status: 'completed',
+                    user: pendingUser,
+                });
+            }
+            pendingUser = clonedMessage;
+            continue;
+        }
+
+        rounds.push({
+            index: rounds.length + 1,
+            phase: 'historical',
+            status: 'completed',
+            user: pendingUser,
+            assistant: clonedMessage,
+        });
+        pendingUser = undefined;
+    }
+
+    if (pendingUser) {
+        rounds.push({
+            index: rounds.length + 1,
+            phase: 'historical',
+            status: 'completed',
+            user: pendingUser,
+        });
+    }
+
+    return rounds;
+}
+
+function buildCurrentExportRound(
+    session: ChatSession,
+    conversationHistory: ConversationMessage[],
+    nextIndex: number,
+): ChatExportRound | null {
+    const hasCurrentRound =
+        !!session.query ||
+        !!session.error ||
+        session.isLoading ||
+        session.isAborted ||
+        sessionHasRenderableState(session);
+    if (!hasCurrentRound) {
+        return null;
+    }
+
+    if (isSessionIncludedInConversationHistory(session, conversationHistory)) {
+        return null;
+    }
+
+    const assistant = buildAssistantMessageFromChatSession(session);
+    return {
+        index: nextIndex,
+        phase: 'current',
+        status: getRoundStatusFromSession(session),
+        error: session.error,
+        user: session.query
+            ? {
+                id: `current-user-${session.sessionId}`,
+                createdAt: session.createdAt,
+                role: 'user',
+                content: session.query,
+            }
+            : undefined,
+        assistant: assistant || undefined,
+    };
+}
+
+function buildExportRounds(
+    conversationHistory: ConversationMessage[],
+    session: ChatSession,
+): ChatExportRound[] {
+    const rounds = buildHistoricalExportRounds(conversationHistory);
+    const currentRound = buildCurrentExportRound(
+        session,
+        conversationHistory,
+        rounds.length + 1,
+    );
+    if (currentRound) {
+        rounds.push(currentRound);
+    }
+    return rounds;
 }
 
 function defaultSession(sessionId?: string): ChatSession {
@@ -317,12 +494,25 @@ export const useChatStore = defineStore('chat', {
     },
 
     actions: {
-        exportSnapshot() {
+        exportSnapshot(): ChatHistorySnapshot {
             return {
-                session: { ...this.currentSession },
-                conversationHistory: this.conversationHistory.map((message) => ({
-                    ...message,
-                })),
+                schemaVersion: CHAT_SNAPSHOT_SCHEMA_VERSION,
+                capturedAt: Date.now(),
+                session: cloneSerializable(this.currentSession),
+                conversationHistory: cloneSerializable(this.conversationHistory),
+            };
+        },
+
+        exportSessionBundle(): ChatExportSessionBundle {
+            const snapshot = this.exportSnapshot();
+            return {
+                ...snapshot,
+                exportedAt: Date.now(),
+                currentHistoryRecordId: this._currentHistoryRecordId,
+                rounds: buildExportRounds(
+                    snapshot.conversationHistory,
+                    snapshot.session,
+                ),
             };
         },
 
@@ -477,34 +667,9 @@ export const useChatStore = defineStore('chat', {
         _buildAssistantMessageFromSession(
             session?: ChatSession,
         ): ConversationMessage | null {
-            const sourceSession = session ?? this.currentSession;
-            const hasAssistantState =
-                !!sourceSession.content ||
-                !!sourceSession.thinkingContent ||
-                sourceSession.toolEvents.length > 0 ||
-                sourceSession.streamSegments.length > 0;
-
-            if (!hasAssistantState) {
-                return null;
-            }
-
-            return {
-                id: nextMsgId(),
-                role: 'assistant',
-                content: sourceSession.content,
-                thinkingContent: sourceSession.thinkingContent || undefined,
-                toolEvents:
-                    sourceSession.toolEvents.length > 0
-                        ? [...sourceSession.toolEvents]
-                        : undefined,
-                streamSegments:
-                    sourceSession.streamSegments.length > 0
-                        ? [...sourceSession.streamSegments]
-                        : undefined,
-                perfStats: sourceSession.perfStats || undefined,
-                usage: sourceSession.usage || undefined,
-                usageTrace: sourceSession.usageTrace || undefined,
-            };
+            return buildAssistantMessageFromChatSession(
+                session ?? this.currentSession,
+            );
         },
 
         _currentRoundBaseHistory(): ConversationMessage[] {
@@ -523,6 +688,7 @@ export const useChatStore = defineStore('chat', {
             if (this.currentSession.query) {
                 baseHistory.push({
                     id: nextMsgId(),
+                    createdAt: this.currentSession.createdAt,
                     role: 'user',
                     content: this.currentSession.query,
                 });
@@ -701,17 +867,23 @@ export const useChatStore = defineStore('chat', {
                             this._streamId = null;
                             // 将当前轮次追加到对话历史，包含 tool events + thinking + segments
                             this.conversationHistory.push(
-                                { id: nextMsgId(), role: 'user', content: query },
                                 {
                                     id: nextMsgId(),
+                                    createdAt: this.currentSession.createdAt,
+                                    role: 'user',
+                                    content: query,
+                                },
+                                {
+                                    id: nextMsgId(),
+                                    createdAt: Date.now(),
                                     role: 'assistant',
                                     content: this.currentSession.content,
                                     thinkingContent: this.currentSession.thinkingContent || undefined,
                                     toolEvents: this.currentSession.toolEvents.length > 0
-                                        ? [...this.currentSession.toolEvents]
+                                        ? cloneSerializable(this.currentSession.toolEvents)
                                         : undefined,
                                     streamSegments: this.currentSession.streamSegments.length > 0
-                                        ? [...this.currentSession.streamSegments]
+                                        ? cloneSerializable(this.currentSession.streamSegments)
                                         : undefined,
                                     perfStats: this.currentSession.perfStats || undefined,
                                     usage: this.currentSession.usage || undefined,
@@ -768,7 +940,7 @@ export const useChatStore = defineStore('chat', {
             if (this.currentSessionIdx < this.sessions.length - 1) {
                 this.sessions.splice(this.currentSessionIdx + 1);
             }
-            this.sessions.push({ ...this.currentSession });
+            this.sessions.push(cloneSerializable(this.currentSession));
             this.currentSessionIdx = this.sessions.length - 1;
         },
 
@@ -796,7 +968,7 @@ export const useChatStore = defineStore('chat', {
         restoreSession(index: number) {
             if (index >= 0 && index < this.sessions.length) {
                 this.currentSessionIdx = index;
-                this.currentSession = { ...this.sessions[index] };
+                this.currentSession = cloneSerializable(this.sessions[index]);
             }
         },
 
@@ -805,6 +977,8 @@ export const useChatStore = defineStore('chat', {
          * 用于点击历史记录时恢复 chat 模式的页面、状态和样式
          */
         restoreFromSnapshot(snapshot: {
+            schemaVersion?: number;
+            capturedAt?: number;
             session: ChatSession;
             conversationHistory: ConversationMessage[];
         }) {
@@ -816,6 +990,7 @@ export const useChatStore = defineStore('chat', {
             this.conversationHistory = snapshot.conversationHistory.map(m => ({
                 ...m,
                 id: m.id || nextMsgId(),
+                createdAt: m.createdAt || Date.now(),
             }));
             const includedInHistory = isSessionIncludedInConversationHistory(
                 snapshot.session,
@@ -826,7 +1001,7 @@ export const useChatStore = defineStore('chat', {
                 : this.conversationHistory.length;
             // 恢复当前会话状态；历史恢复不应继续流式请求，但应保留完成/中止语义
             this.currentSession = {
-                ...snapshot.session,
+                ...cloneSerializable(snapshot.session),
                 sessionId,
                 isLoading: false,
                 isThinkingPhase: false,

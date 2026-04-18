@@ -490,6 +490,14 @@
             <span>复制</span>
           </button>
           <button
+            type="button"
+            class="chat-inline-action-btn"
+            @click="$emit('export')"
+          >
+            <q-icon name="download" size="14px" />
+            <span>导出</span>
+          </button>
+          <button
             v-if="canContinueCurrentAnswer"
             type="button"
             class="chat-inline-action-btn"
@@ -576,7 +584,7 @@ export default defineComponent({
     BiliVideoTooltip,
     SearchModeEmptyState,
   },
-  emits: ['retry', 'continue', 'edit', 'showResults'],
+  emits: ['retry', 'continue', 'edit', 'showResults', 'export'],
   setup(_props, { emit }) {
     const chatStore = useChatStore();
     const exploreStore = useExploreStore();

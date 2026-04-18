@@ -4,7 +4,10 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { useChatStore } from 'src/stores/chatStore';
+import {
+    CHAT_SNAPSHOT_SCHEMA_VERSION,
+    useChatStore,
+} from 'src/stores/chatStore';
 import type { ChatMessage } from 'src/services/chatService';
 
 const searchHistoryStoreMock = vi.hoisted(() => ({
@@ -245,6 +248,117 @@ describe('ChatStore', () => {
             store._saveToHistory();
             expect(store.sessions.length).toBe(2); // 截断了会话2和3
             expect(store.sessions[1].query).toBe('分叉会话');
+        });
+
+        it('exportSnapshot 应返回带版本号的深拷贝快照', () => {
+            const store = useChatStore();
+            store.currentSession.query = '导出问题';
+            store.currentSession.toolEvents = [
+                {
+                    iteration: 1,
+                    tools: ['search_videos'],
+                    calls: [
+                        {
+                            type: 'search_videos',
+                            args: { query: '导出问题' },
+                            status: 'completed',
+                            result: { hits: [] },
+                        },
+                    ],
+                },
+            ];
+            store.conversationHistory.push(
+                { id: 'u-1', createdAt: 100, role: 'user', content: '历史问题' },
+                { id: 'a-1', createdAt: 200, role: 'assistant', content: '历史回答' },
+            );
+
+            const snapshot = store.exportSnapshot();
+
+            expect(snapshot.schemaVersion).toBe(CHAT_SNAPSHOT_SCHEMA_VERSION);
+            expect(snapshot.capturedAt).toEqual(expect.any(Number));
+            expect(snapshot.session.query).toBe('导出问题');
+            expect(snapshot.conversationHistory).toHaveLength(2);
+
+            snapshot.session.query = '已篡改';
+            snapshot.conversationHistory[0]!.content = '已篡改';
+
+            expect(store.currentSession.query).toBe('导出问题');
+            expect(store.conversationHistory[0]!.content).toBe('历史问题');
+        });
+
+        it('exportSessionBundle 应包含未完成的当前回合', () => {
+            const store = useChatStore();
+            store.conversationHistory = [
+                { id: 'u-1', createdAt: 100, role: 'user', content: '上一轮问题' },
+                {
+                    id: 'a-1',
+                    createdAt: 200,
+                    role: 'assistant',
+                    content: '上一轮回答',
+                },
+            ];
+            store.currentSession = {
+                ...store.currentSession,
+                sessionId: 'session-export-current',
+                query: '当前问题',
+                content: '当前部分回答',
+                thinkingContent: '当前思考',
+                isLoading: true,
+                isDone: false,
+                isAborted: false,
+                error: null,
+                createdAt: 300,
+                toolEvents: [
+                    {
+                        iteration: 2,
+                        tools: ['run_small_llm_task'],
+                        calls: [
+                            {
+                                type: 'run_small_llm_task',
+                                args: { task: '整理当前回答' },
+                                status: 'streaming',
+                                result: { result: '- 要点1' },
+                            },
+                        ],
+                    },
+                ],
+                streamSegments: [
+                    { type: 'thinking', content: '当前思考' },
+                    {
+                        type: 'tool',
+                        toolEvent: {
+                            iteration: 2,
+                            tools: ['run_small_llm_task'],
+                            calls: [
+                                {
+                                    type: 'run_small_llm_task',
+                                    args: { task: '整理当前回答' },
+                                    status: 'streaming',
+                                    result: { result: '- 要点1' },
+                                },
+                            ],
+                        },
+                    },
+                ],
+            };
+
+            const bundle = store.exportSessionBundle();
+
+            expect(bundle.rounds).toHaveLength(2);
+            expect(bundle.rounds[1]).toEqual(
+                expect.objectContaining({
+                    phase: 'current',
+                    status: 'in-progress',
+                    user: expect.objectContaining({
+                        content: '当前问题',
+                        createdAt: 300,
+                    }),
+                    assistant: expect.objectContaining({
+                        content: '当前部分回答',
+                        thinkingContent: '当前思考',
+                    }),
+                })
+            );
         });
 
         it('restoreSession 应该恢复指定会话', () => {
