@@ -1,5 +1,5 @@
 <template>
-  <div class="tool-call-container">
+  <div ref="containerRef" class="tool-call-container">
     <div
       v-for="(call, idx) in visibleToolCalls"
       :key="`${call.type}-${idx}`"
@@ -117,7 +117,7 @@
       <div
         v-if="canShowResults(call)"
         class="tool-call-results-wrapper"
-        :class="{ expanded: expanded[idx] || isAlwaysExpanded(call) }"
+        :class="getResultsWrapperClasses(call, idx)"
       >
         <div class="tool-call-results-inner">
           <div class="tool-call-results">
@@ -243,15 +243,7 @@
               v-else-if="call.type === 'run_small_llm_task'"
               class="tool-text-results"
             >
-              <div class="tool-text-result-meta">
-                <span class="tool-text-result-title">
-                  {{ getSmallTaskTitle(call) }}
-                </span>
-                <span v-if="getSmallTaskModel(call)" class="tool-model-badge">
-                  {{ getSmallTaskModel(call) }}
-                </span>
-              </div>
-              <pre class="tool-text-result">{{
+              <pre class="tool-text-result tool-text-result--small-task">{{
                 getSmallTaskResultText(call)
               }}</pre>
             </div>
@@ -466,7 +458,9 @@ export default defineComponent({
   },
   emits: ['viewAllResults'],
   setup(props) {
+    const containerRef = ref<HTMLElement | null>(null);
     const expanded = ref<Record<number, boolean>>({});
+    const previousStatuses = ref<Record<number, string | undefined>>({});
     const visibleToolCalls = computed(() =>
       props.toolCalls.filter(
         (call) =>
@@ -530,8 +524,7 @@ export default defineComponent({
 
     const formatToolArgs = (call: ToolCall) => formatToolCallArgs(call);
 
-    const isAlwaysExpanded = (call: ToolCall): boolean =>
-      call.type === 'run_small_llm_task';
+    const isAlwaysExpanded: (...args: unknown[]) => boolean = () => false;
 
     /** Check if a tool call has displayable results */
     const hasResults = (call: ToolCall): boolean => {
@@ -583,6 +576,12 @@ export default defineComponent({
 
     const isExpandable = (call: ToolCall): boolean =>
       canShowResults(call) && !isAlwaysExpanded(call);
+
+    const getResultsWrapperClasses = (call: ToolCall, idx: number) => ({
+      expanded: expanded.value[idx] || isAlwaysExpanded(call),
+      'tool-call-results-wrapper--small-task':
+        call.type === 'run_small_llm_task',
+    });
 
     /** 获取所有视频结果（合并所有 query 的结果） */
     const getAllVideoHits = (call: ToolCall): VideoHit[] => {
@@ -732,17 +731,6 @@ export default defineComponent({
       return (call.result as SmallTaskResult) || {};
     };
 
-    const getSmallTaskTitle = (call: ToolCall): string => {
-      return String(
-        getSmallTaskResult(call)?.task || call.args?.task || '整理结果'
-      );
-    };
-
-    const getSmallTaskModel = (call: ToolCall): string => {
-      const result = getSmallTaskResult(call);
-      return String(result?.model_name || result?.model || '').trim();
-    };
-
     const getSmallTaskResultText = (call: ToolCall): string => {
       const resultText = String(getSmallTaskResult(call)?.result || '').trim();
       if (resultText) {
@@ -770,30 +758,181 @@ export default defineComponent({
       }
     };
 
+    type ScrollAnchor = {
+      itemEl: HTMLElement;
+      scrollEl: HTMLElement;
+      itemBottom: number;
+      scrollTop: number;
+    };
+
+    const getToolItemElement = (idx: number): HTMLElement | null => {
+      const items = containerRef.value?.querySelectorAll('.tool-call-item');
+      return (items?.[idx] as HTMLElement | undefined) || null;
+    };
+
+    const getScrollableAncestor = (element: HTMLElement | null) => {
+      let current = element?.parentElement || null;
+      while (current) {
+        if (current.classList.contains('chat-results-container')) {
+          return current;
+        }
+        const style = window.getComputedStyle(current);
+        if (
+          /(auto|scroll)/.test(style.overflowY || '') &&
+          current.scrollHeight > current.clientHeight
+        ) {
+          return current;
+        }
+        current = current.parentElement;
+      }
+      return document.scrollingElement as HTMLElement | null;
+    };
+
+    const captureScrollAnchor = (idx: number): ScrollAnchor | null => {
+      const itemEl = getToolItemElement(idx);
+      if (!itemEl) {
+        return null;
+      }
+      const scrollEl = getScrollableAncestor(itemEl);
+      if (!scrollEl) {
+        return null;
+      }
+      return {
+        itemEl,
+        scrollEl,
+        itemBottom: itemEl.getBoundingClientRect().bottom,
+        scrollTop: scrollEl.scrollTop,
+      };
+    };
+
+    const restoreScrollAnchors = (anchors: Array<ScrollAnchor | null>) => {
+      const validAnchors = anchors.filter(
+        (anchor): anchor is ScrollAnchor => !!anchor
+      );
+      if (validAnchors.length === 0) {
+        return;
+      }
+      nextTick(() => {
+        validAnchors.forEach((anchor) => {
+          if (!anchor.itemEl.isConnected) {
+            return;
+          }
+          const delta =
+            anchor.itemEl.getBoundingClientRect().bottom - anchor.itemBottom;
+          if (Math.abs(delta) > 1) {
+            anchor.scrollEl.scrollTop = anchor.scrollTop + delta;
+          }
+        });
+      });
+    };
+
+    const setExpandedWithAnchor = (idx: number, value: boolean) => {
+      const anchor = captureScrollAnchor(idx);
+      expanded.value[idx] = value;
+      restoreScrollAnchors([anchor]);
+    };
+
+    const syncStreamingSmallTaskScrollPositions = () => {
+      nextTick(() => {
+        visibleToolCalls.value.forEach((call, idx) => {
+          if (
+            call.type !== 'run_small_llm_task' ||
+            call.status !== 'streaming'
+          ) {
+            return;
+          }
+          const itemEl = getToolItemElement(idx);
+          const resultEl = itemEl?.querySelector(
+            '.tool-text-result--small-task'
+          ) as HTMLElement | null;
+          if (resultEl) {
+            resultEl.scrollTop = resultEl.scrollHeight;
+          }
+        });
+      });
+    };
+
     // ── Watch: Auto-expand completed search_videos calls with animation ──
     // 先设置为 false（确保 DOM 渲染出 0fr 状态），再通过 nextTick 延迟设为 true
     // 使 CSS grid-template-rows 过渡动画生效
     watch(
-      () => visibleToolCalls.value,
-      (calls) => {
+      () =>
+        visibleToolCalls.value.map((call) => {
+          const smallTaskResult =
+            call.type === 'run_small_llm_task'
+              ? String(
+                  (call.result as SmallTaskResult | undefined)?.result || ''
+                )
+              : '';
+          return `${call.type}::${call.status}::${
+            call.visibility || ''
+          }::${smallTaskResult}`;
+        }),
+      () => {
+        const calls = visibleToolCalls.value;
+        const nextExpanded: Record<number, boolean> = {};
+        const nextStatuses: Record<number, string | undefined> = {};
+        const anchorsToRestore: Array<ScrollAnchor | null> = [];
+
         calls.forEach((call, idx) => {
+          const previousExpanded = expanded.value[idx];
+          const previousStatus = previousStatuses.value[idx];
+          nextStatuses[idx] = call.status;
+
+          if (call.type === 'run_small_llm_task') {
+            if (call.status === 'streaming' && previousStatus !== 'streaming') {
+              if (previousExpanded !== true) {
+                anchorsToRestore.push(captureScrollAnchor(idx));
+              }
+              nextExpanded[idx] = true;
+              return;
+            }
+            if (
+              call.status === 'completed' &&
+              previousStatus !== 'completed' &&
+              hasResults(call)
+            ) {
+              if (previousExpanded !== false) {
+                anchorsToRestore.push(captureScrollAnchor(idx));
+              }
+              nextExpanded[idx] = false;
+              return;
+            }
+            if (previousExpanded !== undefined) {
+              nextExpanded[idx] = previousExpanded;
+              return;
+            }
+            if (call.status === 'completed' && hasResults(call)) {
+              nextExpanded[idx] = false;
+            }
+            return;
+          }
+
+          if (previousExpanded !== undefined) {
+            nextExpanded[idx] = previousExpanded;
+            return;
+          }
           if (
             call.status === 'completed' &&
             hasResults(call) &&
-            expanded.value[idx] === undefined
+            nextExpanded[idx] === undefined
           ) {
-            // 默认收起，用户可点击展开
-            expanded.value[idx] = false;
+            nextExpanded[idx] = false;
           }
         });
+
+        expanded.value = nextExpanded;
+        previousStatuses.value = nextStatuses;
+        restoreScrollAnchors(anchorsToRestore);
+        syncStreamingSmallTaskScrollPositions();
       },
-      { immediate: true, deep: true }
+      { immediate: true }
     );
 
     const toggleExpand = (idx: number) => {
       const call = visibleToolCalls.value[idx];
       if (call && isExpandable(call)) {
-        expanded.value[idx] = !expanded.value[idx];
+        setExpandedWithAnchor(idx, !expanded.value[idx]);
       }
     };
 
@@ -804,32 +943,11 @@ export default defineComponent({
      * 使锚点恢复到完全相同的视口位置，实现零跳动。
      */
     const collapseAndScroll = (idx: number) => {
-      const container = document.querySelector('.tool-call-container');
-      if (!container) {
-        expanded.value[idx] = false;
-        return;
-      }
-      const items = container.querySelectorAll('.tool-call-item');
-      const el = items[idx] as HTMLElement | undefined;
-      if (!el) {
-        expanded.value[idx] = false;
-        return;
-      }
-      // 记录收起前锚点（item 底部）在视口中的 Y 坐标
-      const anchorViewportY = el.getBoundingClientRect().bottom;
-      expanded.value[idx] = false;
-      nextTick(() => {
-        // 收起后锚点（item 底部）在视口中的新 Y 坐标
-        const newAnchorViewportY = el.getBoundingClientRect().bottom;
-        // 调整 scrollTop 使锚点恢复到原来的视口位置
-        const delta = newAnchorViewportY - anchorViewportY;
-        if (Math.abs(delta) > 1) {
-          document.documentElement.scrollTop += delta;
-        }
-      });
+      setExpandedWithAnchor(idx, false);
     };
 
     return {
+      containerRef,
       expanded,
       visibleToolCalls,
       toggleExpand,
@@ -842,6 +960,7 @@ export default defineComponent({
       canShowResults,
       isExpandable,
       isAlwaysExpanded,
+      getResultsWrapperClasses,
       getResultCount,
       getVideoHits,
       getAllVideoHits,
@@ -853,8 +972,6 @@ export default defineComponent({
       getTranscriptResult,
       getTranscriptVideoId,
       getTranscriptPreview,
-      getSmallTaskTitle,
-      getSmallTaskModel,
       getSmallTaskResultText,
       getOwnerDisplayName,
       getOwnerHref,
@@ -1021,6 +1138,10 @@ export default defineComponent({
   grid-template-rows: 1fr;
 }
 
+.tool-call-results-wrapper--small-task {
+  transition: none;
+}
+
 .tool-call-results-inner {
   overflow: hidden;
   min-height: 0;
@@ -1171,14 +1292,6 @@ export default defineComponent({
   opacity: 0.56;
 }
 
-.tool-model-badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: rgba(64, 144, 255, 0.08);
-  color: rgba(64, 144, 255, 0.92);
-}
-
 .tool-text-result {
   margin: 0;
   padding: 10px 12px;
@@ -1189,6 +1302,13 @@ export default defineComponent({
   word-break: break-word;
   line-height: 1.55;
   font-size: 12px;
+}
+
+.tool-text-result--small-task {
+  max-height: 84px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
 }
 
 .tool-transcript-preview {

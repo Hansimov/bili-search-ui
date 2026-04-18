@@ -97,7 +97,14 @@
 </template>
 
 <script>
-import { computed, defineAsyncComponent, ref, watch, nextTick } from 'vue';
+import {
+  computed,
+  defineAsyncComponent,
+  onBeforeUnmount,
+  ref,
+  watch,
+  nextTick,
+} from 'vue';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useChatStore } from 'src/stores/chatStore';
@@ -244,6 +251,96 @@ export default {
 
     /** 是否正在执行程序化滚动（用于区分用户滚动和自动滚动） */
     let isProgrammaticScroll = false;
+    let scrollRaf = 0;
+    let resizeObserver = null;
+    let observedContentEl = null;
+    let intentListenerEl = null;
+    let lastUserScrollIntentAt = 0;
+    let lastScrollMetrics = {
+      scrollTop: 0,
+      scrollHeight: 0,
+      clientHeight: 0,
+    };
+
+    const markUserScrollIntent = () => {
+      lastUserScrollIntentAt = Date.now();
+    };
+
+    const detachUserScrollIntentListeners = () => {
+      if (!intentListenerEl) return;
+      intentListenerEl.removeEventListener('wheel', markUserScrollIntent);
+      intentListenerEl.removeEventListener('touchmove', markUserScrollIntent);
+      intentListenerEl.removeEventListener('mousedown', markUserScrollIntent);
+      intentListenerEl = null;
+    };
+
+    const attachUserScrollIntentListeners = () => {
+      const el = chatContainerRef.value;
+      if (!el || el === intentListenerEl) return;
+      detachUserScrollIntentListeners();
+      el.addEventListener('wheel', markUserScrollIntent, { passive: true });
+      el.addEventListener('touchmove', markUserScrollIntent, {
+        passive: true,
+      });
+      el.addEventListener('mousedown', markUserScrollIntent);
+      intentListenerEl = el;
+    };
+
+    const updateScrollMetrics = () => {
+      const el = chatContainerRef.value;
+      if (!el) return;
+      lastScrollMetrics = {
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+      };
+    };
+
+    const wasPinnedToBottom = () => {
+      const { scrollTop, scrollHeight, clientHeight } = lastScrollMetrics;
+      if (!scrollHeight || !clientHeight) {
+        return isNearBottom(chatContainerRef.value);
+      }
+      return scrollHeight - scrollTop - clientHeight < SCROLL_BOTTOM_THRESHOLD;
+    };
+
+    const scheduleScrollToBottomInstant = () => {
+      if (scrollRaf) return;
+      scrollRaf = window.requestAnimationFrame(() => {
+        scrollRaf = 0;
+        scrollToBottomInstant();
+      });
+    };
+
+    const disconnectResizeObserver = () => {
+      if (resizeObserver && observedContentEl) {
+        resizeObserver.unobserve(observedContentEl);
+      }
+      observedContentEl = null;
+    };
+
+    const observeChatContentResize = () => {
+      if (typeof ResizeObserver === 'undefined') return;
+      const container = chatContainerRef.value;
+      if (!container) return;
+      const contentEl =
+        container.querySelector('.chat-response-panel') ||
+        container.firstElementChild;
+      if (!contentEl || contentEl === observedContentEl) return;
+      if (!resizeObserver) {
+        resizeObserver = new ResizeObserver(() => {
+          if (!isChatMode.value) return;
+          const shouldKeepPinned = !userScrolledUp.value && wasPinnedToBottom();
+          updateScrollMetrics();
+          if (shouldKeepPinned) {
+            scheduleScrollToBottomInstant();
+          }
+        });
+      }
+      disconnectResizeObserver();
+      resizeObserver.observe(contentEl);
+      observedContentEl = contentEl;
+    };
 
     /** 判断滚动容器是否在底部附近 */
     const isNearBottom = (el) => {
@@ -256,10 +353,23 @@ export default {
 
     /** 处理 chat 容器滚动事件 */
     const handleChatScroll = () => {
-      if (isProgrammaticScroll) return;
       const el = chatContainerRef.value;
       if (!el) return;
+      if (isProgrammaticScroll) {
+        updateScrollMetrics();
+        return;
+      }
+      const shouldKeepPinned = !userScrolledUp.value && wasPinnedToBottom();
+      const userInitiated = Date.now() - lastUserScrollIntentAt < 250;
+      if (!userInitiated) {
+        updateScrollMetrics();
+        if (shouldKeepPinned && !isNearBottom(el)) {
+          scheduleScrollToBottomInstant();
+        }
+        return;
+      }
       userScrolledUp.value = !isNearBottom(el);
+      updateScrollMetrics();
     };
 
     /** 平滑滚动到底部 */
@@ -269,8 +379,10 @@ export default {
       isProgrammaticScroll = true;
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
       userScrolledUp.value = false;
+      updateScrollMetrics();
       setTimeout(() => {
         isProgrammaticScroll = false;
+        updateScrollMetrics();
       }, 400);
     };
 
@@ -280,8 +392,11 @@ export default {
       if (!el) return;
       isProgrammaticScroll = true;
       el.scrollTop = el.scrollHeight;
+      userScrolledUp.value = false;
+      updateScrollMetrics();
       setTimeout(() => {
         isProgrammaticScroll = false;
+        updateScrollMetrics();
       }, 50);
     };
 
@@ -302,7 +417,7 @@ export default {
       () => {
         if (!isChatMode.value) return;
         if (userScrolledUp.value) return;
-        nextTick(() => scrollToBottomInstant());
+        nextTick(() => scheduleScrollToBottomInstant());
       }
     );
 
@@ -312,10 +427,38 @@ export default {
       (loading, prevLoading) => {
         if (loading && !prevLoading) {
           userScrolledUp.value = false;
-          nextTick(() => scrollToBottomInstant());
+          nextTick(() => scheduleScrollToBottomInstant());
         }
       }
     );
+
+    watch(
+      [chatContainerRef, isChatMode],
+      ([container, enabled]) => {
+        if (!enabled || !container) {
+          disconnectResizeObserver();
+          return;
+        }
+        nextTick(() => {
+          updateScrollMetrics();
+          observeChatContentResize();
+          attachUserScrollIntentListeners();
+          if (!userScrolledUp.value) {
+            scheduleScrollToBottomInstant();
+          }
+        });
+      },
+      { immediate: true }
+    );
+
+    onBeforeUnmount(() => {
+      if (scrollRaf) {
+        window.cancelAnimationFrame(scrollRaf);
+        scrollRaf = 0;
+      }
+      disconnectResizeObserver();
+      detachUserScrollIntentListeners();
+    });
 
     // Chat 面板与输入框对齐：完全依赖 CSS 变量 + align-items: center，
     // 与 SearchInput 使用相同的 --search-input-width / --search-input-max-width，
@@ -419,6 +562,7 @@ body.body--dark .search-bar-row {
   );
   overflow-x: hidden;
   overflow-y: auto;
+  overflow-anchor: none;
   scrollbar-gutter: stable;
   /* 底部留出空间，避免最后内容被输入框遮挡 */
   padding-right: 6px;

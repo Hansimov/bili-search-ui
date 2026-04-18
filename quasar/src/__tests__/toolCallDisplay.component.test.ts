@@ -327,9 +327,19 @@ describe('ToolCallDisplay component', () => {
 
         expect(wrapper.text()).toContain('小模型整理');
         expect(wrapper.text()).toContain('整理中...');
-        expect(wrapper.text()).toContain('doubao-seed-2-0-mini');
         expect(wrapper.text()).toContain('- 要点1');
         expect(wrapper.find('.tool-text-result').exists()).toBe(true);
+        expect(wrapper.find('.tool-text-result-meta').exists()).toBe(false);
+        expect(wrapper.find('.tool-model-badge').exists()).toBe(false);
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).toContain(
+            'tool-call-results-wrapper--small-task'
+        );
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).toContain(
+            'expanded'
+        );
+        expect(
+            wrapper.text().match(/把转写整理成 4 条中文要点/g)?.length || 0
+        ).toBe(1);
     });
 
     it('shows a placeholder body for streaming run_small_llm_task before first text arrives', () => {
@@ -353,5 +363,75 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('整理中...');
         expect(wrapper.text()).toContain('小模型已开始整理，等待首批内容...');
         expect(wrapper.find('.tool-text-result').exists()).toBe(true);
+    });
+
+    it('allows collapsing a streaming run_small_llm_task panel', async () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [streamingSmallTaskCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).toContain(
+            'expanded'
+        );
+
+        await wrapper.find('.tool-call-header').trigger('click');
+
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).not.toContain(
+            'expanded'
+        );
+    });
+
+    it('auto-collapses run_small_llm_task after completion while remaining expandable', async () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [streamingSmallTaskCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).toContain(
+            'expanded'
+        );
+
+        await wrapper.setProps({
+            toolCalls: [
+                {
+                    ...streamingSmallTaskCall,
+                    status: 'completed',
+                },
+            ],
+        });
+
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).not.toContain(
+            'expanded'
+        );
+        expect(wrapper.text()).toContain('已生成');
+
+        await wrapper.find('.tool-call-header').trigger('click');
+
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).toContain(
+            'expanded'
+        );
     });
 });
