@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     DEFAULT_CHAT_EXPORT_OPTIONS,
     cloneChatExportOptions,
+    filterChatExportBundle,
     generateChatExport,
 } from 'src/services/chatExport';
 import type { ChatExportSessionBundle } from 'src/stores/chatStore';
@@ -229,5 +230,37 @@ describe('chat export service', () => {
         });
         expect(parsed.rounds[0]?.toolEvents?.[0]?.calls?.[0]?.result).toBeUndefined();
         expect(parsed.rounds[0]?.rawTimeline).toHaveLength(1);
+    });
+
+    it('filters the export bundle by selected round indexes', () => {
+        const multiRoundBundle: ChatExportSessionBundle = {
+            ...sampleBundle,
+            rounds: [
+                ...sampleBundle.rounds,
+                {
+                    index: 2,
+                    phase: 'current',
+                    status: 'completed',
+                    user: {
+                        id: 'u-2',
+                        createdAt: 1713500110000,
+                        role: 'user',
+                        content: '第二轮问题',
+                    },
+                    assistant: {
+                        id: 'a-2',
+                        createdAt: 1713500120000,
+                        role: 'assistant',
+                        content: '第二轮回答',
+                    },
+                },
+            ],
+        };
+
+        const filtered = filterChatExportBundle(multiRoundBundle, [2]);
+
+        expect(filtered.rounds).toHaveLength(1);
+        expect(filtered.rounds[0]?.index).toBe(2);
+        expect(filtered.rounds[0]?.user?.content).toBe('第二轮问题');
     });
 });

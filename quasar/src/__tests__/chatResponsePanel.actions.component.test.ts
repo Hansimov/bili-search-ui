@@ -185,35 +185,49 @@ describe('ChatResponsePanel actions', () => {
         await retryButton?.trigger('click');
 
         expect(quasarMocks.copyToClipboard).toHaveBeenCalledWith('当前回答 markdown');
-        expect(wrapper.emitted('export')).toHaveLength(1);
+        expect(wrapper.emitted('export')?.[0]?.[0]).toEqual({
+            maxRoundIndex: 1,
+            selectedRoundIndexes: [1],
+        });
         expect(wrapper.emitted('continue')).toHaveLength(1);
         expect(wrapper.emitted('retry')).toHaveLength(2);
         expect(wrapper.text()).not.toContain('模型路由');
         expect(wrapper.text()).not.toContain('规划');
     });
 
-    it('emits history retry and continue payloads from historical assistant actions', async () => {
+    it('emits history retry, continue, and export payloads from historical assistant actions', async () => {
         mockChatStore.currentSession.query = '';
         mockChatStore.content = '';
         mockChatStore.hasContent = false;
         mockChatStore.historyMessages = [
             { id: 'user-1', role: 'user', content: '历史问题1' },
             { id: 'assistant-1', role: 'assistant', content: '历史回答1' },
+            { id: 'user-2', role: 'user', content: '历史问题2' },
+            { id: 'assistant-2', role: 'assistant', content: '历史回答2' },
         ];
 
         const wrapper = await mountPanel();
         const historyActionButtons = wrapper.findAll(
             '.chat-history-assistant .chat-answer-actions .chat-inline-action-btn'
         );
-        const continueButton = historyActionButtons.find((node) =>
-            node.text().includes('继续')
-        );
-        const retryButton = historyActionButtons.find((node) =>
-            node.text().includes('重试')
-        );
+        const exportButton = historyActionButtons
+            .filter((node) => node.text().includes('导出'))
+            .at(-1);
+        const continueButton = historyActionButtons
+            .filter((node) => node.text().includes('继续'))
+            .at(-1);
+        const retryButton = historyActionButtons
+            .filter((node) => node.text().includes('重试'))
+            .at(-1);
 
+        await exportButton?.trigger('click');
         await continueButton?.trigger('click');
         await retryButton?.trigger('click');
+
+        expect(wrapper.emitted('export')?.[0]?.[0]).toEqual({
+            maxRoundIndex: 2,
+            selectedRoundIndexes: [1, 2],
+        });
 
         expect(wrapper.emitted('continue')?.[0]?.[0]).toEqual({
             query: '继续',
@@ -221,12 +235,17 @@ describe('ChatResponsePanel actions', () => {
             baseHistory: [
                 { id: 'user-1', role: 'user', content: '历史问题1' },
                 { id: 'assistant-1', role: 'assistant', content: '历史回答1' },
+                { id: 'user-2', role: 'user', content: '历史问题2' },
+                { id: 'assistant-2', role: 'assistant', content: '历史回答2' },
             ],
         });
         expect(wrapper.emitted('retry')?.[0]?.[0]).toEqual({
-            query: '历史问题1',
+            query: '历史问题2',
             mode: 'smart',
-            baseHistory: [],
+            baseHistory: [
+                { id: 'user-1', role: 'user', content: '历史问题1' },
+                { id: 'assistant-1', role: 'assistant', content: '历史回答1' },
+            ],
         });
     });
 

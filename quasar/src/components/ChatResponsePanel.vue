@@ -229,6 +229,14 @@
                 <span>复制</span>
               </button>
               <button
+                type="button"
+                class="chat-inline-action-btn"
+                @click="emitHistoryExport(msgIdx)"
+              >
+                <q-icon name="download" size="14px" />
+                <span>导出</span>
+              </button>
+              <button
                 v-if="msg.content"
                 type="button"
                 class="chat-inline-action-btn"
@@ -492,7 +500,7 @@
           <button
             type="button"
             class="chat-inline-action-btn"
-            @click="$emit('export')"
+            @click="emitCurrentExport"
           >
             <q-icon name="download" size="14px" />
             <span>导出</span>
@@ -1102,6 +1110,44 @@ export default defineComponent({
       });
     };
 
+    const buildRoundSelection = (maxRoundIndex: number) => {
+      return Array.from({ length: maxRoundIndex }, (_, index) => index + 1);
+    };
+
+    const getHistoryRoundIndex = (msgIdx: number) => {
+      return historyMessages.value
+        .slice(0, msgIdx + 1)
+        .reduce(
+          (count, message) => count + (message.role === 'assistant' ? 1 : 0),
+          0
+        );
+    };
+
+    const currentRoundIndex = computed(() => {
+      const historicalRounds = historyMessages.value.reduce(
+        (count, message) => count + (message.role === 'assistant' ? 1 : 0),
+        0
+      );
+      return userQuery.value ? historicalRounds + 1 : historicalRounds;
+    });
+
+    const emitHistoryExport = (msgIdx: number) => {
+      const maxRoundIndex = getHistoryRoundIndex(msgIdx);
+      if (!maxRoundIndex) return;
+      emit('export', {
+        maxRoundIndex,
+        selectedRoundIndexes: buildRoundSelection(maxRoundIndex),
+      });
+    };
+
+    const emitCurrentExport = () => {
+      if (!currentRoundIndex.value) return;
+      emit('export', {
+        maxRoundIndex: currentRoundIndex.value,
+        selectedRoundIndexes: buildRoundSelection(currentRoundIndex.value),
+      });
+    };
+
     /** 查看历史消息中某个 tool call 的搜索结果 */
     const handleViewHistoricalResults = (call: ToolCall) => {
       syncToolCallToExploreStore(call);
@@ -1526,6 +1572,8 @@ export default defineComponent({
       copyAnswerMarkdown,
       retryFromHistory,
       continueFromHistory,
+      emitHistoryExport,
+      emitCurrentExport,
       handleViewHistoricalResults,
       handleViewCurrentResults,
       // Video tooltip

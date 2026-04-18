@@ -34,7 +34,14 @@ const mockQueryStore = {
 
 const mockChatStore = {
     conversationHistory: [] as unknown[],
-    exportSessionBundle: vi.fn(() => ({ rounds: [], session: { sessionId: 'session-export' } })),
+    exportSessionBundle: vi.fn(() => ({
+        rounds: [
+            { index: 1 },
+            { index: 2 },
+            { index: 3 },
+        ],
+        session: { sessionId: 'session-export' },
+    })),
     currentSession: {
         query: '',
         mode: 'smart',
@@ -87,18 +94,15 @@ const mountResultsPage = () =>
         global: {
             stubs: {
                 ChatResponsePanel: true,
+                ChatExportDialog: true,
                 ResultsList: true,
                 'q-card': true,
                 'q-btn': true,
                 'q-dialog': true,
                 'q-toolbar': true,
                 'q-icon': true,
-                'q-separator': true,
-                'q-checkbox': true,
-                'q-space': true,
                 'q-toolbar-title': true,
                 'q-card-section': true,
-                'q-card-actions': true,
                 'q-tab-panels': true,
                 'q-tab-panel': true,
             },
@@ -137,5 +141,21 @@ describe('ResultsPage chat landing', () => {
 
         expect((wrapper.vm as unknown as { showChatPanel: boolean }).showChatPanel).toBe(false);
         expect((wrapper.vm as unknown as { showDirectEmptyLanding: boolean }).showDirectEmptyLanding).toBe(true);
+    });
+
+    it('opens export dialog with prefix round selection by default', () => {
+        const wrapper = mountResultsPage();
+        const vm = wrapper.vm as unknown as {
+            openExportDialog: (payload?: { maxRoundIndex?: number; selectedRoundIndexes?: number[] }) => void;
+            showExportDialog: boolean;
+            exportDialogSelectedRounds: number[];
+        };
+
+        vm.openExportDialog({ maxRoundIndex: 2 });
+        expect(vm.showExportDialog).toBe(true);
+        expect(vm.exportDialogSelectedRounds).toEqual([1, 2]);
+
+        vm.openExportDialog({ selectedRoundIndexes: [2, 3] });
+        expect(vm.exportDialogSelectedRounds).toEqual([2, 3]);
     });
 });

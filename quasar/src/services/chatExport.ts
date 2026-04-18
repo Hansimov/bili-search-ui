@@ -74,6 +74,63 @@ export function cloneChatExportOptions(
     return cloneSerializable(options);
 }
 
+export function getAvailableExportRoundIndexes(
+    bundle: ChatExportSessionBundle,
+): number[] {
+    return bundle.rounds.map((round) => round.index);
+}
+
+export function normalizeSelectedRoundIndexes(
+    bundle: ChatExportSessionBundle,
+    selectedRoundIndexes?: number[] | null,
+): number[] {
+    const availableIndexes = getAvailableExportRoundIndexes(bundle);
+    if (selectedRoundIndexes == null) {
+        return availableIndexes;
+    }
+
+    const availableSet = new Set(availableIndexes);
+    return Array.from(
+        new Set(
+            selectedRoundIndexes.filter((index) => availableSet.has(index))
+        )
+    ).sort((left, right) => left - right);
+}
+
+export function buildPrefixExportRoundSelection(
+    bundle: ChatExportSessionBundle,
+    maxRoundIndex?: number | null,
+): number[] {
+    const availableIndexes = getAvailableExportRoundIndexes(bundle);
+    if (!availableIndexes.length) {
+        return [];
+    }
+
+    if (maxRoundIndex == null) {
+        return availableIndexes;
+    }
+
+    return availableIndexes.filter((index) => index <= maxRoundIndex);
+}
+
+export function filterChatExportBundle(
+    bundle: ChatExportSessionBundle,
+    selectedRoundIndexes?: number[] | null,
+): ChatExportSessionBundle {
+    const normalizedIndexes = normalizeSelectedRoundIndexes(
+        bundle,
+        selectedRoundIndexes,
+    );
+    const selectedSet = new Set(normalizedIndexes);
+
+    return {
+        ...cloneSerializable(bundle),
+        rounds: bundle.rounds
+            .filter((round) => selectedSet.has(round.index))
+            .map((round) => cloneSerializable(round)),
+    };
+}
+
 function toIso(timestamp?: number): string | undefined {
     if (!timestamp) {
         return undefined;
