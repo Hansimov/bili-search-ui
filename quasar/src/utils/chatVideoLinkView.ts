@@ -14,10 +14,11 @@ const RENDERED_BV_LINK_RE =
 const RENDERED_BV_LINK_DETECT_RE =
     /<a\s+href="https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]+)"[^>]*class="[^"]*\bbili-video-ref\b[^"]*"[^>]*>/;
 const RENDERED_SPACE_LINK_RE =
-    /<a\s+href="(https:\/\/space\.bilibili\.com\/(\d+)(?:\/[^"#?]*)?(?:\?[^"#]*)?(?:#[^"]*)?)"[^>]*>(.*?)<\/a>/g;
+    /<a\s+href="(https:\/\/space\.bilibili\.com\/(\d+)(?:[/?#][A-Za-z0-9._~%!$&'()*+,;=:@/?#-]*)?)"[^>]*>(.*?)<\/a>/g;
 const RENDERED_SPACE_LINK_DETECT_RE =
-    /<a\s+href="https:\/\/space\.bilibili\.com\/(\d+)(?:\/[^"#?]*)?(?:\?[^"#]*)?(?:#[^"]*)?"[^>]*>/;
-const RAW_SPACE_LINK_RE = /https?:\/\/space\.bilibili\.com\/(\d+)(?:[/?#][^\s)]*)?/g;
+    /<a\s+href="https:\/\/space\.bilibili\.com\/(\d+)(?:[/?#][A-Za-z0-9._~%!$&'()*+,;=:@/?#-]*)?"[^>]*>/;
+const RAW_SPACE_LINK_RE =
+    /https?:\/\/space\.bilibili\.com\/(\d+)(?:[/?#][A-Za-z0-9._~%!$&'()*+,;=:@/?#-]*)?/g;
 const VIDEO_LINK_VIEW_STORAGE_KEY = 'chat-response-video-link-view';
 const VIDEO_LINK_VIEW_SESSION_KEY_PREFIX = 'chat-response-video-link-view:';
 
@@ -368,6 +369,163 @@ const normalizeCompactText = (value: string): string => {
 const COMPACT_DECORATION_RE =
     /^[\s\-•*·:："“”'‘’()（）\[\]【】,，.。!?！？;；]+/;
 
+const COMPACT_COMPARABLE_RE =
+    /[\s\-•*·:："“”'‘’()（）\[\]【】《》「」『』,，.。!?！？;；]+/g;
+
+const normalizeCompactComparableText = (value: string): string => {
+    return normalizeCompactText(value).replace(COMPACT_COMPARABLE_RE, '').trim();
+};
+
+const getCompactAnchorTitle = (anchor: HTMLAnchorElement): string => {
+    return normalizeCompactText(
+        anchor.querySelector(
+            '.bili-video-compact-title, .bili-video-card-title, .bili-rich-compact-title, .bili-rich-card-title'
+        )?.textContent || anchor.textContent || ''
+    );
+};
+
+const stripRedundantCardTitleSentence = (text: string, title: string): string => {
+    if (!text || !title) {
+        return text;
+    }
+
+    return text.replace(
+        new RegExp(
+            `(^|[\\s\\u3000])(?:这期|该|这个)?视频(?:的)?标题(?:是|为|如下|：|:)?\\s*[《「『“\"]?${escapeRegExp(
+                title
+            )}[》」』”\"]?[。！!？?]?`,
+            'g'
+        ),
+        '$1'
+    );
+};
+
+const stripStandaloneWrappedCardTitle = (
+    text: string,
+    title: string
+): string => {
+    if (!text || !title) {
+        return text;
+    }
+
+    const stripped = text.replace(
+        new RegExp(
+            `[《「『“\"]?\\s*${escapeRegExp(title)}\\s*[》」』”\"]?\\s*[()（）]?`,
+            'g'
+        ),
+        ' '
+    );
+
+    return normalizeCompactComparableText(stripped) ? text : stripped;
+};
+
+const trimRichTextSegmentEdges = (segment: HTMLElement) => {
+    const isIgnorableNode = (node: ChildNode | null): boolean => {
+        if (!node) {
+            return false;
+        }
+        if (node.nodeType === Node.TEXT_NODE) {
+            return !(node.textContent || '').trim();
+        }
+        return node instanceof HTMLBRElement;
+    };
+
+    while (isIgnorableNode(segment.firstChild)) {
+        segment.firstChild?.remove();
+    }
+
+    while (isIgnorableNode(segment.lastChild)) {
+        segment.lastChild?.remove();
+    }
+};
+
+const pruneRedundantCardVideoText = (flow: HTMLElement) => {
+    const videoTitles = Array.from(flow.querySelectorAll('a.bili-video-card-ref'))
+        .map((anchor) => getCompactAnchorTitle(anchor as HTMLAnchorElement))
+        .filter(Boolean);
+
+    if (!videoTitles.length) {
+        return;
+    }
+
+    const segments = Array.from(flow.children).filter(
+        (node): node is HTMLSpanElement =>
+            node instanceof HTMLSpanElement &&
+            node.classList.contains('bili-video-rich-text')
+    );
+
+    segments.forEach((segment) => {
+        const walker = document.createTreeWalker(segment, NodeFilter.SHOW_TEXT, {
+            acceptNode(node) {
+                if (node.parentElement?.closest('a')) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            },
+        });
+
+        const textNodes: Text[] = [];
+        let currentNode = walker.nextNode();
+        while (currentNode) {
+            if (currentNode instanceof Text) {
+                textNodes.push(currentNode);
+            }
+            currentNode = walker.nextNode();
+        }
+
+        textNodes.forEach((node) => {
+            let nextText = node.textContent || '';
+            videoTitles.forEach((title) => {
+                nextText = stripRedundantCardTitleSentence(nextText, title);
+                nextText = stripStandaloneWrappedCardTitle(nextText, title);
+            });
+            node.textContent = nextText;
+        });
+
+        trimRichTextSegmentEdges(segment);
+
+        if (!normalizeCompactComparableText(segment.textContent || '')) {
+            segment.remove();
+        }
+    });
+};
+
+const isRedundantCompactVideoNote = (
+    noteText: string,
+    labels: string[],
+    anchors: HTMLAnchorElement[]
+): boolean => {
+    if (anchors.length !== 1) {
+        return false;
+    }
+
+    const [anchor] = anchors;
+    if (getRenderedAnchorKind(anchor) !== 'video') {
+        return false;
+    }
+
+    const renderedTitle = normalizeCompactComparableText(
+        getCompactAnchorTitle(anchor)
+    );
+    if (!renderedTitle) {
+        return false;
+    }
+
+    let comparableNote = noteText;
+    labels.forEach((label) => {
+        if (!label) {
+            return;
+        }
+        comparableNote = comparableNote.replace(
+            new RegExp(`\\(?\\s*${escapeRegExp(label)}\\s*\\)?`, 'g'),
+            ' '
+        );
+    });
+    comparableNote = normalizeCompactComparableText(comparableNote);
+
+    return !comparableNote || comparableNote === renderedTitle;
+};
+
 const replaceAnchorsWithInlineLabels = (
     root: HTMLElement,
     selector: string
@@ -608,6 +766,10 @@ const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
     noteText = noteText.replace(/^[-—–:：,，]\s*/, '').trim();
     const noteHtml = noteText ? buildCompactMarkupHtml(source, labels) : '';
     if (!noteText || noteText === combinedLabels) {
+        noteText = '';
+    }
+
+    if (noteText && isRedundantCompactVideoNote(noteText, labels, anchors)) {
         noteText = '';
     }
 
@@ -1070,8 +1232,23 @@ const enhanceRenderedVideoLayout = (
             flow.append(trailingCards);
         }
 
+        if (viewMode === 'card') {
+            pruneRedundantCardVideoText(flow);
+        }
+
         if (!flow.children.length) {
             return;
+        }
+
+        if (container.tagName === 'LI') {
+            container.classList.toggle(
+                'bili-video-rich-item--with-text',
+                Array.from(flow.children).some(
+                    (child) =>
+                        child instanceof HTMLElement &&
+                        child.classList.contains('bili-video-rich-text')
+                )
+            );
         }
 
         container.replaceChildren(flow);

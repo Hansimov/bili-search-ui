@@ -384,6 +384,32 @@ describe('ChatResponsePanel video layout', () => {
         ).toBe(true);
     });
 
+    it('detects raw BV tokens as renderable rich links and upgrades them to cards', () => {
+        expect(hasRenderableRichLinks('推荐先看 BV1AA411c7mD 这一期')).toBe(true);
+
+        const html = renderAnswerMarkdownWithVideoView(
+            '推荐先看 BV1AA411c7mD 这一期',
+            'card',
+            new Map([
+                [
+                    'BV1AA411c7mD',
+                    {
+                        bvid: 'BV1AA411c7mD',
+                        title: '视频1',
+                        pic: 'https://example.com/1.jpg',
+                        duration: 60,
+                        owner: { name: '作者1' },
+                        stat: { view: 1 },
+                    },
+                ],
+            ])
+        );
+
+        expect(html).toContain('bili-video-card-ref');
+        expect(html).toContain('https://www.bilibili.com/video/BV1AA411c7mD');
+        expect(html).toContain('视频1');
+    });
+
     it('detects plain owner-name mentions as renderable rich links when owner results exist', () => {
         expect(
             hasRenderableRichLinks(
@@ -614,6 +640,95 @@ describe('ChatResponsePanel video layout', () => {
         expect(html).not.toContain('代表作');
     });
 
+    it('suppresses duplicate video title text around cards in card mode', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            'BV1PSdpBCE3H 这期视频的标题是 《当高数值遇上好战术！绿龙完美假打拿下双人五杀！不得不说一句陌生~》。\n作者是 AYCS2，UID 为 203680252。\n该作者近 30 天发布的视频包括：\n1. 《别炸我职业哥了！Zywoo面对NAVI打出30-7逆天数据，豆豆转基因直接化身第二个大番薯，小蜜蜂挺进四强！》(BV1F2djBHETQ)\n2. 《绿龙再现优美爆弹！donk超无解三连瞬秒终结比赛！Spirit二比零战胜MOUZ杀入四强！》(BV1JCd5B1Ewq)\n3. 《魔法子弹！卡神究极控枪拿下五杀ACE！黑豹杀入四强~》(BV1ZWdVBzE3p)\n4. 《阳叔空摘残局1v3，砍下职业生涯单图最佳数据：2.66Rating》(BV1CidqBUEcx)\n5. 《⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡》(BV1gAdBBcEdW)',
+            'card',
+            new Map([
+                [
+                    'BV1PSdpBCE3H',
+                    {
+                        bvid: 'BV1PSdpBCE3H',
+                        title: '当高数值遇上好战术！绿龙完美假打拿下双人五杀！不得不说一句陌生~',
+                        pic: 'https://example.com/BV1PSdpBCE3H.jpg',
+                        duration: 192,
+                        owner: { name: 'AYCS2' },
+                        stat: { view: 46000 },
+                    },
+                ],
+                [
+                    'BV1F2djBHETQ',
+                    {
+                        bvid: 'BV1F2djBHETQ',
+                        title: '别炸我职业哥了！Zywoo面对NAVI打出30-7逆天数据，豆豆转基因直接化身第二个大番薯，小蜜蜂挺进四强！',
+                        pic: 'https://example.com/BV1F2djBHETQ.jpg',
+                        duration: 208,
+                        owner: { name: 'AYCS2' },
+                        stat: { view: 182000 },
+                    },
+                ],
+                [
+                    'BV1JCd5B1Ewq',
+                    {
+                        bvid: 'BV1JCd5B1Ewq',
+                        title: '绿龙再现优美爆弹！donk超无解三连瞬秒终结比赛！Spirit二比零战胜MOUZ杀入四强！',
+                        pic: 'https://example.com/BV1JCd5B1Ewq.jpg',
+                        duration: 148,
+                        owner: { name: 'AYCS2' },
+                        stat: { view: 153000 },
+                    },
+                ],
+                [
+                    'BV1ZWdVBzE3p',
+                    {
+                        bvid: 'BV1ZWdVBzE3p',
+                        title: '魔法子弹！卡神究极控枪拿下五杀ACE！黑豹杀入四强~',
+                        pic: 'https://example.com/BV1ZWdVBzE3p.jpg',
+                        duration: 127,
+                        owner: { name: 'AYCS2' },
+                        stat: { view: 38000 },
+                    },
+                ],
+                [
+                    'BV1CidqBUEcx',
+                    {
+                        bvid: 'BV1CidqBUEcx',
+                        title: '阳叔空摘残局1v3，砍下职业生涯单图最佳数据：2.66Rating',
+                        pic: 'https://example.com/BV1CidqBUEcx.jpg',
+                        duration: 114,
+                        owner: { name: 'AYCS2' },
+                        stat: { view: 64000 },
+                    },
+                ],
+                [
+                    'BV1gAdBBcEdW',
+                    {
+                        bvid: 'BV1gAdBBcEdW',
+                        title: '⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡',
+                        pic: 'https://example.com/BV1gAdBBcEdW.jpg',
+                        duration: 205,
+                        owner: { name: 'AYCS2' },
+                        stat: { view: 125000 },
+                    },
+                ],
+            ])
+        );
+
+        const host = document.createElement('div');
+        host.innerHTML = html;
+
+        const textSegments = Array.from(host.querySelectorAll('.bili-video-rich-text')).map(
+            (node) => node.textContent || ''
+        );
+
+        expect(host.querySelectorAll('a.bili-video-card-ref')).toHaveLength(6);
+        expect(host.querySelectorAll('li.bili-video-rich-item .bili-video-rich-text')).toHaveLength(0);
+        expect(textSegments.join(' ')).toContain('作者是 AYCS2');
+        expect(textSegments.join(' ')).toContain('该作者近 30 天发布的视频包括');
+        expect(textSegments.join(' ')).not.toContain('这期视频的标题是');
+        expect(textSegments.join(' ')).not.toContain('《别炸我职业哥了');
+    });
+
     it('keeps emphasized owner names inline in card mode and moves the owner card below', () => {
         const html = renderAnswerMarkdownWithVideoView(
             '**[红警HBK08](https://space.bilibili.com/1629347259)**：已找到对应的UP主。',
@@ -778,6 +893,56 @@ describe('ChatResponsePanel video layout', () => {
 
         expect(host.querySelectorAll('.bili-video-compact-note-block--attached')).toHaveLength(0);
         expect(host.querySelectorAll('.bili-video-compact-gallery > .bili-video-compact-note-block')).toHaveLength(1);
+    });
+
+    it('suppresses redundant compact notes when list items only repeat title plus BV', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '1. 《别炸我职业哥了！Zywoo面对NAVI打出30-7逆天数据，豆豆转基因直接化身第二个大番薯，小蜜蜂挺进四强！》(BV1F2djBHETQ)\n2. 《绿龙再现优美爆弹！donk超无解三连瞬秒终结比赛！Spirit二比零战胜MOUZ杀入四强！》(BV1JCd5B1Ewq)\n3. 《魔法子弹！卡神究极控枪拿下五杀ACE！黑豹杀入四强~》(BV1ZWdVBzE3p)',
+            'compact',
+            new Map([
+                [
+                    'BV1F2djBHETQ',
+                    {
+                        bvid: 'BV1F2djBHETQ',
+                        title: '别炸我职业哥了！Zywoo面对NAVI打出30-7逆天数据，豆豆转基因直接化身第二个大番薯，小蜜蜂挺进四强！',
+                        pic: 'https://example.com/BV1F2djBHETQ.jpg',
+                        duration: 208,
+                        owner: { name: 'AYCS2' },
+                        stat: { view: 182000 },
+                    },
+                ],
+                [
+                    'BV1JCd5B1Ewq',
+                    {
+                        bvid: 'BV1JCd5B1Ewq',
+                        title: '绿龙再现优美爆弹！donk超无解三连瞬秒终结比赛！Spirit二比零战胜MOUZ杀入四强！',
+                        pic: 'https://example.com/BV1JCd5B1Ewq.jpg',
+                        duration: 148,
+                        owner: { name: 'AYCS2' },
+                        stat: { view: 153000 },
+                    },
+                ],
+                [
+                    'BV1ZWdVBzE3p',
+                    {
+                        bvid: 'BV1ZWdVBzE3p',
+                        title: '魔法子弹！卡神究极控枪拿下五杀ACE！黑豹杀入四强~',
+                        pic: 'https://example.com/BV1ZWdVBzE3p.jpg',
+                        duration: 127,
+                        owner: { name: 'AYCS2' },
+                        stat: { view: 38000 },
+                    },
+                ],
+            ])
+        );
+
+        const host = document.createElement('div');
+        host.innerHTML = html;
+
+        expect(host.querySelectorAll('.bili-video-compact-gallery')).toHaveLength(1);
+        expect(host.querySelectorAll('.bili-video-compact-entry')).toHaveLength(3);
+        expect(host.querySelectorAll('a.bili-video-compact-ref')).toHaveLength(3);
+        expect(host.querySelectorAll('.bili-video-compact-gallery > .bili-video-compact-note-block')).toHaveLength(0);
     });
 
     it('separates mixed owner and video links into distinct compact sections', () => {

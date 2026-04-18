@@ -128,6 +128,27 @@ const multiQuerySearchVideosCall: ToolCall = {
     },
 };
 
+const lookupSearchVideosCall: ToolCall = {
+    type: 'search_videos',
+    args: {
+        mode: 'lookup',
+        mid: '1629347259',
+        date_window: '30d',
+    },
+    status: 'completed',
+    result: {
+        hits: [
+            {
+                bvid: 'BV1f1d5BVEWB',
+                title: '红警围攻之都团战！苏军挡在前，掩护盟军后方输出！',
+                pic: 'https://example.com/BV1f1d5BVEWB.jpg',
+                owner: { name: '红警HBK08', mid: 1629347259 },
+                stat: { view: 12345 },
+            },
+        ],
+    },
+};
+
 describe('ToolCallDisplay component', () => {
     it('keeps completed multi-query search_videos collapsed by default while preserving results', async () => {
         const wrapper = mount(ToolCallDisplay, {
@@ -154,6 +175,27 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.find('.tool-call-results-wrapper').classes()).toContain('expanded');
         expect(wrapper.text()).toContain('08 最近更新 1');
         expect(wrapper.text()).toContain('月亮3 最近更新 1');
+    });
+
+    it('shows lookup-mode search_videos seeds in the header', () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [lookupSearchVideosCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain(':uid=1629347259 :date<=30d');
+        expect(wrapper.text()).toContain('在新窗口中查看 1 条结果');
     });
 
     it('renders Google search results as expandable cards', async () => {

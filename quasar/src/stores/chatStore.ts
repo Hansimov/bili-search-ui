@@ -75,6 +75,44 @@ function nextMsgId(): string {
     return `msg_${++_msgIdCounter}_${Date.now()}`;
 }
 
+function toolCallKey(call: Pick<ToolCall, 'type' | 'args'>): string {
+    return `${call.type}:${JSON.stringify(call.args || {})}`;
+}
+
+function mergeToolCalls(existing: ToolCall[] = [], incoming: ToolCall[] = []): ToolCall[] {
+    const merged: ToolCall[] = [];
+    const indexByKey = new Map<string, number>();
+
+    const upsert = (call: ToolCall) => {
+        const key = toolCallKey(call);
+        const existingIndex = indexByKey.get(key);
+        if (existingIndex == null) {
+            indexByKey.set(key, merged.length);
+            merged.push(call);
+            return;
+        }
+        merged[existingIndex] = call;
+    };
+
+    existing.forEach(upsert);
+    incoming.forEach(upsert);
+    return merged;
+}
+
+function mergeToolEvents(existing: ToolEvent, incoming: ToolEvent): ToolEvent {
+    const mergedCalls = mergeToolCalls(existing.calls || [], incoming.calls || []);
+    const tools = mergedCalls.length > 0
+        ? mergedCalls.map((call) => call.type)
+        : Array.from(new Set([...(existing.tools || []), ...(incoming.tools || [])]));
+
+    return {
+        ...existing,
+        ...incoming,
+        tools,
+        calls: mergedCalls.length > 0 ? mergedCalls : incoming.calls || existing.calls,
+    };
+}
+
 function sessionHasRenderableState(session: ChatSession): boolean {
     return !!(
         session.query ||
@@ -613,9 +651,13 @@ export const useChatStore = defineStore('chat', {
                                 (e) => e.iteration === event.iteration
                             );
                             if (existingIdx >= 0) {
+                                const mergedEvent = mergeToolEvents(
+                                    this.currentSession.toolEvents[existingIdx],
+                                    event
+                                );
                                 this.currentSession.toolEvents = [
                                     ...this.currentSession.toolEvents.slice(0, existingIdx),
-                                    event,
+                                    mergedEvent,
                                     ...this.currentSession.toolEvents.slice(existingIdx + 1),
                                 ];
                             } else {
@@ -630,7 +672,13 @@ export const useChatStore = defineStore('chat', {
                                 (s) => s.type === 'tool' && s.toolEvent?.iteration === event.iteration
                             );
                             if (segIdx >= 0) {
-                                segs[segIdx] = { type: 'tool', toolEvent: event };
+                                segs[segIdx] = {
+                                    type: 'tool',
+                                    toolEvent: mergeToolEvents(
+                                        segs[segIdx].toolEvent || event,
+                                        event
+                                    ),
+                                };
                             } else {
                                 segs.push({ type: 'tool', toolEvent: event });
                             }

@@ -480,11 +480,52 @@ export default defineComponent({
     const getToolLabel = (type: string) => TOOL_LABELS[type] || type;
     const getToolIcon = (type: string) => TOOL_ICONS[type] || 'build';
 
+    const buildLookupQueryLabels = (call: ToolCall): string[] => {
+      const labels: string[] = [];
+      const bvids = [
+        call.args?.bv,
+        call.args?.bvid,
+        ...(Array.isArray(call.args?.bvids)
+          ? (call.args?.bvids as unknown[])
+          : []),
+      ]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+      const mids = [
+        call.args?.mid,
+        call.args?.uid,
+        ...(Array.isArray(call.args?.mids)
+          ? (call.args?.mids as unknown[])
+          : []),
+      ]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+      const dateWindow = String(call.args?.date_window || '').trim();
+
+      bvids.forEach((bvid) => {
+        if (!labels.includes(bvid)) {
+          labels.push(bvid);
+        }
+      });
+      mids.forEach((mid) => {
+        const label = dateWindow
+          ? `:uid=${mid} :date<=${dateWindow}`
+          : `:uid=${mid}`;
+        if (!labels.includes(label)) {
+          labels.push(label);
+        }
+      });
+      return labels;
+    };
+
     /** Extract query list from search_videos tool call args */
     const getQueryList = (call: ToolCall): string[] => {
       if (call.type !== 'search_videos') return [];
       const queries = call.args?.queries as string[] | undefined;
-      return queries && Array.isArray(queries) ? queries : [];
+      if (queries && Array.isArray(queries) && queries.length > 0) {
+        return queries;
+      }
+      return buildLookupQueryLabels(call);
     };
 
     const formatToolArgs = (call: ToolCall) => formatToolCallArgs(call);

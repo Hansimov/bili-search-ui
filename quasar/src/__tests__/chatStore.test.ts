@@ -757,6 +757,69 @@ describe('ChatStore', () => {
             expect(store.currentSession.toolEvents[1].iteration).toBe(2);
         });
 
+        it('sendChat 应该合并同一 iteration 的不同 tool calls', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+
+            mockStream.mockImplementation(async (_params, callbacks) => {
+                callbacks.onStart?.({
+                    id: 'test',
+                    object: 'chat.completion.chunk',
+                    choices: [
+                        {
+                            index: 0,
+                            delta: { role: 'assistant' },
+                            finish_reason: null,
+                        },
+                    ],
+                });
+                callbacks.onToolEvent?.({
+                    iteration: 1,
+                    tools: ['search_owners'],
+                    calls: [
+                        {
+                            type: 'search_owners',
+                            args: { text: '红警08', mode: 'name' },
+                            status: 'completed',
+                        },
+                    ],
+                });
+                callbacks.onToolEvent?.({
+                    iteration: 1,
+                    tools: ['search_videos'],
+                    calls: [
+                        {
+                            type: 'search_videos',
+                            args: {
+                                mode: 'lookup',
+                                mid: '1629347259',
+                                date_window: '30d',
+                            },
+                            status: 'completed',
+                        },
+                    ],
+                });
+                callbacks.onDone?.();
+            });
+
+            const store = useChatStore();
+            await store.sendChat('红警08最近发了什么视频', 'smart');
+
+            expect(store.currentSession.toolEvents).toHaveLength(1);
+            expect(store.currentSession.toolEvents[0]?.calls).toHaveLength(2);
+            expect(
+                store.currentSession.toolEvents[0]?.calls?.map((call) => call.type)
+            ).toEqual(['search_owners', 'search_videos']);
+            expect(store.currentSession.streamSegments).toHaveLength(1);
+            expect(
+                store.currentSession.streamSegments[0]?.toolEvent?.calls?.map(
+                    (call) => call.type
+                )
+            ).toEqual(['search_owners', 'search_videos']);
+        });
+
         it('sendChat 应该处理错误', async () => {
             const { chatCompletionStream } = await import(
                 'src/services/chatService'
@@ -831,6 +894,37 @@ describe('Markdown 渲染', () => {
         const html = renderMarkdown(
             '[主视频](https://www.bilibili.com/video/BV1AA411c7mD?p=2)'
         );
+
+        expect(html).toContain('class="bili-video-ref"');
+        expect(html).toContain('data-bvid="BV1AA411c7mD"');
+        expect(html).toContain('href="https://www.bilibili.com/video/BV1AA411c7mD"');
+    });
+
+    it('应该将贪婪识别的中文标点从自动链接中拆出', async () => {
+        const { renderMarkdown } = await import('src/utils/markdown');
+        const html = renderMarkdown(
+            '空间链接：https://space.bilibili.com/1629347259。当前仅获取到作者主页。'
+        );
+
+        expect(html).toContain('href="https://space.bilibili.com/1629347259"');
+        expect(html).not.toContain('href="https://space.bilibili.com/1629347259。当前');
+        expect(html).toContain('</a>。当前仅获取到作者主页。');
+    });
+
+    it('应该处理真实回答文本中的空间链接和后续中文说明', async () => {
+        const { renderMarkdown } = await import('src/utils/markdown');
+        const html = renderMarkdown(
+            '红警08 对应的作者是 红警HBK08，UID 为 1629347259。\n空间链接：https://space.bilibili.com/1629347259。当前仅获取到作者主页，最近视频如下：\n1. BV1f1d5BVEWB'
+        );
+
+        expect(html).toContain('href="https://space.bilibili.com/1629347259"');
+        expect(html).toContain('>https://space.bilibili.com/1629347259</a>。当前仅获取到作者主页，最近视频如下：');
+        expect(html).not.toContain('href="https://space.bilibili.com/1629347259。当前仅获取到作者主页');
+    });
+
+    it('应该将裸 BV 号渲染为 bilibili 视频链接', async () => {
+        const { renderMarkdown } = await import('src/utils/markdown');
+        const html = renderMarkdown('推荐先看 BV1AA411c7mD 这一期。');
 
         expect(html).toContain('class="bili-video-ref"');
         expect(html).toContain('data-bvid="BV1AA411c7mD"');

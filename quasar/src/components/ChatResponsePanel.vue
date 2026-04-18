@@ -1946,6 +1946,8 @@ export default defineComponent({
   display: flex;
   justify-content: flex-start;
   margin: 4px 0 8px;
+  padding: 0 10px 0 12px;
+  box-sizing: border-box;
 }
 
 .chat-content--rich-reveal {
@@ -2069,6 +2071,9 @@ export default defineComponent({
 
 /* Markdown 内容样式 */
 .chat-content {
+  padding: 0 10px 0 12px;
+  box-sizing: border-box;
+
   :deep(h1),
   :deep(h2),
   :deep(h3),
@@ -2225,10 +2230,10 @@ export default defineComponent({
     flex: 0 0 100%;
     align-self: stretch;
     padding: 0 2px;
-    font-size: inherit;
-    line-height: 1.6;
+    font-size: 13px;
+    line-height: 1.55;
     color: inherit;
-    opacity: 1;
+    opacity: 0.82;
     word-break: break-word;
   }
 
@@ -2254,10 +2259,10 @@ export default defineComponent({
     flex: 0 0 100%;
     align-self: stretch;
     padding: 0 2px;
-    font-size: inherit;
-    line-height: 1.6;
+    font-size: 13px;
+    line-height: 1.55;
     color: inherit;
-    opacity: 1;
+    opacity: 0.82;
     word-break: break-word;
   }
 
@@ -2299,8 +2304,11 @@ export default defineComponent({
 
   :deep(li.bili-video-rich-item) {
     list-style: none;
-    margin-left: -20px;
     padding-left: 0;
+  }
+
+  :deep(li.bili-video-rich-item--with-text) {
+    margin-left: -20px;
   }
 
   :deep(a) {
@@ -2712,7 +2720,7 @@ export default defineComponent({
       height: 32px;
     }
 
-    :deep(li.bili-video-rich-item) {
+    :deep(li.bili-video-rich-item--with-text) {
       margin-left: -18px;
     }
   }

@@ -37,6 +37,12 @@ const BV_LINK_RE = /<a\s+href="(BV[A-Za-z0-9]+)"([^>]*)>(.*?)<\/a>/g;
 const FULL_BILI_VIDEO_LINK_RE =
     /<a\s+href="https?:\/\/(?:www\.)?bilibili\.com\/video\/(BV[A-Za-z0-9]+)(?:[/?#][^"]*)?"([^>]*)>(.*?)<\/a>/g;
 const CLASS_ATTR_RE = /\sclass="([^"]*)"/;
+const RAW_BVID_TEXT_RE = /\b(BV[0-9A-Za-z]{10})\b/g;
+const SAFE_AUTO_LINK_RE =
+    /^(https?:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+)(.*)$/;
+const TRAILING_AUTO_LINK_PUNCTUATION_RE = /[，。！？；：、,.!?;:]+$/;
+const SIMPLE_AUTO_LINK_ANCHOR_RE =
+    /<a\s+href="(https?:\/\/[^\"]+)"([^>]*)>(https?:\/\/[^<]+)<\/a>/g;
 
 /**
  * Inline SVG for the bilibili TV icon (simplified path, inherits currentColor).
@@ -84,6 +90,213 @@ function expandBvLinks(html: string): string {
         .replace(BV_LINK_RE, decorate);
 }
 
+const splitAutoLinkedUrl = (value: string): { url: string; trailing: string } => {
+    const text = String(value || '');
+    const match = text.match(SAFE_AUTO_LINK_RE);
+    if (!match) {
+        return { url: text, trailing: '' };
+    }
+
+    let url = match[1] || '';
+    let trailing = match[2] || '';
+
+    const trailingPunctuation = url.match(TRAILING_AUTO_LINK_PUNCTUATION_RE);
+    if (trailingPunctuation?.[0]) {
+        url = url.slice(0, -trailingPunctuation[0].length);
+        trailing = trailingPunctuation[0] + trailing;
+    }
+
+    while (url.endsWith(')')) {
+        const openCount = (url.match(/\(/g) || []).length;
+        const closeCount = (url.match(/\)/g) || []).length;
+        if (closeCount <= openCount) {
+            break;
+        }
+        url = url.slice(0, -1);
+        trailing = `)${trailing}`;
+    }
+
+    return { url, trailing };
+};
+
+const normalizeAutoLinkedAnchors = (root: DocumentFragment) => {
+    const anchors = Array.from(root.querySelectorAll('a')) as HTMLAnchorElement[];
+
+    anchors.forEach((anchor) => {
+        const href = anchor.getAttribute('href') || '';
+        if (!/^https?:\/\//i.test(href)) {
+            return;
+        }
+
+        const { url: trimmedHref, trailing: hrefTrailing } = splitAutoLinkedUrl(href);
+        if (!trimmedHref) {
+            return;
+        }
+
+        let trailingText = hrefTrailing;
+        if (anchor.childNodes.length === 1 && anchor.firstChild instanceof Text) {
+            const text = anchor.textContent || '';
+            const { url: trimmedText, trailing: textTrailing } = splitAutoLinkedUrl(text);
+            if (trimmedText && trimmedText !== text) {
+                anchor.textContent = trimmedText;
+                trailingText = textTrailing || trailingText;
+            } else if (text === href && trimmedHref !== href) {
+                anchor.textContent = trimmedHref;
+            }
+        }
+
+        if (trimmedHref !== href) {
+            anchor.setAttribute('href', trimmedHref);
+        }
+
+        if (trailingText) {
+            anchor.after(document.createTextNode(trailingText));
+        }
+    });
+};
+
+const replaceTextNodeBareBvids = (textNode: Text) => {
+    const text = textNode.textContent || '';
+    if (!text.trim()) {
+        return;
+    }
+
+    RAW_BVID_TEXT_RE.lastIndex = 0;
+    const matches = Array.from(text.matchAll(RAW_BVID_TEXT_RE));
+    if (!matches.length) {
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+
+    matches.forEach((match) => {
+        const bvid = match[1] || '';
+        const index = match.index ?? -1;
+        if (!bvid || index < 0) {
+            return;
+        }
+        if (index > cursor) {
+            fragment.append(text.slice(cursor, index));
+        }
+
+        const anchor = document.createElement('a');
+        anchor.href = `https://www.bilibili.com/video/${bvid}`;
+        anchor.className = 'bili-video-ref';
+        anchor.dataset.bvid = bvid;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener';
+        anchor.textContent = bvid;
+        fragment.append(anchor);
+
+        cursor = index + match[0].length;
+    });
+
+    if (cursor < text.length) {
+        fragment.append(text.slice(cursor));
+    }
+
+    textNode.replaceWith(fragment);
+};
+
+const linkifyBareBvidTextNodes = (root: DocumentFragment) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            const parent = node.parentElement;
+            if (!parent) {
+                return NodeFilter.FILTER_REJECT;
+            }
+            if (parent.closest('a, code, pre, script, style')) {
+                return NodeFilter.FILTER_REJECT;
+            }
+            return /\bBV[0-9A-Za-z]{10}\b/i.test(node.textContent || '')
+                ? NodeFilter.FILTER_ACCEPT
+                : NodeFilter.FILTER_REJECT;
+        },
+    });
+
+    const textNodes: Text[] = [];
+    let currentNode = walker.nextNode();
+    while (currentNode) {
+        if (currentNode instanceof Text) {
+            textNodes.push(currentNode);
+        }
+        currentNode = walker.nextNode();
+    }
+
+    textNodes.forEach((textNode) => {
+        replaceTextNodeBareBvids(textNode);
+    });
+};
+
+const postProcessRenderedHtml = (html: string): string => {
+    if (!html) {
+        return html;
+    }
+
+    if (typeof document === 'undefined') {
+        const normalizedHtml = html.replace(
+            SIMPLE_AUTO_LINK_ANCHOR_RE,
+            (_match, href: string, attrs: string, text: string) => {
+                const hrefParts = splitAutoLinkedUrl(href);
+                const textParts = splitAutoLinkedUrl(text);
+                const trailing = textParts.trailing || hrefParts.trailing;
+
+                return `<a href="${hrefParts.url}"${attrs}>${textParts.url}</a>${trailing}`;
+            }
+        );
+
+        const parts = normalizedHtml.split(/(<[^>]+>)/g);
+        const protectedTagStack: string[] = [];
+        const openProtectedTag = (tag: string) => {
+            protectedTagStack.push(tag.toLowerCase());
+        };
+        const closeProtectedTag = (tag: string) => {
+            const normalizedTag = tag.toLowerCase();
+            for (let index = protectedTagStack.length - 1; index >= 0; index -= 1) {
+                if (protectedTagStack[index] === normalizedTag) {
+                    protectedTagStack.splice(index, 1);
+                    break;
+                }
+            }
+        };
+
+        return parts
+            .map((part) => {
+                const openingTagMatch = part.match(/^<\s*(a|code|pre|script|style)\b/i);
+                if (openingTagMatch && !/^<\s*\//.test(part)) {
+                    openProtectedTag(openingTagMatch[1] || '');
+                    return part;
+                }
+
+                const closingTagMatch = part.match(/^<\s*\/\s*(a|code|pre|script|style)\b/i);
+                if (closingTagMatch) {
+                    closeProtectedTag(closingTagMatch[1] || '');
+                    return part;
+                }
+
+                if (part.startsWith('<') || protectedTagStack.length > 0) {
+                    return part;
+                }
+
+                return part.replace(
+                    RAW_BVID_TEXT_RE,
+                    (_matchedText, bvid: string) =>
+                        `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-ref" data-bvid="${bvid}" target="_blank" rel="noopener">${bvid}</a>`
+                );
+            })
+            .join('');
+    }
+
+    const template = document.createElement('template');
+    template.innerHTML = html;
+
+    normalizeAutoLinkedAnchors(template.content);
+    linkifyBareBvidTextNodes(template.content);
+
+    return template.innerHTML;
+};
+
 /**
  * 将 Markdown 文本渲染为 HTML 字符串
  *
@@ -98,6 +311,7 @@ export function renderMarkdown(markdown: string): string {
         let html = converter.makeHtml(markdown);
         // 将 BV 号链接扩展为完整 bilibili URL
         html = expandBvLinks(html);
+        html = postProcessRenderedHtml(html);
         return html;
     } catch (error) {
         console.warn('[Markdown] Render error:', error);
