@@ -56,6 +56,40 @@ const searchOwnersCall: ToolCall = {
     },
 };
 
+const transcriptCall: ToolCall = {
+    type: 'get_video_transcript',
+    args: { video_id: 'BV1YXZPB1Erc', head_chars: 6000 },
+    status: 'completed',
+    result: {
+        bvid: 'BV1YXZPB1Erc',
+        title: '示例视频',
+        selection: {
+            selected_text_length: 128,
+            full_text_length: 512,
+        },
+        transcript: {
+            text: '这是一个示例转写，用来验证前端是否可以展示转写预览。',
+            text_length: 128,
+            segment_count: 3,
+        },
+    },
+};
+
+const streamingSmallTaskCall: ToolCall = {
+    type: 'run_small_llm_task',
+    args: {
+        task: '把转写整理成 4 条中文要点',
+        result_ids: ['R1'],
+    },
+    status: 'streaming',
+    visibility: 'internal',
+    result: {
+        task: '把转写整理成 4 条中文要点',
+        model_name: 'doubao-seed-2-0-mini',
+        result: '- 要点1\n- 要点2',
+    },
+};
+
 const multiQuerySearchVideosCall: ToolCall = {
     type: 'search_videos',
     args: {
@@ -189,5 +223,55 @@ describe('ToolCallDisplay component', () => {
         expect(ownerCards[1]?.text()).toContain('何同学切片');
         expect(ownerCards[1]?.find('.tool-owner-mini-ref').exists()).toBe(true);
         expect(ownerCards[0]?.text()).not.toContain('粉丝');
+    });
+
+    it('renders transcript results with a readable preview', async () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [transcriptCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('读取转写');
+        expect(wrapper.text()).toContain('3 段 / 128 字');
+
+        await wrapper.find('.tool-call-header').trigger('click');
+
+        expect(wrapper.text()).toContain('示例视频');
+        expect(wrapper.text()).toContain('这是一个示例转写，用来验证前端是否可以展示转写预览。');
+    });
+
+    it('renders internal run_small_llm_task calls with live streaming text', () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [streamingSmallTaskCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('小模型整理');
+        expect(wrapper.text()).toContain('整理中...');
+        expect(wrapper.text()).toContain('doubao-seed-2-0-mini');
+        expect(wrapper.text()).toContain('- 要点1');
+        expect(wrapper.find('.tool-text-result').exists()).toBe(true);
     });
 });

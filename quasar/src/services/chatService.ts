@@ -21,11 +21,11 @@ export interface ChatMessage {
 export interface ToolCall {
     type: string;          // tool name: 'search_videos' | 'check_author'
     args: Record<string, unknown>;  // tool arguments
-    status: 'pending' | 'completed';
+    status: 'pending' | 'streaming' | 'completed';
     visibility?: 'user' | 'internal';
     result_id?: string;
     summary?: unknown;
-    result?: unknown;      // tool result (only when status === 'completed')
+    result?: unknown;      // tool result snapshot (streaming or completed)
 }
 
 /** Tool event from backend (which tools were called per iteration) */

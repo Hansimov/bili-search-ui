@@ -6,6 +6,7 @@
       class="tool-call-item"
       :class="{
         'tool-call-pending': call.status === 'pending',
+        'tool-call-streaming': call.status === 'streaming',
         'tool-call-completed': call.status === 'completed',
       }"
     >
@@ -18,7 +19,7 @@
             class="tool-call-icon tool-call-aborted-icon"
           />
           <q-spinner-dots
-            v-else-if="call.status === 'pending'"
+            v-else-if="call.status === 'pending' || call.status === 'streaming'"
             size="14px"
             class="tool-call-spinner"
           />
@@ -47,6 +48,12 @@
             已中止
           </span>
           <span
+            v-else-if="call.status === 'streaming'"
+            class="tool-call-status-streaming"
+          >
+            整理中...
+          </span>
+          <span
             v-else-if="call.status === 'pending'"
             class="tool-call-status-pending"
           >
@@ -71,14 +78,21 @@
             v-else-if="
               call.status === 'completed' &&
               hasResults(call) &&
-              call.type !== 'search_videos'
+              call.type !== 'search_videos' &&
+              !isAlwaysExpanded(call)
             "
             class="tool-call-status-completed"
           >
             {{ getResultCount(call) }}
           </span>
+          <span
+            v-else-if="call.status === 'completed' && isAlwaysExpanded(call)"
+            class="tool-call-status-completed"
+          >
+            {{ getResultCount(call) }}
+          </span>
           <q-icon
-            v-if="call.status === 'completed' && hasResults(call)"
+            v-if="isExpandable(call)"
             :name="expanded[idx] ? 'expand_less' : 'expand_more'"
             size="16px"
             class="tool-call-expand-icon"
@@ -101,9 +115,9 @@
       </div>
 
       <div
-        v-if="call.status === 'completed' && hasResults(call)"
+        v-if="canShowResults(call)"
         class="tool-call-results-wrapper"
-        :class="{ expanded: expanded[idx] }"
+        :class="{ expanded: expanded[idx] || isAlwaysExpanded(call) }"
       >
         <div class="tool-call-results-inner">
           <div class="tool-call-results">
@@ -203,6 +217,43 @@
                 >
               </div>
               <div v-else class="author-not-found">未找到该作者</div>
+            </div>
+
+            <div
+              v-else-if="call.type === 'get_video_transcript'"
+              class="tool-text-results"
+            >
+              <div class="tool-text-result-meta">
+                <span class="tool-text-result-title">
+                  {{
+                    getTranscriptResult(call).title ||
+                    getTranscriptVideoId(call)
+                  }}
+                </span>
+                <span class="tool-text-result-submeta">
+                  {{ getResultCount(call) }}
+                </span>
+              </div>
+              <div class="tool-transcript-preview">
+                {{ getTranscriptPreview(call) }}
+              </div>
+            </div>
+
+            <div
+              v-else-if="call.type === 'run_small_llm_task'"
+              class="tool-text-results"
+            >
+              <div class="tool-text-result-meta">
+                <span class="tool-text-result-title">
+                  {{ getSmallTaskTitle(call) }}
+                </span>
+                <span v-if="getSmallTaskModel(call)" class="tool-model-badge">
+                  {{ getSmallTaskModel(call) }}
+                </span>
+              </div>
+              <pre class="tool-text-result">{{
+                getSmallTaskResultText(call)
+              }}</pre>
             </div>
 
             <div
@@ -337,12 +388,38 @@ interface OwnerResult {
   face?: string;
 }
 
+interface TranscriptResult {
+  title?: string;
+  bvid?: string;
+  requested_video_id?: string;
+  selection?: {
+    selected_text_length?: number;
+    full_text_length?: number;
+  };
+  transcript?: {
+    text?: string;
+    text_length?: number;
+    segment_count?: number;
+  };
+}
+
+interface SmallTaskResult {
+  task?: string;
+  model?: string;
+  model_name?: string;
+  result?: string;
+}
+
+const DISPLAYABLE_INTERNAL_TOOLS = new Set(['run_small_llm_task']);
+
 /** 工具名称中英对照 */
 const TOOL_LABELS: Record<string, string> = {
   search_videos: '搜索视频',
   search_owners: '搜索作者',
   check_author: '搜索作者',
   search_google: '搜索网页',
+  get_video_transcript: '读取转写',
+  run_small_llm_task: '小模型整理',
   related_tokens_by_tokens: '相关词补全',
   related_owners_by_tokens: '相关作者',
   related_videos_by_videos: '相关视频',
@@ -358,6 +435,8 @@ const TOOL_ICONS: Record<string, string> = {
   search_owners: 'person_search',
   check_author: 'person_search',
   search_google: 'travel_explore',
+  get_video_transcript: 'subtitles',
+  run_small_llm_task: 'smart_toy',
   related_tokens_by_tokens: 'token',
   related_owners_by_tokens: 'group',
   related_videos_by_videos: 'linked_camera',
@@ -389,7 +468,11 @@ export default defineComponent({
   setup(props) {
     const expanded = ref<Record<number, boolean>>({});
     const visibleToolCalls = computed(() =>
-      props.toolCalls.filter((call) => call.visibility !== 'internal')
+      props.toolCalls.filter(
+        (call) =>
+          call.visibility !== 'internal' ||
+          DISPLAYABLE_INTERNAL_TOOLS.has(call.type)
+      )
     );
 
     // ── Helper functions (must be declared BEFORE the watch to avoid TDZ) ──
@@ -405,6 +488,9 @@ export default defineComponent({
     };
 
     const formatToolArgs = (call: ToolCall) => formatToolCallArgs(call);
+
+    const isAlwaysExpanded = (call: ToolCall): boolean =>
+      call.type === 'run_small_llm_task';
 
     /** Check if a tool call has displayable results */
     const hasResults = (call: ToolCall): boolean => {
@@ -436,8 +522,23 @@ export default defineComponent({
         const result = call.result as Record<string, unknown>;
         return Array.isArray(result?.owners) && result.owners.length > 0;
       }
+      if (call.type === 'get_video_transcript') {
+        const result = call.result as TranscriptResult;
+        return !!(result?.transcript?.text || result?.title || result?.bvid);
+      }
+      if (call.type === 'run_small_llm_task') {
+        const result = call.result as SmallTaskResult;
+        return typeof result?.result === 'string' && result.result.length > 0;
+      }
       return false;
     };
+
+    const canShowResults = (call: ToolCall): boolean =>
+      hasResults(call) &&
+      (call.status === 'streaming' || call.status === 'completed');
+
+    const isExpandable = (call: ToolCall): boolean =>
+      canShowResults(call) && !isAlwaysExpanded(call);
 
     /** 获取所有视频结果（合并所有 query 的结果） */
     const getAllVideoHits = (call: ToolCall): VideoHit[] => {
@@ -510,6 +611,25 @@ export default defineComponent({
         );
         return `${total} 位作者`;
       }
+      if (call.type === 'get_video_transcript') {
+        const result = call.result as TranscriptResult;
+        const selected = Number(
+          result?.selection?.selected_text_length ||
+            result?.transcript?.text_length ||
+            0
+        );
+        const segments = Number(result?.transcript?.segment_count || 0);
+        if (segments && selected) {
+          return `${segments} 段 / ${selected} 字`;
+        }
+        if (selected) {
+          return `${selected} 字`;
+        }
+        return '已读取';
+      }
+      if (call.type === 'run_small_llm_task') {
+        return call.status === 'streaming' ? '输出中' : '已生成';
+      }
       if (call.type === 'check_author') {
         const found = (call.result as Record<string, unknown>)?.found;
         return found ? '已找到' : '未找到';
@@ -542,6 +662,45 @@ export default defineComponent({
       if (call.type !== 'search_owners' || !call.result) return [];
       const owners = (call.result as Record<string, unknown>)?.owners;
       return Array.isArray(owners) ? (owners as OwnerResult[]) : [];
+    };
+
+    const getTranscriptResult = (call: ToolCall): TranscriptResult => {
+      if (call.type !== 'get_video_transcript' || !call.result) return {};
+      return (call.result as TranscriptResult) || {};
+    };
+
+    const getTranscriptVideoId = (call: ToolCall): string => {
+      const result = getTranscriptResult(call);
+      return result.bvid || result.requested_video_id || '';
+    };
+
+    const getTranscriptPreview = (call: ToolCall): string => {
+      const text = String(
+        getTranscriptResult(call)?.transcript?.text || ''
+      ).trim();
+      if (!text) return '当前没有可展示的转写预览。';
+      if (text.length <= 320) return text;
+      return `${text.slice(0, 320).trimEnd()}...`;
+    };
+
+    const getSmallTaskResult = (call: ToolCall): SmallTaskResult => {
+      if (call.type !== 'run_small_llm_task' || !call.result) return {};
+      return (call.result as SmallTaskResult) || {};
+    };
+
+    const getSmallTaskTitle = (call: ToolCall): string => {
+      return String(
+        getSmallTaskResult(call)?.task || call.args?.task || '整理结果'
+      );
+    };
+
+    const getSmallTaskModel = (call: ToolCall): string => {
+      const result = getSmallTaskResult(call);
+      return String(result?.model_name || result?.model || '').trim();
+    };
+
+    const getSmallTaskResultText = (call: ToolCall): string => {
+      return String(getSmallTaskResult(call)?.result || '').trim();
     };
 
     /** Normalize bilibili pic URL to include https: protocol */
@@ -582,7 +741,7 @@ export default defineComponent({
 
     const toggleExpand = (idx: number) => {
       const call = visibleToolCalls.value[idx];
-      if (call?.status === 'completed' && hasResults(call)) {
+      if (call && isExpandable(call)) {
         expanded.value[idx] = !expanded.value[idx];
       }
     };
@@ -629,6 +788,9 @@ export default defineComponent({
       getQueryList,
       formatToolArgs,
       hasResults,
+      canShowResults,
+      isExpandable,
+      isAlwaysExpanded,
       getResultCount,
       getVideoHits,
       getAllVideoHits,
@@ -637,6 +799,12 @@ export default defineComponent({
       getGoogleResults,
       getGoogleDisplayedUrl,
       getOwnerResults,
+      getTranscriptResult,
+      getTranscriptVideoId,
+      getTranscriptPreview,
+      getSmallTaskTitle,
+      getSmallTaskModel,
+      getSmallTaskResultText,
       getOwnerDisplayName,
       getOwnerHref,
       getOwnerUidText,
@@ -664,6 +832,11 @@ export default defineComponent({
 .tool-call-pending {
   background: rgba(128, 128, 128, 0.028);
   border: 1px dashed rgba(128, 128, 128, 0.12);
+}
+
+.tool-call-streaming {
+  background: rgba(64, 144, 255, 0.04);
+  border: 1px solid rgba(64, 144, 255, 0.14);
 }
 
 .tool-call-completed {
@@ -760,6 +933,11 @@ export default defineComponent({
   font-size: 11px;
   color: inherit;
   opacity: 0.48;
+}
+
+.tool-call-status-streaming {
+  font-size: 11px;
+  color: rgba(64, 144, 255, 0.9);
 }
 
 .tool-call-status-aborted {
@@ -915,6 +1093,62 @@ export default defineComponent({
 .tool-owner-result {
   display: flex;
   min-width: 0;
+}
+
+.tool-text-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-text-result-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tool-text-result-title {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.78;
+}
+
+.tool-text-result-submeta {
+  font-size: 11px;
+  opacity: 0.56;
+}
+
+.tool-model-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(64, 144, 255, 0.08);
+  color: rgba(64, 144, 255, 0.92);
+}
+
+.tool-text-result {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.04);
+  border: 1px solid rgba(128, 128, 128, 0.08);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+  font-size: 12px;
+}
+
+.tool-transcript-preview {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.04);
+  border: 1px solid rgba(128, 128, 128, 0.08);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  font-size: 12px;
 }
 
 .tool-owner-mini-ref {
