@@ -153,6 +153,18 @@ export interface ChatCompletionParams {
 
 const ANSWER_VISIBLE_GRACE_MS = 400;
 
+function hasStreamingSmallTaskEvent(events: ToolEvent[] | undefined): boolean {
+    return Boolean(
+        events?.some((event) =>
+            (event.calls || []).some(
+                (call) =>
+                    call.type === 'run_small_llm_task' &&
+                    (call.status === 'streaming' || call.status === 'completed')
+            )
+        )
+    );
+}
+
 /**
  * Send a streaming chat completion request via SSE.
  *
@@ -365,6 +377,9 @@ export async function chatCompletionStream(
             if (chunk.tool_events) {
                 for (const event of chunk.tool_events) {
                     callbacks.onToolEvent?.(event);
+                }
+                if (hasStreamingSmallTaskEvent(chunk.tool_events)) {
+                    shouldYieldToUi = true;
                 }
             }
 

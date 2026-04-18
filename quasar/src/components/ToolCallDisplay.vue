@@ -569,7 +569,10 @@ export default defineComponent({
       }
       if (call.type === 'run_small_llm_task') {
         const result = call.result as SmallTaskResult;
-        return typeof result?.result === 'string' && result.result.length > 0;
+        return (
+          call.status === 'streaming' ||
+          (typeof result?.result === 'string' && result.result.length > 0)
+        );
       }
       return false;
     };
@@ -741,7 +744,14 @@ export default defineComponent({
     };
 
     const getSmallTaskResultText = (call: ToolCall): string => {
-      return String(getSmallTaskResult(call)?.result || '').trim();
+      const resultText = String(getSmallTaskResult(call)?.result || '').trim();
+      if (resultText) {
+        return resultText;
+      }
+      if (call.status === 'streaming') {
+        return '小模型已开始整理，等待首批内容...';
+      }
+      return '';
     };
 
     /** Normalize bilibili pic URL to include https: protocol */

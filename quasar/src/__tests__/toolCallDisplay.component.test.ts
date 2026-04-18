@@ -90,6 +90,21 @@ const streamingSmallTaskCall: ToolCall = {
     },
 };
 
+const streamingSmallTaskPlaceholderCall: ToolCall = {
+    type: 'run_small_llm_task',
+    args: {
+        task: '把转写整理成 4 条中文要点',
+        result_ids: ['R1'],
+    },
+    status: 'streaming',
+    visibility: 'internal',
+    result: {
+        task: '把转写整理成 4 条中文要点',
+        model_name: 'doubao-seed-2-0-mini',
+        result: '',
+    },
+};
+
 const multiQuerySearchVideosCall: ToolCall = {
     type: 'search_videos',
     args: {
@@ -314,6 +329,29 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('整理中...');
         expect(wrapper.text()).toContain('doubao-seed-2-0-mini');
         expect(wrapper.text()).toContain('- 要点1');
+        expect(wrapper.find('.tool-text-result').exists()).toBe(true);
+    });
+
+    it('shows a placeholder body for streaming run_small_llm_task before first text arrives', () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [streamingSmallTaskPlaceholderCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('小模型整理');
+        expect(wrapper.text()).toContain('整理中...');
+        expect(wrapper.text()).toContain('小模型已开始整理，等待首批内容...');
         expect(wrapper.find('.tool-text-result').exists()).toBe(true);
     });
 });
