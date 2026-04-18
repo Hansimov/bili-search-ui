@@ -555,7 +555,7 @@ import {
   type VideoLinkViewMode,
 } from 'src/utils/chatVideoLinkView';
 import { normalizeVideoHit } from 'src/utils/videoHit';
-import { BiliApiClient } from 'src/stores/account/apiClient';
+import { fetchUserBriefs } from 'src/services/ownerBriefService';
 import ToolCallDisplay from './ToolCallDisplay.vue';
 import BiliVideoTooltip from './BiliVideoTooltip.vue';
 import SearchModeEmptyState from './SearchModeEmptyState.vue';
@@ -1196,6 +1196,9 @@ export default defineComponent({
 
     const fetchedOwnerMap = ref<Map<string, OwnerRichInfo>>(new Map());
     const pendingOwnerMids = new Set<string>();
+    const resolvedOwnerMids = new Set<string>();
+    const queuedOwnerMids = new Set<string>();
+    let ownerBriefFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
     const ownerMap = computed((): Map<string, OwnerRichInfo> => {
       const map = new Map<string, OwnerRichInfo>();
@@ -1270,27 +1273,61 @@ export default defineComponent({
       return map;
     });
 
-    const queueOwnerCardFetch = async (mid: string) => {
-      if (!mid || pendingOwnerMids.has(mid) || fetchedOwnerMap.value.has(mid)) {
+    const mergeFetchedOwners = (owners: OwnerRichInfo[]) => {
+      if (!owners.length) {
         return;
       }
-      pendingOwnerMids.add(mid);
-      try {
-        const card = await BiliApiClient.fetchMidCard(mid);
-        const ownerCard = card?.card;
-        if (!ownerCard) return;
-        const next = new Map(fetchedOwnerMap.value);
-        next.set(mid, {
-          mid,
-          name: ownerCard.name,
-          face: ownerCard.face,
-          sign: ownerCard.sign,
-          fans: ownerCard.fans,
-        });
-        fetchedOwnerMap.value = next;
-      } finally {
-        pendingOwnerMids.delete(mid);
+      const next = new Map(fetchedOwnerMap.value);
+      owners.forEach((owner) => {
+        next.set(owner.mid, owner);
+      });
+      fetchedOwnerMap.value = next;
+    };
+
+    const flushOwnerBriefFetch = async () => {
+      const requestMids = Array.from(queuedOwnerMids).filter(
+        (mid) =>
+          mid &&
+          !pendingOwnerMids.has(mid) &&
+          !resolvedOwnerMids.has(mid) &&
+          !fetchedOwnerMap.value.has(mid)
+      );
+      queuedOwnerMids.clear();
+      if (!requestMids.length) {
+        return;
       }
+      requestMids.forEach((mid) => pendingOwnerMids.add(mid));
+      try {
+        mergeFetchedOwners(await fetchUserBriefs(requestMids));
+        requestMids.forEach((mid) => resolvedOwnerMids.add(mid));
+      } catch (error) {
+        console.error(
+          '[ChatResponsePanel] Failed to fetch owner briefs:',
+          error
+        );
+      } finally {
+        requestMids.forEach((mid) => pendingOwnerMids.delete(mid));
+      }
+    };
+
+    const queueOwnerBriefFetch = (mid: string) => {
+      const normalizedMid = String(mid || '').trim();
+      if (
+        !normalizedMid ||
+        pendingOwnerMids.has(normalizedMid) ||
+        resolvedOwnerMids.has(normalizedMid) ||
+        fetchedOwnerMap.value.has(normalizedMid)
+      ) {
+        return;
+      }
+      queuedOwnerMids.add(normalizedMid);
+      if (ownerBriefFlushTimer) {
+        return;
+      }
+      ownerBriefFlushTimer = setTimeout(() => {
+        ownerBriefFlushTimer = null;
+        void flushOwnerBriefFetch();
+      }, 16);
     };
 
     watch(
@@ -1304,7 +1341,7 @@ export default defineComponent({
           );
         }
         mids.forEach((mid) => {
-          void queueOwnerCardFetch(mid);
+          queueOwnerBriefFetch(mid);
         });
       },
       { immediate: true, deep: true }
@@ -1315,8 +1352,8 @@ export default defineComponent({
       (owners) => {
         for (const [mid, owner] of owners.entries()) {
           if (!mid) continue;
-          if (owner.face && owner.sign && owner.fans != null) continue;
-          void queueOwnerCardFetch(mid);
+          if (owner.face) continue;
+          queueOwnerBriefFetch(mid);
         }
       },
       { immediate: true }
@@ -1411,6 +1448,7 @@ export default defineComponent({
       }
       if (currentRichRevealTimeout) clearTimeout(currentRichRevealTimeout);
       if (hideTimeout) clearTimeout(hideTimeout);
+      if (ownerBriefFlushTimer) clearTimeout(ownerBriefFlushTimer);
     });
 
     return {

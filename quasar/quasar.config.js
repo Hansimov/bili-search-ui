@@ -14,6 +14,13 @@ const { configure } = require('quasar/wrappers');
 const BACKEND_HOST = process.env.BACKEND_HOST || '127.0.0.1';
 const BACKEND_PORT = process.env.BACKEND_PORT || 21001;
 const FRONTEND_PORT = process.env.FRONTEND_PORT || 21002;
+const CHAT_HMR_FULL_RELOAD_PATHS = [
+    '/src/components/ChatResponsePanel.vue',
+    '/src/components/ToolCallDisplay.vue',
+    '/src/services/chatService.ts',
+    '/src/services/ownerBriefService.ts',
+    '/src/stores/chatStore.ts',
+];
 
 module.exports = configure(function (/* ctx */) {
     return {
@@ -110,6 +117,22 @@ module.exports = configure(function (/* ctx */) {
                     },
                     { server: false },
                 ],
+                {
+                    name: 'chat-dev-full-reload',
+                    apply: 'serve',
+                    handleHotUpdate(ctx) {
+                        const normalizedFile = ctx.file.replace(/\\/g, '/');
+                        if (
+                            !CHAT_HMR_FULL_RELOAD_PATHS.some((suffix) =>
+                                normalizedFile.endsWith(suffix)
+                            )
+                        ) {
+                            return;
+                        }
+                        ctx.server.ws.send({ type: 'full-reload', path: '*' });
+                        return [];
+                    },
+                },
                 // Dynamic proxy plugin for Bilibili CDN images (supports multiple CDN hosts)
                 {
                     name: 'bili-img-dynamic-proxy',
@@ -166,6 +189,9 @@ module.exports = configure(function (/* ctx */) {
             // https: true
             open: false, // opens browser window automatically
             strictPort: true,
+            watch: {
+                ignored: ['**/.chats/**', '**/logs/**'],
+            },
             proxy: {
                 // https://quasar.dev/quasar-cli-vite/api-proxying
                 // proxy all requests starting with /api to jsonplaceholder

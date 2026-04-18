@@ -7,6 +7,7 @@ export interface OwnerRichInfo {
     face?: string;
     sign?: string;
     fans?: number;
+    video_count?: number;
     sample_title?: string;
     sample_bvid?: string;
     sample_pic?: string;
@@ -31,6 +32,7 @@ export const normalizeOwnerRichInfo = (
         face: owner.face,
         sign: owner.sign,
         fans: owner.fans,
+        video_count: owner.video_count,
         sample_title: owner.sample_title,
         sample_bvid: owner.sample_bvid,
         sample_pic: owner.sample_pic,
@@ -59,6 +61,11 @@ export const formatOwnerFans = (fans?: number): string => {
     return `${humanReadableNumber(fans)} 粉丝`;
 };
 
+export const formatOwnerVideoCount = (videoCount?: number): string => {
+    if (videoCount == null) return '';
+    return `${humanReadableNumber(videoCount)} 个视频`;
+};
+
 export const getOwnerUidText = (mid?: string | number): string => {
     const normalizedMid = String(mid || '').trim();
     return normalizedMid ? `UID ${normalizedMid}` : '';
@@ -71,6 +78,7 @@ export const getOwnerStatLine = (
     const includeUid = options.includeUid ?? true;
     return [
         formatOwnerFans(owner.fans),
+        formatOwnerVideoCount(owner.video_count),
         includeUid ? getOwnerUidText(owner.mid) : '',
     ]
         .filter(Boolean)

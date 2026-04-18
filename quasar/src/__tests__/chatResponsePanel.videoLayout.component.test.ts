@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineComponent, nextTick } from 'vue';
 import ChatResponsePanel from 'src/components/ChatResponsePanel.vue';
-import { BiliApiClient } from 'src/stores/account/apiClient';
+import * as ownerBriefService from 'src/services/ownerBriefService';
 import { renderMarkdown } from 'src/utils/markdown';
 import {
     hasRenderableRichLinks,
@@ -144,7 +144,7 @@ describe('ChatResponsePanel video layout', () => {
         vi.clearAllMocks();
         localStorage.clear();
         sessionStorage.clear();
-        vi.spyOn(BiliApiClient, 'fetchMidCard').mockResolvedValue(null);
+        vi.spyOn(ownerBriefService, 'fetchUserBriefs').mockResolvedValue([]);
         mockChatStore.isLoading = false;
         mockChatStore.hasContent = true;
         mockChatStore.hasThinkingContent = false;
