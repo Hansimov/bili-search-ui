@@ -223,17 +223,6 @@
               v-else-if="call.type === 'get_video_transcript'"
               class="tool-text-results"
             >
-              <div class="tool-text-result-meta">
-                <span class="tool-text-result-title">
-                  {{
-                    getTranscriptResult(call).title ||
-                    getTranscriptVideoId(call)
-                  }}
-                </span>
-                <span class="tool-text-result-submeta">
-                  {{ getResultCount(call) }}
-                </span>
-              </div>
               <div class="tool-transcript-preview">
                 {{ getTranscriptPreview(call) }}
               </div>
@@ -243,9 +232,12 @@
               v-else-if="call.type === 'run_small_llm_task'"
               class="tool-text-results"
             >
-              <pre class="tool-text-result tool-text-result--small-task">{{
-                getSmallTaskResultText(call)
-              }}</pre>
+              <pre
+                class="tool-text-result"
+                :class="getSmallTaskResultClasses(call)"
+                @wheel="handleSmallTaskWheel($event, idx)"
+                >{{ getSmallTaskResultText(call) }}</pre
+              >
             </div>
 
             <div
@@ -742,6 +734,11 @@ export default defineComponent({
       return '';
     };
 
+    const getSmallTaskResultClasses = (call: ToolCall) => ({
+      'tool-text-result--small-task': true,
+      'tool-text-result--small-task-streaming': call.status === 'streaming',
+    });
+
     /** Normalize bilibili pic URL to include https: protocol */
     const normalizePicUrl = (pic: string): string => {
       return normalizeVideoPicUrl(pic);
@@ -850,6 +847,19 @@ export default defineComponent({
           }
         });
       });
+    };
+
+    const handleSmallTaskWheel = (event: WheelEvent, idx: number) => {
+      const itemEl = getToolItemElement(idx);
+      if (!itemEl) {
+        return;
+      }
+      const scrollEl = getScrollableAncestor(itemEl);
+      if (!scrollEl || scrollEl === event.currentTarget) {
+        return;
+      }
+      event.preventDefault();
+      scrollEl.scrollTop += event.deltaY;
     };
 
     // ── Watch: Auto-expand completed search_videos calls with animation ──
@@ -972,10 +982,12 @@ export default defineComponent({
       getTranscriptResult,
       getTranscriptVideoId,
       getTranscriptPreview,
+      getSmallTaskResultClasses,
       getSmallTaskResultText,
       getOwnerDisplayName,
       getOwnerHref,
       getOwnerUidText,
+      handleSmallTaskWheel,
       normalizePicUrl,
       openVideoPage,
     };
@@ -1136,10 +1148,6 @@ export default defineComponent({
 
 .tool-call-results-wrapper.expanded {
   grid-template-rows: 1fr;
-}
-
-.tool-call-results-wrapper--small-task {
-  transition: none;
 }
 
 .tool-call-results-inner {
@@ -1305,10 +1313,13 @@ export default defineComponent({
 }
 
 .tool-text-result--small-task {
+  overflow-anchor: none;
+}
+
+.tool-text-result--small-task-streaming {
   max-height: 84px;
   overflow-y: auto;
-  overscroll-behavior: contain;
-  overflow-anchor: none;
+  scrollbar-width: thin;
 }
 
 .tool-transcript-preview {

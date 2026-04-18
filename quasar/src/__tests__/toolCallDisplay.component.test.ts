@@ -304,8 +304,8 @@ describe('ToolCallDisplay component', () => {
 
         await wrapper.find('.tool-call-header').trigger('click');
 
-        expect(wrapper.text()).toContain('示例视频');
         expect(wrapper.text()).toContain('这是一个示例转写，用来验证前端是否可以展示转写预览。');
+        expect(wrapper.find('.tool-text-result-meta').exists()).toBe(false);
     });
 
     it('renders internal run_small_llm_task calls with live streaming text', () => {

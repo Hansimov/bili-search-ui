@@ -135,6 +135,17 @@ describe('ChatResponsePanel actions', () => {
     it('edits the current query inline and still supports answer actions', async () => {
         const wrapper = await mountPanel();
 
+        const currentQueryRow = wrapper.findAll('.chat-user-query')[0];
+        expect(
+            currentQueryRow.find('.chat-inline-action-btn--compact').exists()
+        ).toBe(true);
+        expect(
+            currentQueryRow.find('.chat-round-toggle-bar-state--icon-only').exists()
+        ).toBe(true);
+        expect(
+            currentQueryRow.find('.chat-round-toggle-bar-state--icon-only span').exists()
+        ).toBe(false);
+
         const editButton = wrapper
             .findAll('.chat-user-query .chat-inline-action-btn')
             .find((node) => node.text().includes('编辑'));

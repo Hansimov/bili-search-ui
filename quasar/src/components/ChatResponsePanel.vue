@@ -307,7 +307,7 @@
       <span class="chat-user-query-controls">
         <button
           type="button"
-          class="chat-inline-action-btn"
+          class="chat-inline-action-btn chat-inline-action-btn--compact"
           title="编辑问题"
           @click.stop="startEditingCurrentQuery"
         >
@@ -316,9 +316,8 @@
         </button>
         <span
           v-if="shouldShowCurrentAnswerToggle"
-          class="chat-round-toggle-bar-state"
+          class="chat-round-toggle-bar-state chat-round-toggle-bar-state--icon-only"
         >
-          <span>{{ currentAnswerExpanded ? '收起回复' : '展开回复' }}</span>
           <q-icon
             :name="currentAnswerExpanded ? 'expand_less' : 'expand_more'"
             size="16px"
@@ -1693,6 +1692,22 @@ export default defineComponent({
     background: rgba(128, 128, 128, 0.05);
     border-color: rgba(128, 128, 128, 0.16);
   }
+}
+
+.chat-inline-action-btn--compact {
+  gap: 3px;
+  padding: 3px 7px;
+  font-size: 11px;
+  opacity: 0.62;
+}
+
+.chat-inline-action-btn--compact:hover {
+  opacity: 0.84;
+}
+
+.chat-round-toggle-bar-state--icon-only {
+  gap: 0;
+  padding-right: 2px;
 }
 
 /* 历史助手消息 */
