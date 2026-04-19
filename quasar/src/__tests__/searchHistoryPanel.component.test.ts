@@ -10,7 +10,6 @@ const {
     mockLayoutStore,
     mockQueryStore,
     mockSearchModeStore,
-    mockChatStore,
     mockSubmitByMode,
 } = vi.hoisted(() => ({
     mockInputHistoryStore: {
@@ -30,9 +29,6 @@ const {
         currentMode: 'direct' as 'direct' | 'smart' | 'think' | 'research',
         setInitialSessionMode: vi.fn(),
     },
-    mockChatStore: {
-        startNewChat: vi.fn(),
-    },
     mockSubmitByMode: vi.fn(),
 }));
 
@@ -50,10 +46,9 @@ vi.mock('src/stores/queryStore', () => ({
 
 vi.mock('src/stores/searchModeStore', () => ({
     useSearchModeStore: () => mockSearchModeStore,
-}));
-
-vi.mock('src/stores/chatStore', () => ({
-    useChatStore: () => mockChatStore,
+    getSearchMode: (mode: 'direct' | 'smart' | 'think' | 'research') => ({
+        apiType: mode === 'direct' ? 'explore' : 'chat',
+    }),
 }));
 
 vi.mock('src/functions/chat', () => ({
@@ -121,7 +116,6 @@ describe('SearchHistoryPanel component logic', () => {
             'direct'
         );
         expect(mockLayoutStore.setIsSuggestVisible).toHaveBeenCalledWith(false);
-        expect(mockChatStore.startNewChat).not.toHaveBeenCalled();
         expect(mockSubmitByMode).toHaveBeenCalledWith({
             queryValue: 'hello world',
             mode: 'direct',
@@ -131,7 +125,7 @@ describe('SearchHistoryPanel component logic', () => {
         expect(mockLayoutStore.setCurrentPage).toHaveBeenCalledWith(1);
     });
 
-    it('searchFromHistory 在 smart 模式只填充输入框，不直接提交', async () => {
+    it('searchFromHistory 在 smart/think/research 模式只填充输入框，不直接提交', async () => {
         const wrapper = mountPanel();
         const vm = wrapper.vm as unknown as {
             searchFromHistory: (item: InputHistoryItem) => Promise<void>;
@@ -144,39 +138,28 @@ describe('SearchHistoryPanel component logic', () => {
             timestamp: Date.now(),
         };
 
-        mockSearchModeStore.currentMode = 'smart';
-        await vm.searchFromHistory(item);
-        expect(mockQueryStore.setQuery).toHaveBeenCalledWith({
+        for (const mode of ['smart', 'think', 'research'] as const) {
+            mockSearchModeStore.currentMode = mode;
+            await vm.searchFromHistory(item);
+        }
+
+        expect(mockQueryStore.setQuery).toHaveBeenCalledTimes(3);
+        expect(mockQueryStore.setQuery).toHaveBeenNthCalledWith(1, {
             newQuery: 'who are you',
             setRoute: false,
         });
-        expect(dispatchEventSpy).toHaveBeenCalledTimes(1);
-        expect(mockChatStore.startNewChat).not.toHaveBeenCalled();
+        expect(mockQueryStore.setQuery).toHaveBeenNthCalledWith(2, {
+            newQuery: 'who are you',
+            setRoute: false,
+        });
+        expect(mockQueryStore.setQuery).toHaveBeenNthCalledWith(3, {
+            newQuery: 'who are you',
+            setRoute: false,
+        });
+        expect(dispatchEventSpy).toHaveBeenCalledTimes(3);
+        expect(mockSearchModeStore.setInitialSessionMode).not.toHaveBeenCalled();
         expect(mockSubmitByMode).not.toHaveBeenCalled();
         expect(mockLayoutStore.setCurrentPage).not.toHaveBeenCalled();
-    });
-
-    it('searchFromHistory 在 think 模式会先新建 chat 会话再提交', async () => {
-        const wrapper = mountPanel();
-        const vm = wrapper.vm as unknown as {
-            searchFromHistory: (item: InputHistoryItem) => Promise<void>;
-        };
-
-        const item: InputHistoryItem = {
-            id: 'id-4',
-            query: 'who are you',
-            timestamp: Date.now(),
-        };
-
-        mockSearchModeStore.currentMode = 'think';
-        await vm.searchFromHistory(item);
-        expect(mockChatStore.startNewChat).toHaveBeenCalledTimes(1);
-        expect(mockSubmitByMode).toHaveBeenLastCalledWith({
-            queryValue: 'who are you',
-            mode: 'think',
-            setQuery: true,
-            setRoute: true,
-        });
     });
 
     it('recentItems 应按 query 去重并保留最新记录', () => {

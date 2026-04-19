@@ -62,8 +62,7 @@ import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
 import type { InputHistoryItem } from 'src/stores/inputHistoryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useQueryStore } from 'src/stores/queryStore';
-import { useSearchModeStore } from 'src/stores/searchModeStore';
-import { useChatStore } from 'src/stores/chatStore';
+import { getSearchMode, useSearchModeStore } from 'src/stores/searchModeStore';
 import { submitByMode } from 'src/functions/chat';
 
 const SEARCH_INPUT_FOCUS_EVENT = 'bili-search:focus-input';
@@ -75,7 +74,6 @@ export default {
     const layoutStore = useLayoutStore();
     const queryStore = useQueryStore();
     const searchModeStore = useSearchModeStore();
-    const chatStore = useChatStore();
 
     onMounted(() => {
       inputHistoryStore.loadHistory();
@@ -102,10 +100,11 @@ export default {
     const searchFromHistory = async (item: InputHistoryItem) => {
       const query = item.query;
       const mode = searchModeStore.currentMode;
+      const isChatMode = getSearchMode(mode).apiType === 'chat';
 
       layoutStore.setIsSuggestVisible(false);
 
-      if (mode === 'smart') {
+      if (isChatMode) {
         queryStore.setQuery({
           newQuery: query,
           setRoute: false,
@@ -121,11 +120,6 @@ export default {
       }
 
       searchModeStore.setInitialSessionMode(mode);
-
-      // think 模式点击后继续保留“立即发起新会话”的行为
-      if (mode === 'think') {
-        chatStore.startNewChat();
-      }
       await submitByMode({
         queryValue: query,
         mode,

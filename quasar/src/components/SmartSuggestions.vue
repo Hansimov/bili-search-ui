@@ -48,14 +48,19 @@
 import { computed, ref, watch, nextTick } from 'vue';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
-import { useSearchModeStore } from 'src/stores/searchModeStore';
+import { getSearchMode, useSearchModeStore } from 'src/stores/searchModeStore';
 import {
   getSmartSuggestService,
   suggestIndexVersion,
   type SmartSuggestion,
   type SuggestionType,
 } from 'src/services/smartSuggestService';
-import { submitSuggestionByMode } from 'src/functions/chat';
+import {
+  resolveSuggestionQuery,
+  submitSuggestionByMode,
+} from 'src/functions/chat';
+
+const SEARCH_INPUT_FOCUS_EVENT = 'bili-search:focus-input';
 
 export default {
   name: 'SmartSuggestions',
@@ -114,17 +119,29 @@ export default {
      * - author (用户) → 搜索 uid=... 语句（如果有 uid）
      */
     const selectSuggestion = async (item: SmartSuggestion) => {
+      const mode = searchModeStore.currentMode;
+
+      if (getSearchMode(mode).apiType === 'chat') {
+        queryStore.setQuery({
+          newQuery: resolveSuggestionQuery(item),
+          setRoute: false,
+        });
+        layoutStore.resetSuggestNavigation();
+        layoutStore.setIsSuggestVisible(false);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent(SEARCH_INPUT_FOCUS_EVENT, {
+              detail: { placeCaretAtEnd: true },
+            })
+          );
+        }
+        return;
+      }
+
       await submitSuggestionByMode({
         item,
-        mode: searchModeStore.currentMode,
+        mode,
       });
-
-      if (
-        searchModeStore.currentMode === 'smart' ||
-        searchModeStore.currentMode === 'think'
-      ) {
-        queryStore.setQuery({ newQuery: '' });
-      }
     };
 
     const getTypeIcon = (type: SuggestionType): string => {
