@@ -377,6 +377,85 @@ describe('SmartSuggestService', () => {
             const results = service.suggest('天气预报');
             expect(results.length).toBe(0);
         });
+
+        it('长中文查询不应通过拼音兜底召回无关短语和长标题', () => {
+            service.addFromHistory([
+                {
+                    query: '你好，简单回复一句“测试导出”即可',
+                    timestamp: Date.now(),
+                },
+            ]);
+            service.addFromSearchResults([
+                {
+                    title: '极客湾观众问回复下性能横评下架？答其实很简单一个馒头引发的血案',
+                    bvid: 'BV-noisy-1',
+                    owner: { name: '极客湾', mid: 1 },
+                    tags: '',
+                },
+                {
+                    title: '最数值的色卡！单核与多核的本质区别又是什么？一个视频带你读懂fgo',
+                    bvid: 'BV-noisy-2',
+                    owner: { name: '杂谈频道', mid: 2 },
+                    tags: '',
+                },
+                {
+                    title: '回复 娱乐',
+                    bvid: 'BV-noisy-3',
+                    owner: { name: '某频道', mid: 3 },
+                    tags: '',
+                },
+            ]);
+
+            const results = service.suggest('你好简单回复');
+
+            expect(results[0]?.type).toBe('history');
+            expect(results[0]?.text).toContain('你好');
+            expect(results.some((item) => item.text === '回复 娱乐')).toBe(false);
+            expect(
+                results.some((item) =>
+                    item.text.includes('极客湾观众问回复下性能横评下架')
+                )
+            ).toBe(false);
+            expect(
+                results.some((item) =>
+                    item.text.includes('最数值的色卡')
+                )
+            ).toBe(false);
+        });
+
+        it('长中文查询不应触发共现词短语放大', () => {
+            service.addFromSearchResults([
+                {
+                    title: '回复 娱乐',
+                    bvid: 'BV-combo-1',
+                    owner: { name: '频道甲', mid: 11 },
+                    tags: '',
+                },
+                {
+                    title: '娱乐 回复',
+                    bvid: 'BV-combo-2',
+                    owner: { name: '频道乙', mid: 12 },
+                    tags: '',
+                },
+                {
+                    title: '回复 棍木',
+                    bvid: 'BV-combo-3',
+                    owner: { name: '频道丙', mid: 13 },
+                    tags: '',
+                },
+                {
+                    title: '棍木 回复',
+                    bvid: 'BV-combo-4',
+                    owner: { name: '频道丁', mid: 14 },
+                    tags: '',
+                },
+            ]);
+
+            const results = service.suggest('你好简单回复');
+
+            expect(results.some((item) => item.text === '回复 娱乐')).toBe(false);
+            expect(results.some((item) => item.text === '回复 棍木')).toBe(false);
+        });
     });
 
     describe('历史去重', () => {

@@ -250,6 +250,10 @@ function hasChinese(text: string): boolean {
     return /[\u4E00-\u9FFF]/.test(text);
 }
 
+function getTextLength(text: string): number {
+    return Array.from(text || '').length;
+}
+
 // ==================== 文本处理工具 ====================
 
 /**
@@ -525,17 +529,18 @@ function highlightMatch(text: string, query: string): string {
     }
 
     // 3. 尝试逐字匹配（子序列）
+    const subsequencePositions: Array<[number, number]> = [];
     searchFrom = 0;
     for (let i = 0; i < lowerQuery.length; i++) {
         const charIdx = lowerText.indexOf(lowerQuery[i], searchFrom);
-        if (charIdx !== -1) {
-            positions.push([charIdx, charIdx + 1]);
-            searchFrom = charIdx + 1;
+        if (charIdx === -1) {
+            return escapeHtml(text);
         }
+        subsequencePositions.push([charIdx, charIdx + 1]);
+        searchFrom = charIdx + 1;
     }
 
-    if (positions.length === 0) return escapeHtml(text);
-    return buildHighlightHtml(text, positions);
+    return buildHighlightHtml(text, subsequencePositions);
 }
 
 /**
@@ -816,7 +821,12 @@ function calculateMatchScore(
         score = matchPinyin(queryLower, entryPinyin.full, entryPinyin.initials);
     }
     // 4b. 中文输入 → 拼音匹配（如"李思维"匹配"李四维"）
-    if (score === 0 && queryHasChinese && entryPinyin?.initials) {
+    if (
+        score === 0 &&
+        queryHasChinese &&
+        entryPinyin?.initials &&
+        shouldUseChinesePhoneticFallback(entry, query)
+    ) {
         const queryPy = getPinyinInfo(query);
         if (queryPy.initials.length >= 2) {
             // 尝试全拼匹配
@@ -890,6 +900,24 @@ function calculateMatchScore(
     }
 
     return Math.max(0, score);
+}
+
+function shouldUseChinesePhoneticFallback(
+    entry: IndexEntry,
+    query: string,
+): boolean {
+    const queryLength = getTextLength(query);
+    if (queryLength < 2 || queryLength > 4) {
+        return false;
+    }
+
+    // 中文同音兜底更适合短历史和作者名，放到长标题/短语上会产生大量噪声召回。
+    if (entry.type !== 'history' && entry.type !== 'author') {
+        return false;
+    }
+
+    const entryLength = getTextLength(entry.text);
+    return entryLength <= Math.max(queryLength + 2, 8);
 }
 
 // ==================== 主服务类 ====================
@@ -1307,9 +1335,10 @@ export class SmartSuggestService {
         // 共现组合匹配：当用户输入匹配某个 token 时，推荐该 token 的共现组合
         for (const combo of this.coOccurrenceCombos) {
             const comboLower = combo.text.toLowerCase();
-            // 检查是否查询词匹配组合中的某个 token
+            // 只在用户本身就在输入该 token 时触发共现补全，
+            // 避免长句中偶然包含某个词就放大成一串无关短语。
             const matchesToken = combo.tokens.some((t) =>
-                t.includes(queryLower) || queryLower.includes(t)
+                t.includes(queryLower)
             );
             if (!matchesToken && !comboLower.includes(queryLower)) continue;
 
