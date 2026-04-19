@@ -6,12 +6,6 @@
     >
       <!-- 主输入区域 -->
       <div class="search-input-row">
-        <q-icon
-          :name="currentModeIcon"
-          :color="currentModeIconColor"
-          size="20px"
-          class="search-prepend-icon"
-        />
         <textarea
           ref="textareaRef"
           class="search-native-input"
@@ -250,9 +244,6 @@ export default {
     const isDense = computed(() => route.path !== '/');
     const currentMode = computed(() => searchModeStore.currentMode);
     const modeOptions = computed(() => searchModeStore.modeOptions);
-    const currentModeIcon = computed(
-      () => searchModeStore.currentModeOption.icon
-    );
     const currentModeIconColor = computed(
       () => getSearchMode(searchModeStore.currentMode).theme.quasarColor
     );
@@ -787,7 +778,6 @@ export default {
       displayValue,
       isDense,
       currentMode,
-      currentModeIcon,
       currentModeIconColor,
       stopButtonColor,
       modeOptions,
@@ -843,16 +833,8 @@ export default {
 .search-input-row {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
   padding-bottom: 5px;
-}
-
-.search-prepend-icon {
-  flex-shrink: 0;
-  display: block;
-  line-height: 1;
-  margin-top: 0;
-  transform: translateY(1px);
 }
 
 /* textarea 替换 input，支持多行自动增长 */

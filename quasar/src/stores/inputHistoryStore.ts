@@ -15,7 +15,25 @@ function generateId(): string {
 }
 
 function normalizeQuery(query: string): string {
-    return (query || '').trim();
+    return (query || '').trim().replace(/\s+/g, ' ');
+}
+
+function queryKey(query: string): string {
+    return normalizeQuery(query).toLowerCase();
+}
+
+function dedupeHistoryItems(items: InputHistoryItem[]): InputHistoryItem[] {
+    const seen = new Set<string>();
+    const sorted = [...items].sort((a, b) => b.timestamp - a.timestamp);
+
+    return sorted.filter((item) => {
+        const key = queryKey(item.query);
+        if (!key || seen.has(key)) {
+            return false;
+        }
+        seen.add(key);
+        return true;
+    });
 }
 
 function syncSuggestHistoryIndex(items: InputHistoryItem[]): void {
@@ -76,6 +94,27 @@ export const useInputHistoryStore = defineStore('inputHistory', {
                         };
                     })
                     .filter((item): item is InputHistoryItem => Boolean(item));
+
+                const dedupedItems = dedupeHistoryItems(this.items).slice(
+                    0,
+                    MAX_INPUT_HISTORY_ITEMS
+                );
+                const didChange =
+                    dedupedItems.length !== this.items.length ||
+                    dedupedItems.some((item, index) => {
+                        const current = this.items[index];
+                        return (
+                            !current ||
+                            current.id !== item.id ||
+                            current.query !== item.query ||
+                            current.timestamp !== item.timestamp
+                        );
+                    });
+
+                this.items = dedupedItems;
+                if (didChange) {
+                    this.persistHistory();
+                }
             } catch (error) {
                 console.error('[InputHistory] Failed to load history:', error);
                 this.items = [];
@@ -96,16 +135,29 @@ export const useInputHistoryStore = defineStore('inputHistory', {
             const trimmedQuery = normalizeQuery(query);
             if (!trimmedQuery) return;
 
-            this.items.push({
-                id: generateId(),
-                query: trimmedQuery,
-                timestamp: Date.now(),
-            });
+            const now = Date.now();
+            const existingIndex = this.items.findIndex(
+                (item) => queryKey(item.query) === queryKey(trimmedQuery)
+            );
+
+            if (existingIndex >= 0) {
+                const existingItem = this.items[existingIndex];
+                this.items.splice(existingIndex, 1);
+                this.items.unshift({
+                    ...existingItem,
+                    query: trimmedQuery,
+                    timestamp: now,
+                });
+            } else {
+                this.items.unshift({
+                    id: generateId(),
+                    query: trimmedQuery,
+                    timestamp: now,
+                });
+            }
 
             if (this.items.length > MAX_INPUT_HISTORY_ITEMS) {
-                this.items = [...this.items]
-                    .sort((a, b) => b.timestamp - a.timestamp)
-                    .slice(0, MAX_INPUT_HISTORY_ITEMS);
+                this.items = this.items.slice(0, MAX_INPUT_HISTORY_ITEMS);
             }
 
             this.persistHistory();

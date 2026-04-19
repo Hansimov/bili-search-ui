@@ -61,15 +61,19 @@ import { computed, onMounted } from 'vue';
 import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
 import type { InputHistoryItem } from 'src/stores/inputHistoryStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { useQueryStore } from 'src/stores/queryStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useChatStore } from 'src/stores/chatStore';
 import { submitByMode } from 'src/functions/chat';
+
+const SEARCH_INPUT_FOCUS_EVENT = 'bili-search:focus-input';
 
 export default {
   name: 'SearchHistoryPanel',
   setup() {
     const inputHistoryStore = useInputHistoryStore();
     const layoutStore = useLayoutStore();
+    const queryStore = useQueryStore();
     const searchModeStore = useSearchModeStore();
     const chatStore = useChatStore();
 
@@ -98,12 +102,28 @@ export default {
     const searchFromHistory = async (item: InputHistoryItem) => {
       const query = item.query;
       const mode = searchModeStore.currentMode;
-      searchModeStore.setInitialSessionMode(mode);
 
       layoutStore.setIsSuggestVisible(false);
 
-      // 输入记录点击后按当前模式提交；chat 模式始终新开会话
-      if (mode === 'smart' || mode === 'think') {
+      if (mode === 'smart') {
+        queryStore.setQuery({
+          newQuery: query,
+          setRoute: false,
+        });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent(SEARCH_INPUT_FOCUS_EVENT, {
+              detail: { placeCaretAtEnd: true },
+            })
+          );
+        }
+        return;
+      }
+
+      searchModeStore.setInitialSessionMode(mode);
+
+      // think 模式点击后继续保留“立即发起新会话”的行为
+      if (mode === 'think') {
         chatStore.startNewChat();
       }
       await submitByMode({

@@ -50,6 +50,31 @@ describe('InputHistoryStore', () => {
         expect(localStorageMock.setItem).toHaveBeenCalled();
     });
 
+    it('addRecord 对重复输入应去重并更新到最前面', () => {
+        const store = useInputHistoryStore();
+        const dateNowSpy = vi.spyOn(Date, 'now');
+
+        dateNowSpy
+            .mockReturnValueOnce(1000)
+            .mockReturnValueOnce(2000)
+            .mockReturnValueOnce(3000);
+
+        store.addRecord('  Hello   World  ');
+        const firstId = store.items[0].id;
+        store.addRecord('other');
+        store.addRecord('hello world');
+
+        expect(store.totalCount).toBe(2);
+        expect(store.items[0]).toMatchObject({
+            id: firstId,
+            query: 'hello world',
+        });
+        expect(store.items[0].timestamp).toBeGreaterThan(store.items[1].timestamp);
+        expect(store.items[1].query).toBe('other');
+
+        dateNowSpy.mockRestore();
+    });
+
     it('removeRecord 应删除记录并保持持久化同步', () => {
         const store = useInputHistoryStore();
         store.addRecord('a');
@@ -89,6 +114,28 @@ describe('InputHistoryStore', () => {
 
         expect(store.totalCount).toBe(2);
         expect(store.sortedItems.map((item) => item.query)).toEqual(['bar', 'foo']);
+    });
+
+    it('loadHistory 应清理历史中的重复输入并保留最新记录', () => {
+        localStorageMock.setItem(
+            'input-history.v1',
+            JSON.stringify([
+                { id: 'old', query: '重复问题', timestamp: 100 },
+                { id: 'new', query: '重复问题', timestamp: 200 },
+                { id: 'space', query: '  重复问题  ', timestamp: 300 },
+                { id: 'other', query: '另一个问题', timestamp: 150 },
+            ])
+        );
+
+        const store = useInputHistoryStore();
+        store.loadHistory();
+
+        expect(store.sortedItems.map((item) => item.id)).toEqual(['space', 'other']);
+        expect(store.sortedItems.map((item) => item.query)).toEqual([
+            '重复问题',
+            '另一个问题',
+        ]);
+        expect(localStorageMock.setItem).toHaveBeenCalled();
     });
 
     it('add/remove/clear 应同步 smartSuggest history 索引', () => {
