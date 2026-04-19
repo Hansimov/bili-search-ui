@@ -51,9 +51,6 @@
 
           <div class="chat-export-section">
             <div class="chat-export-section-title">导出格式</div>
-            <div class="chat-export-section-desc">
-              Markdown 适合阅读与归档；JSON 适合调试、程序处理和精确保留结构。
-            </div>
             <div class="chat-export-format-switch">
               <button
                 v-for="option in exportFormatOptions"
@@ -66,16 +63,21 @@
                 {{ option.label }}
               </button>
             </div>
+            <div
+              v-if="exportOptions.format === 'json'"
+              class="chat-export-format-preferences"
+            >
+              <q-checkbox
+                v-model="exportOptions.prettyJson"
+                label="格式化 JSON"
+                dense
+              />
+            </div>
           </div>
 
           <div class="chat-export-section">
             <div class="chat-export-section-head">
-              <div>
-                <div class="chat-export-section-title">导出轮次</div>
-                <div class="chat-export-section-desc">
-                  默认选中你点击的那一轮之前的全部上下文，你也可以手动调整要导出的轮次范围。
-                </div>
-              </div>
+              <div class="chat-export-section-title">导出轮次</div>
               <div class="chat-export-inline-actions">
                 <button
                   type="button"
@@ -180,25 +182,6 @@
               />
             </div>
           </div>
-
-          <div class="chat-export-section">
-            <div class="chat-export-section-title">附加选项</div>
-            <div
-              class="chat-export-checkbox-grid chat-export-checkbox-grid--secondary"
-            >
-              <q-checkbox
-                v-model="exportOptions.includeEmptySections"
-                label="保留空段落"
-                dense
-              />
-              <q-checkbox
-                v-if="exportOptions.format === 'json'"
-                v-model="exportOptions.prettyJson"
-                label="格式化 JSON"
-                dense
-              />
-            </div>
-          </div>
         </template>
       </q-card-section>
 
@@ -231,6 +214,7 @@ import type {
 } from 'src/stores/chatStore';
 import {
   DEFAULT_CHAT_EXPORT_OPTIONS,
+  type ChatExportOptions,
   type ChatExportFormat,
   buildPrefixExportRoundSelection,
   cloneChatExportOptions,
@@ -245,6 +229,12 @@ import {
 defineOptions({ name: 'ChatExportDialog' });
 
 const EXPORT_PREFERENCES_KEY = 'chatExportOptions';
+
+type StoredChatExportOptions = Partial<
+  Pick<ChatExportOptions, 'format' | 'prettyJson'>
+> & {
+  sections?: Partial<ChatExportOptions['sections']>;
+};
 
 const props = defineProps<{
   modelValue: boolean;
@@ -265,42 +255,44 @@ const exportFormatOptions: Array<{ label: string; value: ChatExportFormat }> = [
   { label: 'JSON', value: 'json' },
 ];
 
+const isChatExportFormat = (value: unknown): value is ChatExportFormat => {
+  return value === 'markdown' || value === 'json';
+};
+
+const applyStoredExportOptions = (stored?: StoredChatExportOptions | null) => {
+  const defaults = cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS);
+  Object.assign(exportOptions, defaults, {
+    format: isChatExportFormat(stored?.format)
+      ? stored.format
+      : defaults.format,
+    prettyJson:
+      typeof stored?.prettyJson === 'boolean'
+        ? stored.prettyJson
+        : defaults.prettyJson,
+    sections: {
+      ...defaults.sections,
+      ...(stored?.sections || {}),
+    },
+  });
+};
+
 const loadSavedExportOptions = () => {
   if (typeof window === 'undefined' || !window.localStorage) {
-    Object.assign(
-      exportOptions,
-      cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS)
-    );
+    applyStoredExportOptions();
     return;
   }
 
   try {
     const raw = window.localStorage.getItem(EXPORT_PREFERENCES_KEY);
     if (!raw) {
-      Object.assign(
-        exportOptions,
-        cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS)
-      );
+      applyStoredExportOptions();
       return;
     }
 
-    const parsed = JSON.parse(raw);
-    Object.assign(
-      exportOptions,
-      cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS),
-      {
-        ...parsed,
-        sections: {
-          ...DEFAULT_CHAT_EXPORT_OPTIONS.sections,
-          ...(parsed.sections || {}),
-        },
-      }
-    );
+    const parsed = JSON.parse(raw) as StoredChatExportOptions;
+    applyStoredExportOptions(parsed);
   } catch {
-    Object.assign(
-      exportOptions,
-      cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS)
-    );
+    applyStoredExportOptions();
   }
 };
 
@@ -312,7 +304,7 @@ const persistExportOptions = () => {
   try {
     window.localStorage.setItem(
       EXPORT_PREFERENCES_KEY,
-      JSON.stringify(exportOptions)
+      JSON.stringify(cloneChatExportOptions(exportOptions))
     );
   } catch {
     // Ignore local preference persistence failures.
@@ -620,12 +612,6 @@ const handleExportSession = () => {
   font-weight: 600;
 }
 
-.chat-export-section-desc {
-  font-size: 12px;
-  line-height: 1.5;
-  opacity: 0.62;
-}
-
 .chat-export-inline-actions {
   display: inline-flex;
   align-items: center;
@@ -657,6 +643,11 @@ const handleExportSession = () => {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.chat-export-format-preferences {
+  display: flex;
+  align-items: center;
 }
 
 .chat-export-format-option {
@@ -767,10 +758,6 @@ const handleExportSession = () => {
 
 .chat-export-checkbox-grid--triple {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.chat-export-checkbox-grid--secondary {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .chat-export-actions {

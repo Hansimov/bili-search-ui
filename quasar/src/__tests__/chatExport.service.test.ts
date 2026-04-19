@@ -263,4 +263,54 @@ describe('chat export service', () => {
         expect(filtered.rounds[0]?.index).toBe(2);
         expect(filtered.rounds[0]?.user?.content).toBe('第二轮问题');
     });
+
+    it('collapses extra blank lines in exported text content', () => {
+        const bundleWithSparseParagraphs: ChatExportSessionBundle = {
+            ...sampleBundle,
+            rounds: [
+                {
+                    ...sampleBundle.rounds[0],
+                    user: {
+                        ...sampleBundle.rounds[0]!.user!,
+                        content: '第一段\n\n\n\n第二段',
+                    },
+                    assistant: {
+                        ...sampleBundle.rounds[0]!.assistant!,
+                        content: '回答开头\n\n\n\n\n回答结尾',
+                        thinkingContent: '思考一\n\n\n\n思考二',
+                        streamSegments: [
+                            {
+                                type: 'thinking',
+                                content: '第一段思考\n\n\n\n第二段思考',
+                            },
+                        ],
+                    },
+                },
+            ],
+        };
+
+        const markdownExport = generateChatExport(
+            bundleWithSparseParagraphs,
+            cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS),
+        );
+
+        expect(markdownExport.content).toContain('第一段\n\n\n第二段');
+        expect(markdownExport.content).toContain('回答开头\n\n\n回答结尾');
+        expect(markdownExport.content).not.toContain('\n\n\n\n');
+
+        const jsonOptions = cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS);
+        jsonOptions.format = 'json';
+        const jsonExport = generateChatExport(bundleWithSparseParagraphs, jsonOptions);
+        const payload = JSON.parse(jsonExport.content) as {
+            rounds: Array<{
+                user?: { content: string };
+                thinking?: { content: string };
+                answer?: { content: string };
+            }>;
+        };
+
+        expect(payload.rounds[0]?.user?.content).toBe('第一段\n\n\n第二段');
+        expect(payload.rounds[0]?.thinking?.content).toBe('第一段思考\n\n\n第二段思考');
+        expect(payload.rounds[0]?.answer?.content).toBe('回答开头\n\n\n回答结尾');
+    });
 });

@@ -1,3 +1,5 @@
+import { exportFile } from 'quasar';
+
 import type {
     ChatExportRound,
     ChatExportSessionBundle,
@@ -21,7 +23,6 @@ export interface ChatExportSections {
 export interface ChatExportOptions {
     format: ChatExportFormat;
     prettyJson: boolean;
-    includeEmptySections: boolean;
     sections: ChatExportSections;
 }
 
@@ -34,7 +35,6 @@ export interface GeneratedChatExport {
 export const DEFAULT_CHAT_EXPORT_OPTIONS: ChatExportOptions = {
     format: 'markdown',
     prettyJson: true,
-    includeEmptySections: false,
     sections: {
         sessionMeta: true,
         userInputs: true,
@@ -63,6 +63,9 @@ interface FilteredToolEvent {
     tools: string[];
     calls?: FilteredToolCall[];
 }
+
+const CHAT_EXPORT_DOWNLOAD_ENDPOINT = '/api/chat/export-file';
+const CHAT_EXPORT_DOWNLOAD_CLEANUP_DELAY_MS = 60_000;
 
 function cloneSerializable<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
@@ -175,21 +178,52 @@ function stringifyJson(value: unknown, pretty = true): string {
     return JSON.stringify(value, null, pretty ? 2 : 0);
 }
 
+function collapseExtraBlankLines(text: string): string {
+    const normalized = text.replace(/\r\n?/g, '\n');
+    const lines = normalized.split('\n');
+    const collapsed: string[] = [];
+    let consecutiveBlankLines = 0;
+
+    for (const line of lines) {
+        if (line.trim() === '') {
+            consecutiveBlankLines += 1;
+            if (consecutiveBlankLines <= 2) {
+                collapsed.push('');
+            }
+            continue;
+        }
+
+        consecutiveBlankLines = 0;
+        collapsed.push(line);
+    }
+
+    return collapsed.join('\n');
+}
+
+function normalizeExportTextContent(text?: string | null): string {
+    if (!text) {
+        return '';
+    }
+
+    return collapseExtraBlankLines(text);
+}
+
 function getThinkingSegments(message?: ConversationMessage): string[] {
     if (!message) {
         return [];
     }
     if (message.streamSegments?.length) {
         return message.streamSegments
-            .filter((segment) => segment.type === 'thinking' && !!segment.content?.trim())
-            .map((segment) => segment.content?.trim() || '');
+            .filter((segment) => segment.type === 'thinking')
+            .map((segment) => normalizeExportTextContent(segment.content || ''))
+            .filter((segment) => !!segment.trim());
     }
-    const content = message.thinkingContent?.trim();
+    const content = normalizeExportTextContent(message.thinkingContent);
     return content ? [content] : [];
 }
 
 function getThinkingText(message?: ConversationMessage): string {
-    return getThinkingSegments(message).join('\n\n');
+    return normalizeExportTextContent(getThinkingSegments(message).join('\n\n'));
 }
 
 function filterToolEvents(
@@ -233,7 +267,7 @@ function filterToolEvents(
 
 function hasAnyContent(round: Record<string, unknown>): boolean {
     return Object.keys(round).some(
-        (key) => !['index', 'phase', 'status', 'error'].includes(key)
+        (key) => !['index', 'phase', 'status'].includes(key)
     );
 }
 
@@ -246,17 +280,19 @@ function buildJsonRound(
         phase: round.phase,
         status: round.status,
     };
+    const userContent = normalizeExportTextContent(round.user?.content);
+    const answerContent = normalizeExportTextContent(round.assistant?.content);
 
     if (round.error) {
         result.error = round.error;
     }
 
     if (options.sections.userInputs) {
-        if (round.user?.content || options.includeEmptySections) {
+        if (userContent) {
             result.user = {
                 id: round.user?.id,
                 createdAt: toIso(round.user?.createdAt),
-                content: round.user?.content || '',
+                content: userContent,
             };
         }
     }
@@ -264,7 +300,7 @@ function buildJsonRound(
     if (options.sections.thinking) {
         const thinkingText = getThinkingText(round.assistant);
         const segments = getThinkingSegments(round.assistant);
-        if (thinkingText || options.includeEmptySections) {
+        if (thinkingText) {
             result.thinking = {
                 content: thinkingText,
                 segmentCount: segments.length,
@@ -273,28 +309,22 @@ function buildJsonRound(
     }
 
     const toolEvents = filterToolEvents(round, options);
-    if (toolEvents.length > 0 || options.includeEmptySections) {
-        if (toolEvents.length > 0 || options.sections.toolInputs || options.sections.toolResults) {
-            result.toolEvents = toolEvents;
-        }
+    if (toolEvents.length > 0) {
+        result.toolEvents = toolEvents;
     }
 
     if (options.sections.finalAnswers) {
-        if (round.assistant?.content || options.includeEmptySections) {
+        if (answerContent) {
             result.answer = {
                 id: round.assistant?.id,
                 createdAt: toIso(round.assistant?.createdAt),
-                content: round.assistant?.content || '',
+                content: answerContent,
             };
         }
     }
 
     if (options.sections.perfStats) {
-        if (
-            round.assistant?.perfStats ||
-            round.assistant?.usage ||
-            options.includeEmptySections
-        ) {
+        if (round.assistant?.perfStats || round.assistant?.usage) {
             result.performance = {
                 perfStats: round.assistant?.perfStats || null,
                 usage: round.assistant?.usage || null,
@@ -303,20 +333,20 @@ function buildJsonRound(
     }
 
     if (options.sections.modelTrace) {
-        if (round.assistant?.usageTrace || options.includeEmptySections) {
+        if (round.assistant?.usageTrace) {
             result.modelTrace = round.assistant?.usageTrace || null;
         }
     }
 
     if (options.sections.rawTimeline) {
-        if (round.assistant?.streamSegments || options.includeEmptySections) {
+        if (round.assistant?.streamSegments?.length) {
             result.rawTimeline = cloneSerializable(
                 round.assistant?.streamSegments || []
             );
         }
     }
 
-    return hasAnyContent(result) || options.includeEmptySections ? result : null;
+    return hasAnyContent(result) ? result : null;
 }
 
 function buildJsonExport(
@@ -365,18 +395,12 @@ function appendMarkdownToolEvents(
     options: ChatExportOptions,
 ) {
     const toolEvents = filterToolEvents(round, options);
-    if (!toolEvents.length && !options.includeEmptySections) {
+    if (!toolEvents.length) {
         return;
     }
 
     lines.push('### 工具调用');
     lines.push('');
-
-    if (!toolEvents.length) {
-        lines.push('_无_');
-        lines.push('');
-        return;
-    }
 
     for (const event of toolEvents) {
         lines.push(`#### Iteration ${event.iteration}`);
@@ -425,6 +449,9 @@ function buildMarkdownExport(
     }
 
     bundle.rounds.forEach((round) => {
+        const userContent = normalizeExportTextContent(round.user?.content);
+        const answerContent = normalizeExportTextContent(round.assistant?.content);
+
         lines.push(`## Round ${round.index}${round.phase === 'current' ? ' (current)' : ''}`);
         lines.push(`- Status: ${round.status}`);
         if (round.error) {
@@ -432,21 +459,18 @@ function buildMarkdownExport(
         }
         lines.push('');
 
-        if (options.sections.userInputs && (round.user?.content || options.includeEmptySections)) {
+        if (options.sections.userInputs && userContent) {
             lines.push('### 用户输入');
             lines.push('');
-            appendCodeBlock(lines, 'text', round.user?.content || '');
+            appendCodeBlock(lines, 'text', userContent);
         }
 
         if (options.sections.thinking) {
             const thinkingSegments = getThinkingSegments(round.assistant);
-            if (thinkingSegments.length || options.includeEmptySections) {
+            if (thinkingSegments.length) {
                 lines.push('### 思考过程');
                 lines.push('');
-                if (!thinkingSegments.length) {
-                    lines.push('_无_');
-                    lines.push('');
-                } else if (thinkingSegments.length === 1) {
+                if (thinkingSegments.length === 1) {
                     appendCodeBlock(lines, 'text', thinkingSegments[0] || '');
                 } else {
                     thinkingSegments.forEach((segment, index) => {
@@ -462,14 +486,14 @@ function buildMarkdownExport(
             appendMarkdownToolEvents(lines, round, options);
         }
 
-        if (options.sections.finalAnswers && (round.assistant?.content || options.includeEmptySections)) {
+        if (options.sections.finalAnswers && answerContent) {
             lines.push('### 最终回答');
             lines.push('');
-            appendCodeBlock(lines, 'markdown', round.assistant?.content || '');
+            appendCodeBlock(lines, 'markdown', answerContent);
         }
 
         if (options.sections.perfStats) {
-            if (round.assistant?.perfStats || round.assistant?.usage || options.includeEmptySections) {
+            if (round.assistant?.perfStats || round.assistant?.usage) {
                 lines.push('### 性能与用量');
                 lines.push('');
                 appendCodeBlock(
@@ -486,7 +510,7 @@ function buildMarkdownExport(
             }
         }
 
-        if (options.sections.modelTrace && (round.assistant?.usageTrace || options.includeEmptySections)) {
+        if (options.sections.modelTrace && round.assistant?.usageTrace) {
             lines.push('### 模型轨迹');
             lines.push('');
             appendCodeBlock(
@@ -496,7 +520,7 @@ function buildMarkdownExport(
             );
         }
 
-        if (options.sections.rawTimeline && (round.assistant?.streamSegments || options.includeEmptySections)) {
+        if (options.sections.rawTimeline && round.assistant?.streamSegments?.length) {
             lines.push('### 原始时间线');
             lines.push('');
             appendCodeBlock(
@@ -543,6 +567,66 @@ export function generateChatExport(
     };
 }
 
+function createDownloadField(
+    name: string,
+    value: string,
+    multiline = false,
+): HTMLInputElement | HTMLTextAreaElement {
+    const field = multiline
+        ? document.createElement('textarea')
+        : document.createElement('input');
+
+    field.name = name;
+    field.value = value;
+    field.style.display = 'none';
+
+    if (!multiline) {
+        field.setAttribute('type', 'hidden');
+    }
+
+    return field;
+}
+
+function submitChatExportDownload(generated: GeneratedChatExport): boolean {
+    if (typeof document === 'undefined' || !document.body) {
+        return false;
+    }
+
+    const iframe = document.createElement('iframe');
+    const targetName = `chat-export-download-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    iframe.name = targetName;
+    iframe.style.display = 'none';
+    iframe.setAttribute('aria-hidden', 'true');
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = CHAT_EXPORT_DOWNLOAD_ENDPOINT;
+    form.target = targetName;
+    form.acceptCharset = 'UTF-8';
+    form.enctype = 'application/x-www-form-urlencoded';
+    form.style.display = 'none';
+    form.append(
+        createDownloadField('fileName', generated.fileName),
+        createDownloadField('mimeType', generated.mimeType),
+        createDownloadField('content', generated.content, true),
+    );
+
+    document.body.append(iframe, form);
+
+    try {
+        form.submit();
+        window.setTimeout(() => {
+            form.remove();
+            iframe.remove();
+        }, CHAT_EXPORT_DOWNLOAD_CLEANUP_DELAY_MS);
+        return true;
+    } catch {
+        form.remove();
+        iframe.remove();
+        return false;
+    }
+}
+
 export function triggerChatExportDownload(
     generated: GeneratedChatExport,
 ): GeneratedChatExport {
@@ -550,19 +634,19 @@ export function triggerChatExportDownload(
         return generated;
     }
 
-    const blob = new Blob([generated.content], { type: generated.mimeType });
-    const objectUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = objectUrl;
-    anchor.download = generated.fileName;
-    anchor.rel = 'noopener';
-    anchor.style.display = 'none';
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    window.setTimeout(() => {
-        URL.revokeObjectURL(objectUrl);
-    }, 0);
+    if (submitChatExportDownload(generated)) {
+        return generated;
+    }
+
+    const exportResult = exportFile(generated.fileName, generated.content, {
+        mimeType: generated.mimeType,
+    });
+    if (exportResult !== true) {
+        throw exportResult instanceof Error
+            ? exportResult
+            : new Error(String(exportResult));
+    }
+
     return generated;
 }
 

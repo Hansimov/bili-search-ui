@@ -20,6 +20,7 @@ const exportServiceMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('quasar', () => ({
+    exportFile: vi.fn(() => true),
     Notify: {
         create: quasarMocks.notifyCreate,
     },
@@ -160,6 +161,10 @@ describe('ChatExportDialog', () => {
         const wrapper = await mountDialog([1, 2]);
 
         expect(wrapper.findAll('.chat-export-round-pill.active')).toHaveLength(2);
+        expect(wrapper.text()).not.toContain('附加选项');
+        expect(wrapper.text()).not.toContain('保留空段落');
+        expect(wrapper.text()).not.toContain('Markdown 适合阅读与归档');
+        expect(wrapper.text()).not.toContain('默认选中你点击的那一轮之前');
 
         await wrapper
             .findAll('.chat-export-format-option')
