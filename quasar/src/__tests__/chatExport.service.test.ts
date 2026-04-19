@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     DEFAULT_CHAT_EXPORT_OPTIONS,
+    buildChatExportFileName,
     cloneChatExportOptions,
     filterChatExportBundle,
     generateChatExport,
@@ -262,6 +263,31 @@ describe('chat export service', () => {
         expect(filtered.rounds).toHaveLength(1);
         expect(filtered.rounds[0]?.index).toBe(2);
         expect(filtered.rounds[0]?.user?.content).toBe('第二轮问题');
+    });
+
+    it('builds a smart export filename from the latest selected question and timestamp', () => {
+        const multiRoundBundle: ChatExportSessionBundle = {
+            ...sampleBundle,
+            exportedAt: 1713500100000,
+            session: {
+                ...sampleBundle.session,
+                query: '请帮我总结：BV1e9cfz5EKj 这期视频讲了什么？',
+            },
+            rounds: [
+                {
+                    ...sampleBundle.rounds[0],
+                    user: {
+                        id: 'u-2',
+                        role: 'user',
+                        content: '请帮我总结：BV1e9cfz5EKj 这期视频讲了什么？',
+                    },
+                },
+            ],
+        };
+
+        expect(buildChatExportFileName(multiRoundBundle, 'json')).toMatch(
+            /^BV1e9cfz5EKj-这期视频讲了什么-\d{8}-\d{6}\.json$/
+        );
     });
 
     it('collapses extra blank lines in exported text content', () => {

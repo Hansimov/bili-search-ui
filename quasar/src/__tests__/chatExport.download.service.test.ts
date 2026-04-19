@@ -6,6 +6,11 @@ const quasarMocks = vi.hoisted(() => ({
     exportFile: vi.fn(() => true),
 }));
 
+const urlMocks = vi.hoisted(() => ({
+    createObjectURL: vi.fn(() => 'blob:chat-export'),
+    revokeObjectURL: vi.fn(),
+}));
+
 vi.mock('quasar', () => ({
     exportFile: quasarMocks.exportFile,
 }));
@@ -16,11 +21,16 @@ describe('triggerChatExportDownload', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         document.body.innerHTML = '';
+        vi.stubGlobal('URL', {
+            createObjectURL: urlMocks.createObjectURL,
+            revokeObjectURL: urlMocks.revokeObjectURL,
+        });
     });
 
-    it('submits the export through a hidden same-origin form', () => {
-        const submitSpy = vi
-            .spyOn(HTMLFormElement.prototype, 'submit')
+    it('downloads the export via a blob URL with the generated filename', () => {
+        vi.useFakeTimers();
+        const clickSpy = vi
+            .spyOn(HTMLAnchorElement.prototype, 'click')
             .mockImplementation(() => { });
 
         triggerChatExportDownload({
@@ -29,28 +39,26 @@ describe('triggerChatExportDownload', () => {
             content: '# Export\n\ncontent',
         });
 
-        const form = document.querySelector('form') as HTMLFormElement | null;
-        const iframe = document.querySelector('iframe') as HTMLIFrameElement | null;
-        const contentField = form?.querySelector(
-            'textarea[name="content"]'
-        ) as HTMLTextAreaElement | null;
+        const anchor = document.querySelector('a') as HTMLAnchorElement | null;
 
-        expect(submitSpy).toHaveBeenCalledTimes(1);
-        expect(form?.action).toContain('/api/chat/export-file');
-        expect(form?.method).toBe('post');
-        expect(form?.target).toContain('chat-export-download-');
-        expect(contentField?.value).toBe('# Export\n\ncontent');
-        expect(iframe?.name).toBe(form?.target);
+        expect(urlMocks.createObjectURL).toHaveBeenCalledTimes(1);
+        expect(clickSpy).toHaveBeenCalledTimes(1);
+        expect(anchor?.download).toBe('chat-export.md');
+        expect(anchor?.href).toBe('blob:chat-export');
         expect(quasarMocks.exportFile).not.toHaveBeenCalled();
 
-        submitSpy.mockRestore();
+        vi.runAllTimers();
+        expect(urlMocks.revokeObjectURL).toHaveBeenCalledWith('blob:chat-export');
+
+        clickSpy.mockRestore();
+        vi.useRealTimers();
     });
 
-    it('falls back to Quasar exportFile when form submission fails', () => {
-        const submitSpy = vi
-            .spyOn(HTMLFormElement.prototype, 'submit')
+    it('falls back to Quasar exportFile when blob download fails', () => {
+        const clickSpy = vi
+            .spyOn(HTMLAnchorElement.prototype, 'click')
             .mockImplementation(() => {
-                throw new Error('submit unavailable');
+                throw new Error('download unavailable');
             });
 
         triggerChatExportDownload({
@@ -65,6 +73,8 @@ describe('triggerChatExportDownload', () => {
             { mimeType: 'application/json;charset=utf-8' }
         );
 
-        submitSpy.mockRestore();
+        expect(urlMocks.revokeObjectURL).toHaveBeenCalledWith('blob:chat-export');
+
+        clickSpy.mockRestore();
     });
 });

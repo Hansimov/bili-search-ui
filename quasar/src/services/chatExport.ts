@@ -64,8 +64,9 @@ interface FilteredToolEvent {
     calls?: FilteredToolCall[];
 }
 
-const CHAT_EXPORT_DOWNLOAD_ENDPOINT = '/api/chat/export-file';
-const CHAT_EXPORT_DOWNLOAD_CLEANUP_DELAY_MS = 60_000;
+const CHAT_EXPORT_BLOB_URL_CLEANUP_DELAY_MS = 30_000;
+const CHAT_EXPORT_FALLBACK_FILE_NAME = 'chat-session';
+const CHAT_EXPORT_MAX_SUMMARY_LENGTH = 42;
 
 function cloneSerializable<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
@@ -147,9 +148,48 @@ function sanitizeFileComponent(text: string): string {
         .replace(/\s+/g, ' ')
         .trim();
     if (!normalized) {
-        return 'chat-session';
+        return CHAT_EXPORT_FALLBACK_FILE_NAME;
     }
-    return normalized.slice(0, 36).replace(/\s+/g, '-');
+    return normalized
+        .slice(0, CHAT_EXPORT_MAX_SUMMARY_LENGTH)
+        .replace(/\s+/g, '-');
+}
+
+function stripQueryNoise(text: string): string {
+    const leadingPatterns = [
+        /^\s*(请你|请|帮我|帮忙|麻烦你|麻烦|能否|能不能|可以|可否)\s*/u,
+        /^\s*(给我|帮我|我想知道|我想了解|想知道|想了解)\s*/u,
+        /^\s*(总结|概括|概述|分析|解释|说明|说说|看看|看下|梳理|归纳)[:：\s]*/u,
+    ];
+
+    let normalized = text.trim();
+    let changed = true;
+
+    while (changed && normalized) {
+        changed = false;
+        for (const pattern of leadingPatterns) {
+            const stripped = normalized.replace(pattern, '').trim();
+            if (stripped !== normalized) {
+                normalized = stripped;
+                changed = true;
+            }
+        }
+    }
+
+    return normalized.replace(/[。！？!?,，、；;：:]+$/u, '').trim();
+}
+
+function summarizeQueryForFileName(text: string): string {
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+        return '';
+    }
+
+    const firstLine = normalized.split(/\n+/u)[0] || normalized;
+    const firstSentence =
+        firstLine.split(/[。！？!?；;]+/u, 1)[0]?.trim() || firstLine;
+    const stripped = stripQueryNoise(firstSentence) || stripQueryNoise(firstLine);
+    return stripped.slice(0, CHAT_EXPORT_MAX_SUMMARY_LENGTH).trim();
 }
 
 function buildTimestampTag(timestamp: number): string {
@@ -534,11 +574,29 @@ function buildMarkdownExport(
     return lines.join('\n').trimEnd() + '\n';
 }
 
+function buildChatExportSummary(bundle: ChatExportSessionBundle): string {
+    const candidates = [
+        getLatestQuery(bundle),
+        bundle.session.query,
+        bundle.rounds[0]?.user?.content || '',
+        bundle.session.sessionId,
+    ];
+
+    for (const candidate of candidates) {
+        const summary = summarizeQueryForFileName(candidate || '');
+        if (summary) {
+            return sanitizeFileComponent(summary);
+        }
+    }
+
+    return CHAT_EXPORT_FALLBACK_FILE_NAME;
+}
+
 export function buildChatExportFileName(
     bundle: ChatExportSessionBundle,
     format: ChatExportFormat,
 ): string {
-    const query = sanitizeFileComponent(getLatestQuery(bundle));
+    const query = buildChatExportSummary(bundle);
     const timestamp = buildTimestampTag(bundle.exportedAt);
     const extension = format === 'markdown' ? 'md' : 'json';
     return `${query}-${timestamp}.${extension}`;
@@ -567,62 +625,39 @@ export function generateChatExport(
     };
 }
 
-function createDownloadField(
-    name: string,
-    value: string,
-    multiline = false,
-): HTMLInputElement | HTMLTextAreaElement {
-    const field = multiline
-        ? document.createElement('textarea')
-        : document.createElement('input');
-
-    field.name = name;
-    field.value = value;
-    field.style.display = 'none';
-
-    if (!multiline) {
-        field.setAttribute('type', 'hidden');
-    }
-
-    return field;
-}
-
-function submitChatExportDownload(generated: GeneratedChatExport): boolean {
-    if (typeof document === 'undefined' || !document.body) {
+function downloadChatExportWithBlobUrl(generated: GeneratedChatExport): boolean {
+    if (
+        typeof window === 'undefined' ||
+        typeof document === 'undefined' ||
+        !document.body ||
+        typeof Blob === 'undefined' ||
+        typeof URL === 'undefined' ||
+        typeof URL.createObjectURL !== 'function'
+    ) {
         return false;
     }
 
-    const iframe = document.createElement('iframe');
-    const targetName = `chat-export-download-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    iframe.name = targetName;
-    iframe.style.display = 'none';
-    iframe.setAttribute('aria-hidden', 'true');
-
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = CHAT_EXPORT_DOWNLOAD_ENDPOINT;
-    form.target = targetName;
-    form.acceptCharset = 'UTF-8';
-    form.enctype = 'application/x-www-form-urlencoded';
-    form.style.display = 'none';
-    form.append(
-        createDownloadField('fileName', generated.fileName),
-        createDownloadField('mimeType', generated.mimeType),
-        createDownloadField('content', generated.content, true),
+    const objectUrl = URL.createObjectURL(
+        new Blob([generated.content], { type: generated.mimeType })
     );
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = generated.fileName;
+    anchor.rel = 'noopener';
+    anchor.style.display = 'none';
 
-    document.body.append(iframe, form);
+    document.body.append(anchor);
 
     try {
-        form.submit();
+        anchor.click();
         window.setTimeout(() => {
-            form.remove();
-            iframe.remove();
-        }, CHAT_EXPORT_DOWNLOAD_CLEANUP_DELAY_MS);
+            anchor.remove();
+            URL.revokeObjectURL(objectUrl);
+        }, CHAT_EXPORT_BLOB_URL_CLEANUP_DELAY_MS);
         return true;
     } catch {
-        form.remove();
-        iframe.remove();
+        anchor.remove();
+        URL.revokeObjectURL(objectUrl);
         return false;
     }
 }
@@ -634,7 +669,7 @@ export function triggerChatExportDownload(
         return generated;
     }
 
-    if (submitChatExportDownload(generated)) {
+    if (downloadChatExportWithBlobUrl(generated)) {
         return generated;
     }
 
