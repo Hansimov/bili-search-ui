@@ -601,6 +601,28 @@ describe('ChatResponsePanel video layout', () => {
         expect(html).not.toContain('bili-owner-compact-hover-card');
     });
 
+    it('dedupes repeated compact owner cards within the same block', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '相关作者：[影视飓风](https://space.bilibili.com/946974)、影视飓风、https://space.bilibili.com/946974',
+            'compact',
+            new Map(),
+            new Map([
+                [
+                    '946974',
+                    {
+                        mid: '946974',
+                        name: '影视飓风',
+                        face: 'https://example.com/owner-face.jpg',
+                        fans: 2230000,
+                    },
+                ],
+            ])
+        );
+
+        expect(html.match(/bili-owner-compact-ref/g)?.length).toBe(1);
+        expect(html).toContain('影视飓风');
+    });
+
     it('keeps mixed owner and video links clean in card mode without owner work preview', () => {
         const html = renderAnswerMarkdownWithVideoView(
             '先看 [主视频](BV1AA411c7mD)，再关注 [影视飓风](https://space.bilibili.com/946974)。',

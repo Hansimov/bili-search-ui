@@ -906,12 +906,20 @@ export default defineComponent({
     };
 
     /** 从单个 tool segment 中提取去重后的 ToolCall 列表 */
+    const displayableInternalTools = new Set(['run_small_llm_task']);
+
+    const isDisplayableToolCall = (call: ToolCall): boolean =>
+      call.visibility !== 'internal' || displayableInternalTools.has(call.type);
+
     const getSegmentToolCalls = (seg: StreamSegment): ToolCall[] => {
       if (!seg.toolEvent) return [];
       const ev = seg.toolEvent;
       if (!ev.calls || ev.calls.length === 0) return [];
       const callMap = new Map<string, ToolCall>();
       for (const call of ev.calls) {
+        if (!isDisplayableToolCall(call)) {
+          continue;
+        }
         const key = `${call.type}:${JSON.stringify(call.args)}`;
         callMap.set(key, call);
       }

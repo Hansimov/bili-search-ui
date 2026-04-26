@@ -34,6 +34,7 @@ const mockInputHistoryStore = {
 
 const mockSearchModeStore = {
     setInitialSessionMode: vi.fn(),
+    forceInitialSessionMode: vi.fn(),
     shouldUseInlineLayout: false,
 };
 
@@ -215,6 +216,29 @@ describe('chat.ts flow', () => {
         expect(mockQueryStore.setChatRoute).not.toHaveBeenCalled();
         expect(mockChatStore.sendChat).toHaveBeenCalledWith(
             'follow up',
+            'smart',
+            undefined
+        );
+    });
+
+    it('submitCurrentModeQuery 从 direct 新开 chat 时应覆盖初始会话模式', async () => {
+        const { submitCurrentModeQuery } = await import('src/functions/chat');
+
+        mockSearchModeStore.shouldUseInlineLayout = false;
+
+        await submitCurrentModeQuery({
+            queryValue: 'switch to chat',
+            mode: 'smart',
+            recordInputHistory: true,
+            setRoute: true,
+        });
+
+        expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith('smart');
+        expect(mockSearchModeStore.forceInitialSessionMode).toHaveBeenCalledWith('smart');
+        expect(mockChatStore.startNewChat).toHaveBeenCalledTimes(1);
+        expect(mockQueryStore.setChatRoute).toHaveBeenCalledWith('session-123');
+        expect(mockChatStore.sendChat).toHaveBeenCalledWith(
+            'switch to chat',
             'smart',
             undefined
         );

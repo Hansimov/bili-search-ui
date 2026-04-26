@@ -167,6 +167,7 @@ export const submitCurrentModeQuery = async ({
                 setRoute: false,
             });
         } else {
+            searchModeStore.forceInitialSessionMode(mode);
             chatStore.startNewChat();
             await chat({
                 queryValue: submittedQuery,

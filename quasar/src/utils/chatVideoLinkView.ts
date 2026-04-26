@@ -214,6 +214,39 @@ const getRenderedAnchorKind = (
     return 'other';
 };
 
+const getCompactOwnerAnchorKey = (anchor: HTMLAnchorElement): string => {
+    if (getRenderedAnchorKind(anchor) !== 'owner') {
+        return '';
+    }
+    const mid = (anchor.dataset.mid || '').trim();
+    if (mid) {
+        return `mid:${mid}`;
+    }
+    const href = (anchor.getAttribute('href') || '').trim();
+    const match = href.match(/space\.bilibili\.com\/(\d+)/);
+    if (match?.[1]) {
+        return `mid:${match[1]}`;
+    }
+    return `owner:${normalizeCompactComparableText(anchor.textContent || '')}`;
+};
+
+const dedupeCompactOwnerAnchors = (
+    anchors: HTMLAnchorElement[]
+): HTMLAnchorElement[] => {
+    const seenOwnerKeys = new Set<string>();
+    return anchors.filter((anchor) => {
+        const key = getCompactOwnerAnchorKey(anchor);
+        if (!key) {
+            return true;
+        }
+        if (seenOwnerKeys.has(key)) {
+            return false;
+        }
+        seenOwnerKeys.add(key);
+        return true;
+    });
+};
+
 export const extractOwnerMidsFromText = (text: string): string[] => {
     if (!text) return [];
     const mids = new Set<string>();
@@ -747,6 +780,7 @@ const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
     }
 
     const labels = replaceAnchorsWithInlineLabels(clone, 'a.bili-rich-compact-ref');
+    const displayAnchors = dedupeCompactOwnerAnchors(anchors);
 
     clone
         .querySelectorAll(
@@ -779,11 +813,11 @@ const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
             : 'full'
         : 'none';
 
-    if (anchors.length === 1) {
+    if (displayAnchors.length === 1) {
         return {
             entries: [
                 createCompactCardEntry(
-                    anchors[0],
+                    displayAnchors[0],
                     noteDisplay === 'attached' ? noteHtml : ''
                 ),
             ],
@@ -794,7 +828,7 @@ const buildCompactGroup = (source: HTMLElement): CompactGroup | null => {
     }
 
     return {
-        entries: anchors.map((anchor) => createCompactCardEntry(anchor)),
+        entries: displayAnchors.map((anchor) => createCompactCardEntry(anchor)),
         noteText,
         noteHtml: noteText ? noteHtml : '',
         noteDisplay,
