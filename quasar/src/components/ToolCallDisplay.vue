@@ -30,11 +30,16 @@
             class="tool-call-icon"
           />
           <span class="tool-call-name">{{ getToolLabel(call.type) }}</span>
-          <span v-if="call.type !== 'search_videos'" class="tool-call-args">{{
+          <span
+            v-if="!isCompactToolDisplay && call.type !== 'search_videos'"
+            class="tool-call-args"
+            >{{
             formatToolArgs(call)
           }}</span>
           <span
-            v-else-if="getQueryList(call).length <= 1"
+            v-else-if="
+              !isCompactToolDisplay && getQueryList(call).length <= 1
+            "
             class="tool-call-args-full"
           >
             {{ getQueryList(call)[0] || '' }}
@@ -70,7 +75,12 @@
             no-caps
             size="sm"
             icon="tab"
-            :label="`在新窗口中查看 ${getResultCount(call)}`"
+            :label="
+              isCompactToolDisplay
+                ? undefined
+                : `在新窗口中查看 ${getResultCount(call)}`
+            "
+            :title="`在新窗口中查看 ${getResultCount(call)}`"
             class="tool-view-all-btn"
             @click.stop="$emit('viewAllResults', call)"
           />
@@ -101,7 +111,11 @@
       </div>
 
       <div
-        v-if="call.type === 'search_videos' && getQueryList(call).length > 1"
+        v-if="
+          !isCompactToolDisplay &&
+          call.type === 'search_videos' &&
+          getQueryList(call).length > 1
+        "
         class="tool-query-list"
       >
         <div
@@ -115,7 +129,7 @@
       </div>
 
       <div
-        v-if="canShowResults(call)"
+        v-if="shouldRenderToolDetails(call)"
         class="tool-call-results-wrapper"
         :class="getResultsWrapperClasses(call, idx)"
       >
@@ -324,7 +338,16 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, watch, nextTick, PropType } from 'vue';
+import {
+  computed,
+  defineComponent,
+  ref,
+  watch,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+  PropType,
+} from 'vue';
 import type { ToolCall } from 'src/services/chatService';
 import {
   getOwnerDisplayName,
@@ -395,6 +418,7 @@ interface SmallTaskResult {
 }
 
 const DISPLAYABLE_INTERNAL_TOOLS = new Set(['run_small_llm_task']);
+const COMPACT_TOOL_DISPLAY_QUERY = '(max-width: 620px), (pointer: coarse)';
 
 /** 工具名称中英对照 */
 const TOOL_LABELS: Record<string, string> = {
@@ -453,6 +477,8 @@ export default defineComponent({
     const containerRef = ref<HTMLElement | null>(null);
     const expanded = ref<Record<number, boolean>>({});
     const previousStatuses = ref<Record<number, string | undefined>>({});
+    const isCompactToolDisplay = ref(false);
+    let compactMediaQuery: MediaQueryList | null = null;
     const visibleToolCalls = computed(() =>
       props.toolCalls.filter(
         (call) =>
@@ -567,7 +593,12 @@ export default defineComponent({
       (call.status === 'streaming' || call.status === 'completed');
 
     const isExpandable = (call: ToolCall): boolean =>
-      canShowResults(call) && !isAlwaysExpanded(call);
+      !isCompactToolDisplay.value &&
+      canShowResults(call) &&
+      !isAlwaysExpanded(call);
+
+    const shouldRenderToolDetails = (call: ToolCall): boolean =>
+      !isCompactToolDisplay.value && canShowResults(call);
 
     const getResultsWrapperClasses = (call: ToolCall, idx: number) => ({
       expanded: expanded.value[idx] || isAlwaysExpanded(call),
@@ -956,9 +987,29 @@ export default defineComponent({
       setExpandedWithAnchor(idx, false);
     };
 
+    const updateCompactToolDisplay = () => {
+      isCompactToolDisplay.value = !!compactMediaQuery?.matches;
+    };
+
+    onMounted(() => {
+      if (typeof window === 'undefined' || !window.matchMedia) return;
+      compactMediaQuery = window.matchMedia(COMPACT_TOOL_DISPLAY_QUERY);
+      updateCompactToolDisplay();
+      compactMediaQuery.addEventListener?.('change', updateCompactToolDisplay);
+    });
+
+    onBeforeUnmount(() => {
+      compactMediaQuery?.removeEventListener?.(
+        'change',
+        updateCompactToolDisplay
+      );
+      compactMediaQuery = null;
+    });
+
     return {
       containerRef,
       expanded,
+      isCompactToolDisplay,
       visibleToolCalls,
       toggleExpand,
       collapseAndScroll,
@@ -968,6 +1019,7 @@ export default defineComponent({
       formatToolArgs,
       hasResults,
       canShowResults,
+      shouldRenderToolDetails,
       isExpandable,
       isAlwaysExpanded,
       getResultsWrapperClasses,
@@ -1045,6 +1097,7 @@ export default defineComponent({
   gap: 5px;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .tool-call-spinner {
@@ -1060,6 +1113,9 @@ export default defineComponent({
   font-size: 12px;
   font-weight: 500;
   opacity: 0.72;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .tool-call-args {
@@ -1074,6 +1130,10 @@ export default defineComponent({
 .tool-call-args-full {
   font-size: 11px;
   opacity: 0.42;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 多 query 子列表 */
@@ -1107,6 +1167,7 @@ export default defineComponent({
   align-items: center;
   gap: 4px;
   margin-left: 8px;
+  flex: 0 0 auto;
 }
 
 .tool-call-status-pending {
@@ -1538,6 +1599,58 @@ export default defineComponent({
 
   .tool-result-collapse-bar:hover & {
     opacity: 0.6;
+  }
+}
+
+@media (max-width: 620px), (pointer: coarse) {
+  .tool-call-container {
+    gap: 3px;
+    margin: 4px 0;
+  }
+
+  .tool-call-item {
+    border-radius: 7px;
+  }
+
+  .tool-call-header {
+    min-height: 30px;
+    padding: 5px 8px;
+    cursor: default;
+  }
+
+  .tool-call-left {
+    gap: 4px;
+  }
+
+  .tool-call-name {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .tool-call-args,
+  .tool-call-args-full,
+  .tool-query-list,
+  .tool-call-results-wrapper {
+    display: none !important;
+  }
+
+  .tool-call-right {
+    gap: 3px;
+    margin-left: 6px;
+  }
+
+  .tool-call-status-pending,
+  .tool-call-status-streaming,
+  .tool-call-status-aborted,
+  .tool-call-status-completed {
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .tool-view-all-btn {
+    min-width: 24px !important;
+    min-height: 24px !important;
+    padding: 0 !important;
   }
 }
 

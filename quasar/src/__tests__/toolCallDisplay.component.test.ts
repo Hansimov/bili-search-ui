@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import ToolCallDisplay from 'src/components/ToolCallDisplay.vue';
 import type { ToolCall } from 'src/services/chatService';
 
@@ -165,6 +166,10 @@ const lookupSearchVideosCall: ToolCall = {
 };
 
 describe('ToolCallDisplay component', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it('keeps completed multi-query search_videos collapsed by default while preserving results', async () => {
         const wrapper = mount(ToolCallDisplay, {
             props: {
@@ -211,6 +216,36 @@ describe('ToolCallDisplay component', () => {
 
         expect(wrapper.text()).toContain(':uid=1629347259 :date<=30d');
         expect(wrapper.text()).toContain('在新窗口中查看 1 条结果');
+    });
+
+    it('hides detailed tool call payloads on compact or touch screens', async () => {
+        vi.stubGlobal('matchMedia', vi.fn(() => ({
+            matches: true,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+        })));
+
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [multiQuerySearchVideosCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label', 'title'],
+                        template: '<button :title="title">{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+        await nextTick();
+
+        expect(wrapper.find('.tool-query-list').exists()).toBe(false);
+        expect(wrapper.find('.tool-call-results-wrapper').exists()).toBe(false);
+        expect(wrapper.text()).toContain('搜索视频');
+        expect(wrapper.text()).not.toContain('08 最近更新 1');
     });
 
     it('renders Google search results as expandable cards', async () => {

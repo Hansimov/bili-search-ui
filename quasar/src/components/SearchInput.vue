@@ -15,6 +15,8 @@
           @focus="handleFocus"
           @blur="handleBlur"
           @keydown="handleKeydown"
+          @pointerdown="handleInputInteraction"
+          @touchstart="handleInputInteraction"
           @click="handleClick"
           @compositionstart="onCompositionStart"
           @compositionend="onCompositionEnd"
@@ -95,7 +97,9 @@
                 'mode-btn-active': currentMode === mode.value,
               }"
               :title="mode.description"
-              @click="selectMode(mode.value)"
+              @click="selectModeFromClick(mode.value)"
+              @pointerdown="selectModeFromPointer($event, mode.value)"
+              @touchend="selectModeFromTouch($event, mode.value)"
               @mouseenter="hoveredMode = mode.value"
               @mouseleave="hoveredMode = null"
             >
@@ -162,6 +166,7 @@ const TEXTAREA_LINE_HEIGHT = 24; // px, matches CSS line-height
 const TEXTAREA_MAX_ROWS = 6;
 /** 窗口高度低于此值时，输入框默认 1 行；否则 2 行 */
 const COMPACT_WINDOW_HEIGHT = 500;
+const COMPACT_MODE_CONTROLS_QUERY = '(max-width: 640px), (pointer: coarse)';
 const SEARCH_INPUT_FOCUS_EVENT = 'bili-search:focus-input';
 
 type SearchInputFocusDetail = {
@@ -184,7 +189,9 @@ export default {
     const route = useRoute();
     const textareaRef = ref<HTMLTextAreaElement | null>(null);
     const wrapperRef = ref<HTMLElement | null>(null);
+    const isCompactModeControls = ref(false);
     let resizeObserver: ResizeObserver | null = null;
+    let compactModeControlsQuery: MediaQueryList | null = null;
     const handleExternalFocusRequest = (event: Event) => {
       const detail =
         (event as CustomEvent<SearchInputFocusDetail>).detail || {};
@@ -260,6 +267,21 @@ export default {
         searchModeStore.triggerDslHelpShake();
       }
     };
+    let lastTouchModeSelectAt = 0;
+    const selectModeFromClick = (mode: SearchMode) => {
+      if (Date.now() - lastTouchModeSelectAt < 450) return;
+      selectMode(mode);
+    };
+    const selectModeFromPointer = (event: PointerEvent, mode: SearchMode) => {
+      event.preventDefault();
+      lastTouchModeSelectAt = Date.now();
+      selectMode(mode);
+    };
+    const selectModeFromTouch = (event: TouchEvent, mode: SearchMode) => {
+      event.preventDefault();
+      lastTouchModeSelectAt = Date.now();
+      selectMode(mode);
+    };
 
     /** 是否显示 DSL 帮助对话框 */
     const showDslHelp = ref(false);
@@ -280,6 +302,9 @@ export default {
       value: SearchMode;
       label: string;
     }) => {
+      if (isCompactModeControls.value) {
+        return SHORT_MODE_LABELS[mode.value];
+      }
       if (
         currentMode.value === mode.value ||
         hoveredMode.value === mode.value
@@ -502,19 +527,23 @@ export default {
 
     const handleFocus = async () => {
       isInputFocused.value = true;
-      suppressSuggest.value = false;
-      if (!layoutStore.isSuggestVisible) {
+      if (!suppressSuggest.value && !layoutStore.isSuggestVisible) {
         layoutStore.setIsSuggestVisible(true);
       }
       await initSmartSuggest();
     };
 
-    /** 点击输入框 — 确保建议列表可见（处理已聚焦但建议被隐藏的情况） */
-    const handleClick = () => {
-      if (suppressSuggest.value) return;
+    /** 输入框发生新的点击/触摸/输入交互后，才允许重新弹出建议。 */
+    const handleInputInteraction = () => {
+      suppressSuggest.value = false;
       if (!layoutStore.isSuggestVisible) {
         layoutStore.setIsSuggestVisible(true);
       }
+    };
+
+    /** 点击输入框 — 确保建议列表可见（处理已聚焦但建议被隐藏的情况） */
+    const handleClick = () => {
+      handleInputInteraction();
     };
 
     const handleGlobalClick = () => {
@@ -531,6 +560,10 @@ export default {
       if (inputHistoryStore.items.length > 0) {
         smartService.addFromHistory(inputHistoryStore.items);
       }
+    };
+
+    const updateCompactModeControls = () => {
+      isCompactModeControls.value = !!compactModeControlsQuery?.matches;
     };
 
     /** 清除输入框内容 */
@@ -576,6 +609,16 @@ export default {
         SEARCH_INPUT_FOCUS_EVENT,
         handleExternalFocusRequest as EventListener
       );
+      if (window.matchMedia) {
+        compactModeControlsQuery = window.matchMedia(
+          COMPACT_MODE_CONTROLS_QUERY
+        );
+        updateCompactModeControls();
+        compactModeControlsQuery.addEventListener?.(
+          'change',
+          updateCompactModeControls
+        );
+      }
       // 初始化高度
       autoResize();
       updateSearchBarHeight();
@@ -595,6 +638,11 @@ export default {
         SEARCH_INPUT_FOCUS_EVENT,
         handleExternalFocusRequest as EventListener
       );
+      compactModeControlsQuery?.removeEventListener?.(
+        'change',
+        updateCompactModeControls
+      );
+      compactModeControlsQuery = null;
       resizeObserver?.disconnect();
     });
 
@@ -613,6 +661,9 @@ export default {
       const submittedQuery = queryModel.value;
       const shouldClearImmediately =
         (mode === 'smart' || mode === 'think') && !!submittedQuery.trim();
+
+      suppressSuggest.value = true;
+      layoutStore.setIsSuggestVisible(false);
 
       if (shouldClearImmediately) {
         clearVisibleQueryImmediately();
@@ -782,9 +833,13 @@ export default {
       stopButtonColor,
       modeOptions,
       selectMode,
+      selectModeFromClick,
+      selectModeFromPointer,
+      selectModeFromTouch,
       handleFocus,
       handleBlur,
       handleInput,
+      handleInputInteraction,
       handleKeydown,
       handleClick,
       onCompositionStart,

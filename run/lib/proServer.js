@@ -9,6 +9,8 @@ const distDir = process.env.DIST_DIR;
 const backendHost = process.env.BACKEND_HOST || '127.0.0.1';
 const backendPort = Number(process.env.BACKEND_PORT || 21001);
 const biliApiTarget = process.env.BILI_API_TARGET || 'https://api.bilibili.com';
+const biliImgTargetOrigin = process.env.BILI_IMG_TARGET_ORIGIN || '';
+const BILI_CDN_HOST_RE = /(^|\.)hdslb\.com$/i;
 const biliUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
     '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
@@ -142,6 +144,75 @@ function handleStaticRequest(req, res) {
     serveFile(indexHtmlPath, res);
 }
 
+function parseBiliImgRequest(req) {
+    const requestUrl = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
+    const match = requestUrl.pathname.match(/^\/bili-img\/([^/]+)(\/.*)$/);
+    if (!match) {
+        return null;
+    }
+    const [, hostname, restPath] = match;
+    if (!BILI_CDN_HOST_RE.test(hostname)) {
+        return null;
+    }
+    const targetOrigin = biliImgTargetOrigin
+        ? new URL(biliImgTargetOrigin)
+        : new URL(`https://${hostname}`);
+    return {
+        hostname: targetOrigin.hostname,
+        port: targetOrigin.port || (targetOrigin.protocol === 'https:' ? 443 : 80),
+        protocol: targetOrigin.protocol,
+        path: `${restPath}${requestUrl.search}`,
+    };
+}
+
+function handleBiliImgRequest(req, res) {
+    const parsed = parseBiliImgRequest(req);
+    if (!parsed) {
+        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Bad bili image proxy request');
+        return;
+    }
+
+    const transport = parsed.protocol === 'https:' ? require('https') : require('http');
+    const proxyReq = transport.request(
+        {
+            hostname: parsed.hostname,
+            port: parsed.port,
+            path: parsed.path,
+            method: 'GET',
+            headers: {
+                Referer: 'https://www.bilibili.com',
+                Origin: 'https://www.bilibili.com',
+                'User-Agent': biliUserAgent,
+            },
+        },
+        (proxyRes) => {
+            const headers = {};
+            for (const key of [
+                'content-type',
+                'content-length',
+                'cache-control',
+                'etag',
+                'last-modified',
+                'access-control-allow-origin',
+            ]) {
+                if (proxyRes.headers[key]) {
+                    headers[key] = proxyRes.headers[key];
+                }
+            }
+            res.writeHead(proxyRes.statusCode || 502, headers);
+            proxyRes.pipe(res);
+        }
+    );
+
+    proxyReq.on('error', (error) => {
+        if (!res.headersSent) {
+            sendProxyError(res, error);
+        }
+    });
+    proxyReq.end();
+}
+
 const server = http.createServer((req, res) => {
     const requestUrl = req.url || '/';
 
@@ -154,6 +225,11 @@ const server = http.createServer((req, res) => {
     if (requestUrl.startsWith('/bili-api')) {
         req.url = req.url.replace(/^\/bili-api/, '') || '/';
         biliApiProxy.web(req, res);
+        return;
+    }
+
+    if (requestUrl.startsWith('/bili-img')) {
+        handleBiliImgRequest(req, res);
         return;
     }
 

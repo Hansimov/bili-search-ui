@@ -129,6 +129,8 @@ const ChatResponsePanel = defineAsyncComponent(() =>
 
 /** 判断滚动容器是否接近底部的阈值（px） */
 const SCROLL_BOTTOM_THRESHOLD = 60;
+const DESKTOP_SCROLL_UP_INTENT_THRESHOLD = 18;
+const COMPACT_SCROLL_UP_INTENT_THRESHOLD = 6;
 
 export default {
   components: {
@@ -281,20 +283,64 @@ export default {
     let observedContentEl = null;
     let intentListenerEl = null;
     let lastUserScrollIntentAt = 0;
+    let lastTouchClientY = null;
     let lastScrollMetrics = {
       scrollTop: 0,
       scrollHeight: 0,
       clientHeight: 0,
     };
 
-    const markUserScrollIntent = () => {
+    const isCompactOrTouchViewport = () => {
+      if (typeof window === 'undefined') return false;
+      return (
+        window.matchMedia?.('(pointer: coarse)').matches ||
+        window.innerWidth <= 640
+      );
+    };
+
+    const getScrollUpIntentThreshold = () =>
+      isCompactOrTouchViewport()
+        ? COMPACT_SCROLL_UP_INTENT_THRESHOLD
+        : DESKTOP_SCROLL_UP_INTENT_THRESHOLD;
+
+    const setUserScrolledUpFromIntent = () => {
+      userScrolledUp.value = true;
       lastUserScrollIntentAt = Date.now();
+    };
+
+    const markUserScrollIntent = (event) => {
+      lastUserScrollIntentAt = Date.now();
+      if (
+        event instanceof WheelEvent &&
+        event.deltaY < -getScrollUpIntentThreshold()
+      ) {
+        setUserScrolledUpFromIntent();
+      }
+    };
+
+    const markUserTouchStart = (event) => {
+      lastUserScrollIntentAt = Date.now();
+      lastTouchClientY = event.touches?.[0]?.clientY ?? null;
+    };
+
+    const markUserTouchMove = (event) => {
+      lastUserScrollIntentAt = Date.now();
+      const nextY = event.touches?.[0]?.clientY;
+      if (typeof nextY !== 'number') return;
+      if (
+        typeof lastTouchClientY === 'number' &&
+        nextY - lastTouchClientY > getScrollUpIntentThreshold()
+      ) {
+        setUserScrolledUpFromIntent();
+      }
+      lastTouchClientY = nextY;
     };
 
     const detachUserScrollIntentListeners = () => {
       if (!intentListenerEl) return;
       intentListenerEl.removeEventListener('wheel', markUserScrollIntent);
-      intentListenerEl.removeEventListener('touchmove', markUserScrollIntent);
+      intentListenerEl.removeEventListener('touchstart', markUserTouchStart);
+      intentListenerEl.removeEventListener('touchmove', markUserTouchMove);
       intentListenerEl.removeEventListener('mousedown', markUserScrollIntent);
       intentListenerEl = null;
     };
@@ -304,7 +350,10 @@ export default {
       if (!el || el === intentListenerEl) return;
       detachUserScrollIntentListeners();
       el.addEventListener('wheel', markUserScrollIntent, { passive: true });
-      el.addEventListener('touchmove', markUserScrollIntent, {
+      el.addEventListener('touchstart', markUserTouchStart, {
+        passive: true,
+      });
+      el.addEventListener('touchmove', markUserTouchMove, {
         passive: true,
       });
       el.addEventListener('mousedown', markUserScrollIntent);
@@ -386,6 +435,7 @@ export default {
       }
       const shouldKeepPinned = !userScrolledUp.value && wasPinnedToBottom();
       const userInitiated = Date.now() - lastUserScrollIntentAt < 250;
+      const scrollDelta = el.scrollTop - lastScrollMetrics.scrollTop;
       if (!userInitiated) {
         updateScrollMetrics();
         if (shouldKeepPinned && !isNearBottom(el)) {
@@ -393,7 +443,13 @@ export default {
         }
         return;
       }
-      userScrolledUp.value = !isNearBottom(el);
+      if (scrollDelta < -getScrollUpIntentThreshold()) {
+        userScrolledUp.value = true;
+      } else if (isNearBottom(el)) {
+        userScrolledUp.value = false;
+      } else {
+        userScrolledUp.value = userScrolledUp.value || !isNearBottom(el);
+      }
       updateScrollMetrics();
     };
 

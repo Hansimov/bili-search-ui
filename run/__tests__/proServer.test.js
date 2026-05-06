@@ -67,10 +67,11 @@ function waitForExit(child) {
 }
 
 describe('proServer', () => {
-    it('proxies /bili-api requests instead of serving the SPA fallback', async () => {
+    it('proxies /bili-api and /bili-img requests instead of serving the SPA fallback', async () => {
         const requests = [];
         const biliApiServer = http.createServer((req, res) => {
             requests.push({
+                kind: 'api',
                 url: req.url,
                 referer: req.headers.referer,
                 origin: req.headers.origin,
@@ -80,6 +81,23 @@ describe('proServer', () => {
             res.end(JSON.stringify({ ok: true, path: req.url }));
         });
         const biliApiPort = await listen(biliApiServer);
+
+        const imageRequests = [];
+        const biliImgServer = http.createServer((req, res) => {
+            imageRequests.push({
+                kind: 'image',
+                url: req.url,
+                referer: req.headers.referer,
+                origin: req.headers.origin,
+                userAgent: req.headers['user-agent'],
+            });
+            res.writeHead(200, {
+                'Content-Type': 'image/webp',
+                'Cache-Control': 'max-age=31536000',
+            });
+            res.end('fake-webp');
+        });
+        const biliImgPort = await listen(biliImgServer);
 
         const probeServer = http.createServer((req, res) => {
             res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -107,6 +125,7 @@ describe('proServer', () => {
                 BACKEND_HOST: '127.0.0.1',
                 BACKEND_PORT: '65535',
                 BILI_API_TARGET: `http://127.0.0.1:${biliApiPort}`,
+                BILI_IMG_TARGET_ORIGIN: `http://127.0.0.1:${biliImgPort}`,
             },
             stdio: ['ignore', 'pipe', 'pipe'],
         });
@@ -127,6 +146,20 @@ describe('proServer', () => {
             expect(requests[0].origin).toBe('https://www.bilibili.com');
             expect(requests[0].userAgent).toContain('Mozilla/5.0');
 
+            const imageResponse = await fetch(
+                `http://127.0.0.1:${frontendPort}/bili-img/i1.hdslb.com/bfs/archive/cover.jpg@320w_200h_1c_!web-space-upload-video.webp`
+            );
+            expect(imageResponse.status).toBe(200);
+            expect(imageResponse.headers.get('content-type')).toBe('image/webp');
+            expect(await imageResponse.text()).toBe('fake-webp');
+            expect(imageRequests).toHaveLength(1);
+            expect(imageRequests[0].url).toBe(
+                '/bfs/archive/cover.jpg@320w_200h_1c_!web-space-upload-video.webp'
+            );
+            expect(imageRequests[0].referer).toBe('https://www.bilibili.com');
+            expect(imageRequests[0].origin).toBe('https://www.bilibili.com');
+            expect(imageRequests[0].userAgent).toContain('Mozilla/5.0');
+
             const spaResponse = await fetch(`http://127.0.0.1:${frontendPort}/missing-route`);
             const spaHtml = await spaResponse.text();
             expect(spaHtml).toContain('spa fallback');
@@ -134,6 +167,7 @@ describe('proServer', () => {
             child.kill('SIGTERM');
             await waitForExit(child);
             await closeServer(biliApiServer);
+            await closeServer(biliImgServer);
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
     });
