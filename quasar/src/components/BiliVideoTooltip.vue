@@ -229,7 +229,7 @@ export default defineComponent({
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .tooltip-below {

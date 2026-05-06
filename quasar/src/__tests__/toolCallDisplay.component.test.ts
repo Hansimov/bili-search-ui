@@ -218,7 +218,7 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('在新窗口中查看 1 条结果');
     });
 
-    it('hides detailed tool call payloads on compact or touch screens', async () => {
+    it('keeps compact tool calls expandable and shows search result counts', async () => {
         vi.stubGlobal('matchMedia', vi.fn(() => ({
             matches: true,
             addEventListener: vi.fn(),
@@ -243,9 +243,20 @@ describe('ToolCallDisplay component', () => {
         await nextTick();
 
         expect(wrapper.find('.tool-query-list').exists()).toBe(false);
-        expect(wrapper.find('.tool-call-results-wrapper').exists()).toBe(false);
+        expect(wrapper.find('.tool-call-results-wrapper').exists()).toBe(true);
         expect(wrapper.text()).toContain('搜索视频');
-        expect(wrapper.text()).not.toContain('08 最近更新 1');
+        expect(wrapper.text()).toContain('2 条结果');
+        expect(wrapper.find('.tool-call-expand-icon').exists()).toBe(true);
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).not.toContain(
+            'expanded'
+        );
+
+        await wrapper.find('.tool-call-header').trigger('click');
+
+        expect(wrapper.find('.tool-call-results-wrapper').classes()).toContain(
+            'expanded'
+        );
+        expect(wrapper.text()).toContain('08 最近更新 1');
     });
 
     it('renders Google search results as expandable cards', async () => {

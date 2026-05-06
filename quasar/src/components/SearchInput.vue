@@ -316,6 +316,13 @@ export default {
 
     const getModeThemeVars = (mode: SearchMode) => getSearchModeThemeVars(mode);
 
+    const COMPACT_MODE_PLACEHOLDERS: Partial<Record<SearchMode, string>> = {
+      smart: '问答 · 快速回答',
+      think: '思考 · 深度思考，详细回答',
+      direct: '查找 · 精确匹配，直接返回',
+      research: '研究 · 深度研究',
+    };
+
     // ====== Textarea auto-resize ======
 
     /** 调整 textarea 高度以适应内容（最小 minRows 行） */
@@ -820,7 +827,10 @@ export default {
     });
 
     const searchInputPlaceholder = computed(
-      () => SEARCH_MODE_PLACEHOLDERS[searchModeStore.currentMode]
+      () =>
+        (isCompactModeControls.value &&
+          COMPACT_MODE_PLACEHOLDERS[searchModeStore.currentMode]) ||
+        SEARCH_MODE_PLACEHOLDERS[searchModeStore.currentMode]
     );
 
     return {
@@ -904,6 +914,7 @@ export default {
   min-width: 0;
   resize: none;
   overflow-y: auto;
+  overflow-x: hidden;
   font-family: inherit;
   min-height: 24px;
   max-height: calc(24px * 6);
@@ -912,6 +923,7 @@ export default {
   &::placeholder {
     color: #999;
     font-size: 14px;
+    white-space: nowrap;
   }
 }
 
@@ -1060,6 +1072,10 @@ body.body--dark {
 
   .search-input-row {
     padding-bottom: 4px;
+  }
+
+  .search-native-input::placeholder {
+    font-size: 13px;
   }
 
   .search-toolbar {

@@ -1452,12 +1452,7 @@ export default defineComponent({
       }, 120);
     };
 
-    const onTooltipEnter = () => {
-      if (hideTimeout) {
-        clearTimeout(hideTimeout);
-        hideTimeout = null;
-      }
-    };
+    const onTooltipEnter = () => undefined;
 
     const onTooltipLeave = () => {
       scheduleHide();
@@ -1486,7 +1481,7 @@ export default defineComponent({
         'a.bili-video-ref, a.bili-video-card-ref, a.bili-video-compact-ref'
       ) as HTMLElement | null;
       const related = (e.relatedTarget as HTMLElement)?.closest?.(
-        'a.bili-video-ref, a.bili-video-card-ref, a.bili-video-compact-ref, .bili-video-tooltip'
+        'a.bili-video-ref, a.bili-video-card-ref, a.bili-video-compact-ref'
       ) as HTMLElement | null;
       if (target && !related) {
         scheduleHide();
@@ -2523,16 +2518,43 @@ export default defineComponent({
     background: rgba(128, 128, 128, 0.08);
   }
 
-  :deep(.bili-video-card-duration) {
+  :deep(.bili-video-cover-bar) {
     position: absolute;
-    right: 6px;
-    bottom: 6px;
-    padding: 1px 5px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 20px;
+    padding: 2px 6px;
+    color: #fff;
+    font-size: 10px;
+    line-height: 1.35;
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0) 0%,
+      rgba(0, 0, 0, 0.58) 72%
+    );
+  }
+
+  :deep(.bili-video-cover-views),
+  :deep(.bili-video-cover-duration) {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    padding: 1px 4px;
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.58);
     color: #fff;
-    font-size: 10px;
-    line-height: 1.4;
+  }
+
+  :deep(.bili-video-cover-views) {
+    max-width: 62%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   :deep(.bili-video-card-meta),
@@ -2561,14 +2583,40 @@ export default defineComponent({
   }
 
   :deep(.bili-video-card-subline),
-  :deep(.bili-owner-card-subline),
   :deep(.bili-rich-card-subline) {
     display: flex;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.4;
+    opacity: 0.56;
+  }
+
+  :deep(.bili-owner-card-subline) {
+    display: flex;
     flex-wrap: wrap;
+    justify-content: flex-start;
     gap: 8px;
     font-size: 11px;
     line-height: 1.4;
     opacity: 0.56;
+  }
+
+  :deep(.bili-video-compact-author),
+  :deep(.bili-video-card-author) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :deep(.bili-video-card-date) {
+    flex-shrink: 0;
+    margin-left: auto;
+    text-align: right;
+    white-space: nowrap;
   }
 
   :deep(.bili-owner-card-sign) {
@@ -2657,16 +2705,10 @@ export default defineComponent({
     background: rgba(128, 128, 128, 0.08);
   }
 
-  :deep(.bili-video-compact-duration) {
+  :deep(.bili-video-compact-cover-wrap .bili-video-cover-bar) {
     position: absolute;
-    right: 6px;
-    bottom: 6px;
-    padding: 1px 5px;
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.58);
-    color: #fff;
-    font-size: 10px;
-    line-height: 1.4;
+    right: 0;
+    padding-inline: 5px;
   }
 
   :deep(.bili-video-compact-meta),
@@ -2721,18 +2763,9 @@ export default defineComponent({
   }
 
   :deep(.bili-video-compact-author),
-  :deep(.bili-video-compact-views) {
+  :deep(.bili-video-card-date) {
     display: inline-flex;
     align-items: center;
-  }
-
-  :deep(.bili-video-compact-views) {
-    letter-spacing: 0.01em;
-  }
-
-  :deep(.bili-video-compact-stat-separator) {
-    opacity: 0.45;
-    transform: translateY(-0.5px);
   }
 
   @media (max-width: 640px) {

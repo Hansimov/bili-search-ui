@@ -559,6 +559,7 @@ describe('ChatResponsePanel video layout', () => {
                         title: '主视频',
                         pic: '//i0.hdslb.com/bfs/archive/sample-cover.jpg',
                         duration: 360,
+                        pubdate: 1700000000,
                         owner: { name: '作者 1' },
                         stat: { view: 10000 },
                     },
@@ -570,6 +571,11 @@ describe('ChatResponsePanel video layout', () => {
         expect(html).toContain(
             '/bili-img/i0.hdslb.com/bfs/archive/sample-cover.jpg@320w_200h_1c_!web-space-upload-video.webp'
         );
+        expect(html).toContain('bili-video-cover-bar');
+        expect(html).toContain('bili-video-cover-views');
+        expect(html).toContain('bili-video-cover-duration');
+        expect(html).toContain('bili-video-card-date');
+        expect(html).toContain('作者 1');
     });
 
     it('renders compact owner links with native title details', () => {

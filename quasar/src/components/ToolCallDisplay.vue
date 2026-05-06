@@ -77,7 +77,7 @@
             icon="tab"
             :label="
               isCompactToolDisplay
-                ? undefined
+                ? getResultCount(call)
                 : `在新窗口中查看 ${getResultCount(call)}`
             "
             :title="`在新窗口中查看 ${getResultCount(call)}`"
@@ -593,12 +593,11 @@ export default defineComponent({
       (call.status === 'streaming' || call.status === 'completed');
 
     const isExpandable = (call: ToolCall): boolean =>
-      !isCompactToolDisplay.value &&
       canShowResults(call) &&
       !isAlwaysExpanded(call);
 
     const shouldRenderToolDetails = (call: ToolCall): boolean =>
-      !isCompactToolDisplay.value && canShowResults(call);
+      canShowResults(call);
 
     const getResultsWrapperClasses = (call: ToolCall, idx: number) => ({
       expanded: expanded.value[idx] || isAlwaysExpanded(call),
@@ -1615,7 +1614,7 @@ export default defineComponent({
   .tool-call-header {
     min-height: 30px;
     padding: 5px 8px;
-    cursor: default;
+    cursor: pointer;
   }
 
   .tool-call-left {
@@ -1629,9 +1628,22 @@ export default defineComponent({
 
   .tool-call-args,
   .tool-call-args-full,
-  .tool-query-list,
-  .tool-call-results-wrapper {
+  .tool-query-list {
     display: none !important;
+  }
+
+  .tool-call-results {
+    padding: 5px 8px 8px;
+  }
+
+  .tool-results-grid {
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+    gap: 6px;
+    max-height: 360px;
+  }
+
+  .per-query-header {
+    margin-bottom: 3px;
   }
 
   .tool-call-right {
@@ -1648,9 +1660,10 @@ export default defineComponent({
   }
 
   .tool-view-all-btn {
-    min-width: 24px !important;
+    min-width: 46px !important;
     min-height: 24px !important;
-    padding: 0 !important;
+    padding: 0 4px !important;
+    font-size: 10px !important;
   }
 }
 

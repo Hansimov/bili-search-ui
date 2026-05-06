@@ -1,4 +1,4 @@
-import { humanReadableNumber, secondsToDuration } from 'src/utils/convert';
+import { humanReadableNumber, secondsToDuration, tsToYmd } from 'src/utils/convert';
 import { renderMarkdown } from 'src/utils/markdown';
 import {
     formatOwnerFans,
@@ -67,28 +67,49 @@ const formatVideoViews = (views?: number): string => {
     return `${humanReadableNumber(views)} 播放`;
 };
 
+const formatVideoViewCount = (views?: number): string => {
+    if (views == null) return '';
+    return humanReadableNumber(views);
+};
+
 const formatVideoDuration = (duration?: number): string => {
     if (!duration) return '';
     return secondsToDuration(duration);
 };
 
-const formatVideoCompactStats = (video: VideoHit): string => {
-    const author = escapeHtml(video.owner?.name || '');
-    const views = escapeHtml(formatVideoViews(video.stat?.view));
+const formatVideoPubdate = (pubdate?: number): string => {
+    if (!pubdate) return '';
+    return tsToYmd(pubdate);
+};
 
-    if (!author && !views) {
+const formatVideoByline = (video: VideoHit): string => {
+    const author = escapeHtml(video.owner?.name || '');
+    const pubdate = escapeHtml(formatVideoPubdate(video.pubdate));
+
+    if (!author && !pubdate) {
         return '';
     }
 
     if (!author) {
-        return `<span class="bili-video-compact-views">${views}</span>`;
+        return `<span class="bili-video-card-date">${pubdate}</span>`;
     }
 
-    if (!views) {
+    if (!pubdate) {
         return `<span class="bili-video-compact-author">${author}</span>`;
     }
 
-    return `<span class="bili-video-compact-author">${author}</span><span class="bili-video-compact-stat-separator">·</span><span class="bili-video-compact-views">${views}</span>`;
+    return `<span class="bili-video-compact-author">${author}</span><span class="bili-video-card-date">${pubdate}</span>`;
+};
+
+const formatVideoCoverBar = (video: VideoHit): string => {
+    const views = escapeHtml(formatVideoViewCount(video.stat?.view));
+    const duration = escapeHtml(formatVideoDuration(video.duration));
+
+    if (!views && !duration) {
+        return '';
+    }
+
+    return `<span class="bili-video-cover-bar">${views ? `<span class="bili-video-cover-views">${views}</span>` : '<span></span>'}${duration ? `<span class="bili-video-cover-duration">${duration}</span>` : ''}</span>`;
 };
 
 const buildRenderedVideoLink = (
@@ -107,8 +128,8 @@ const buildRenderedVideoLink = (
     const inlineLabel = escapeHtml(stripHtml(innerHtml) || video.title || bvid);
     const author = escapeHtml(video.owner?.name || '');
     const viewText = escapeHtml(formatVideoViews(video.stat?.view));
-    const duration = escapeHtml(formatVideoDuration(video.duration));
-    const compactStats = formatVideoCompactStats(video);
+    const byline = formatVideoByline(video);
+    const coverBar = formatVideoCoverBar(video);
 
     if (viewMode === 'compact') {
         return `<a href="https://www.bilibili.com/video/${bvid}" class="bili-video-compact-ref bili-rich-compact-ref" data-bvid="${bvid}" data-inline-label="${inlineLabel}" target="_blank" rel="noopener"><span class="bili-video-compact-cover-wrap bili-rich-compact-cover-wrap">${coverUrl
@@ -116,11 +137,8 @@ const buildRenderedVideoLink = (
                 coverUrl
             )}" class="bili-video-compact-cover bili-rich-compact-cover" loading="lazy" referrerpolicy="no-referrer" />`
             : '<span class="bili-video-compact-cover bili-video-compact-cover-placeholder bili-rich-compact-cover bili-rich-compact-cover-placeholder"></span>'
-            }${duration
-                ? `<span class="bili-video-compact-duration">${duration}</span>`
-                : ''
-            }</span><span class="bili-video-compact-meta bili-rich-compact-meta"><span class="bili-video-compact-title bili-rich-compact-title">${title}</span>${compactStats
-                ? `<span class="bili-video-compact-stats">${compactStats}</span>`
+            }${coverBar}</span><span class="bili-video-compact-meta bili-rich-compact-meta"><span class="bili-video-compact-title bili-rich-compact-title">${title}</span>${byline
+                ? `<span class="bili-video-compact-stats bili-video-card-subline">${byline}</span>`
                 : ''
             }</span></a>`;
     }
@@ -130,9 +148,7 @@ const buildRenderedVideoLink = (
             coverUrl
         )}" class="bili-video-card-cover bili-rich-card-cover" loading="lazy" referrerpolicy="no-referrer" />`
         : '<span class="bili-video-card-cover bili-video-card-cover-placeholder bili-rich-card-cover bili-rich-card-cover-placeholder"></span>'
-        }${duration ? `<span class="bili-video-card-duration">${duration}</span>` : ''
-        }</span><span class="bili-video-card-meta bili-rich-card-meta"><span class="bili-video-card-title bili-rich-card-title">${title}</span><span class="bili-video-card-subline bili-rich-card-subline">${author ? `<span class="bili-video-card-author">${author}</span>` : ''
-        }${viewText ? `<span class="bili-video-card-views">${viewText}</span>` : ''}</span></span></a>`;
+        }${coverBar}</span><span class="bili-video-card-meta bili-rich-card-meta"><span class="bili-video-card-title bili-rich-card-title">${title}</span><span class="bili-video-card-subline bili-rich-card-subline">${byline || (author ? `<span class="bili-video-card-author">${author}</span>` : '') || (viewText ? `<span class="bili-video-card-views">${viewText}</span>` : '')}</span></span></a>`;
 };
 
 const buildRenderedOwnerLink = (
