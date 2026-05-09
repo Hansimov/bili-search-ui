@@ -52,17 +52,17 @@ describe('SearchHistoryStore flow', () => {
         cacheModule.__resetMockCache?.();
     });
 
-    it('clearSearchOnly 应保留 smart/think/research，会删除 direct', async () => {
+    it('clearSearchOnly 应保留 smart/think/research，会删除 tool', async () => {
         const store = useSearchHistoryStore();
 
-        await store.addRecord('d', 1, 'direct');
+        await store.addRecord('d', 1, 'tool');
         await store.addRecord('s', 1, 'smart');
         await store.addRecord('t', 1, 'think');
         await store.addRecord('r', 1, 'research');
 
         await store.clearSearchOnly();
 
-        expect(store.items.some((item) => item.mode === 'direct')).toBe(false);
+        expect(store.items.some((item) => item.mode === 'tool')).toBe(false);
         expect(store.items.some((item) => item.mode === 'smart')).toBe(true);
         expect(store.items.some((item) => item.mode === 'think')).toBe(true);
         expect(store.items.some((item) => item.mode === 'research')).toBe(true);
@@ -84,9 +84,9 @@ describe('SearchHistoryStore flow', () => {
 
     it('findLatestRecord 应按最新时间返回匹配 query/mode 记录', async () => {
         const store = useSearchHistoryStore();
-        const firstDirectId = await store.addRecord('same', 0, 'direct');
+        const firstDirectId = await store.addRecord('same', 0, 'tool');
         const smartId = await store.addRecord('same', 0, 'smart');
-        const latestDirectId = await store.addRecord('same', 0, 'direct');
+        const latestDirectId = await store.addRecord('same', 0, 'tool');
 
         // 手动设置明确时间戳，避免同毫秒写入导致排序不稳定
         const firstDirect = store.items.find((item) => item.id === firstDirectId);
@@ -99,7 +99,7 @@ describe('SearchHistoryStore flow', () => {
         smart.timestamp = 2000;
         latestDirect.timestamp = 3000;
 
-        const resolvedDirect = store.findLatestRecord('same', 'direct');
+        const resolvedDirect = store.findLatestRecord('same', 'tool');
         const resolvedSmart = store.findLatestRecord('same', 'smart');
 
         expect(resolvedDirect?.id).toBe(latestDirectId);

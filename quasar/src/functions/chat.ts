@@ -2,7 +2,7 @@
  * Chat function - 聊天模式的入口函数
  *
  * 处理 "快速问答" (smart) 和 "智能思考" (think) 模式的查询提交。
- * 类似于 explore.ts 对 "直接查找" 模式的处理。
+ * 类似于 toolCall.ts 对“工具调用”模式的处理。
  *
  * Chat 模式使用 session_id 标识会话，URL 格式为 /chat/<session_id>
  * 而非 /chat?q=<query>，因为自然语言查询不适合暴露在 URL 中。
@@ -15,6 +15,7 @@ import { useExploreStore } from 'src/stores/exploreStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
+import { normalizeToolCommandInput } from 'src/config/toolCommands';
 import type { SearchMode } from 'src/stores/searchModeStore';
 import type { ConversationMessage } from 'src/stores/chatStore';
 import type { SmartSuggestion } from 'src/services/smartSuggestService';
@@ -90,7 +91,7 @@ export const chat = async ({
 
 /**
  * 根据当前搜索模式提交查询的统一入口
- * 自动判断是使用 explore 还是 chat
+ * 自动判断是使用工具调用还是 chat
  */
 export const submitByMode = async ({
     queryValue,
@@ -106,9 +107,8 @@ export const submitByMode = async ({
     if (mode === 'smart' || mode === 'think') {
         await chat({ queryValue, mode, setQuery, setRoute });
     } else {
-        // direct 和 research 使用 explore
-        const { explore } = await import('src/functions/explore');
-        await explore({ queryValue, setQuery, setRoute });
+        const { executeToolCall } = await import('src/functions/toolCall');
+        await executeToolCall({ queryValue, setQuery, setRoute });
     }
 };
 
@@ -140,7 +140,10 @@ export const submitCurrentModeQuery = async ({
     const searchModeStore = useSearchModeStore();
     const inputHistoryStore = useInputHistoryStore();
 
-    const submittedQuery = queryValue.trim();
+    const submittedQuery =
+        mode === 'tool'
+            ? normalizeToolCommandInput(queryValue).trim()
+            : queryValue.trim();
     if (!submittedQuery) {
         return false;
     }
@@ -181,8 +184,8 @@ export const submitCurrentModeQuery = async ({
         return true;
     }
 
-    const { explore } = await import('src/functions/explore');
-    await explore({
+    const { executeToolCall } = await import('src/functions/toolCall');
+    await executeToolCall({
         queryValue: submittedQuery,
         setQuery: true,
         setRoute,

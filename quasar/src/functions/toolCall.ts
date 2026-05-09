@@ -7,50 +7,95 @@ import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { useChatStore } from 'src/stores/chatStore';
 import { cacheService, STORE_NAMES, EXPLORE_CACHE_TTL } from 'src/services/cacheService';
 import { getSmartSuggestService } from 'src/services/smartSuggestService';
-import { saveDirectHistorySelection } from 'src/utils/directHistorySelection';
-import type { ExploreResponse, ExploreStepResult } from 'src/stores/resultStore';
+import { saveToolHistorySelection } from 'src/utils/toolHistorySelection';
+import { normalizeToolCommandInput } from 'src/config/toolCommands';
+import type { ToolCallResponse, ExploreStepResult } from 'src/stores/resultStore';
+import type { ToolCall } from 'src/services/chatService';
 
-let exploreAbortController = new AbortController();
+let toolCallAbortController = new AbortController();
 
-/** 中止当前的 explore 请求 */
-export const abortExplore = () => {
-    exploreAbortController.abort();
+/** 中止当前的工具调用请求 */
+export const abortToolCall = () => {
+    toolCallAbortController.abort();
     const exploreStore = useExploreStore();
     exploreStore.setExploreLoading(false);
 };
 
-/** 缓存搜索结果到 IndexedDB */
-const cacheExploreResults = async (query: string, stepResults: ExploreStepResult[]): Promise<void> => {
+interface ToolCallCachePayload {
+    stepResults: ExploreStepResult[];
+    toolCall: ToolCall | null;
+}
+
+const normalizeToolCall = (response: ToolCallResponse): ToolCall | null => {
+    const call = response.tool_event?.calls?.[0];
+    if (call) {
+        return {
+            type: String(response.tool || call.type || 'unknown_tool'),
+            args: (call.args || response.args || {}) as Record<string, unknown>,
+            status: 'completed',
+            visibility: (call.visibility as 'user' | 'internal') || 'user',
+            result_id: String(call.result_id || 'D1'),
+            summary: call.summary,
+            result: call.result || response.result,
+        };
+    }
+    if (!response.tool && response.error) {
+        return {
+            type: 'unknown_tool',
+            args: {},
+            status: 'completed',
+            visibility: 'user',
+            result_id: 'D1',
+            result: { error: response.error, available_commands: response.available_commands },
+        };
+    }
+    if (!response.tool) return null;
+    return {
+        type: response.tool,
+        args: (response.args || {}) as Record<string, unknown>,
+        status: 'completed',
+        visibility: 'user',
+        result_id: 'D1',
+        result: response.result,
+    };
+};
+
+/** 缓存工具调用结果到 IndexedDB */
+const cacheToolCallResults = async (
+    query: string,
+    payload: ToolCallCachePayload
+): Promise<void> => {
     try {
-        const plainResults = JSON.parse(JSON.stringify(stepResults));
+        const plainResults = JSON.parse(JSON.stringify(payload));
         await cacheService.set(
             STORE_NAMES.DATA,
-            `explore:${query}`,
+            `tool-call:${query}`,
             plainResults,
-            { ttl: EXPLORE_CACHE_TTL, namespace: 'explore-results' }
+            { ttl: EXPLORE_CACHE_TTL, namespace: 'tool-call-results' }
         );
-        console.log(`[ExploreCache] Cached results for: ${query}`);
+        console.log(`[ToolCallCache] Cached results for: ${query}`);
     } catch (error) {
-        console.error('[ExploreCache] Failed to cache results:', error);
+        console.error('[ToolCallCache] Failed to cache results:', error);
     }
 };
 
 /** 从缓存恢复搜索结果，跳过网络请求 */
-export const restoreExploreFromCache = async (queryValue: string): Promise<boolean> => {
+export const restoreToolCallFromCache = async (queryValue: string): Promise<boolean> => {
     const queryStore = useQueryStore();
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
 
+    queryValue = normalizeToolCommandInput(queryValue);
     if (!queryValue) return false;
 
     try {
-        const cached = await cacheService.get<ExploreStepResult[]>(
+        const cached = await cacheService.get<ToolCallCachePayload>(
             STORE_NAMES.DATA,
-            `explore:${queryValue}`
+            `tool-call:${queryValue}`
         );
 
-        if (cached && Array.isArray(cached) && cached.length > 0) {
-            console.log(`[ExploreCache] Restoring cached results for: ${queryValue}`);
+        if (cached && Array.isArray(cached.stepResults)) {
+            console.log(`[ToolCallCache] Restoring cached results for: ${queryValue}`);
 
             layoutStore.setIsSuggestVisible(false);
             exploreStore.clearAuthorFilters();
@@ -58,7 +103,8 @@ export const restoreExploreFromCache = async (queryValue: string): Promise<boole
             exploreStore.setRestoringSession(true);
 
             queryStore.setQuery({ newQuery: queryValue, setRoute: true });
-            exploreStore.setStepResults(cached);
+            exploreStore.setStepResults(cached.stepResults);
+            exploreStore.setToolCall(cached.toolCall || null);
             exploreStore.saveExploreSession();
 
             setTimeout(() => {
@@ -68,13 +114,13 @@ export const restoreExploreFromCache = async (queryValue: string): Promise<boole
             return true;
         }
     } catch (error) {
-        console.error('[ExploreCache] Failed to restore from cache:', error);
+        console.error('[ToolCallCache] Failed to restore from cache:', error);
     }
 
     return false;
 };
 
-export const explore = async ({
+export const executeToolCall = async ({
     queryValue, setQuery = true, setRoute = false,
 }: {
     queryValue: string,
@@ -88,8 +134,10 @@ export const explore = async ({
     const searchHistoryStore = useSearchHistoryStore();
     const chatStore = useChatStore();
 
+    queryValue = normalizeToolCommandInput(queryValue);
     layoutStore.setIsSuggestVisible(false);
     exploreStore.clearAuthorFilters();
+    exploreStore.clearStepResults();
     if (!queryValue) {
         return;
     }
@@ -104,15 +152,15 @@ export const explore = async ({
         queryStore.setQuery({ newQuery: queryValue, setRoute: setRoute });
     }
     try {
-        exploreAbortController.abort();
-        exploreAbortController = new AbortController();
-        const signal = exploreAbortController.signal;
+        toolCallAbortController.abort();
+        toolCallAbortController = new AbortController();
+        const signal = toolCallAbortController.signal;
 
-        console.log(`> Explore: [${queryValue}]`);
+        console.log(`> Tool call: [${queryValue}]`);
 
-        const response = await api.post<ExploreResponse>(
-            '/explore',
-            { query: queryValue },
+        const response = await api.post<ToolCallResponse>(
+            '/tool_call',
+            { command: queryValue },
             { signal: signal }
         );
 
@@ -122,14 +170,19 @@ export const explore = async ({
         }
 
         const exploreResult = response.data;
-        console.log('[EXPLORE_RESULT]:', exploreResult);
+        const toolCall = normalizeToolCall(exploreResult);
+        console.log('[TOOL_CALL_RESULT]:', exploreResult);
 
         if (exploreResult.data && Array.isArray(exploreResult.data)) {
             exploreStore.setStepResults(exploreResult.data);
+            exploreStore.setToolCall(toolCall);
             console.log(`+ Got ${exploreResult.data.length} step results.`);
 
             // 缓存搜索结果到 IndexedDB
-            cacheExploreResults(queryValue, exploreResult.data).catch(console.error);
+            cacheToolCallResults(queryValue, {
+                stepResults: exploreResult.data,
+                toolCall,
+            }).catch(console.error);
 
             // 将搜索结果索引到智能补全服务
             const smartService = getSmartSuggestService();
@@ -139,34 +192,36 @@ export const explore = async ({
                 }
             }
 
-            // 记录搜索历史（仅限 direct 模式，chat 模式由 chat.ts 处理）
+            // 记录搜索历史（仅限工具调用模式，chat 模式由 chat.ts 处理）
             const searchModeStore = useSearchModeStore();
             const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
             const totalHits = exploreResult.data.reduce(
                 (sum, step) => sum + (Array.isArray(step.output?.hits) ? step.output.hits.length : 0), 0
             );
-            if (currentMode === 'direct') {
+            if (currentMode === 'tool') {
                 const recordId = await searchHistoryStore.addRecord(
                     queryValue,
                     totalHits,
                     currentMode,
                 );
                 chatStore.setCurrentHistoryRecordId(recordId);
-                saveDirectHistorySelection(recordId, queryValue);
+                saveToolHistorySelection(recordId, queryValue);
             }
         } else {
             console.warn('[EMPTY_DATA]: No step results in response');
-            // 即使无结果也记录搜索历史（仅限 direct 模式）
+            exploreStore.setStepResults([]);
+            exploreStore.setToolCall(toolCall);
+            // 即使无结果也记录搜索历史（仅限工具调用模式）
             const searchModeStore = useSearchModeStore();
             const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
-            if (currentMode === 'direct') {
+            if (currentMode === 'tool') {
                 const recordId = await searchHistoryStore.addRecord(
                     queryValue,
                     0,
                     currentMode,
                 );
                 chatStore.setCurrentHistoryRecordId(recordId);
-                saveDirectHistorySelection(recordId, queryValue);
+                saveToolHistorySelection(recordId, queryValue);
             }
         }
 

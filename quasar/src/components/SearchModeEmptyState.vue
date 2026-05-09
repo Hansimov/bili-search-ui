@@ -3,10 +3,6 @@
     class="search-mode-empty-state"
     :class="[
       `search-mode-empty-state--${variant}`,
-      {
-        'search-mode-empty-state--with-help':
-          showDirectQuickHelp && modeMeta.quickReference,
-      },
     ]"
   >
     <div class="search-mode-empty-state__title-wrap">
@@ -23,12 +19,6 @@
     <p class="search-mode-empty-state__subtitle">
       {{ modeMeta.subtitle }}
     </p>
-
-    <DirectSearchQuickHelp
-      v-if="showDirectQuickHelp && modeMeta.quickReference"
-      :mode="mode"
-      class="search-mode-empty-state__quick-help"
-    />
   </div>
 </template>
 
@@ -39,7 +29,6 @@ import {
   getSearchModeThemeVars,
   type SearchMode,
 } from 'src/config/searchModes';
-import DirectSearchQuickHelp from './DirectSearchQuickHelp.vue';
 
 defineOptions({
   name: 'SearchModeEmptyState',
@@ -49,11 +38,9 @@ const props = withDefaults(
   defineProps<{
     mode: SearchMode;
     variant?: 'page' | 'panel';
-    showDirectQuickHelp?: boolean;
   }>(),
   {
     variant: 'page',
-    showDirectQuickHelp: false,
   }
 );
 

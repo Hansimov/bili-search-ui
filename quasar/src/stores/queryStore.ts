@@ -7,13 +7,13 @@ export const useQueryStore = defineStore('query', {
     }),
     actions: {
         /**
-         * 设置直接查找模式的路由: /chat?q=<query>
+         * 设置工具调用模式的路由: /chat?q=<query>
          */
         setRoute: (newQuery: string, mode?: string) => {
             const router = getRouter();
             const params = new URLSearchParams();
             params.set('q', newQuery);
-            if (mode && mode !== 'direct') {
+            if (mode && mode !== 'tool') {
                 params.set('mode', mode);
             }
             const newRoute = `/chat?${params.toString()}`;
@@ -43,7 +43,7 @@ export const useQueryStore = defineStore('query', {
             this.query = newQuery;
             if (setRoute) {
                 // 聊天模式使用 chat=<sessionId> 路由
-                if (chatSessionId && mode && mode !== 'direct') {
+                if (chatSessionId && mode && mode !== 'tool') {
                     this.setChatRoute(chatSessionId);
                 } else {
                     this.setRoute(newQuery, mode);

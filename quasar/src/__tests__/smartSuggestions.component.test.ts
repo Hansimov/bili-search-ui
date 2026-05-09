@@ -30,7 +30,7 @@ const {
         setIsSuggestVisible: vi.fn(),
     },
     mockSearchModeStore: {
-        currentMode: 'smart' as 'direct' | 'smart' | 'think' | 'research',
+        currentMode: 'smart' as 'tool' | 'smart' | 'think' | 'research',
     },
     mockSmartService: {
         suggest: vi.fn(() => [sampleSuggestion]),
@@ -49,8 +49,8 @@ vi.mock('src/stores/layoutStore', () => ({
 
 vi.mock('src/stores/searchModeStore', () => ({
     useSearchModeStore: () => mockSearchModeStore,
-    getSearchMode: (mode: 'direct' | 'smart' | 'think' | 'research') => ({
-        apiType: mode === 'direct' ? 'explore' : 'chat',
+    getSearchMode: (mode: 'tool' | 'smart' | 'think' | 'research') => ({
+        apiType: mode === 'tool' ? 'tool' : 'chat',
     }),
 }));
 
@@ -117,18 +117,18 @@ describe('SmartSuggestions click behavior', () => {
         expect(mockSubmitSuggestionByMode).not.toHaveBeenCalled();
     });
 
-    it('direct 模式点击建议应直接提交', async () => {
+    it('tool 模式点击建议应直接提交', async () => {
         const wrapper = mountComponent();
         const vm = wrapper.vm as unknown as {
             selectSuggestion: (item: typeof sampleSuggestion) => Promise<void>;
         };
 
-        mockSearchModeStore.currentMode = 'direct';
+        mockSearchModeStore.currentMode = 'tool';
         await vm.selectSuggestion(sampleSuggestion);
 
         expect(mockSubmitSuggestionByMode).toHaveBeenCalledWith({
             item: sampleSuggestion,
-            mode: 'direct',
+            mode: 'tool',
         });
         expect(mockQueryStore.setQuery).not.toHaveBeenCalled();
         expect(mockLayoutStore.resetSuggestNavigation).not.toHaveBeenCalled();

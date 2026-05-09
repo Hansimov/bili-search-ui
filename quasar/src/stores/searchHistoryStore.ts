@@ -7,7 +7,7 @@
  * - 支持固定（置顶）记录
  * - 按时间倒序排列，固定记录优先
  * - 导出/清除历史
- * - 记录搜索模式（direct/smart/think），用于恢复正确的页面布局
+ * - 记录搜索模式（tool/smart/think），用于恢复正确的页面布局
  * - 对于 chat 模式，存储完整的对话状态用于恢复
  */
 
@@ -30,7 +30,7 @@ export interface SearchHistoryItem {
     resultCount?: number;
     /** 显示名称（重命名后的文本，可选） */
     displayName?: string;
-    /** 搜索模式 (direct/smart/think/research)，用于恢复正确的页面布局 */
+    /** 搜索模式 (tool/smart/think/research)，用于恢复正确的页面布局 */
     mode?: SearchMode;
     /** 聊天会话 ID（仅 smart/think 模式），用于 URL 恢复会话 */
     sessionId?: string;
@@ -209,7 +209,7 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
          * 每次搜索都会创建新记录，允许重复 query
          * @param query - 搜索关键词
          * @param resultCount - 搜索结果数量
-         * @param mode - 搜索模式 (direct/smart/think/research)
+         * @param mode - 搜索模式 (tool/smart/think/research)
          * @param chatSnapshot - Chat 模式下的对话历史快照
          * @param sessionId - 聊天会话 ID（仅 chat 模式）
          */
@@ -295,7 +295,7 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
 
         /**
          * 清除所有非 chat 的搜索记录（保留 smart/think 类型的会话历史）
-         * 用于侧边栏的 "清除搜索历史" 功能，只删除 direct 模式的搜索记录
+         * 用于侧边栏的 "清除搜索历史" 功能，只删除工具调用模式的搜索记录
          */
         async clearSearchOnly(): Promise<void> {
             const chatItems = this.items.filter(

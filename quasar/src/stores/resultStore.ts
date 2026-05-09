@@ -206,12 +206,27 @@ export interface ExploreSession {
     latestHitsResult: ExploreStepResult;
     latestAuthorsResult: ExploreStepResult;
     authorFilters: DictList;
+    toolCall?: Dict | null;
 }
 
 export interface ExploreResponse {
     query: string;
     status: string;
     data: ExploreStepResult[];
+}
+
+export interface ToolCallResponse extends ExploreResponse {
+    command?: string;
+    tool?: string;
+    args?: Dict;
+    result?: Dict;
+    error?: string;
+    available_commands?: string[];
+    tool_event?: {
+        iteration: number;
+        tools: string[];
+        calls?: DictList;
+    };
 }
 
 export function defaultExploreSession(): ExploreSession {
@@ -221,6 +236,7 @@ export function defaultExploreSession(): ExploreSession {
         latestHitsResult: defaultExploreStepResult(),
         latestAuthorsResult: defaultExploreStepResult(),
         authorFilters: [],
+        toolCall: null,
     }
 }
 

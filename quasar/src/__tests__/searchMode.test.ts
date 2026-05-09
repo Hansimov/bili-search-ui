@@ -37,7 +37,7 @@ describe('SearchModeStore', () => {
             localStorageMock.getItem.mockReturnValueOnce('smart');
             const store = useSearchModeStore();
             // Note: Due to Pinia initialization timing, this may need store re-creation
-            expect(['direct', 'smart']).toContain(store.currentMode);
+            expect(['tool', 'smart']).toContain(store.currentMode);
         });
     });
 
@@ -71,19 +71,19 @@ describe('SearchModeStore', () => {
             expect(store.currentModeOption.label).toBe('智能思考');
         });
 
-        it('isDirectMode 应该正确判断', () => {
+        it('isToolMode 应该正确判断', () => {
             const store = useSearchModeStore();
-            expect(store.isDirectMode).toBe(false);
-            store.setMode('direct');
-            expect(store.isDirectMode).toBe(true);
+            expect(store.isToolMode).toBe(false);
+            store.setMode('tool');
+            expect(store.isToolMode).toBe(true);
             store.setMode('smart');
-            expect(store.isDirectMode).toBe(false);
+            expect(store.isToolMode).toBe(false);
         });
 
         it('isChatMode 应该正确判断', () => {
             const store = useSearchModeStore();
             expect(store.isChatMode).toBe(true); // smart 是 chat
-            store.setMode('direct');
+            store.setMode('tool');
             expect(store.isChatMode).toBe(false);
             store.setMode('think');
             expect(store.isChatMode).toBe(true);
@@ -112,9 +112,9 @@ describe('SearchModeStore', () => {
             }
         });
 
-        it('direct 模式应该使用 explore API', () => {
-            const direct = SEARCH_MODES.find((m) => m.value === 'direct');
-            expect(direct?.apiType).toBe('explore');
+        it('tool 模式应该使用工具调用 API', () => {
+            const tool = SEARCH_MODES.find((m) => m.value === 'tool');
+            expect(tool?.apiType).toBe('tool');
         });
 
         it('chat 模式应该有对应参数', () => {

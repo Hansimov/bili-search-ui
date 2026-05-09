@@ -12,7 +12,7 @@
             <span class="results-stats-text">
               <span v-if="isExploreLoading" class="loading-indicator">
                 <q-spinner-dots size="16px" class="q-mr-xs" />
-                <span>正在搜索：</span>
+                <span>{{ loadingLabel }}</span>
                 <span class="loading-query">{{ submittedQuery }}</span>
                 <span class="loading-dots"></span>
               </span>
@@ -169,6 +169,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { resultsSortMethods, isNonEmptyArray } from 'src/stores/resultStore';
 
 import ResultItem from './ResultItem.vue';
@@ -191,7 +192,7 @@ export default {
     maxItems: { type: Number, default: 0 },
     /**
      * 显示模式：
-     * - 'normal': 正常模式（直接查找，全功能）
+     * - 'normal': 正常模式（工具调用，全功能）
      * - 'inline': 内联模式（聊天面板中缩略显示，带排序和加载更多）
      * - 'dialog': 对话框模式（弹窗中显示，类似正常但适配对话框尺寸）
      */
@@ -546,6 +547,7 @@ function _setup(props) {
   const searchStore = useSearchStore();
   const exploreStore = useExploreStore();
   const layoutStore = useLayoutStore();
+  const searchModeStore = useSearchModeStore();
 
   // Display mode helpers
   const isInline = computed(() => props.displayMode === 'inline');
@@ -557,6 +559,9 @@ function _setup(props) {
 
   // Submitted query for loading display (not the live input value)
   const submittedQuery = computed(() => exploreStore.submittedQuery || '');
+  const loadingLabel = computed(() =>
+    searchModeStore.currentMode === 'tool' ? '正在调用工具：' : '正在搜索：'
+  );
 
   // Use composables
   const stepStatus = useStepResultStatus(exploreStore);
@@ -774,6 +779,7 @@ function _setup(props) {
     hasResults,
     isExploreLoading,
     submittedQuery,
+    loadingLabel,
     // DOM refs
     resultsListDiv,
     resultItemRefs,

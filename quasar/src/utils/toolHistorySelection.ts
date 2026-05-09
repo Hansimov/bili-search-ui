@@ -1,6 +1,6 @@
-const DIRECT_HISTORY_SELECTION_KEY = 'direct-history-selection.v1';
+const TOOL_HISTORY_SELECTION_KEY = 'tool-history-selection.v1';
 
-interface DirectHistorySelection {
+interface ToolHistorySelection {
     recordId: string;
     query: string;
 }
@@ -12,7 +12,7 @@ const getSessionStorage = (): Storage | null => {
     return window.sessionStorage;
 };
 
-export const saveDirectHistorySelection = (
+export const saveToolHistorySelection = (
     recordId: string,
     query: string
 ): void => {
@@ -23,30 +23,30 @@ export const saveDirectHistorySelection = (
         return;
     }
 
-    const selection: DirectHistorySelection = {
+    const selection: ToolHistorySelection = {
         recordId,
         query: trimmedQuery,
     };
 
     storage.setItem(
-        DIRECT_HISTORY_SELECTION_KEY,
+        TOOL_HISTORY_SELECTION_KEY,
         JSON.stringify(selection)
     );
 };
 
-export const readDirectHistorySelection = (): DirectHistorySelection | null => {
+export const readToolHistorySelection = (): ToolHistorySelection | null => {
     const storage = getSessionStorage();
     if (!storage) {
         return null;
     }
 
-    const raw = storage.getItem(DIRECT_HISTORY_SELECTION_KEY);
+    const raw = storage.getItem(TOOL_HISTORY_SELECTION_KEY);
     if (!raw) {
         return null;
     }
 
     try {
-        const parsed = JSON.parse(raw) as Partial<DirectHistorySelection>;
+        const parsed = JSON.parse(raw) as Partial<ToolHistorySelection>;
         if (
             typeof parsed.recordId === 'string' &&
             parsed.recordId &&
@@ -62,14 +62,14 @@ export const readDirectHistorySelection = (): DirectHistorySelection | null => {
         // Ignore malformed persisted data and clear it below.
     }
 
-    storage.removeItem(DIRECT_HISTORY_SELECTION_KEY);
+    storage.removeItem(TOOL_HISTORY_SELECTION_KEY);
     return null;
 };
 
-export const getDirectHistorySelectionRecordId = (
+export const getToolHistorySelectionRecordId = (
     query?: string | null
 ): string | null => {
-    const selection = readDirectHistorySelection();
+    const selection = readToolHistorySelection();
     const trimmedQuery = query?.trim();
 
     if (!selection) {
@@ -83,7 +83,7 @@ export const getDirectHistorySelectionRecordId = (
     return selection.recordId;
 };
 
-export const clearDirectHistorySelection = (): void => {
+export const clearToolHistorySelection = (): void => {
     const storage = getSessionStorage();
-    storage?.removeItem(DIRECT_HISTORY_SELECTION_KEY);
+    storage?.removeItem(TOOL_HISTORY_SELECTION_KEY);
 };

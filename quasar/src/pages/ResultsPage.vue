@@ -2,7 +2,7 @@
   <q-card
     flat
     class="results-tabs-card"
-    :class="{ 'results-tabs-card--direct': !showChatPanel }"
+    :class="{ 'results-tabs-card--tool': !showChatPanel }"
   >
     <!-- LLM 聊天面板：显示在搜索结果上方（smart/think 模式） -->
     <div
@@ -35,30 +35,34 @@
       />
     </transition>
 
-    <!-- 直接查找模式：正常显示搜索结果 -->
+    <!-- 工具调用模式：显示工具结果，视频类工具同时显示视频列表 -->
     <div v-if="!showChatPanel" class="results-panels-card">
       <SearchModeEmptyState
-        v-if="showDirectEmptyLanding"
-        mode="direct"
+        v-if="showToolEmptyLanding"
+        mode="tool"
         variant="page"
-        show-direct-quick-help
         class="results-empty-landing"
       />
-      <q-tab-panels
-        v-else
-        keep-alive
-        v-model="activeTab"
-        transition-prev="fade"
-        transition-next="fade"
-        transition-duration="0"
-      >
-        <q-tab-panel name="videos">
-          <ResultsList />
-        </q-tab-panel>
-        <q-tab-panel name="graph">
-          <div class="q-gutter-xs graph-results-list"></div>
-        </q-tab-panel>
-      </q-tab-panels>
+      <div v-else class="tool-results-layout">
+        <div v-if="showToolCallPanel" class="tool-call-panel">
+          <ToolCallDisplay :tool-calls="toolCalls" force-expanded />
+        </div>
+        <q-tab-panels
+          v-if="showVideoResultsPanel"
+          keep-alive
+          v-model="activeTab"
+          transition-prev="fade"
+          transition-next="fade"
+          transition-duration="0"
+        >
+          <q-tab-panel name="videos">
+            <ResultsList />
+          </q-tab-panel>
+          <q-tab-panel name="graph">
+            <div class="q-gutter-xs graph-results-list"></div>
+          </q-tab-panel>
+        </q-tab-panels>
+      </div>
     </div>
 
     <!-- 搜索结果对话框（非全屏，页面中间淡入） -->
@@ -126,6 +130,9 @@ import SearchModeEmptyState from 'src/components/SearchModeEmptyState.vue';
 const ChatResponsePanel = defineAsyncComponent(() =>
   import('src/components/ChatResponsePanel.vue')
 );
+const ToolCallDisplay = defineAsyncComponent(() =>
+  import('src/components/ToolCallDisplay.vue')
+);
 
 /** 判断滚动容器是否接近底部的阈值（px） */
 const SCROLL_BOTTOM_THRESHOLD = 60;
@@ -136,6 +143,7 @@ export default {
   components: {
     ResultsList,
     ChatResponsePanel,
+    ToolCallDisplay,
     ChatExportDialog,
     SearchModeEmptyState,
   },
@@ -174,19 +182,38 @@ export default {
       return isEmptyChatLanding;
     });
 
-    const showDirectEmptyLanding = computed(() => {
+    const showToolEmptyLanding = computed(() => {
       const hasDraftQuery = !!queryStore.query?.trim();
       const hasSubmittedQuery = !!exploreStore.submittedQuery?.trim();
       return (
-        searchModeStore.currentMode === 'direct' &&
+        searchModeStore.currentMode === 'tool' &&
         !isChatMode.value &&
         !hasDraftQuery &&
         !hasSubmittedQuery &&
         !exploreStore.isExploreLoading &&
-        !exploreStore.hasResults
+        !exploreStore.hasResults &&
+        !exploreStore.toolCall
       );
     });
 
+    const toolCall = computed(() => exploreStore.toolCall);
+    const toolCalls = computed(() =>
+      toolCall.value ? [toolCall.value] : []
+    );
+    const showVideoResultsPanel = computed(
+      () => exploreStore.hasResults || exploreStore.isExploreLoading
+    );
+    const showToolCallPanel = computed(() => {
+      const call = toolCall.value;
+      if (!call) return false;
+      if (call.type === 'search_videos' && exploreStore.hasResults) {
+        return false;
+      }
+      if (call.type === 'explore' && exploreStore.hasResults) {
+        return false;
+      }
+      return true;
+    });
     /** 搜索结果摘要文本 */
     const resultsSummaryText = computed(() => {
       const total = exploreStore.latestHitsResult?.output?.hits?.length || 0;
@@ -548,7 +575,11 @@ export default {
     return {
       activeTab: computed(() => layoutStore.activeTab || 'videos'),
       showChatPanel: isChatMode,
-      showDirectEmptyLanding,
+      showToolEmptyLanding,
+      toolCall,
+      toolCalls,
+      showToolCallPanel,
+      showVideoResultsPanel,
       resultsSummaryText,
       showResultsDialog,
       showExportDialog,
@@ -586,7 +617,7 @@ body.body--dark .search-bar-row {
   overflow-y: hidden;
 }
 
-.results-tabs-card--direct {
+.results-tabs-card--tool {
   height: calc(
     var(--viewport-height-css, 100vh) - 36px -
       var(--search-bar-total-height, 84px) + 2px
@@ -608,6 +639,21 @@ body.body--dark .search-bar-row {
 
 .results-empty-landing {
   max-width: var(--search-input-max-width, 95vw);
+}
+
+.tool-results-layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.tool-call-panel {
+  width: var(--search-input-width);
+  max-width: var(--search-input-max-width, 95vw);
+  flex: 0 0 auto;
+  overflow-y: auto;
+  padding: 8px 12px 10px;
 }
 
 .results-panels-card :deep(.q-tab-panels) {

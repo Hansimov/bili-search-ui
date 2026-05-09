@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { Dict, DictList, ExploreStepResult, ExploreSession, isNonEmptyArray, isNonEmptyDict } from 'src/stores/resultStore';
 import { useQueryStore } from './queryStore';
+import type { ToolCall } from 'src/services/chatService';
 
 
 export const useExploreStore = defineStore('explore', {
@@ -9,6 +10,7 @@ export const useExploreStore = defineStore('explore', {
         latestHitsResult: {} as ExploreStepResult,
         latestAuthorsResult: {} as ExploreStepResult,
         authorFilters: [] as DictList,
+        toolCall: null as ToolCall | null,
         exploreSessions: [] as ExploreSession[],
         currentSessionIdx: -1,
         isExploreLoading: false,
@@ -62,6 +64,7 @@ export const useExploreStore = defineStore('explore', {
                 latestHitsResult: this.latestHitsResult,
                 latestAuthorsResult: this.latestAuthorsResult,
                 authorFilters: [...this.authorFilters],
+                toolCall: this.toolCall,
             });
             this.currentSessionIdx = this.exploreSessions.length - 1;
         },
@@ -74,6 +77,7 @@ export const useExploreStore = defineStore('explore', {
             this.latestHitsResult = session.latestHitsResult;
             this.latestAuthorsResult = session.latestAuthorsResult;
             this.authorFilters = [...session.authorFilters];
+            this.toolCall = (session.toolCall as ToolCall | null) || null;
             this.submittedQuery = session.query;
             // Reset the flag after a short delay to allow route watcher to see it
             setTimeout(() => {
@@ -127,6 +131,10 @@ export const useExploreStore = defineStore('explore', {
             this.stepResults = [];
             this.latestHitsResult = {} as ExploreStepResult;
             this.latestAuthorsResult = {} as ExploreStepResult;
+            this.toolCall = null;
+        },
+        setToolCall(toolCall: ToolCall | null) {
+            this.toolCall = toolCall;
         },
         setExploreLoading(loading: boolean) {
             this.isExploreLoading = loading;

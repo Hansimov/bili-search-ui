@@ -32,7 +32,7 @@
 import { computed } from 'vue';
 import type { Dict } from 'src/stores/resultStore';
 import { useExploreStore } from 'src/stores/exploreStore';
-import { explore } from 'src/functions/explore';
+import { executeToolCall } from 'src/functions/toolCall';
 
 const exploreStore = useExploreStore();
 const authorFilters = computed(() => {
@@ -44,7 +44,7 @@ function removeAuthorFilter(authorFilter: Dict) {
 }
 
 function searchAuthor(authorFilter: Dict) {
-  explore({
+  executeToolCall({
     queryValue: `u="${authorFilter.name}"`,
     setQuery: true,
     setRoute: true,

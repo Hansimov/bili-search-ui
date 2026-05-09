@@ -20,7 +20,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import defaultAvatarUrl from 'src/assets/noface.jpg@96w_96h.avif';
-import { explore } from 'src/functions/explore';
+import { executeToolCall } from 'src/functions/toolCall';
 import { useCachedImage } from 'src/composables/useCachedImage';
 import { normalizeAvatarPicUrl } from 'src/utils/videoHit';
 
@@ -49,7 +49,7 @@ const onAvatarError = (event: Event) => {
 
 const onAuthorClick = () => {
   const queryValue = `u=${props.authorName}`;
-  explore({
+  executeToolCall({
     queryValue: queryValue,
     setQuery: true,
     setRoute: true,

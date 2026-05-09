@@ -21,8 +21,6 @@ export const useSearchModeStore = defineStore('searchMode', {
         currentMode: (localStorage.getItem('searchMode') as SearchMode) || 'smart' as SearchMode,
         /** 首次会话提交时的模式（用于决定布局方式） */
         initialSessionMode: null as SearchMode | null,
-        /** DSL 帮助按钮抖动标记（用于提示用户查看搜索语法） */
-        dslHelpShakeFlag: 0,
     }),
 
     getters: {
@@ -31,9 +29,9 @@ export const useSearchModeStore = defineStore('searchMode', {
             return getSearchMode(this.currentMode);
         },
 
-        /** 是否为直接查找模式 */
-        isDirectMode(): boolean {
-            return this.currentMode === 'direct';
+        /** 是否为工具调用模式 */
+        isToolMode(): boolean {
+            return this.currentMode === 'tool';
         },
 
         /** 是否为 LLM 聊天模式（快速问答/智能思考/深度研究） */
@@ -79,11 +77,6 @@ export const useSearchModeStore = defineStore('searchMode', {
         /** 重置首次会话模式（开始新对话时调用） */
         resetInitialSessionMode() {
             this.initialSessionMode = null;
-        },
-
-        /** 触发 DSL 帮助按钮抖动动画 */
-        triggerDslHelpShake() {
-            this.dslHelpShakeFlag++;
         },
     },
 });

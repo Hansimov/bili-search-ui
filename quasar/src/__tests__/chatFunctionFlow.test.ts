@@ -46,7 +46,7 @@ const mockSearchHistoryStore = {
     addRecord: vi.fn(async () => 'record-1'),
 };
 
-const mockExplore = vi.fn(async () => undefined);
+const mockExecuteToolCall = vi.fn(async () => undefined);
 
 vi.mock('src/stores/queryStore', () => ({
     useQueryStore: () => mockQueryStore,
@@ -76,8 +76,8 @@ vi.mock('src/stores/searchHistoryStore', () => ({
     useSearchHistoryStore: () => mockSearchHistoryStore,
 }));
 
-vi.mock('src/functions/explore', () => ({
-    explore: mockExplore,
+vi.mock('src/functions/toolCall', () => ({
+    executeToolCall: mockExecuteToolCall,
 }));
 
 describe('chat.ts flow', () => {
@@ -145,17 +145,17 @@ describe('chat.ts flow', () => {
         );
     });
 
-    it('submitByMode 应将 direct 分流到 explore，将 smart 分流到 chat', async () => {
+    it('submitByMode 应将 tool 分流到工具调用，将 smart 分流到 chat', async () => {
         const { submitByMode } = await import('src/functions/chat');
 
         await submitByMode({
             queryValue: 'direct query',
-            mode: 'direct',
+            mode: 'tool',
             setQuery: true,
             setRoute: true,
         });
 
-        expect(mockExplore).toHaveBeenCalledWith({
+        expect(mockExecuteToolCall).toHaveBeenCalledWith({
             queryValue: 'direct query',
             setQuery: true,
             setRoute: true,
@@ -175,12 +175,12 @@ describe('chat.ts flow', () => {
         );
     });
 
-    it('submitCurrentModeQuery 在 direct 模式应统一走 explore 并记录输入历史', async () => {
+    it('submitCurrentModeQuery 在 tool 模式应统一走工具调用并记录输入历史', async () => {
         const { submitCurrentModeQuery } = await import('src/functions/chat');
 
         await submitCurrentModeQuery({
             queryValue: 'direct query',
-            mode: 'direct',
+            mode: 'tool',
             recordInputHistory: true,
             setRoute: true,
         });
@@ -188,8 +188,8 @@ describe('chat.ts flow', () => {
         expect(mockLayoutStore.setIsSuggestVisible).toHaveBeenCalledWith(false);
         expect(mockLayoutStore.resetSuggestNavigation).toHaveBeenCalledTimes(1);
         expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith('direct query');
-        expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith('direct');
-        expect(mockExplore).toHaveBeenCalledWith({
+        expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith('tool');
+        expect(mockExecuteToolCall).toHaveBeenCalledWith({
             queryValue: 'direct query',
             setQuery: true,
             setRoute: true,
@@ -221,7 +221,7 @@ describe('chat.ts flow', () => {
         );
     });
 
-    it('submitCurrentModeQuery 从 direct 新开 chat 时应覆盖初始会话模式', async () => {
+    it('submitCurrentModeQuery 从 tool 新开 chat 时应覆盖初始会话模式', async () => {
         const { submitCurrentModeQuery } = await import('src/functions/chat');
 
         mockSearchModeStore.shouldUseInlineLayout = false;
@@ -266,6 +266,6 @@ describe('chat.ts flow', () => {
             'think',
             undefined
         );
-        expect(mockExplore).not.toHaveBeenCalled();
+        expect(mockExecuteToolCall).not.toHaveBeenCalled();
     });
 });

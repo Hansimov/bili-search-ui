@@ -16,8 +16,8 @@ const {
     mockQueryStore,
     mockExploreStore,
     mockSearchModeStore,
-    mockExplore,
-    mockRestoreExploreFromCache,
+    mockExecuteToolCall,
+    mockRestoreToolCallFromCache,
     mockChatFn,
 } = vi.hoisted(() => ({
     mockRouter: {
@@ -124,13 +124,12 @@ const {
         setRestoringSession: vi.fn(),
     },
     mockSearchModeStore: {
-        dslHelpShakeFlag: 0,
         setMode: vi.fn(),
         forceInitialSessionMode: vi.fn(),
         resetInitialSessionMode: vi.fn(),
     },
-    mockExplore: vi.fn().mockResolvedValue(undefined),
-    mockRestoreExploreFromCache: vi.fn().mockResolvedValue(false),
+    mockExecuteToolCall: vi.fn().mockResolvedValue(undefined),
+    mockRestoreToolCallFromCache: vi.fn().mockResolvedValue(false),
     mockChatFn: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -178,9 +177,9 @@ vi.mock('src/stores/searchModeStore', () => ({
     useSearchModeStore: () => mockSearchModeStore,
 }));
 
-vi.mock('src/functions/explore', () => ({
-    explore: mockExplore,
-    restoreExploreFromCache: mockRestoreExploreFromCache,
+vi.mock('src/functions/toolCall', () => ({
+    executeToolCall: mockExecuteToolCall,
+    restoreToolCallFromCache: mockRestoreToolCallFromCache,
 }));
 
 vi.mock('src/functions/chat', () => ({
@@ -213,7 +212,6 @@ const mountSidebar = () =>
                 transition: false,
                 teleport: true,
                 'router-link': true,
-                DslHelpDialog: true,
                 VueQrcode: true,
                 'q-btn': QBtnStub,
                 'q-icon': true,
@@ -309,7 +307,7 @@ describe('AppSidebar history interactions', () => {
             query: 'direct query',
             timestamp: Date.now(),
             pinned: false,
-            mode: 'direct',
+            mode: 'tool',
         };
 
         mockChatStore.currentHistoryRecordId = 'smart-1';
@@ -335,7 +333,7 @@ describe('AppSidebar history interactions', () => {
         expect(setupState.isHistoryItemActive(directItem)).toBe(false);
     });
 
-    it('direct 模式重复 query 只高亮当前记录', () => {
+    it('tool 模式重复 query 只高亮当前记录', () => {
         const wrapper = mountSidebar();
         const setupState = wrapper.vm as unknown as SidebarSetupState;
 
@@ -344,14 +342,14 @@ describe('AppSidebar history interactions', () => {
             query: '同一个查询',
             timestamp: Date.now() - 1000,
             pinned: false,
-            mode: 'direct',
+            mode: 'tool',
         };
         const currentDirect: SearchHistoryItem = {
             id: 'direct-current',
             query: '同一个查询',
             timestamp: Date.now(),
             pinned: false,
-            mode: 'direct',
+            mode: 'tool',
         };
 
         mockChatStore.currentHistoryRecordId = 'direct-current';
@@ -364,7 +362,7 @@ describe('AppSidebar history interactions', () => {
         expect(setupState.isHistoryItemActive(currentDirect)).toBe(true);
     });
 
-    it('刷新后应优先按持久化的 direct 记录 ID 恢复高亮', () => {
+    it('刷新后应优先按持久化的 tool 记录 ID 恢复高亮', () => {
         const wrapper = mountSidebar();
         const setupState = wrapper.vm as unknown as SidebarSetupState;
 
@@ -373,18 +371,18 @@ describe('AppSidebar history interactions', () => {
             query: '同一个查询',
             timestamp: Date.now() - 1000,
             pinned: false,
-            mode: 'direct',
+            mode: 'tool',
         };
         const currentDirect: SearchHistoryItem = {
             id: 'direct-current',
             query: '同一个查询',
             timestamp: Date.now(),
             pinned: false,
-            mode: 'direct',
+            mode: 'tool',
         };
 
         sessionStorage.setItem(
-            'direct-history-selection.v1',
+            'tool-history-selection.v1',
             JSON.stringify({ recordId: 'direct-old', query: '同一个查询' })
         );
         mockRouter.currentRoute.value = {

@@ -328,10 +328,23 @@ describe('ToolCallDisplay component', () => {
         expect(ownerCards[0]?.text()).not.toContain('粉丝');
     });
 
-    it('renders transcript results with a readable preview', async () => {
+    it('renders transcript results with full text', async () => {
+        const transcriptResult = transcriptCall.result as {
+            transcript: Record<string, unknown>;
+        };
+        const fullTranscriptCall = {
+            ...transcriptCall,
+            result: {
+                ...(transcriptCall.result as Record<string, unknown>),
+                transcript: {
+                    ...transcriptResult.transcript,
+                    text: `${'完整转写内容。'.repeat(40)}最后一句保留。`,
+                },
+            },
+        };
         const wrapper = mount(ToolCallDisplay, {
             props: {
-                toolCalls: [transcriptCall],
+                toolCalls: [fullTranscriptCall],
             },
             global: {
                 stubs: {
@@ -350,7 +363,7 @@ describe('ToolCallDisplay component', () => {
 
         await wrapper.find('.tool-call-header').trigger('click');
 
-        expect(wrapper.text()).toContain('这是一个示例转写，用来验证前端是否可以展示转写预览。');
+        expect(wrapper.text()).toContain('最后一句保留。');
         expect(wrapper.find('.tool-text-result-meta').exists()).toBe(false);
     });
 

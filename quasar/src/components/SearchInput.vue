@@ -110,7 +110,6 @@
         </div>
       </div>
     </div>
-    <DslHelpDialog v-model="showDslHelp" />
   </div>
 </template>
 
@@ -122,7 +121,6 @@ import {
   onBeforeUnmount,
   watch,
   nextTick,
-  defineAsyncComponent,
 } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQueryStore } from 'src/stores/queryStore';
@@ -137,12 +135,18 @@ import {
 import { getSearchMode, getSearchModeThemeVars } from 'src/config/searchModes';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
-import { explore, abortExplore } from 'src/functions/explore';
+import { executeToolCall, abortToolCall } from 'src/functions/toolCall';
 import {
-  clearDirectHistorySelection,
-  getDirectHistorySelectionRecordId,
-  saveDirectHistorySelection,
-} from 'src/utils/directHistorySelection';
+  clearToolHistorySelection,
+  getToolHistorySelectionRecordId,
+  saveToolHistorySelection,
+} from 'src/utils/toolHistorySelection';
+import {
+  completeToolCommandText,
+  getToolCommandSuggestions,
+  hasUnterminatedToolCommand,
+  normalizeToolCommandInput,
+} from 'src/config/toolCommands';
 import {
   submitCurrentModeQuery,
   submitSuggestionByMode,
@@ -159,8 +163,6 @@ import {
   viewportPxToCssPx,
 } from 'src/utils/zoom';
 
-const DslHelpDialog = defineAsyncComponent(() => import('./DslHelpDialog.vue'));
-
 /** textarea 单行高度 & 最大行数 */
 const TEXTAREA_LINE_HEIGHT = 24; // px, matches CSS line-height
 const TEXTAREA_MAX_ROWS = 6;
@@ -175,9 +177,6 @@ type SearchInputFocusDetail = {
 };
 
 export default {
-  components: {
-    DslHelpDialog,
-  },
   setup() {
     const queryStore = useQueryStore();
     const layoutStore = useLayoutStore();
@@ -241,6 +240,13 @@ export default {
     };
     const onCompositionEnd = () => {
       isComposing.value = false;
+      if (currentMode.value !== 'tool') return;
+      const normalized = normalizeToolCommandInput(queryModel.value);
+      if (normalized === queryModel.value) return;
+      queryModel.value = normalized;
+      if (textareaRef.value) {
+        textareaRef.value.value = normalized;
+      }
     };
 
     /** textarea 实际显示的值：优先显示 displayOverride，否则显示 queryModel */
@@ -255,17 +261,13 @@ export default {
       () => getSearchMode(searchModeStore.currentMode).theme.quasarColor
     );
     const stopButtonColor = computed(() =>
-      searchModeStore.currentMode === 'direct'
+      searchModeStore.currentMode === 'tool'
         ? 'grey-6'
         : currentModeIconColor.value
     );
 
     const selectMode = (mode: SearchMode) => {
       searchModeStore.setMode(mode);
-      // 切换到直接查找模式时，抖动侧边栏搜索语法按钮提示用户
-      if (mode === 'direct') {
-        searchModeStore.triggerDslHelpShake();
-      }
     };
     let lastTouchModeSelectAt = 0;
     const selectModeFromClick = (mode: SearchMode) => {
@@ -283,12 +285,9 @@ export default {
       selectMode(mode);
     };
 
-    /** 是否显示 DSL 帮助对话框 */
-    const showDslHelp = ref(false);
-
     /** 模式简短标签（未选中未悬浮时显示） */
     const SHORT_MODE_LABELS: Record<SearchMode, string> = {
-      direct: '查找',
+      tool: '工具',
       smart: '问答',
       think: '思考',
       research: '研究',
@@ -319,8 +318,32 @@ export default {
     const COMPACT_MODE_PLACEHOLDERS: Partial<Record<SearchMode, string>> = {
       smart: '问答 · 快速回答',
       think: '思考 · 深度思考，详细回答',
-      direct: '查找 · 精确匹配，直接返回',
+      tool: '工具 · /videos /owners /google',
       research: '研究 · 深度研究',
+    };
+
+    const completeToolCommand = () => {
+      if (
+        currentMode.value !== 'tool' ||
+        !hasUnterminatedToolCommand(displayValue.value)
+      ) {
+        return false;
+      }
+      const command = getToolCommandSuggestions(displayValue.value)[0]?.command;
+      if (!command) return false;
+      queryModel.value = completeToolCommandText(displayValue.value, command);
+      displayOverride.value = null;
+      layoutStore.resetSuggestNavigation();
+      layoutStore.setIsSuggestVisible(true);
+      nextTick(() => {
+        autoResize();
+        const el = textareaRef.value;
+        if (!el) return;
+        el.focus();
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+      });
+      return true;
     };
 
     // ====== Textarea auto-resize ======
@@ -375,7 +398,14 @@ export default {
     const handleInput = (event: Event) => {
       suppressSuggest.value = false;
       const target = event.target as HTMLTextAreaElement;
-      queryModel.value = target.value;
+      const nextValue =
+        currentMode.value === 'tool'
+          ? normalizeToolCommandInput(target.value)
+          : target.value;
+      if (nextValue !== target.value) {
+        target.value = nextValue;
+      }
+      queryModel.value = nextValue;
       displayOverride.value = null;
       autoResize();
       // 用户输入新内容时重置建议导航状态
@@ -392,6 +422,10 @@ export default {
       if (event.isComposing || isComposing.value) return;
 
       if (event.key === 'Enter' && !event.shiftKey) {
+        if (completeToolCommand()) {
+          event.preventDefault();
+          return;
+        }
         event.preventDefault();
         const selectedIdx = layoutStore.suggestSelectedIndex;
         if (selectedIdx >= 0) {
@@ -420,6 +454,10 @@ export default {
       }
       // Tab: 确认当前预览建议到输入框并刷新建议列表（不触发搜索）
       if (event.key === 'Tab') {
+        if (completeToolCommand()) {
+          event.preventDefault();
+          return;
+        }
         if (displayOverride.value !== null) {
           event.preventDefault();
           queryModel.value = displayOverride.value;
@@ -665,9 +703,21 @@ export default {
 
     const submitQuery = async () => {
       const mode = searchModeStore.currentMode;
-      const submittedQuery = queryModel.value;
+      const rawSubmittedQuery = queryModel.value;
+      const submittedQuery =
+        mode === 'tool'
+          ? normalizeToolCommandInput(rawSubmittedQuery)
+          : rawSubmittedQuery;
       const shouldClearImmediately =
         (mode === 'smart' || mode === 'think') && !!submittedQuery.trim();
+
+      if (submittedQuery !== rawSubmittedQuery) {
+        queryModel.value = submittedQuery;
+        if (textareaRef.value) {
+          textareaRef.value.value = submittedQuery;
+        }
+        nextTick(() => autoResize());
+      }
 
       suppressSuggest.value = true;
       layoutStore.setIsSuggestVisible(false);
@@ -703,12 +753,12 @@ export default {
 
     /** 中止当前请求（搜索和聊天） */
     const stopRequest = () => {
-      abortExplore();
+      abortToolCall();
       chatStore.abortCurrentRequest();
     };
 
     // URL 驱动的搜索
-    // - route.query.q 变化时触发 explore（直接查找模式）
+    // - route.query.q 变化时触发工具调用
     // - route.params.sessionId 变化时尝试恢复 chat 会话（快速问答/智能思考模式）
     // LLM 聊天仅在用户显式提交（回车/点击发送）时触发
     watch(
@@ -720,7 +770,7 @@ export default {
           }
           // 从 URL 恢复搜索模式
           const urlMode = route.query.mode as string | undefined;
-          if (urlMode && ['smart', 'think', 'direct'].includes(urlMode)) {
+          if (urlMode && ['smart', 'think', 'tool'].includes(urlMode)) {
             searchModeStore.setMode(urlMode as SearchMode);
           }
 
@@ -738,23 +788,23 @@ export default {
             });
 
             await searchHistoryStore.loadHistory();
-            const directQuery = String(newQuery);
+            const toolQuery = String(newQuery);
             const persistedRecordId =
-              getDirectHistorySelectionRecordId(directQuery);
-            const directHistoryItem = persistedRecordId
+              getToolHistorySelectionRecordId(toolQuery);
+            const toolHistoryItem = persistedRecordId
               ? searchHistoryStore.items.find(
                   (item) =>
                     item.id === persistedRecordId &&
-                    (item.mode || 'direct') === 'direct' &&
-                    item.query === directQuery
+                    (item.mode || 'tool') === 'tool' &&
+                    item.query === toolQuery
                 )
-              : searchHistoryStore.findLatestRecord(directQuery, 'direct');
+              : searchHistoryStore.findLatestRecord(toolQuery, 'tool');
 
-            chatStore.setCurrentHistoryRecordId(directHistoryItem?.id || null);
-            if (directHistoryItem) {
-              saveDirectHistorySelection(directHistoryItem.id, directQuery);
+            chatStore.setCurrentHistoryRecordId(toolHistoryItem?.id || null);
+            if (toolHistoryItem) {
+              saveToolHistorySelection(toolHistoryItem.id, toolQuery);
             } else {
-              clearDirectHistorySelection();
+              clearToolHistorySelection();
             }
 
             if (
@@ -762,7 +812,7 @@ export default {
               exploreStore.isExploreLoading === false
             ) {
               // URL 导航只触发搜索，不触发 LLM 聊天
-              explore({
+              executeToolCall({
                 queryValue: String(newQuery),
                 setQuery: false,
                 setRoute: false,
@@ -783,7 +833,7 @@ export default {
         if (!newChatId) return;
         if (exploreStore.isRestoringSession) return;
 
-        clearDirectHistorySelection();
+        clearToolHistorySelection();
 
         // 如果当前会话已是该 sessionId，无需恢复
         if (chatStore.currentSessionId === newChatId) return;
@@ -863,7 +913,6 @@ export default {
       getModeDisplayLabel,
       getModeThemeVars,
       minRows,
-      showDslHelp,
     };
   },
 };

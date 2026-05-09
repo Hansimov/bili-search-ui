@@ -5,14 +5,14 @@ import { mount } from '@vue/test-utils';
 import IndexPage from 'src/pages/IndexPage.vue';
 
 const mockSearchModeStore = {
-    isDirectMode: false,
+    isToolMode: false,
     currentMode: 'smart',
 };
 
 vi.mock('src/stores/searchModeStore', () => ({
     useSearchModeStore: () => mockSearchModeStore,
     SEARCH_MODE_PLACEHOLDERS: {
-        direct: '直接查找 · 输入关键词，直接返回匹配视频',
+        tool: '工具调用 · 输入 / 选择工具，或直接输入关键词搜索视频',
         smart: '快速问答 · 输入问题，AI 快速回答',
         think: '智能思考 · 输入问题，返回 AI 思考过程和回答',
         research: '深度研究 · 输入研究计划，返回 AI 深度研究报告',
@@ -22,7 +22,7 @@ vi.mock('src/stores/searchModeStore', () => ({
 describe('IndexPage chat landing', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mockSearchModeStore.isDirectMode = false;
+        mockSearchModeStore.isToolMode = false;
         mockSearchModeStore.currentMode = 'smart';
     });
 
@@ -40,9 +40,9 @@ describe('IndexPage chat landing', () => {
         expect(wrapper.text()).toContain('输入问题，AI 快速回答');
     });
 
-    it('direct 模式首页也应显示标题与副标题', () => {
-        mockSearchModeStore.isDirectMode = true;
-        mockSearchModeStore.currentMode = 'direct';
+    it('tool 模式首页也应显示标题与副标题', () => {
+        mockSearchModeStore.isToolMode = true;
+        mockSearchModeStore.currentMode = 'tool';
 
         const wrapper = mount(IndexPage, {
             global: {
@@ -53,7 +53,7 @@ describe('IndexPage chat landing', () => {
             },
         });
 
-        expect(wrapper.text()).toContain('直接查找');
-        expect(wrapper.text()).toContain('输入关键词，直接返回匹配视频');
+        expect(wrapper.text()).toContain('工具调用');
+        expect(wrapper.text()).toContain('输入 / 选择工具');
     });
 });

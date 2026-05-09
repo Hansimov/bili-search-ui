@@ -144,7 +144,7 @@ describe('Input/Search interaction end-to-end flow', () => {
     it('会话历史全链路：新增→置顶→删除→清空', async () => {
         const historyStore = useSearchHistoryStore();
 
-        const id1 = await historyStore.addRecord('direct query', 3, 'direct');
+        const id1 = await historyStore.addRecord('direct query', 3, 'tool');
         const id2 = await historyStore.addRecord('smart query', 1, 'smart');
         const id3 = await historyStore.addRecord('think query', 2, 'think');
 
@@ -187,7 +187,7 @@ describe('Input/Search interaction end-to-end flow', () => {
         const historyStore = useSearchHistoryStore();
 
         const keepId = await historyStore.addRecord('keep pinned', 2, 'smart');
-        const dropId1 = await historyStore.addRecord('drop one', 1, 'direct');
+        const dropId1 = await historyStore.addRecord('drop one', 1, 'tool');
         const dropId2 = await historyStore.addRecord('drop two', 1, 'think');
 
         await historyStore.togglePin(keepId);

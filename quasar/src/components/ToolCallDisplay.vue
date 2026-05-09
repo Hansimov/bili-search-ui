@@ -135,7 +135,11 @@
       >
         <div class="tool-call-results-inner">
           <div class="tool-call-results">
-            <div v-if="call.type === 'search_videos'">
+            <div v-if="getToolError(call)" class="tool-result-error">
+              {{ getToolError(call) }}
+            </div>
+
+            <div v-else-if="call.type === 'search_videos'">
               <template v-if="getPerQueryResults(call).length > 1">
                 <div
                   v-for="(qr, qridx) in getPerQueryResults(call)"
@@ -237,8 +241,8 @@
               v-else-if="call.type === 'get_video_transcript'"
               class="tool-text-results"
             >
-              <div class="tool-transcript-preview">
-                {{ getTranscriptPreview(call) }}
+              <div class="tool-transcript-text">
+                {{ getTranscriptText(call) }}
               </div>
             </div>
 
@@ -329,6 +333,10 @@
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div v-else class="tool-generic-result">
+              <pre class="tool-generic-json">{{ formatGenericResult(call) }}</pre>
             </div>
           </div>
         </div>
@@ -471,6 +479,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    forceExpanded: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['viewAllResults'],
   setup(props) {
@@ -542,11 +554,21 @@ export default defineComponent({
 
     const formatToolArgs = (call: ToolCall) => formatToolCallArgs(call);
 
-    const isAlwaysExpanded: (...args: unknown[]) => boolean = () => false;
+    const getToolError = (call: ToolCall): string => {
+      const result = call.result as Record<string, unknown> | undefined;
+      if (result && typeof result === 'object' && result.error) {
+        return String(result.error);
+      }
+      return '';
+    };
+
+    const isAlwaysExpanded = (call: ToolCall): boolean =>
+      props.forceExpanded && hasResults(call);
 
     /** Check if a tool call has displayable results */
     const hasResults = (call: ToolCall): boolean => {
       if (!call.result) return false;
+      if (getToolError(call)) return true;
       if (call.type === 'search_videos') {
         const result = call.result as Record<string, unknown>;
         // Single query format: {hits: [...]}
@@ -560,6 +582,12 @@ export default defineComponent({
           return (result.results as Array<Record<string, unknown>>).some(
             (r) => Array.isArray(r.hits) && (r.hits as unknown[]).length > 0
           );
+        }
+        if (
+          Array.isArray(result?.videos) &&
+          (result.videos as unknown[]).length > 0
+        ) {
+          return true;
         }
         return false;
       }
@@ -585,7 +613,7 @@ export default defineComponent({
           (typeof result?.result === 'string' && result.result.length > 0)
         );
       }
-      return false;
+      return Object.keys((call.result as Record<string, unknown>) || {}).length > 0;
     };
 
     const canShowResults = (call: ToolCall): boolean =>
@@ -612,6 +640,11 @@ export default defineComponent({
       // Single query format
       if (Array.isArray(result.hits)) {
         return (result.hits as VideoHit[]).map((hit) => normalizeVideoHit(hit));
+      }
+      if (Array.isArray(result.videos)) {
+        return (result.videos as VideoHit[]).map((hit) =>
+          normalizeVideoHit(hit)
+        );
       }
       // Multi-query format: merge all hits
       if (Array.isArray(result.results)) {
@@ -739,13 +772,16 @@ export default defineComponent({
       return result.bvid || result.requested_video_id || '';
     };
 
-    const getTranscriptPreview = (call: ToolCall): string => {
+    const getTranscriptText = (call: ToolCall): string => {
+      const result = getTranscriptResult(call) as TranscriptResult & {
+        text?: string;
+        content?: string;
+      };
       const text = String(
-        getTranscriptResult(call)?.transcript?.text || ''
+        result?.transcript?.text || result?.text || result?.content || ''
       ).trim();
-      if (!text) return '当前没有可展示的转写预览。';
-      if (text.length <= 320) return text;
-      return `${text.slice(0, 320).trimEnd()}...`;
+      if (!text) return '当前没有可展示的转写内容。';
+      return text;
     };
 
     const getSmallTaskResult = (call: ToolCall): SmallTaskResult => {
@@ -768,6 +804,14 @@ export default defineComponent({
       'tool-text-result--small-task': true,
       'tool-text-result--small-task-streaming': call.status === 'streaming',
     });
+
+    const formatGenericResult = (call: ToolCall): string => {
+      try {
+        return JSON.stringify(call.result ?? {}, null, 2);
+      } catch {
+        return String(call.result ?? '');
+      }
+    };
 
     /** Normalize bilibili pic URL to include https: protocol */
     const normalizePicUrl = (pic: string): string => {
@@ -1014,6 +1058,7 @@ export default defineComponent({
       collapseAndScroll,
       getToolLabel,
       getToolIcon,
+      getToolError,
       getQueryList,
       formatToolArgs,
       hasResults,
@@ -1032,9 +1077,10 @@ export default defineComponent({
       getOwnerResults,
       getTranscriptResult,
       getTranscriptVideoId,
-      getTranscriptPreview,
+      getTranscriptText,
       getSmallTaskResultClasses,
       getSmallTaskResultText,
+      formatGenericResult,
       getOwnerDisplayName,
       getOwnerHref,
       getOwnerUidText,
@@ -1382,7 +1428,33 @@ export default defineComponent({
   scrollbar-width: thin;
 }
 
-.tool-transcript-preview {
+.tool-result-error {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(198, 40, 40, 0.08);
+  color: #c62828;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tool-generic-result {
+  min-width: 0;
+}
+
+.tool-generic-json {
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.08);
+}
+
+.tool-transcript-text {
   padding: 10px 12px;
   border-radius: 10px;
   background: rgba(128, 128, 128, 0.04);

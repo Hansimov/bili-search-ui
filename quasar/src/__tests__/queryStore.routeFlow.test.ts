@@ -22,13 +22,13 @@ describe('QueryStore route flow', () => {
         mockRouter.currentRoute.value.fullPath = '/';
     });
 
-    it('direct 模式 setQuery(setRoute=true) 应写入 /chat?q=', () => {
+    it('tool 模式 setQuery(setRoute=true) 应写入 /chat?q=', () => {
         const store = useQueryStore();
 
         store.setQuery({
             newQuery: 'hello world',
             setRoute: true,
-            mode: 'direct',
+            mode: 'tool',
         });
 
         expect(mockRouter.replace).toHaveBeenCalledWith('/chat?q=hello+world');
@@ -47,7 +47,7 @@ describe('QueryStore route flow', () => {
         expect(mockRouter.replace).toHaveBeenCalledWith('/chat/session-abc');
     });
 
-    it('非 direct 且无 chatSessionId 时应回落到 /chat?q=...&mode=...', () => {
+    it('非 tool 且无 chatSessionId 时应回落到 /chat?q=...&mode=...', () => {
         const store = useQueryStore();
 
         store.setQuery({
@@ -68,7 +68,7 @@ describe('QueryStore route flow', () => {
         store.setQuery({
             newQuery: 'same',
             setRoute: true,
-            mode: 'direct',
+            mode: 'tool',
         });
 
         expect(mockRouter.replace).not.toHaveBeenCalled();

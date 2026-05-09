@@ -53,24 +53,6 @@
           </transition>
         </div>
 
-        <!-- 搜索语法帮助 -->
-        <div
-          class="sidebar-nav-item"
-          :class="{
-            'nav-item-collapsed': !sidebarExpanded,
-            'dsl-help-shake': isDslShaking,
-          }"
-          @click="showDslHelpDialog = true"
-          @mouseenter="showSidebarTooltip($event, '语法帮助')"
-          @mouseleave="hideSidebarTooltip"
-          ref="dslHelpBtnRef"
-        >
-          <q-icon name="code" size="22px" class="sidebar-nav-icon" />
-          <transition name="fade">
-            <span v-if="sidebarExpanded" class="nav-label">语法帮助</span>
-          </transition>
-        </div>
-
         <!-- 历史记录 -->
         <div
           class="sidebar-nav-item"
@@ -491,9 +473,6 @@
           </q-card-actions>
         </q-card>
       </q-dialog>
-
-      <!-- DSL 搜索语法帮助对话框 -->
-      <DslHelpDialog v-model="showDslHelpDialog" />
     </div>
     <!-- /.sidebar-inner -->
   </aside>
@@ -613,7 +592,7 @@ import {
   formatFullTime,
 } from 'src/stores/searchHistoryStore';
 import type { SearchHistoryItem } from 'src/stores/searchHistoryStore';
-import { explore, restoreExploreFromCache } from 'src/functions/explore';
+import { executeToolCall, restoreToolCallFromCache } from 'src/functions/toolCall';
 import { useChatStore } from 'src/stores/chatStore';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
@@ -621,14 +600,13 @@ import { useSearchModeStore } from 'src/stores/searchModeStore';
 import type { SearchMode } from 'src/stores/searchModeStore';
 import { getSearchMode } from 'src/config/searchModes';
 import {
-  clearDirectHistorySelection,
-  getDirectHistorySelectionRecordId,
-  saveDirectHistorySelection,
-} from 'src/utils/directHistorySelection';
+  clearToolHistorySelection,
+  getToolHistorySelectionRecordId,
+  saveToolHistorySelection,
+} from 'src/utils/toolHistorySelection';
 import { getDocumentZoom, viewportPxToCssPx } from 'src/utils/zoom';
 import { scheduleAfterInitialRender } from 'src/utils/schedule';
 
-const DslHelpDialog = defineAsyncComponent(() => import('./DslHelpDialog.vue'));
 const VueQrcode = defineAsyncComponent(
   () => import('@chenfengyuan/vue-qrcode')
 );
@@ -650,11 +628,8 @@ const showLogoutDialog = ref(false);
 const showUserMenu = ref(false);
 const showClearHistoryDialog = ref(false);
 const showRenameDialog = ref(false);
-const showDslHelpDialog = ref(false);
 const renameValue = ref('');
 const renameItemId = ref('');
-const isDslShaking = ref(false);
-const dslHelpBtnRef = ref<HTMLElement | null>(null);
 const sidebarTooltip = ref({
   visible: false,
   text: '',
@@ -690,17 +665,6 @@ const edgeHandleStyle = computed(() => ({
   left: sidebarExpanded.value ? '260px' : '50px',
 }));
 Dark.set(isDark.value);
-
-// DSL 帮助按钮抖动动画：搜索模式切换到 direct 时触发
-watch(
-  () => searchModeStore.dslHelpShakeFlag,
-  () => {
-    isDslShaking.value = true;
-    setTimeout(() => {
-      isDslShaking.value = false;
-    }, 600);
-  }
-);
 
 const toggleDarkMode = () => {
   isDark.value = !isDark.value;
@@ -767,7 +731,7 @@ const qrCodeOptions = computed(() => ({
 // Navigation
 const navigateToSearch = async () => {
   chatStore.startNewChat();
-  clearDirectHistorySelection();
+  clearToolHistorySelection();
   queryStore.setQuery({ newQuery: '' });
   exploreStore.clearStepResults();
   exploreStore.setSubmittedQuery('');
@@ -780,7 +744,7 @@ const navigateToSearch = async () => {
 const onNavigate = () => {
   // Logo click navigates to /, clear all search state
   chatStore.startNewChat();
-  clearDirectHistorySelection();
+  clearToolHistorySelection();
   queryStore.setQuery({ newQuery: '' });
   exploreStore.clearStepResults();
   exploreStore.setSubmittedQuery('');
@@ -791,7 +755,7 @@ const onNavigate = () => {
 
 const searchFromHistory = async (item: SearchHistoryItem) => {
   const query = item.query;
-  const mode = item.mode || 'direct';
+  const mode = item.mode || 'tool';
   const isChatMode = mode === 'smart' || mode === 'think';
   const fallbackChatSnapshot = isChatMode
     ? item.chatSnapshot || {
@@ -835,17 +799,17 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
     chatStore.setCurrentHistoryRecordId(item.id);
     setTimeout(() => exploreStore.setRestoringSession(false), 200);
   } else {
-    // Direct 模式：恢复搜索结果
+    // 工具调用模式：恢复结果
     searchModeStore.setMode(mode as SearchMode);
     searchModeStore.resetInitialSessionMode();
     chatStore.startNewChat();
     chatStore.setCurrentHistoryRecordId(item.id);
-    saveDirectHistorySelection(item.id, query);
+    saveToolHistorySelection(item.id, query);
     // 尝试从缓存恢复搜索结果，避免重复的网络请求
-    const restored = await restoreExploreFromCache(query);
+    const restored = await restoreToolCallFromCache(query);
     if (!restored) {
       // 缓存未命中，执行新的搜索
-      await explore({ queryValue: query, setQuery: true, setRoute: true });
+      await executeToolCall({ queryValue: query, setQuery: true, setRoute: true });
     }
   }
   if (isOverlayMode.value) layoutStore.closeMobileSidebar();
@@ -902,7 +866,7 @@ const confirmClearHistory = () => {
 const resetCurrentViewState = async () => {
   chatStore.clearHistory();
   chatStore.startNewChat();
-  clearDirectHistorySelection();
+  clearToolHistorySelection();
   queryStore.setQuery({ newQuery: '' });
   exploreStore.clearStepResults();
   exploreStore.setSubmittedQuery('');
@@ -925,33 +889,33 @@ const isHistoryItemActive = (item: SearchHistoryItem): boolean => {
   }
 
   const currentRoute = router.currentRoute.value;
-  const itemMode = item.mode || 'direct';
+  const itemMode = item.mode || 'tool';
 
   if ((itemMode === 'smart' || itemMode === 'think') && item.sessionId) {
     return currentRoute.path === `/chat/${item.sessionId}`;
   }
 
-  if (itemMode === 'direct') {
+  if (itemMode === 'tool') {
     const routeQuery = currentRoute.query.q;
     const routeMode = currentRoute.query.mode;
-    const isDirectRoute =
+    const isToolRoute =
       currentRoute.path === '/chat' &&
       typeof routeQuery === 'string' &&
       routeQuery === item.query &&
-      (routeMode == null || routeMode === 'direct');
+      (routeMode == null || routeMode === 'tool');
 
-    if (isDirectRoute) {
-      const persistedRecordId = getDirectHistorySelectionRecordId(routeQuery);
+    if (isToolRoute) {
+      const persistedRecordId = getToolHistorySelectionRecordId(routeQuery);
       if (persistedRecordId) {
         return persistedRecordId === item.id;
       }
 
-      const latestDirectRecord = searchHistoryStore.findLatestRecord(
+      const latestToolRecord = searchHistoryStore.findLatestRecord(
         routeQuery,
-        'direct'
+        'tool'
       );
-      if (latestDirectRecord) {
-        return latestDirectRecord.id === item.id;
+      if (latestToolRecord) {
+        return latestToolRecord.id === item.id;
       }
 
       return true;
@@ -992,7 +956,7 @@ const getHistoryItemIconStyle = (
     };
   }
 
-  const theme = getSearchMode(item.mode || 'direct').theme;
+  const theme = getSearchMode(item.mode || 'tool').theme;
   return {
     color: isDark.value ? theme.dark.color : theme.light.color,
     opacity: '0.72',
@@ -1019,7 +983,7 @@ const confirmRename = async () => {
 // Copy link
 const copiedItemId = ref<string | null>(null);
 const copySearchLink = async (query: string, itemId: string) => {
-  // Chat 模式使用 /chat/<sessionId> URL，直接查找模式使用 /chat?q=<query> URL
+  // Chat 模式使用 /chat/<sessionId> URL，工具调用模式使用 /chat?q=<query> URL
   const item = searchHistoryStore.items.find((i) => i.id === itemId);
   let url: string;
   if (item?.sessionId && (item.mode === 'smart' || item.mode === 'think')) {
@@ -1579,35 +1543,6 @@ body.body--dark .nav-item-active {
 
 .nav-label {
   white-space: nowrap;
-}
-
-/* DSL 帮助按钮抖动动画 */
-.dsl-help-shake {
-  animation: dsl-shake 0.5s ease;
-}
-@keyframes dsl-shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  15% {
-    transform: translateX(-4px);
-  }
-  30% {
-    transform: translateX(4px);
-  }
-  45% {
-    transform: translateX(-3px);
-  }
-  60% {
-    transform: translateX(3px);
-  }
-  75% {
-    transform: translateX(-1px);
-  }
-  90% {
-    transform: translateX(1px);
-  }
 }
 
 .history-toggle-icon {

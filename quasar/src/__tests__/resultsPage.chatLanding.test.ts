@@ -63,6 +63,7 @@ const mockExploreStore = {
     hasResults: false,
     isExploreLoading: false,
     submittedQuery: '',
+    toolCall: null,
 };
 
 vi.mock('src/stores/layoutStore', () => ({
@@ -126,6 +127,7 @@ describe('ResultsPage chat landing', () => {
         mockExploreStore.hasResults = false;
         mockExploreStore.isExploreLoading = false;
         mockExploreStore.submittedQuery = '';
+        mockExploreStore.toolCall = null;
     });
 
     it('smart 空会话时应显示 chat 面板', () => {
@@ -134,13 +136,13 @@ describe('ResultsPage chat landing', () => {
         expect((wrapper.vm as unknown as { showChatPanel: boolean }).showChatPanel).toBe(true);
     });
 
-    it('direct 空状态时不应显示 chat 面板', () => {
-        mockSearchModeStore.currentMode = 'direct';
+    it('tool 空状态时不应显示 chat 面板', () => {
+        mockSearchModeStore.currentMode = 'tool';
 
         const wrapper = mountResultsPage();
 
         expect((wrapper.vm as unknown as { showChatPanel: boolean }).showChatPanel).toBe(false);
-        expect((wrapper.vm as unknown as { showDirectEmptyLanding: boolean }).showDirectEmptyLanding).toBe(true);
+        expect((wrapper.vm as unknown as { showToolEmptyLanding: boolean }).showToolEmptyLanding).toBe(true);
     });
 
     it('opens export dialog with prefix round selection by default', () => {

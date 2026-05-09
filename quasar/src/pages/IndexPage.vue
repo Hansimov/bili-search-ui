@@ -4,7 +4,6 @@
       <SearchModeEmptyState
         :mode="currentMode"
         variant="page"
-        :show-direct-quick-help="isDirectMode"
       />
     </div>
   </q-card>
@@ -21,7 +20,6 @@ defineOptions({
 
 const searchModeStore = useSearchModeStore();
 
-const isDirectMode = computed(() => searchModeStore.isDirectMode);
 const currentMode = computed(() => searchModeStore.currentMode);
 </script>
 

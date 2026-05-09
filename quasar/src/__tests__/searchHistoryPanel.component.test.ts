@@ -26,7 +26,7 @@ const {
         setQuery: vi.fn(),
     },
     mockSearchModeStore: {
-        currentMode: 'direct' as 'direct' | 'smart' | 'think' | 'research',
+        currentMode: 'tool' as 'tool' | 'smart' | 'think' | 'research',
         setInitialSessionMode: vi.fn(),
     },
     mockSubmitByMode: vi.fn(),
@@ -46,8 +46,8 @@ vi.mock('src/stores/queryStore', () => ({
 
 vi.mock('src/stores/searchModeStore', () => ({
     useSearchModeStore: () => mockSearchModeStore,
-    getSearchMode: (mode: 'direct' | 'smart' | 'think' | 'research') => ({
-        apiType: mode === 'direct' ? 'explore' : 'chat',
+    getSearchMode: (mode: 'tool' | 'smart' | 'think' | 'research') => ({
+        apiType: mode === 'tool' ? 'tool' : 'chat',
     }),
 }));
 
@@ -70,7 +70,7 @@ describe('SearchHistoryPanel component logic', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockInputHistoryStore.sortedItems = [];
-        mockSearchModeStore.currentMode = 'direct';
+        mockSearchModeStore.currentMode = 'tool';
     });
 
     it('挂载时应加载输入记录', () => {
@@ -98,7 +98,7 @@ describe('SearchHistoryPanel component logic', () => {
         expect(mockInputHistoryStore.clearAll).toHaveBeenCalledTimes(1);
     });
 
-    it('searchFromHistory 在 direct 模式应按当前模式提交并更新分页', async () => {
+    it('searchFromHistory 在 tool 模式应按当前模式提交并更新分页', async () => {
         const wrapper = mountPanel();
         const vm = wrapper.vm as unknown as {
             searchFromHistory: (item: InputHistoryItem) => Promise<void>;
@@ -113,12 +113,12 @@ describe('SearchHistoryPanel component logic', () => {
         await vm.searchFromHistory(item);
 
         expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith(
-            'direct'
+            'tool'
         );
         expect(mockLayoutStore.setIsSuggestVisible).toHaveBeenCalledWith(false);
         expect(mockSubmitByMode).toHaveBeenCalledWith({
             queryValue: 'hello world',
-            mode: 'direct',
+            mode: 'tool',
             setQuery: true,
             setRoute: true,
         });

@@ -19,6 +19,9 @@
       >
         <div class="search-sub-space-top"></div>
 
+        <!-- 工具命令补全（工具调用模式） -->
+        <ToolCommandSuggestions v-if="showToolCommandSuggestions" />
+
         <!-- 智能补全建议（输入内容时显示） -->
         <SmartSuggestions v-if="hasSmartSuggestions" />
 
@@ -55,10 +58,12 @@ import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import SearchInput from './SearchInput.vue';
 import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
+import { useSearchModeStore } from 'src/stores/searchModeStore';
 import {
   getSmartSuggestService,
   suggestIndexVersion,
 } from 'src/services/smartSuggestService';
+import { getToolCommandSuggestions } from 'src/config/toolCommands';
 
 const SuggestAuthorsList = defineAsyncComponent(() =>
   import('./SuggestAuthorsList.vue')
@@ -75,6 +80,9 @@ const SmartSuggestions = defineAsyncComponent(() =>
 const SearchHistoryPanel = defineAsyncComponent(() =>
   import('./SearchHistoryPanel.vue')
 );
+const ToolCommandSuggestions = defineAsyncComponent(() =>
+  import('./ToolCommandSuggestions.vue')
+);
 
 export default {
   components: {
@@ -84,12 +92,14 @@ export default {
     SuggestReplace,
     SmartSuggestions,
     SearchHistoryPanel,
+    ToolCommandSuggestions,
   },
   setup() {
     const queryStore = useQueryStore();
     const searchStore = useSearchStore();
     const layoutStore = useLayoutStore();
     const inputHistoryStore = useInputHistoryStore();
+    const searchModeStore = useSearchModeStore();
     const isQueryEmpty = computed(() => searchStore.isQueryEmpty);
     const isSuggestVisible = computed(() => layoutStore.isSuggestVisible);
     const isSuggestionsListVisible = computed(
@@ -139,6 +149,12 @@ export default {
     const showSearchHistory = computed(
       () => isQueryEmpty.value && inputHistoryStore.sortedItems.length > 0
     );
+    const showToolCommandSuggestions = computed(() => {
+      if (searchModeStore.currentMode !== 'tool' || isQueryEmpty.value) {
+        return false;
+      }
+      return getToolCommandSuggestions(queryStore.query).length > 0;
+    });
     // 有任何下拉内容要显示
     const hasSuggestContent = computed(() => {
       if (!isSuggestVisible.value) {
@@ -147,6 +163,7 @@ export default {
 
       return (
         hasSmartSuggestions.value ||
+        showToolCommandSuggestions.value ||
         showSuggestReplace.value ||
         showSuggestAuthors.value ||
         showSuggestionsList.value ||
@@ -170,6 +187,7 @@ export default {
       showSuggestAuthors,
       showSuggestionsList,
       showSearchHistory,
+      showToolCommandSuggestions,
       currentQuery,
       currentSuggestResult,
       isSuggestionsListVisible,

@@ -26,7 +26,7 @@
 import { computed } from 'vue';
 import { useQueryStore } from '../stores/queryStore';
 import { useSearchStore } from '../stores/searchStore';
-import { explore } from 'src/functions/explore';
+import { executeToolCall } from 'src/functions/toolCall';
 import SuggestReplaceRewriteItem from './SuggestReplaceRewriteItem.vue';
 import SuggestReplaceOriginalItem from './SuggestReplaceOriginalItem.vue';
 
@@ -69,7 +69,7 @@ export default {
     );
 
     const searchOriginalQuery = () => {
-      explore({
+      executeToolCall({
         queryValue: query.value,
         setQuery: true,
         setRoute: true,
@@ -78,7 +78,7 @@ export default {
     const searchRewritedQuery = (rewriteString) => {
       const filtersString = (filters.value || []).join(' ');
       const rewriteQueryValue = `${rewriteString} ${filtersString}`.trim();
-      explore({
+      executeToolCall({
         queryValue: rewriteQueryValue,
         setQuery: true,
         setRoute: true,
