@@ -295,7 +295,7 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
 
         /**
          * 清除所有非 chat 的搜索记录（保留 smart/think 类型的会话历史）
-         * 用于侧边栏的 "清除搜索历史" 功能，只删除工具调用模式的搜索记录
+         * 用于侧边栏的 "清除搜索历史" 功能，只删除实用工具模式的搜索记录
          */
         async clearSearchOnly(): Promise<void> {
             const chatItems = this.items.filter(

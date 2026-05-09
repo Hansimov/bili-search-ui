@@ -29,6 +29,7 @@ describe('tool command helpers', () => {
         expect(getToolCommandSuggestions('vd')[0]?.command).toBe('/videos');
         expect(getToolCommandSuggestions('gg')[0]?.command).toBe('/google');
         expect(getToolCommandSuggestions('scr')[0]?.command).toBe('/transcript');
+        expect(getToolCommandSuggestions('smr')[0]?.command).toBe('/summarize');
         expect(completeToolCommandText('/own', '/owners')).toBe('/owners ');
         expect(completeToolCommandText('、own', '/owners')).toBe('/owners ');
         expect(completeToolCommandText('\\own', '/owners')).toBe('/owners ');

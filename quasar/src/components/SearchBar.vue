@@ -19,7 +19,7 @@
       >
         <div class="search-sub-space-top"></div>
 
-        <!-- 工具命令补全（工具调用模式） -->
+        <!-- 工具命令补全（实用工具模式） -->
         <ToolCommandSuggestions v-if="showToolCommandSuggestions" />
 
         <!-- 智能补全建议（输入内容时显示） -->
@@ -153,7 +153,7 @@ export default {
       () => isQueryEmpty.value && inputHistoryStore.sortedItems.length > 0
     );
     const showToolCommandSuggestions = computed(() => {
-      if (searchModeStore.currentMode !== 'tool' || isQueryEmpty.value) {
+      if (searchModeStore.currentMode !== 'utility' || isQueryEmpty.value) {
         return false;
       }
       return (

@@ -247,7 +247,7 @@
             </div>
 
             <div
-              v-else-if="call.type === 'run_small_llm_task'"
+              v-else-if="isSmallModelTextTool(call)"
               class="tool-text-results"
             >
               <pre
@@ -454,6 +454,10 @@ interface SmallTaskResult {
 }
 
 const DISPLAYABLE_INTERNAL_TOOLS = new Set(['run_small_llm_task']);
+const SMALL_MODEL_TEXT_TOOLS = new Set([
+  'run_small_llm_task',
+  'summarize_transcript',
+]);
 const COMPACT_TOOL_DISPLAY_QUERY = '(max-width: 620px), (pointer: coarse)';
 
 /** 工具名称中英对照 */
@@ -464,6 +468,7 @@ const TOOL_LABELS: Record<string, string> = {
   search_google: '搜索网页',
   get_video_transcript: '读取转写',
   run_small_llm_task: '小模型',
+  summarize_transcript: '视频总结',
   related_tokens_by_tokens: '相关词补全',
   related_owners_by_tokens: '相关作者',
   related_videos_by_videos: '相关视频',
@@ -481,6 +486,7 @@ const TOOL_ICONS: Record<string, string> = {
   search_google: 'travel_explore',
   get_video_transcript: 'subtitles',
   run_small_llm_task: 'smart_toy',
+  summarize_transcript: 'summarize',
   related_tokens_by_tokens: 'token',
   related_owners_by_tokens: 'group',
   related_videos_by_videos: 'linked_camera',
@@ -531,6 +537,8 @@ export default defineComponent({
 
     const getToolLabel = (type: string) => TOOL_LABELS[type] || type;
     const getToolIcon = (type: string) => TOOL_ICONS[type] || 'build';
+    const isSmallModelTextTool = (call: ToolCall): boolean =>
+      SMALL_MODEL_TEXT_TOOLS.has(call.type);
 
     const buildLookupQueryLabels = (call: ToolCall): string[] => {
       const labels: string[] = [];
@@ -638,7 +646,7 @@ export default defineComponent({
         const result = call.result as TranscriptResult;
         return !!(result?.transcript?.text || result?.title || result?.bvid);
       }
-      if (call.type === 'run_small_llm_task') {
+      if (isSmallModelTextTool(call)) {
         const result = call.result as SmallTaskResult;
         return (
           call.status === 'streaming' ||
@@ -662,7 +670,7 @@ export default defineComponent({
     const getResultsWrapperClasses = (call: ToolCall, idx: number) => ({
       expanded: expanded.value[idx] || isAlwaysExpanded(call),
       'tool-call-results-wrapper--small-task':
-        call.type === 'run_small_llm_task',
+        isSmallModelTextTool(call),
     });
 
     /** 获取所有视频结果（合并所有 query 的结果） */
@@ -757,7 +765,7 @@ export default defineComponent({
         }
         return '已读取';
       }
-      if (call.type === 'run_small_llm_task') {
+      if (isSmallModelTextTool(call)) {
         return call.status === 'streaming' ? '输出中' : '已生成';
       }
       if (call.type === 'check_author') {
@@ -852,7 +860,7 @@ export default defineComponent({
     };
 
     const getSmallTaskResult = (call: ToolCall): SmallTaskResult => {
-      if (call.type !== 'run_small_llm_task' || !call.result) return {};
+      if (!isSmallModelTextTool(call) || !call.result) return {};
       return (call.result as SmallTaskResult) || {};
     };
 
@@ -868,7 +876,7 @@ export default defineComponent({
     };
 
     const getStreamingStatusText = (call: ToolCall): string =>
-      call.type === 'run_small_llm_task' ? '生成中...' : '执行中...';
+      isSmallModelTextTool(call) ? '生成中...' : '执行中...';
 
     const getSmallTaskResultClasses = (call: ToolCall) => ({
       'tool-text-result--small-task': true,
@@ -977,7 +985,7 @@ export default defineComponent({
       nextTick(() => {
         visibleToolCalls.value.forEach((call, idx) => {
           if (
-            call.type !== 'run_small_llm_task' ||
+            !isSmallModelTextTool(call) ||
             call.status !== 'streaming'
           ) {
             return;
@@ -1013,7 +1021,7 @@ export default defineComponent({
       () =>
         visibleToolCalls.value.map((call) => {
           const smallTaskResult =
-            call.type === 'run_small_llm_task'
+            isSmallModelTextTool(call)
               ? String(
                   (call.result as SmallTaskResult | undefined)?.result || ''
                 )
@@ -1033,7 +1041,7 @@ export default defineComponent({
           const previousStatus = previousStatuses.value[idx];
           nextStatuses[idx] = call.status;
 
-          if (call.type === 'run_small_llm_task') {
+          if (isSmallModelTextTool(call)) {
             if (call.status === 'streaming' && previousStatus !== 'streaming') {
               if (previousExpanded !== true) {
                 anchorsToRestore.push(captureScrollAnchor(idx));
@@ -1128,6 +1136,7 @@ export default defineComponent({
       collapseAndScroll,
       getToolLabel,
       getToolIcon,
+      isSmallModelTextTool,
       getToolError,
       getQueryList,
       formatToolArgs,

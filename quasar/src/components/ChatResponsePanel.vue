@@ -628,7 +628,7 @@ export default defineComponent({
     const currentMode = computed(() => searchModeStore.currentMode);
     const showEmptyState = computed(() => {
       return (
-        currentMode.value !== 'tool' &&
+        currentMode.value !== 'utility' &&
         historyMessages.value.length === 0 &&
         !userQuery.value &&
         !isLoading.value &&

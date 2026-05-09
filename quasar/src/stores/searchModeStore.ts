@@ -15,10 +15,18 @@ export {
     type SearchModeOption,
 };
 
+export const normalizeSearchMode = (mode: string | null | undefined): SearchMode => {
+    if (mode === 'tool') return 'utility';
+    if (mode === 'utility' || mode === 'smart' || mode === 'think' || mode === 'research') {
+        return mode;
+    }
+    return 'smart';
+};
+
 export const useSearchModeStore = defineStore('searchMode', {
     state: () => ({
         /** 当前搜索模式 */
-        currentMode: (localStorage.getItem('searchMode') as SearchMode) || 'smart' as SearchMode,
+        currentMode: normalizeSearchMode(localStorage.getItem('searchMode')),
         /** 首次会话提交时的模式（用于决定布局方式） */
         initialSessionMode: null as SearchMode | null,
     }),
@@ -29,9 +37,9 @@ export const useSearchModeStore = defineStore('searchMode', {
             return getSearchMode(this.currentMode);
         },
 
-        /** 是否为工具调用模式 */
+        /** 是否为实用工具模式 */
         isToolMode(): boolean {
-            return this.currentMode === 'tool';
+            return this.currentMode === 'utility';
         },
 
         /** 是否为 LLM 聊天模式（快速问答/智能思考/深度研究） */
@@ -55,14 +63,15 @@ export const useSearchModeStore = defineStore('searchMode', {
     actions: {
         /** 设置搜索模式 */
         setMode(mode: SearchMode) {
-            this.currentMode = mode;
-            localStorage.setItem('searchMode', mode);
+            const normalized = normalizeSearchMode(mode);
+            this.currentMode = normalized;
+            localStorage.setItem('searchMode', normalized);
         },
 
         /** 记录首次会话的模式 */
         setInitialSessionMode(mode: SearchMode) {
             if (this.initialSessionMode === null) {
-                this.initialSessionMode = mode;
+                this.initialSessionMode = normalizeSearchMode(mode);
             }
         },
 
@@ -71,7 +80,7 @@ export const useSearchModeStore = defineStore('searchMode', {
          * 与 setInitialSessionMode 不同，此方法总是覆盖当前值
          */
         forceInitialSessionMode(mode: SearchMode) {
-            this.initialSessionMode = mode;
+            this.initialSessionMode = normalizeSearchMode(mode);
         },
 
         /** 重置首次会话模式（开始新对话时调用） */

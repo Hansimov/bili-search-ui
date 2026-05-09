@@ -35,11 +35,11 @@
       />
     </transition>
 
-    <!-- 工具调用模式：显示工具结果，视频类工具同时显示视频列表 -->
+    <!-- 实用工具模式：显示工具结果，视频类工具同时显示视频列表 -->
     <div v-if="!showChatPanel" class="results-panels-card">
       <SearchModeEmptyState
         v-if="showToolEmptyLanding"
-        mode="tool"
+        mode="utility"
         variant="page"
         class="results-empty-landing"
       />
@@ -186,7 +186,7 @@ export default {
       const hasDraftQuery = !!queryStore.query?.trim();
       const hasSubmittedQuery = !!exploreStore.submittedQuery?.trim();
       return (
-        searchModeStore.currentMode === 'tool' &&
+        searchModeStore.currentMode === 'utility' &&
         !isChatMode.value &&
         !hasDraftQuery &&
         !hasSubmittedQuery &&

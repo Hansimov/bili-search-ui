@@ -2,7 +2,7 @@
  * Chat function - 聊天模式的入口函数
  *
  * 处理 "快速问答" (smart) 和 "智能思考" (think) 模式的查询提交。
- * 类似于 toolCall.ts 对“工具调用”模式的处理。
+ * 类似于 utility/toolCall.ts 对“实用工具”模式的处理。
  *
  * Chat 模式使用 session_id 标识会话，URL 格式为 /chat/<session_id>
  * 而非 /chat?q=<query>，因为自然语言查询不适合暴露在 URL 中。
@@ -91,7 +91,7 @@ export const chat = async ({
 
 /**
  * 根据当前搜索模式提交查询的统一入口
- * 自动判断是使用工具调用还是 chat
+ * 自动判断是使用实用工具还是 chat
  */
 export const submitByMode = async ({
     queryValue,
@@ -141,7 +141,7 @@ export const submitCurrentModeQuery = async ({
     const inputHistoryStore = useInputHistoryStore();
 
     const submittedQuery =
-        mode === 'tool'
+        mode === 'tool' || mode === 'utility'
             ? normalizeToolCommandInput(queryValue).trim()
             : queryValue.trim();
     if (!submittedQuery) {

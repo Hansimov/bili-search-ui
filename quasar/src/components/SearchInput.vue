@@ -240,7 +240,7 @@ export default {
     };
     const onCompositionEnd = () => {
       isComposing.value = false;
-      if (currentMode.value !== 'tool') return;
+      if (currentMode.value !== 'utility') return;
       const normalized = normalizeToolCommandInput(queryModel.value);
       if (normalized === queryModel.value) return;
       queryModel.value = normalized;
@@ -261,7 +261,7 @@ export default {
       () => getSearchMode(searchModeStore.currentMode).theme.quasarColor
     );
     const stopButtonColor = computed(() =>
-      searchModeStore.currentMode === 'tool'
+      searchModeStore.currentMode === 'utility'
         ? 'grey-6'
         : currentModeIconColor.value
     );
@@ -287,6 +287,7 @@ export default {
 
     /** 模式简短标签（未选中未悬浮时显示） */
     const SHORT_MODE_LABELS: Record<SearchMode, string> = {
+      utility: '工具',
       tool: '工具',
       smart: '问答',
       think: '思考',
@@ -318,13 +319,14 @@ export default {
     const COMPACT_MODE_PLACEHOLDERS: Partial<Record<SearchMode, string>> = {
       smart: '问答 · 快速回答',
       think: '思考 · 深度思考，详细回答',
+      utility: '工具 · /videos /owners /google',
       tool: '工具 · /videos /owners /google',
       research: '研究 · 深度研究',
     };
 
     const completeToolCommand = () => {
       if (
-        currentMode.value !== 'tool' ||
+        currentMode.value !== 'utility' ||
         !hasUnterminatedToolCommand(displayValue.value)
       ) {
         return false;
@@ -399,7 +401,7 @@ export default {
       suppressSuggest.value = false;
       const target = event.target as HTMLTextAreaElement;
       const nextValue =
-        currentMode.value === 'tool'
+        currentMode.value === 'utility'
           ? normalizeToolCommandInput(target.value)
           : target.value;
       if (nextValue !== target.value) {
@@ -705,7 +707,7 @@ export default {
       const mode = searchModeStore.currentMode;
       const rawSubmittedQuery = queryModel.value;
       const submittedQuery =
-        mode === 'tool'
+        mode === 'utility' || mode === 'tool'
           ? normalizeToolCommandInput(rawSubmittedQuery)
           : rawSubmittedQuery;
       const shouldClearImmediately =
@@ -758,7 +760,7 @@ export default {
     };
 
     // URL 驱动的搜索
-    // - route.query.q 变化时触发工具调用
+    // - route.query.q 变化时触发实用工具
     // - route.params.sessionId 变化时尝试恢复 chat 会话（快速问答/智能思考模式）
     // LLM 聊天仅在用户显式提交（回车/点击发送）时触发
     watch(
@@ -770,7 +772,7 @@ export default {
           }
           // 从 URL 恢复搜索模式
           const urlMode = route.query.mode as string | undefined;
-          if (urlMode && ['smart', 'think', 'tool'].includes(urlMode)) {
+          if (urlMode && ['smart', 'think', 'utility', 'tool'].includes(urlMode)) {
             searchModeStore.setMode(urlMode as SearchMode);
           }
 
@@ -795,10 +797,11 @@ export default {
               ? searchHistoryStore.items.find(
                   (item) =>
                     item.id === persistedRecordId &&
-                    (item.mode || 'tool') === 'tool' &&
+                    ((item.mode || 'utility') === 'utility' || item.mode === 'tool') &&
                     item.query === toolQuery
                 )
-              : searchHistoryStore.findLatestRecord(toolQuery, 'tool');
+              : searchHistoryStore.findLatestRecord(toolQuery, 'utility') ||
+                searchHistoryStore.findLatestRecord(toolQuery, 'tool');
 
             chatStore.setCurrentHistoryRecordId(toolHistoryItem?.id || null);
             if (toolHistoryItem) {

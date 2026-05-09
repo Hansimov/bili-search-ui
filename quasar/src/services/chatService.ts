@@ -158,7 +158,8 @@ function hasStreamingSmallTaskEvent(events: ToolEvent[] | undefined): boolean {
         events?.some((event) =>
             (event.calls || []).some(
                 (call) =>
-                    call.type === 'run_small_llm_task' &&
+                    (call.type === 'run_small_llm_task' ||
+                        call.type === 'summarize_transcript') &&
                     (call.status === 'streaming' || call.status === 'completed')
             )
         )

@@ -1,4 +1,4 @@
-export type SearchMode = 'tool' | 'smart' | 'think' | 'research';
+export type SearchMode = 'utility' | 'tool' | 'smart' | 'think' | 'research';
 
 export interface SearchModeTheme {
     quasarColor: string;
@@ -25,7 +25,7 @@ export interface SearchModeOption {
     description: string;
     placeholder: string;
     subtitle: string;
-    apiType: 'tool' | 'chat';
+    apiType: 'utility' | 'chat';
     theme: SearchModeTheme;
     helpSummary: string[];
     chatParams?: {
@@ -91,14 +91,14 @@ export const SEARCH_MODE_META: Record<SearchMode, SearchModeOption> = {
         helpSummary: ['适合复杂问题', '会先展示整理思路，再给出回答', '更偏分析型交互'],
         chatParams: { thinking: true },
     },
-    tool: {
-        value: 'tool',
-        label: '工具调用',
+    utility: {
+        value: 'utility',
+        label: '实用工具',
         icon: 'handyman',
-        description: '工具调用，输入 /videos /owners /explore 等命令',
-        placeholder: '工具调用 · 输入 / 选择工具，或直接输入关键词搜索视频',
-        subtitle: '输入 / 选择工具：/videos /owners /explore /google /transcript /llm',
-        apiType: 'tool',
+        description: '实用工具，输入 /videos /owners /explore 等命令',
+        placeholder: '实用工具 · 输入 / 选择工具，或直接输入关键词搜索视频',
+        subtitle: '输入 / 选择工具：/videos /owners /explore /google /transcript /llm /summarize',
+        apiType: 'utility',
         theme: {
             quasarColor: 'teal-5',
             light: {
@@ -116,7 +116,34 @@ export const SEARCH_MODE_META: Record<SearchMode, SearchModeOption> = {
                 borderColor: 'rgba(77, 182, 172, 0.2)',
             },
         },
-        helpSummary: ['支持显式工具命令', '默认无命令时等价 /videos', '适合快速查看工具原始结果'],
+        helpSummary: ['支持显式实用命令', '默认无命令时等价 /explore', '适合快速查看工具原始结果'],
+    },
+    tool: {
+        value: 'utility',
+        label: '实用工具',
+        icon: 'handyman',
+        description: '实用工具，输入 /videos /owners /explore 等命令',
+        placeholder: '实用工具 · 输入 / 选择工具，或直接输入关键词搜索视频',
+        subtitle: '输入 / 选择工具：/videos /owners /explore /google /transcript /llm /summarize',
+        apiType: 'utility',
+        theme: {
+            quasarColor: 'teal-5',
+            light: {
+                color: '#00897b',
+                background: 'rgba(0, 137, 123, 0.12)',
+                softBackground: 'rgba(0, 137, 123, 0.06)',
+                hoverBackground: 'rgba(0, 137, 123, 0.09)',
+                borderColor: 'rgba(0, 137, 123, 0.16)',
+            },
+            dark: {
+                color: '#4db6ac',
+                background: 'rgba(77, 182, 172, 0.18)',
+                softBackground: 'rgba(77, 182, 172, 0.1)',
+                hoverBackground: 'rgba(77, 182, 172, 0.14)',
+                borderColor: 'rgba(77, 182, 172, 0.2)',
+            },
+        },
+        helpSummary: ['支持显式实用命令', '默认无命令时等价 /explore', '适合快速查看工具原始结果'],
     },
     research: {
         value: 'research',
@@ -151,18 +178,20 @@ export const SEARCH_MODE_META: Record<SearchMode, SearchModeOption> = {
 export const SEARCH_MODES: SearchModeOption[] = [
     SEARCH_MODE_META.smart,
     SEARCH_MODE_META.think,
-    SEARCH_MODE_META.tool,
+    SEARCH_MODE_META.utility,
     SEARCH_MODE_META.research,
 ];
 
 export const SEARCH_MODE_PLACEHOLDERS: Record<SearchMode, string> = {
-    tool: SEARCH_MODE_META.tool.placeholder,
+    utility: SEARCH_MODE_META.utility.placeholder,
+    tool: SEARCH_MODE_META.utility.placeholder,
     smart: SEARCH_MODE_META.smart.placeholder,
     think: SEARCH_MODE_META.think.placeholder,
     research: SEARCH_MODE_META.research.placeholder,
 };
 
 export function getSearchMode(mode: SearchMode): SearchModeOption {
+    if (mode === 'tool') return SEARCH_MODE_META.utility;
     return SEARCH_MODE_META[mode] || SEARCH_MODE_META.smart;
 }
 

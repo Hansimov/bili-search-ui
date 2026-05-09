@@ -8,13 +8,16 @@ import { useChatStore } from 'src/stores/chatStore';
 import { cacheService, STORE_NAMES, EXPLORE_CACHE_TTL } from 'src/services/cacheService';
 import { getSmartSuggestService } from 'src/services/smartSuggestService';
 import { saveToolHistorySelection } from 'src/utils/toolHistorySelection';
-import { normalizeToolCommandInput } from 'src/config/toolCommands';
+import {
+    getActiveToolCommand,
+    normalizeToolCommandInput,
+} from 'src/config/toolCommands';
 import type { ToolCallResponse, ExploreStepResult } from 'src/stores/resultStore';
-import type { ToolCall } from 'src/services/chatService';
+import type { ToolCall, ToolEvent } from 'src/services/chatService';
 
 let toolCallAbortController = new AbortController();
 
-/** 中止当前的工具调用请求 */
+/** 中止当前的实用工具请求 */
 export const abortToolCall = () => {
     toolCallAbortController.abort();
     const exploreStore = useExploreStore();
@@ -60,7 +63,145 @@ const normalizeToolCall = (response: ToolCallResponse): ToolCall | null => {
     };
 };
 
-/** 缓存工具调用结果到 IndexedDB */
+const STREAMING_UTILITY_TOOLS = new Set([
+    'run_small_llm_task',
+    'summarize_transcript',
+]);
+
+const shouldUseUtilityStream = (queryValue: string): boolean => {
+    const activeCommand = getActiveToolCommand(queryValue);
+    return !!activeCommand && STREAMING_UTILITY_TOOLS.has(activeCommand.tool);
+};
+
+const normalizeToolCallFromEvent = (event: ToolEvent): ToolCall | null => {
+    const call = event.calls?.[0];
+    if (!call) return null;
+    return {
+        type: call.type,
+        args: call.args || {},
+        status: call.status || 'completed',
+        visibility: call.visibility || 'user',
+        result_id: call.result_id || 'D1',
+        summary: call.summary,
+        result: call.result,
+    };
+};
+
+const buildUtilityStepResults = (toolCall: ToolCall | null): ExploreStepResult[] => {
+    if (!toolCall) return [];
+    return [
+        {
+            step: 1,
+            name: toolCall.type,
+            name_zh:
+                toolCall.type === 'summarize_transcript'
+                    ? '总结转写'
+                    : toolCall.type === 'run_small_llm_task'
+                      ? '小模型'
+                      : toolCall.type,
+            status: toolCall.result &&
+                typeof toolCall.result === 'object' &&
+                'error' in (toolCall.result as Record<string, unknown>)
+                ? 'failed'
+                : 'finished',
+            input: toolCall.args,
+            output: { tool_result: toolCall.result || {} },
+            output_type: 'tool_result',
+            comment: '',
+        },
+    ];
+};
+
+const parseSseDataBlocks = (buffer: string): { blocks: string[]; rest: string } => {
+    const normalized = buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const chunks = normalized.split('\n\n');
+    return {
+        blocks: chunks.slice(0, -1),
+        rest: chunks[chunks.length - 1] || '',
+    };
+};
+
+const executeUtilityStream = async (
+    queryValue: string,
+    signal: AbortSignal,
+    onToolCall: (toolCall: ToolCall) => void,
+): Promise<ToolCall | null> => {
+    const response = await fetch('/api/utility/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: queryValue }),
+        signal,
+    });
+    if (!response.ok) {
+        throw new Error(`Utility stream error: ${response.status} ${response.statusText}`);
+    }
+    const reader = response.body?.getReader();
+    if (!reader) {
+        throw new Error('No utility stream response body');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let latestToolCall: ToolCall | null = null;
+
+    const processBlock = (block: string) => {
+        const dataLines = block
+            .split('\n')
+            .map((line) => line.replace(/\r$/, ''))
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.replace(/^data:\s?/, ''));
+        if (!dataLines.length) return;
+        const data = dataLines.join('\n').trim();
+        if (!data || data === '[DONE]') return;
+        const parsed = JSON.parse(data) as {
+            stream_id?: string;
+            error?: string;
+            tool_events?: ToolEvent[];
+        };
+        if (parsed.stream_id) return;
+        if (parsed.error) {
+            latestToolCall = {
+                type: 'unknown_tool',
+                args: {},
+                status: 'completed',
+                visibility: 'user',
+                result_id: 'D1',
+                result: parsed,
+            };
+            onToolCall(latestToolCall);
+            return;
+        }
+        for (const event of parsed.tool_events || []) {
+            const toolCall = normalizeToolCallFromEvent(event);
+            if (!toolCall) continue;
+            latestToolCall = toolCall;
+            onToolCall(toolCall);
+        }
+    };
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                buffer += decoder.decode();
+                if (buffer.trim()) processBlock(buffer);
+                break;
+            }
+            buffer += decoder.decode(value, { stream: true });
+            const parsed = parseSseDataBlocks(buffer);
+            buffer = parsed.rest;
+            for (const block of parsed.blocks) {
+                processBlock(block);
+            }
+        }
+    } finally {
+        reader.releaseLock();
+    }
+
+    return latestToolCall;
+};
+
+/** 缓存实用工具结果到 IndexedDB */
 const cacheToolCallResults = async (
     query: string,
     payload: ToolCallCachePayload
@@ -69,9 +210,9 @@ const cacheToolCallResults = async (
         const plainResults = JSON.parse(JSON.stringify(payload));
         await cacheService.set(
             STORE_NAMES.DATA,
-            `tool-call:${query}`,
+            `utility:${query}`,
             plainResults,
-            { ttl: EXPLORE_CACHE_TTL, namespace: 'tool-call-results' }
+            { ttl: EXPLORE_CACHE_TTL, namespace: 'utility-results' }
         );
         console.log(`[ToolCallCache] Cached results for: ${query}`);
     } catch (error) {
@@ -89,7 +230,11 @@ export const restoreToolCallFromCache = async (queryValue: string): Promise<bool
     if (!queryValue) return false;
 
     try {
-        const cached = await cacheService.get<ToolCallCachePayload>(
+        let cached = await cacheService.get<ToolCallCachePayload>(
+            STORE_NAMES.DATA,
+            `utility:${queryValue}`
+        );
+        cached ||= await cacheService.get<ToolCallCachePayload>(
             STORE_NAMES.DATA,
             `tool-call:${queryValue}`
         );
@@ -156,10 +301,46 @@ export const executeToolCall = async ({
         toolCallAbortController = new AbortController();
         const signal = toolCallAbortController.signal;
 
-        console.log(`> Tool call: [${queryValue}]`);
+        console.log(`> Utility: [${queryValue}]`);
+
+        if (shouldUseUtilityStream(queryValue)) {
+            let latestToolCall: ToolCall | null = null;
+            latestToolCall = await executeUtilityStream(
+                queryValue,
+                signal,
+                (toolCall) => {
+                    latestToolCall = toolCall;
+                    exploreStore.setToolCall(toolCall);
+                    exploreStore.setStepResults(buildUtilityStepResults(toolCall));
+                },
+            );
+
+            if (signal.aborted) {
+                console.warn('[ABORTED_BY_USER]');
+                return;
+            }
+
+            const stepResults = buildUtilityStepResults(latestToolCall);
+            exploreStore.setStepResults(stepResults);
+            exploreStore.setToolCall(latestToolCall);
+            await cacheToolCallResults(queryValue, {
+                stepResults,
+                toolCall: latestToolCall,
+            });
+
+            const searchModeStore = useSearchModeStore();
+            const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
+            if (currentMode === 'utility') {
+                const recordId = await searchHistoryStore.addRecord(queryValue, 0, currentMode);
+                chatStore.setCurrentHistoryRecordId(recordId);
+                saveToolHistorySelection(recordId, queryValue);
+            }
+            exploreStore.saveExploreSession();
+            return;
+        }
 
         const response = await api.post<ToolCallResponse>(
-            '/tool_call',
+            '/utility',
             { command: queryValue },
             { signal: signal }
         );
@@ -192,13 +373,13 @@ export const executeToolCall = async ({
                 }
             }
 
-            // 记录搜索历史（仅限工具调用模式，chat 模式由 chat.ts 处理）
+            // 记录搜索历史（仅限实用工具模式，chat 模式由 chat.ts 处理）
             const searchModeStore = useSearchModeStore();
             const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
             const totalHits = exploreResult.data.reduce(
                 (sum, step) => sum + (Array.isArray(step.output?.hits) ? step.output.hits.length : 0), 0
             );
-            if (currentMode === 'tool') {
+            if (currentMode === 'utility') {
                 const recordId = await searchHistoryStore.addRecord(
                     queryValue,
                     totalHits,
@@ -211,10 +392,10 @@ export const executeToolCall = async ({
             console.warn('[EMPTY_DATA]: No step results in response');
             exploreStore.setStepResults([]);
             exploreStore.setToolCall(toolCall);
-            // 即使无结果也记录搜索历史（仅限工具调用模式）
+            // 即使无结果也记录搜索历史（仅限实用工具模式）
             const searchModeStore = useSearchModeStore();
             const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
-            if (currentMode === 'tool') {
+            if (currentMode === 'utility') {
                 const recordId = await searchHistoryStore.addRecord(
                     queryValue,
                     0,

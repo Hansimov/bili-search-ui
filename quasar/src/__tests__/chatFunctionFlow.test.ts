@@ -145,12 +145,12 @@ describe('chat.ts flow', () => {
         );
     });
 
-    it('submitByMode 应将 tool 分流到工具调用，将 smart 分流到 chat', async () => {
+    it('submitByMode 应将 utility 分流到实用工具，将 smart 分流到 chat', async () => {
         const { submitByMode } = await import('src/functions/chat');
 
         await submitByMode({
             queryValue: 'direct query',
-            mode: 'tool',
+            mode: 'utility',
             setQuery: true,
             setRoute: true,
         });
@@ -175,12 +175,12 @@ describe('chat.ts flow', () => {
         );
     });
 
-    it('submitCurrentModeQuery 在 tool 模式应统一走工具调用并记录输入历史', async () => {
+    it('submitCurrentModeQuery 在 utility 模式应统一走实用工具并记录输入历史', async () => {
         const { submitCurrentModeQuery } = await import('src/functions/chat');
 
         await submitCurrentModeQuery({
             queryValue: 'direct query',
-            mode: 'tool',
+            mode: 'utility',
             recordInputHistory: true,
             setRoute: true,
         });
@@ -188,7 +188,7 @@ describe('chat.ts flow', () => {
         expect(mockLayoutStore.setIsSuggestVisible).toHaveBeenCalledWith(false);
         expect(mockLayoutStore.resetSuggestNavigation).toHaveBeenCalledTimes(1);
         expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith('direct query');
-        expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith('tool');
+        expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith('utility');
         expect(mockExecuteToolCall).toHaveBeenCalledWith({
             queryValue: 'direct query',
             setQuery: true,

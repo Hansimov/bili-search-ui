@@ -755,7 +755,7 @@ const onNavigate = () => {
 
 const searchFromHistory = async (item: SearchHistoryItem) => {
   const query = item.query;
-  const mode = item.mode || 'tool';
+  const mode = item.mode === 'tool' ? 'utility' : item.mode || 'utility';
   const isChatMode = mode === 'smart' || mode === 'think';
   const fallbackChatSnapshot = isChatMode
     ? item.chatSnapshot || {
@@ -799,7 +799,7 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
     chatStore.setCurrentHistoryRecordId(item.id);
     setTimeout(() => exploreStore.setRestoringSession(false), 200);
   } else {
-    // 工具调用模式：恢复结果
+    // 实用工具模式：恢复结果
     searchModeStore.setMode(mode as SearchMode);
     searchModeStore.resetInitialSessionMode();
     chatStore.startNewChat();
@@ -889,20 +889,20 @@ const isHistoryItemActive = (item: SearchHistoryItem): boolean => {
   }
 
   const currentRoute = router.currentRoute.value;
-  const itemMode = item.mode || 'tool';
+  const itemMode = item.mode === 'tool' ? 'utility' : item.mode || 'utility';
 
   if ((itemMode === 'smart' || itemMode === 'think') && item.sessionId) {
     return currentRoute.path === `/chat/${item.sessionId}`;
   }
 
-  if (itemMode === 'tool') {
+  if (itemMode === 'utility') {
     const routeQuery = currentRoute.query.q;
     const routeMode = currentRoute.query.mode;
     const isToolRoute =
       currentRoute.path === '/chat' &&
       typeof routeQuery === 'string' &&
       routeQuery === item.query &&
-      (routeMode == null || routeMode === 'tool');
+      (routeMode == null || routeMode === 'utility' || routeMode === 'tool');
 
     if (isToolRoute) {
       const persistedRecordId = getToolHistorySelectionRecordId(routeQuery);
@@ -912,7 +912,7 @@ const isHistoryItemActive = (item: SearchHistoryItem): boolean => {
 
       const latestToolRecord = searchHistoryStore.findLatestRecord(
         routeQuery,
-        'tool'
+        'utility'
       );
       if (latestToolRecord) {
         return latestToolRecord.id === item.id;
@@ -956,7 +956,7 @@ const getHistoryItemIconStyle = (
     };
   }
 
-  const theme = getSearchMode(item.mode || 'tool').theme;
+  const theme = getSearchMode(item.mode || 'utility').theme;
   return {
     color: isDark.value ? theme.dark.color : theme.light.color,
     opacity: '0.72',
@@ -983,7 +983,7 @@ const confirmRename = async () => {
 // Copy link
 const copiedItemId = ref<string | null>(null);
 const copySearchLink = async (query: string, itemId: string) => {
-  // Chat 模式使用 /chat/<sessionId> URL，工具调用模式使用 /chat?q=<query> URL
+  // Chat 模式使用 /chat/<sessionId> URL，实用工具模式使用 /chat?q=<query> URL
   const item = searchHistoryStore.items.find((i) => i.id === itemId);
   let url: string;
   if (item?.sessionId && (item.mode === 'smart' || item.mode === 'think')) {

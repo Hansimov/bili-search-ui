@@ -63,6 +63,15 @@ export const TOOL_COMMANDS: ToolCommandOption[] = [
         usage: '/llm 1+2=?',
         aliases: ['l', 'ai', 'sm'],
     },
+    {
+        command: '/summarize',
+        tool: 'summarize_transcript',
+        icon: 'summarize',
+        label: '总结',
+        description: '读取指定 BV 视频的完整转写，并用小模型生成中文总结',
+        usage: '/summarize BV1...',
+        aliases: ['s', 'sum', 'summary', 'smr'],
+    },
 ];
 
 const FIRST_NON_SPACE_ALT_SLASH_RE = /^(\s*)[、\\]/;

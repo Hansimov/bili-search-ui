@@ -12,7 +12,8 @@ const mockSearchModeStore = {
 vi.mock('src/stores/searchModeStore', () => ({
     useSearchModeStore: () => mockSearchModeStore,
     SEARCH_MODE_PLACEHOLDERS: {
-        tool: '工具调用 · 输入 / 选择工具，或直接输入关键词搜索视频',
+        utility: '实用工具 · 输入 / 选择工具，或直接输入关键词搜索视频',
+        tool: '实用工具 · 输入 / 选择工具，或直接输入关键词搜索视频',
         smart: '快速问答 · 输入问题，AI 快速回答',
         think: '智能思考 · 输入问题，返回 AI 思考过程和回答',
         research: '深度研究 · 输入研究计划，返回 AI 深度研究报告',
@@ -40,9 +41,9 @@ describe('IndexPage chat landing', () => {
         expect(wrapper.text()).toContain('输入问题，AI 快速回答');
     });
 
-    it('tool 模式首页也应显示标题与副标题', () => {
+    it('utility 模式首页也应显示标题与副标题', () => {
         mockSearchModeStore.isToolMode = true;
-        mockSearchModeStore.currentMode = 'tool';
+        mockSearchModeStore.currentMode = 'utility';
 
         const wrapper = mount(IndexPage, {
             global: {
@@ -53,7 +54,7 @@ describe('IndexPage chat landing', () => {
             },
         });
 
-        expect(wrapper.text()).toContain('工具调用');
+        expect(wrapper.text()).toContain('实用工具');
         expect(wrapper.text()).toContain('输入 / 选择工具');
     });
 });

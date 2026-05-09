@@ -192,7 +192,7 @@ export default {
     maxItems: { type: Number, default: 0 },
     /**
      * 显示模式：
-     * - 'normal': 正常模式（工具调用，全功能）
+     * - 'normal': 正常模式（实用工具，全功能）
      * - 'inline': 内联模式（聊天面板中缩略显示，带排序和加载更多）
      * - 'dialog': 对话框模式（弹窗中显示，类似正常但适配对话框尺寸）
      */
@@ -560,7 +560,7 @@ function _setup(props) {
   // Submitted query for loading display (not the live input value)
   const submittedQuery = computed(() => exploreStore.submittedQuery || '');
   const loadingLabel = computed(() =>
-    searchModeStore.currentMode === 'tool' ? '正在调用工具：' : '正在搜索：'
+    searchModeStore.currentMode === 'utility' ? '正在调用工具：' : '正在搜索：'
   );
 
   // Use composables
