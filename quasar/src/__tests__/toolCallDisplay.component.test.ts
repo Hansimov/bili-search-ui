@@ -54,6 +54,20 @@ const searchOwnersCall: ToolCall = {
                 sample_title: '何同学高能片段合集',
             },
         ],
+        source_groups: [
+            {
+                source: 'name',
+                label: '名字匹配',
+                total_owners: 1,
+                owners: [{ mid: 163637592, name: '老师好我叫何同学' }],
+            },
+            {
+                source: 'topic',
+                label: '主题发现',
+                total_owners: 1,
+                owners: [{ mid: 946974, name: '何同学切片' }],
+            },
+        ],
     },
 };
 
@@ -315,8 +329,11 @@ describe('ToolCallDisplay component', () => {
 
         await wrapper.find('.tool-call-header').trigger('click');
 
+        expect(wrapper.text()).toContain('综合');
+        expect(wrapper.text()).toContain('名字匹配');
+        expect(wrapper.text()).toContain('主题发现');
         const ownerCards = wrapper.findAll('.tool-owner-result');
-        expect(ownerCards).toHaveLength(2);
+        expect(ownerCards).toHaveLength(4);
         expect(ownerCards[0]?.text()).toContain('老师好我叫何同学');
         expect(ownerCards[0]?.text()).toContain('UID 163637592');
         expect(ownerCards[0]?.text()).not.toContain('代表作');
@@ -384,8 +401,8 @@ describe('ToolCallDisplay component', () => {
             },
         });
 
-        expect(wrapper.text()).toContain('小模型整理');
-        expect(wrapper.text()).toContain('整理中...');
+        expect(wrapper.text()).toContain('小模型');
+        expect(wrapper.text()).toContain('生成中...');
         expect(wrapper.text()).toContain('- 要点1');
         expect(wrapper.find('.tool-text-result').exists()).toBe(true);
         expect(wrapper.find('.tool-text-result-meta').exists()).toBe(false);
@@ -418,9 +435,9 @@ describe('ToolCallDisplay component', () => {
             },
         });
 
-        expect(wrapper.text()).toContain('小模型整理');
-        expect(wrapper.text()).toContain('整理中...');
-        expect(wrapper.text()).toContain('小模型已开始整理，等待首批内容...');
+        expect(wrapper.text()).toContain('小模型');
+        expect(wrapper.text()).toContain('生成中...');
+        expect(wrapper.text()).toContain('小模型已开始处理，等待首批内容...');
         expect(wrapper.find('.tool-text-result').exists()).toBe(true);
     });
 

@@ -5,6 +5,7 @@ export interface ToolCommandOption {
     label: string;
     description: string;
     usage: string;
+    aliases?: string[];
 }
 
 export const TOOL_COMMANDS: ToolCommandOption[] = [
@@ -15,6 +16,7 @@ export const TOOL_COMMANDS: ToolCommandOption[] = [
         label: '视频',
         description: '搜索 B 站视频，支持关键词和过滤器',
         usage: '/videos 黑神话 :date<=30d',
+        aliases: ['v', 'vd', 'video'],
     },
     {
         command: '/owners',
@@ -22,7 +24,8 @@ export const TOOL_COMMANDS: ToolCommandOption[] = [
         icon: 'person_search',
         label: '作者',
         description: '搜索作者、UP 主、别名和关联账号',
-        usage: '/owners 影视飓风 size=5',
+        usage: '/owners 影视飓风',
+        aliases: ['o', 'up', 'owner'],
     },
     {
         command: '/explore',
@@ -31,6 +34,7 @@ export const TOOL_COMMANDS: ToolCommandOption[] = [
         label: '探索',
         description: '使用探索搜索流程返回视频结果',
         usage: '/explore 红警月亮3',
+        aliases: ['e', 'exp'],
     },
     {
         command: '/google',
@@ -39,6 +43,7 @@ export const TOOL_COMMANDS: ToolCommandOption[] = [
         label: '网页',
         description: '搜索站外网页、官网、公告和事实来源',
         usage: '/google Gemini release notes num=5',
+        aliases: ['g', 'gg', 'web'],
     },
     {
         command: '/transcript',
@@ -47,14 +52,16 @@ export const TOOL_COMMANDS: ToolCommandOption[] = [
         label: '转写',
         description: '读取指定视频的音频转写或字幕',
         usage: '/transcript BV1...',
+        aliases: ['t', 'ts', 'scr', 'sub'],
     },
     {
         command: '/llm',
         tool: 'run_small_llm_task',
         icon: 'smart_toy',
-        label: '整理',
-        description: '让轻量模型执行关键词整理、压缩或归纳',
-        usage: '/llm 整理这组搜索关键词',
+        label: '小模型',
+        description: '让轻量模型执行计算、改写、抽取、压缩或归纳',
+        usage: '/llm 1+2=?',
+        aliases: ['l', 'ai', 'sm'],
     },
 ];
 
@@ -68,8 +75,34 @@ export const normalizeToolCommandInput = (value: string): string =>
 
 export const getToolCommandDraft = (value: string): string => {
     const normalized = normalizeToolCommandInput(value).trimStart();
-    const match = normalized.match(/^(\/\S*)$/);
+    const match = normalized.match(/^(\/?\S*)$/);
     return match?.[1] || '';
+};
+
+const normalizeCommandDraft = (value: string): string =>
+    String(value || '').replace(/^\//, '').toLowerCase();
+
+const commandMatchScore = (
+    item: ToolCommandOption,
+    draftValue: string
+): number => {
+    if (String(draftValue || '').trim() === '/') return 50;
+    const draft = normalizeCommandDraft(draftValue);
+    if (!draft) return -1;
+    const commandName = normalizeCommandDraft(item.command);
+    if (commandName === draft) return 100;
+    if (commandName.startsWith(draft)) return 90 - draft.length / 100;
+    const aliases = item.aliases || [];
+    if (aliases.some((alias) => alias.toLowerCase() === draft)) return 85;
+    if (aliases.some((alias) => alias.toLowerCase().startsWith(draft))) return 80;
+
+    let index = 0;
+    for (const char of draft) {
+        index = commandName.indexOf(char, index);
+        if (index < 0) return -1;
+        index += 1;
+    }
+    return 60 - commandName.length / 100;
 };
 
 export const getToolCommandSuggestions = (
@@ -77,12 +110,32 @@ export const getToolCommandSuggestions = (
 ): ToolCommandOption[] => {
     const draft = getToolCommandDraft(value);
     if (!draft) return [];
-    return TOOL_COMMANDS.filter((item) => item.command.startsWith(draft));
+    return TOOL_COMMANDS.map((item) => ({
+        item,
+        score: commandMatchScore(item, draft),
+    }))
+        .filter(({ score }) => score >= 0)
+        .sort((left, right) => right.score - left.score)
+        .map(({ item }) => item);
+};
+
+export const getActiveToolCommand = (
+    value: string
+): ToolCommandOption | null => {
+    const normalized = normalizeToolCommandInput(value).trimStart();
+    const token = normalized.split(/\s+/, 1)[0] || '';
+    const commandName = normalizeCommandDraft(token);
+    if (!commandName) return null;
+    return (
+        TOOL_COMMANDS.find(
+            (item) => normalizeCommandDraft(item.command) === commandName
+        ) || null
+    );
 };
 
 export const hasUnterminatedToolCommand = (value: string): boolean => {
     const normalized = normalizeToolCommandInput(value).trimStart();
-    return normalized.startsWith('/') && !/\s/.test(normalized);
+    return !!getToolCommandDraft(normalized) && !/\s/.test(normalized);
 };
 
 export const completeToolCommandText = (
@@ -91,6 +144,6 @@ export const completeToolCommandText = (
 ): string => {
     const normalized = normalizeToolCommandInput(value);
     const leading = normalized.match(/^\s*/)?.[0] || '';
-    const rest = normalized.trimStart().replace(/^\/\S*/, '').trimStart();
+    const rest = normalized.trimStart().replace(/^\/?\S*/, '').trimStart();
     return `${leading}${command}${rest ? ` ${rest}` : ' '}`;
 };

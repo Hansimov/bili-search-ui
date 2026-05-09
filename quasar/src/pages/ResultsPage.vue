@@ -645,14 +645,22 @@ body.body--dark .search-bar-row {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
   flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scroll-padding-bottom: calc(var(--search-bar-total-height, 84px) + 28px);
+  padding-bottom: calc(var(--search-bar-total-height, 84px) + 28px);
 }
 
 .tool-call-panel {
   width: var(--search-input-width);
   max-width: var(--search-input-max-width, 95vw);
   flex: 0 0 auto;
-  overflow-y: auto;
+  overflow-y: visible;
   padding: 8px 12px 10px;
 }
 

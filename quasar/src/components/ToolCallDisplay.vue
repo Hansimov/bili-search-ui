@@ -56,7 +56,7 @@
             v-else-if="call.status === 'streaming'"
             class="tool-call-status-streaming"
           >
-            整理中...
+            {{ getStreamingStatusText(call) }}
           </span>
           <span
             v-else-if="call.status === 'pending'"
@@ -295,42 +295,62 @@
 
             <div
               v-else-if="call.type === 'search_owners'"
-              class="tool-owner-results"
+              class="tool-owner-groups"
             >
               <div
-                v-for="(owner, oidx) in getOwnerResults(call)"
-                :key="`${owner.mid || owner.name || 'owner'}-${oidx}`"
-                class="tool-owner-result"
+                v-for="group in getOwnerGroups(call)"
+                :key="group.source"
+                class="tool-owner-group"
               >
-                <a
-                  v-if="owner.mid"
-                  class="tool-owner-mini-ref"
-                  :href="getOwnerHref(owner.mid)"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  @click.stop
-                >
-                  <span class="tool-owner-mini-meta">
-                    <span class="tool-owner-mini-name">
-                      {{ getOwnerDisplayName(owner) }}
-                    </span>
-                    <span class="tool-owner-mini-mid">
-                      {{ getOwnerUidText(owner.mid) }}
-                    </span>
-                  </span>
-                </a>
+                <div class="tool-owner-group-header">
+                  <span class="tool-owner-group-title">{{ group.label }}</span>
+                  <span class="tool-owner-group-count"
+                    >{{ group.total_owners }} 位</span
+                  >
+                </div>
+                <div class="tool-owner-results">
+                  <div
+                    v-for="(owner, oidx) in group.owners"
+                    :key="`${group.source}-${owner.mid || owner.name || 'owner'}-${oidx}`"
+                    class="tool-owner-result"
+                  >
+                    <a
+                      v-if="owner.mid"
+                      class="tool-owner-mini-ref"
+                      :href="getOwnerHref(owner.mid)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      @click.stop
+                    >
+                      <span class="tool-owner-mini-meta">
+                        <span class="tool-owner-mini-name">
+                          {{ getOwnerDisplayName(owner) }}
+                        </span>
+                        <span class="tool-owner-mini-mid">
+                          {{ getOwnerUidText(owner.mid) }}
+                        </span>
+                      </span>
+                    </a>
+                    <div
+                      v-else
+                      class="tool-owner-mini-ref tool-owner-mini-ref--disabled"
+                    >
+                      <span class="tool-owner-mini-meta">
+                        <span class="tool-owner-mini-name">
+                          {{ getOwnerDisplayName(owner, '未命名作者') }}
+                        </span>
+                        <span v-if="owner.mid" class="tool-owner-mini-mid">
+                          {{ getOwnerUidText(owner.mid) }}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
                 <div
-                  v-else
-                  class="tool-owner-mini-ref tool-owner-mini-ref--disabled"
+                  v-if="!group.owners.length && group.error"
+                  class="tool-owner-group-error"
                 >
-                  <span class="tool-owner-mini-meta">
-                    <span class="tool-owner-mini-name">
-                      {{ getOwnerDisplayName(owner, '未命名作者') }}
-                    </span>
-                    <span v-if="owner.mid" class="tool-owner-mini-mid">
-                      {{ getOwnerUidText(owner.mid) }}
-                    </span>
-                  </span>
+                  {{ group.error }}
                 </div>
               </div>
             </div>
@@ -403,6 +423,14 @@ interface OwnerResult {
   face?: string;
 }
 
+interface OwnerSourceGroup {
+  source: string;
+  label: string;
+  total_owners: number;
+  owners: OwnerResult[];
+  error?: string;
+}
+
 interface TranscriptResult {
   title?: string;
   bvid?: string;
@@ -435,7 +463,7 @@ const TOOL_LABELS: Record<string, string> = {
   check_author: '搜索作者',
   search_google: '搜索网页',
   get_video_transcript: '读取转写',
-  run_small_llm_task: '小模型整理',
+  run_small_llm_task: '小模型',
   related_tokens_by_tokens: '相关词补全',
   related_owners_by_tokens: '相关作者',
   related_videos_by_videos: '相关视频',
@@ -600,7 +628,11 @@ export default defineComponent({
       }
       if (call.type === 'search_owners') {
         const result = call.result as Record<string, unknown>;
-        return Array.isArray(result?.owners) && result.owners.length > 0;
+        return (
+          (Array.isArray(result?.owners) && result.owners.length > 0) ||
+          (Array.isArray(result?.source_groups) &&
+            result.source_groups.length > 0)
+        );
       }
       if (call.type === 'get_video_transcript') {
         const result = call.result as TranscriptResult;
@@ -762,6 +794,41 @@ export default defineComponent({
       return Array.isArray(owners) ? (owners as OwnerResult[]) : [];
     };
 
+    const getOwnerGroups = (call: ToolCall): OwnerSourceGroup[] => {
+      if (call.type !== 'search_owners' || !call.result) return [];
+      const result = call.result as Record<string, unknown>;
+      const groups: OwnerSourceGroup[] = [];
+      const aggregateOwners = getOwnerResults(call);
+      if (aggregateOwners.length) {
+        groups.push({
+          source: 'aggregate',
+          label: '综合',
+          total_owners: Number(result.total_owners || aggregateOwners.length),
+          owners: aggregateOwners,
+        });
+      }
+
+      const sourceGroups = result.source_groups;
+      if (Array.isArray(sourceGroups)) {
+        for (const group of sourceGroups as Array<Record<string, unknown>>) {
+          const owners = Array.isArray(group.owners)
+            ? (group.owners as OwnerResult[])
+            : [];
+          const source = String(group.source || group.label || 'source');
+          if (!owners.length && !group.error) continue;
+          groups.push({
+            source,
+            label: String(group.label || source),
+            total_owners: Number(group.total_owners || owners.length || 0),
+            owners,
+            error: group.error ? String(group.error) : undefined,
+          });
+        }
+      }
+
+      return groups;
+    };
+
     const getTranscriptResult = (call: ToolCall): TranscriptResult => {
       if (call.type !== 'get_video_transcript' || !call.result) return {};
       return (call.result as TranscriptResult) || {};
@@ -795,10 +862,13 @@ export default defineComponent({
         return resultText;
       }
       if (call.status === 'streaming') {
-        return '小模型已开始整理，等待首批内容...';
+        return '小模型已开始处理，等待首批内容...';
       }
       return '';
     };
+
+    const getStreamingStatusText = (call: ToolCall): string =>
+      call.type === 'run_small_llm_task' ? '生成中...' : '执行中...';
 
     const getSmallTaskResultClasses = (call: ToolCall) => ({
       'tool-text-result--small-task': true,
@@ -1075,11 +1145,13 @@ export default defineComponent({
       getGoogleResults,
       getGoogleDisplayedUrl,
       getOwnerResults,
+      getOwnerGroups,
       getTranscriptResult,
       getTranscriptVideoId,
       getTranscriptText,
       getSmallTaskResultClasses,
       getSmallTaskResultText,
+      getStreamingStatusText,
       formatGenericResult,
       getOwnerDisplayName,
       getOwnerHref,
@@ -1368,6 +1440,44 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.tool-owner-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tool-owner-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.tool-owner-group-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.tool-owner-group-title {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.78;
+}
+
+.tool-owner-group-count {
+  font-size: 11px;
+  opacity: 0.5;
+}
+
+.tool-owner-group-error {
+  font-size: 12px;
+  color: #c62828;
+  opacity: 0.82;
 }
 
 .tool-owner-results {

@@ -63,7 +63,10 @@ import {
   getSmartSuggestService,
   suggestIndexVersion,
 } from 'src/services/smartSuggestService';
-import { getToolCommandSuggestions } from 'src/config/toolCommands';
+import {
+  getActiveToolCommand,
+  getToolCommandSuggestions,
+} from 'src/config/toolCommands';
 
 const SuggestAuthorsList = defineAsyncComponent(() =>
   import('./SuggestAuthorsList.vue')
@@ -153,7 +156,10 @@ export default {
       if (searchModeStore.currentMode !== 'tool' || isQueryEmpty.value) {
         return false;
       }
-      return getToolCommandSuggestions(queryStore.query).length > 0;
+      return (
+        getToolCommandSuggestions(queryStore.query).length > 0 ||
+        !!getActiveToolCommand(queryStore.query)
+      );
     });
     // 有任何下拉内容要显示
     const hasSuggestContent = computed(() => {
