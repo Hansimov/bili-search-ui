@@ -651,7 +651,10 @@ body.body--dark .search-bar-row {
   align-items: center;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
   scrollbar-gutter: stable;
+  scroll-padding-top: 12px;
   scroll-padding-bottom: calc(var(--search-bar-total-height, 84px) + 28px);
   padding-bottom: calc(var(--search-bar-total-height, 84px) + 28px);
 }

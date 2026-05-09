@@ -42,6 +42,7 @@ onMounted(() => {
 
 <style>
 .app-main-content {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 </style>

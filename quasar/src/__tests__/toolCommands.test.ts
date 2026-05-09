@@ -26,6 +26,9 @@ describe('tool command helpers', () => {
         expect(getToolCommandSuggestions('/own').map((item) => item.command)).toEqual([
             '/owners',
         ]);
+        expect(getToolCommandSuggestions('/su').map((item) => item.command)).toEqual([
+            '/summarize',
+        ]);
         expect(getToolCommandSuggestions('vd')[0]?.command).toBe('/videos');
         expect(getToolCommandSuggestions('gg')[0]?.command).toBe('/google');
         expect(getToolCommandSuggestions('scr')[0]?.command).toBe('/transcript');

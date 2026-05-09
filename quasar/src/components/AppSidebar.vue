@@ -148,48 +148,129 @@
 
               <!-- 按时间分组的最近记录 -->
               <div
-                v-for="group in visibleGroupedRecentItems"
+                v-for="group in visibleGroupedRecentRows"
                 :key="group.label"
                 class="history-group"
               >
                 <div class="history-group-label">{{ group.label }}</div>
-                <div
-                  v-for="item in group.items"
-                  :key="'recent-' + item.id"
-                  class="history-item"
-                  :class="{ 'history-item-active': isHistoryItemActive(item) }"
-                  :title="getItemTooltip(item)"
-                  @click="searchFromHistory(item)"
-                >
-                  <q-icon
-                    :name="getHistoryItemIcon(item)"
-                    size="14px"
-                    class="history-item-icon"
-                    :style="getHistoryItemIconStyle(item)"
-                  />
-                  <span class="history-item-text">
-                    {{ item.displayName || item.query }}
-                  </span>
-                  <transition name="fade">
-                    <span
-                      v-if="copiedItemId === item.id"
-                      class="copied-indicator"
+                <template v-for="row in group.rows" :key="getHistoryRowKey(row)">
+                  <div v-if="isHistorySubGroup(row)" class="history-subgroup">
+                    <div
+                      class="history-item history-subgroup-header"
+                      :class="{
+                        'history-item-active': isHistorySubGroupActive(row),
+                      }"
+                      :title="getHistorySubGroupTooltip(row)"
+                      @click="toggleHistorySubGroup(row.id)"
                     >
-                      链接已复制
-                    </span>
-                  </transition>
-                  <span class="history-item-right">
-                    <q-btn
-                      flat
-                      round
-                      dense
-                      icon="more_vert"
-                      size="xs"
-                      class="history-more-btn"
-                      @click.stop="openHistoryActionMenu($event, item)"
+                      <q-icon
+                        :name="getHistorySubGroupIcon(row)"
+                        size="14px"
+                        class="history-item-icon"
+                        :style="getHistoryItemIconStyle(row.items[0])"
+                      />
+                      <span class="history-item-text history-subgroup-text">
+                        <span class="history-subgroup-command">
+                          {{ row.command }}
+                        </span>
+                        <span class="history-subgroup-count">
+                          {{ row.items.length }} 次
+                        </span>
+                      </span>
+                      <span class="history-item-right">
+                        <q-icon
+                          :name="
+                            isHistorySubGroupExpanded(row.id)
+                              ? 'expand_less'
+                              : 'expand_more'
+                          "
+                          size="18px"
+                          class="history-subgroup-toggle"
+                        />
+                      </span>
+                    </div>
+                    <div
+                      v-if="isHistorySubGroupExpanded(row.id)"
+                      class="history-subgroup-items"
+                    >
+                      <div
+                        v-for="item in row.items"
+                        :key="'sub-' + item.id"
+                        class="history-item history-item-sub"
+                        :class="{
+                          'history-item-active': isHistoryItemActive(item),
+                        }"
+                        :title="getItemTooltip(item)"
+                        @click="searchFromHistory(item)"
+                      >
+                        <q-icon
+                          :name="getHistoryItemIcon(item)"
+                          size="14px"
+                          class="history-item-icon"
+                          :style="getHistoryItemIconStyle(item)"
+                        />
+                        <span class="history-item-text">
+                          {{ item.displayName || item.query }}
+                        </span>
+                        <transition name="fade">
+                          <span
+                            v-if="copiedItemId === item.id"
+                            class="copied-indicator"
+                          >
+                            链接已复制
+                          </span>
+                        </transition>
+                        <span class="history-item-right">
+                          <q-btn
+                            flat
+                            round
+                            dense
+                            icon="more_vert"
+                            size="xs"
+                            class="history-more-btn"
+                            @click.stop="openHistoryActionMenu($event, item)"
+                          />
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    v-else
+                    class="history-item"
+                    :class="{ 'history-item-active': isHistoryItemActive(row) }"
+                    :title="getItemTooltip(row)"
+                    @click="searchFromHistory(row)"
+                  >
+                    <q-icon
+                      :name="getHistoryItemIcon(row)"
+                      size="14px"
+                      class="history-item-icon"
+                      :style="getHistoryItemIconStyle(row)"
                     />
-                  </span>
-                </div>
+                    <span class="history-item-text">
+                      {{ row.displayName || row.query }}
+                    </span>
+                    <transition name="fade">
+                      <span
+                        v-if="copiedItemId === row.id"
+                        class="copied-indicator"
+                      >
+                        链接已复制
+                      </span>
+                    </transition>
+                    <span class="history-item-right">
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        icon="more_vert"
+                        size="xs"
+                        class="history-more-btn"
+                        @click.stop="openHistoryActionMenu($event, row)"
+                      />
+                    </span>
+                  </div>
+                </template>
               </div>
             </template>
           </q-scroll-area>
@@ -604,6 +685,7 @@ import {
   getToolHistorySelectionRecordId,
   saveToolHistorySelection,
 } from 'src/utils/toolHistorySelection';
+import { normalizeToolCommandInput } from 'src/config/toolCommands';
 import { getDocumentZoom, viewportPxToCssPx } from 'src/utils/zoom';
 import { scheduleAfterInitialRender } from 'src/utils/schedule';
 
@@ -655,6 +737,21 @@ let hasRequestedHistoryLoad = false;
 // History lazy-loading: only render up to this many recent items initially
 const HISTORY_PAGE_SIZE = 25;
 const historyDisplayLimit = ref(HISTORY_PAGE_SIZE);
+const expandedHistorySubGroups = ref<Record<string, boolean>>({});
+
+interface HistorySubGroup {
+  kind: 'utility-subgroup';
+  id: string;
+  command: string;
+  items: SearchHistoryItem[];
+}
+
+type HistoryRow = SearchHistoryItem | HistorySubGroup;
+
+interface HistoryRowGroup {
+  label: string;
+  rows: HistoryRow[];
+}
 
 // Dark mode
 const isDark = ref(JSON.parse(localStorage.getItem('isDark') || 'true'));
@@ -881,7 +978,96 @@ const clearHistory = async () => {
   await resetCurrentViewState();
   showClearHistoryDialog.value = false;
   historyDisplayLimit.value = HISTORY_PAGE_SIZE;
+  expandedHistorySubGroups.value = {};
 };
+
+const getUtilityHistoryCommand = (item: SearchHistoryItem): string | null => {
+  const mode = item.mode === 'tool' ? 'utility' : item.mode || 'utility';
+  if (mode !== 'utility') return null;
+  const normalized = normalizeToolCommandInput(item.query).trim();
+  if (!normalized) return null;
+  if (!normalized.startsWith('/')) return '/explore';
+  return (normalized.split(/\s+/, 1)[0] || '').toLowerCase() || null;
+};
+
+const isHistorySubGroup = (row: HistoryRow): row is HistorySubGroup =>
+  'kind' in row && row.kind === 'utility-subgroup';
+
+const getHistoryRowKey = (row: HistoryRow): string =>
+  isHistorySubGroup(row) ? row.id : `recent-${row.id}`;
+
+const buildHistorySubGroupId = (
+  label: string,
+  command: string,
+  items: SearchHistoryItem[]
+): string => {
+  const newest = items[0]?.id || 'new';
+  const oldest = items[items.length - 1]?.id || 'old';
+  return `utility-subgroup:${label}:${command}:${newest}:${oldest}:${items.length}`;
+};
+
+const groupConsecutiveUtilityItems = (
+  label: string,
+  items: SearchHistoryItem[]
+): HistoryRow[] => {
+  const rows: HistoryRow[] = [];
+  let buffer: SearchHistoryItem[] = [];
+  let bufferCommand: string | null = null;
+
+  const flush = () => {
+    if (buffer.length >= 2 && bufferCommand) {
+      rows.push({
+        kind: 'utility-subgroup',
+        id: buildHistorySubGroupId(label, bufferCommand, buffer),
+        command: bufferCommand,
+        items: [...buffer],
+      });
+    } else {
+      rows.push(...buffer);
+    }
+    buffer = [];
+    bufferCommand = null;
+  };
+
+  for (const item of items) {
+    const command = getUtilityHistoryCommand(item);
+    if (!command) {
+      flush();
+      rows.push(item);
+      continue;
+    }
+    if (bufferCommand && command !== bufferCommand) {
+      flush();
+    }
+    bufferCommand = command;
+    buffer.push(item);
+  }
+  flush();
+  return rows;
+};
+
+const isHistorySubGroupExpanded = (id: string): boolean =>
+  !!expandedHistorySubGroups.value[id];
+
+const toggleHistorySubGroup = (id: string) => {
+  expandedHistorySubGroups.value = {
+    ...expandedHistorySubGroups.value,
+    [id]: !expandedHistorySubGroups.value[id],
+  };
+};
+
+const isHistorySubGroupActive = (group: HistorySubGroup): boolean =>
+  group.items.some((item) => isHistoryItemActive(item));
+
+const getHistorySubGroupTooltip = (group: HistorySubGroup): string => {
+  const latest = group.items[0];
+  return `${group.command} · ${group.items.length} 次\n最近：${
+    latest.displayName || latest.query
+  }\n${formatFullTime(latest.timestamp)}`;
+};
+
+const getHistorySubGroupIcon = (group: HistorySubGroup): string =>
+  getHistoryItemIcon(group.items[0]);
 
 const isHistoryItemActive = (item: SearchHistoryItem): boolean => {
   if (chatStore.currentHistoryRecordId) {
@@ -1240,25 +1426,21 @@ onMounted(() => {
 });
 
 // Lazy-loaded recent history: limits rendered items for performance
-const visibleGroupedRecentItems = computed(() => {
+const visibleGroupedRecentRows = computed((): HistoryRowGroup[] => {
   const allGroups = searchHistoryStore.groupedRecentItems;
   const limit = historyDisplayLimit.value;
-  const result: typeof allGroups = [];
+  const result: HistoryRowGroup[] = [];
   let count = 0;
 
   for (const group of allGroups) {
     if (count >= limit) break;
     const remaining = limit - count;
-    if (group.items.length <= remaining) {
-      result.push(group);
-      count += group.items.length;
-    } else {
-      result.push({
-        label: group.label,
-        items: group.items.slice(0, remaining),
-      });
-      count += remaining;
-    }
+    const items = group.items.slice(0, remaining);
+    result.push({
+      label: group.label,
+      rows: groupConsecutiveUtilityItems(group.label, items),
+    });
+    count += items.length;
   }
   return result;
 });
@@ -1608,6 +1790,47 @@ body.body--dark .nav-item-active {
   min-height: 32px;
   min-width: 0;
   overflow: hidden;
+}
+
+.history-subgroup {
+  min-width: 0;
+}
+
+.history-subgroup-header {
+  font-weight: 600;
+}
+
+.history-subgroup-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-subgroup-command {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-subgroup-count {
+  flex-shrink: 0;
+  font-size: 11px;
+  opacity: 0.52;
+  font-weight: 500;
+}
+
+.history-subgroup-toggle {
+  opacity: 0.42;
+}
+
+.history-subgroup-items {
+  margin: 1px 0 3px;
+}
+
+.history-item-sub {
+  margin-left: 18px;
+  padding-left: 10px;
+  grid-template-columns: 14px minmax(0, 1fr) 28px;
 }
 
 body.body--light .history-item:hover {

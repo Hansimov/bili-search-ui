@@ -52,7 +52,7 @@ export const TOOL_COMMANDS: ToolCommandOption[] = [
         label: '转写',
         description: '读取指定视频的音频转写或字幕',
         usage: '/transcript BV1...',
-        aliases: ['t', 'ts', 'scr', 'sub'],
+        aliases: ['t', 'ts', 'scr'],
     },
     {
         command: '/llm',

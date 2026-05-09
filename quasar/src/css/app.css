@@ -3,6 +3,8 @@
 /* Global zoom: 115% scaling */
 html {
   zoom: 1.15;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Root setting used by result title */
@@ -96,6 +98,12 @@ body.body--dark .result-owner-name hit {
 
 /* Scrollbar — 仅内部滚动容器使用，全局 body 不滚动 */
 body {
+  height: 100%;
+  overflow: hidden;
+}
+
+#q-app {
+  height: 100%;
   overflow: hidden;
 }
 

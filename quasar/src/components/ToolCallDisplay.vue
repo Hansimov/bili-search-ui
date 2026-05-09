@@ -880,7 +880,8 @@ export default defineComponent({
 
     const getSmallTaskResultClasses = (call: ToolCall) => ({
       'tool-text-result--small-task': true,
-      'tool-text-result--small-task-streaming': call.status === 'streaming',
+      'tool-text-result--small-task-streaming':
+        call.status === 'streaming' && !props.forceExpanded,
     });
 
     const formatGenericResult = (call: ToolCall): string => {
@@ -986,7 +987,8 @@ export default defineComponent({
         visibleToolCalls.value.forEach((call, idx) => {
           if (
             !isSmallModelTextTool(call) ||
-            call.status !== 'streaming'
+            call.status !== 'streaming' ||
+            props.forceExpanded
           ) {
             return;
           }
