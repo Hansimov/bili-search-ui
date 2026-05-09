@@ -152,7 +152,7 @@ export const submitCurrentModeQuery = async ({
     layoutStore.resetSuggestNavigation();
 
     if (recordInputHistory) {
-        inputHistoryStore.addRecord(submittedQuery);
+        inputHistoryStore.addRecord(submittedQuery, mode);
     }
 
     searchModeStore.setInitialSessionMode(mode);

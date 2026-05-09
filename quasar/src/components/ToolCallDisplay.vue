@@ -823,6 +823,7 @@ export default defineComponent({
             ? (group.owners as OwnerResult[])
             : [];
           const source = String(group.source || group.label || 'source');
+          if (source === 'related_tokens') continue;
           if (!owners.length && !group.error) continue;
           groups.push({
             source,

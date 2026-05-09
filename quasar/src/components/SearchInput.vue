@@ -319,8 +319,8 @@ export default {
     const COMPACT_MODE_PLACEHOLDERS: Partial<Record<SearchMode, string>> = {
       smart: '问答 · 快速回答',
       think: '思考 · 深度思考，详细回答',
-      utility: '工具 · /videos /owners /google',
-      tool: '工具 · /videos /owners /google',
+      utility: '工具 · 实用命令',
+      tool: '工具 · 实用命令',
       research: '研究 · 深度研究',
     };
 
@@ -604,8 +604,10 @@ export default {
       const smartService = getSmartSuggestService();
       inputHistoryStore.loadHistory();
       // 每次都刷新输入记录到索引（addFromHistory 内部会去重）
-      if (inputHistoryStore.items.length > 0) {
-        smartService.addFromHistory(inputHistoryStore.items);
+      const scopedHistory = inputHistoryStore.itemsForMode(currentMode.value);
+      smartService.clearHistoryEntries();
+      if (scopedHistory.length > 0) {
+        smartService.addFromHistory(scopedHistory);
       }
     };
 

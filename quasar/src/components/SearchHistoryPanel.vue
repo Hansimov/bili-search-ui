@@ -87,7 +87,7 @@ export default {
     const recentItems = computed(() => {
       // 按 query 去重，仅保留最新的一条（已按时间倒序）
       const seen = new Set<string>();
-      return inputHistoryStore.sortedItems.filter((item) => {
+      return inputHistoryStore.itemsForMode(searchModeStore.currentMode).filter((item) => {
         const key = item.query.toLowerCase();
         if (seen.has(key)) return false;
         seen.add(key);
@@ -134,7 +134,7 @@ export default {
     };
 
     const clearInputHistory = () => {
-      inputHistoryStore.clearAll();
+      inputHistoryStore.clearAll(searchModeStore.currentMode);
     };
 
     return {

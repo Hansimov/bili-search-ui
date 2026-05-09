@@ -43,6 +43,11 @@ const mockLayoutStore = {
 
 const mockInputHistoryStore = {
     sortedItems: [] as Array<{ id: string; query: string }>,
+    itemsForMode: vi.fn(() => [] as Array<{ id: string; query: string }>),
+};
+
+const mockSearchModeStore = {
+    currentMode: 'smart',
 };
 
 vi.mock('src/stores/searchStore', () => ({
@@ -59,6 +64,10 @@ vi.mock('src/stores/layoutStore', () => ({
 
 vi.mock('src/stores/inputHistoryStore', () => ({
     useInputHistoryStore: () => mockInputHistoryStore,
+}));
+
+vi.mock('src/stores/searchModeStore', () => ({
+    useSearchModeStore: () => mockSearchModeStore,
 }));
 
 vi.mock('src/services/smartSuggestService', () => ({
@@ -94,6 +103,8 @@ describe('SearchBar suggestion visibility', () => {
         mockQueryStore.query = 'hello';
         mockLayoutStore.isSuggestVisible = true;
         mockInputHistoryStore.sortedItems = [];
+        mockInputHistoryStore.itemsForMode.mockReturnValue([]);
+        mockSearchModeStore.currentMode = 'smart';
         mockSuggest.mockReturnValue([]);
         mockSuggestIndexVersion.value++;
     });
@@ -123,5 +134,15 @@ describe('SearchBar suggestion visibility', () => {
         const wrapper = mountSearchBar();
 
         expect(wrapper.find('.search-sub-container').exists()).toBe(false);
+    });
+
+    it('实用工具模式下空输入也应显示命令补全容器', () => {
+        mockSearchStore.isQueryEmpty = true;
+        mockQueryStore.query = '';
+        mockSearchModeStore.currentMode = 'utility';
+
+        const wrapper = mountSearchBar();
+
+        expect(wrapper.find('.search-sub-container').exists()).toBe(true);
     });
 });

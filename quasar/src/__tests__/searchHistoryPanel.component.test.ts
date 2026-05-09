@@ -15,6 +15,7 @@ const {
     mockInputHistoryStore: {
         loadHistory: vi.fn(),
         sortedItems: [] as InputHistoryItem[],
+        itemsForMode: vi.fn(() => [] as InputHistoryItem[]),
         removeRecord: vi.fn(),
         clearAll: vi.fn(),
     },
@@ -70,6 +71,7 @@ describe('SearchHistoryPanel component logic', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockInputHistoryStore.sortedItems = [];
+        mockInputHistoryStore.itemsForMode.mockReturnValue([]);
         mockSearchModeStore.currentMode = 'tool';
     });
 
@@ -89,13 +91,14 @@ describe('SearchHistoryPanel component logic', () => {
             id: 'id-1',
             query: 'foo',
             timestamp: Date.now(),
+            kind: 'chat',
         };
 
         vm.removeItem(item);
         vm.clearInputHistory();
 
         expect(mockInputHistoryStore.removeRecord).toHaveBeenCalledWith('id-1');
-        expect(mockInputHistoryStore.clearAll).toHaveBeenCalledTimes(1);
+        expect(mockInputHistoryStore.clearAll).toHaveBeenCalledWith('tool');
     });
 
     it('searchFromHistory 在 tool 模式应按当前模式提交并更新分页', async () => {
@@ -108,6 +111,7 @@ describe('SearchHistoryPanel component logic', () => {
             id: 'id-2',
             query: 'hello world',
             timestamp: Date.now(),
+            kind: 'utility',
         };
 
         await vm.searchFromHistory(item);
@@ -136,6 +140,7 @@ describe('SearchHistoryPanel component logic', () => {
             id: 'id-3',
             query: 'who are you',
             timestamp: Date.now(),
+            kind: 'chat',
         };
 
         for (const mode of ['smart', 'think', 'research'] as const) {
@@ -165,10 +170,13 @@ describe('SearchHistoryPanel component logic', () => {
     it('recentItems 应按 query 去重并保留最新记录', () => {
         const now = Date.now();
         mockInputHistoryStore.sortedItems = [
-            { id: 'new-a', query: 'dup', timestamp: now },
-            { id: 'b', query: 'other', timestamp: now - 10 },
-            { id: 'old-a', query: 'dup', timestamp: now - 20 },
+            { id: 'new-a', query: 'dup', timestamp: now, kind: 'chat' },
+            { id: 'b', query: 'other', timestamp: now - 10, kind: 'chat' },
+            { id: 'old-a', query: 'dup', timestamp: now - 20, kind: 'chat' },
         ];
+        mockInputHistoryStore.itemsForMode.mockReturnValue(
+            mockInputHistoryStore.sortedItems
+        );
 
         const wrapper = mountPanel();
         const vm = wrapper.vm as unknown as {

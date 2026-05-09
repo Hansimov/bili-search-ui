@@ -23,6 +23,8 @@ describe('tool command helpers', () => {
         expect(hasUnterminatedToolCommand('vd')).toBe(true);
         expect(hasUnterminatedToolCommand('/owners ')).toBe(false);
         expect(getToolCommandSuggestions('/').length).toBeGreaterThan(1);
+        expect(getToolCommandSuggestions('', { showAllWhenEmpty: true }).length).toBeGreaterThan(1);
+        expect(getToolCommandSuggestions('')).toEqual([]);
         expect(getToolCommandSuggestions('/own').map((item) => item.command)).toEqual([
             '/owners',
         ]);

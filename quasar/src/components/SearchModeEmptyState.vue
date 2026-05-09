@@ -16,7 +16,22 @@
       </div>
     </div>
 
-    <p class="search-mode-empty-state__subtitle">
+    <div
+      v-if="modeMeta.apiType === 'utility'"
+      class="search-mode-empty-state__subtitle search-mode-empty-state__utility-subtitle"
+    >
+      <span class="utility-subtitle-action">输入 / 选择工具</span>
+      <span class="utility-command-pills" aria-label="可用工具命令">
+        <span
+          v-for="command in utilityCommands"
+          :key="command"
+          class="utility-command-pill"
+        >
+          {{ command }}
+        </span>
+      </span>
+    </div>
+    <p v-else class="search-mode-empty-state__subtitle">
       {{ modeMeta.subtitle }}
     </p>
   </div>
@@ -46,6 +61,15 @@ const props = withDefaults(
 
 const modeMeta = computed(() => getSearchMode(props.mode));
 const titleStyleVars = computed(() => getSearchModeThemeVars(modeMeta.value));
+const utilityCommands = [
+  '/videos',
+  '/owners',
+  '/explore',
+  '/google',
+  '/transcript',
+  '/llm',
+  '/summarize',
+];
 </script>
 
 <style scoped lang="scss">
@@ -102,6 +126,37 @@ const titleStyleVars = computed(() => getSearchModeThemeVars(modeMeta.value));
   line-height: 1.5;
 }
 
+.search-mode-empty-state__utility-subtitle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.utility-subtitle-action {
+  font-weight: 600;
+}
+
+.utility-command-pills {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.utility-command-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border-radius: 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
 .search-mode-empty-state__quick-help {
   margin-top: 14px;
   flex: 0 1 auto;
@@ -128,6 +183,12 @@ body.body--light .search-mode-empty-state__subtitle {
   color: rgba(0, 0, 0, 0.62);
 }
 
+body.body--light .utility-command-pill {
+  color: var(--mode-light-color);
+  background: var(--mode-light-soft-background);
+  border: 1px solid var(--mode-light-border-color);
+}
+
 body.body--dark .search-mode-empty-state__title {
   color: var(--mode-dark-color);
   background: var(--mode-dark-background);
@@ -135,5 +196,11 @@ body.body--dark .search-mode-empty-state__title {
 
 body.body--dark .search-mode-empty-state__subtitle {
   color: rgba(255, 255, 255, 0.62);
+}
+
+body.body--dark .utility-command-pill {
+  color: var(--mode-dark-color);
+  background: var(--mode-dark-soft-background);
+  border: 1px solid var(--mode-dark-border-color);
 }
 </style>

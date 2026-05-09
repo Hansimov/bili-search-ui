@@ -150,12 +150,15 @@ export default {
       () => !isQueryEmpty.value && !!currentSuggestResult.value?.hits?.length
     );
     const showSearchHistory = computed(
-      () => isQueryEmpty.value && inputHistoryStore.sortedItems.length > 0
+      () =>
+        isQueryEmpty.value &&
+        inputHistoryStore.itemsForMode(searchModeStore.currentMode).length > 0
     );
     const showToolCommandSuggestions = computed(() => {
-      if (searchModeStore.currentMode !== 'utility' || isQueryEmpty.value) {
+      if (searchModeStore.currentMode !== 'utility') {
         return false;
       }
+      if (isQueryEmpty.value) return true;
       return (
         getToolCommandSuggestions(queryStore.query).length > 0 ||
         !!getActiveToolCommand(queryStore.query)

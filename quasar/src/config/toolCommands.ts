@@ -115,9 +115,11 @@ const commandMatchScore = (
 };
 
 export const getToolCommandSuggestions = (
-    value: string
+    value: string,
+    options: { showAllWhenEmpty?: boolean } = {}
 ): ToolCommandOption[] => {
     const draft = getToolCommandDraft(value);
+    if (!draft && options.showAllWhenEmpty) return TOOL_COMMANDS;
     if (!draft) return [];
     return TOOL_COMMANDS.map((item) => ({
         item,

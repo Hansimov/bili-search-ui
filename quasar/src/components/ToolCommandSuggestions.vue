@@ -46,7 +46,9 @@ import {
 const queryStore = useQueryStore();
 const layoutStore = useLayoutStore();
 
-const suggestions = computed(() => getToolCommandSuggestions(queryStore.query));
+const suggestions = computed(() =>
+  getToolCommandSuggestions(queryStore.query, { showAllWhenEmpty: true })
+);
 const activeCommand = computed(() => getActiveToolCommand(queryStore.query));
 
 const applyCommand = (command: string) => {

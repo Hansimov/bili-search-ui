@@ -67,6 +67,12 @@ const searchOwnersCall: ToolCall = {
                 total_owners: 1,
                 owners: [{ mid: 946974, name: '何同学切片' }],
             },
+            {
+                source: 'related_tokens',
+                label: '全局相关作者',
+                total_owners: 1,
+                owners: [{ mid: 123, name: '旧版重复来源' }],
+            },
         ],
     },
 };
@@ -332,6 +338,8 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('综合');
         expect(wrapper.text()).toContain('名字匹配');
         expect(wrapper.text()).toContain('主题发现');
+        expect(wrapper.text()).not.toContain('全局相关作者');
+        expect(wrapper.text()).not.toContain('旧版重复来源');
         const ownerCards = wrapper.findAll('.tool-owner-result');
         expect(ownerCards).toHaveLength(4);
         expect(ownerCards[0]?.text()).toContain('老师好我叫何同学');

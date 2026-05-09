@@ -47,6 +47,7 @@ describe('InputHistoryStore', () => {
 
         expect(store.totalCount).toBe(1);
         expect(store.items[0].query).toBe('hello world');
+        expect(store.items[0].kind).toBe('chat');
         expect(localStorageMock.setItem).toHaveBeenCalled();
     });
 
@@ -73,6 +74,23 @@ describe('InputHistoryStore', () => {
         expect(store.items[1].query).toBe('other');
 
         dateNowSpy.mockRestore();
+    });
+
+    it('addRecord 应隔离 chat 和 utility 输入记录', () => {
+        const store = useInputHistoryStore();
+
+        store.addRecord('hello world', 'smart');
+        store.addRecord('hello world', 'utility');
+        store.addRecord('/owners 影视飓风', 'utility');
+
+        expect(store.totalCount).toBe(3);
+        expect(store.itemsForMode('smart').map((item) => item.query)).toEqual([
+            'hello world',
+        ]);
+        expect(store.itemsForMode('utility').map((item) => item.query)).toEqual([
+            '/owners 影视飓风',
+            'hello world',
+        ]);
     });
 
     it('removeRecord 应删除记录并保持持久化同步', () => {
@@ -114,6 +132,7 @@ describe('InputHistoryStore', () => {
 
         expect(store.totalCount).toBe(2);
         expect(store.sortedItems.map((item) => item.query)).toEqual(['bar', 'foo']);
+        expect(store.sortedItems.map((item) => item.kind)).toEqual(['chat', 'chat']);
     });
 
     it('loadHistory 应清理历史中的重复输入并保留最新记录', () => {
@@ -152,7 +171,17 @@ describe('InputHistoryStore', () => {
 
         store.addRecord('a');
         store.addRecord('b');
-        store.clearAll();
+        store.clearAll('smart');
         expect(mockSmartService.clearHistoryEntries).toHaveBeenCalled();
+    });
+
+    it('clearAll 只清空当前类型输入记录', () => {
+        const store = useInputHistoryStore();
+
+        store.addRecord('chat question', 'smart');
+        store.addRecord('/videos 黑神话', 'utility');
+        store.clearAll('utility');
+
+        expect(store.items.map((item) => item.query)).toEqual(['chat question']);
     });
 });

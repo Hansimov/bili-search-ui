@@ -1,10 +1,14 @@
 import { defineStore } from 'pinia';
 import { getSmartSuggestService } from 'src/services/smartSuggestService';
+import type { SearchMode } from 'src/config/searchModes';
+
+export type InputHistoryKind = 'chat' | 'utility';
 
 export interface InputHistoryItem {
     id: string;
     query: string;
     timestamp: number;
+    kind: InputHistoryKind;
 }
 
 const INPUT_HISTORY_KEY = 'input-history.v1';
@@ -18,8 +22,22 @@ function normalizeQuery(query: string): string {
     return (query || '').trim().replace(/\s+/g, ' ');
 }
 
-function queryKey(query: string): string {
-    return normalizeQuery(query).toLowerCase();
+function normalizeInputHistoryKind(
+    kindOrMode?: InputHistoryKind | SearchMode | string | null,
+    query?: string
+): InputHistoryKind {
+    if (kindOrMode === 'utility' || kindOrMode === 'tool') return 'utility';
+    if (kindOrMode === 'chat' || kindOrMode === 'smart' || kindOrMode === 'think' || kindOrMode === 'research') {
+        return 'chat';
+    }
+    const normalizedQuery = normalizeQuery(query || '');
+    return normalizedQuery.startsWith('/') || normalizedQuery.startsWith('、') || normalizedQuery.startsWith('\\')
+        ? 'utility'
+        : 'chat';
+}
+
+function queryKey(query: string, kind: InputHistoryKind): string {
+    return `${kind}:${normalizeQuery(query).toLowerCase()}`;
 }
 
 function dedupeHistoryItems(items: InputHistoryItem[]): InputHistoryItem[] {
@@ -27,7 +45,7 @@ function dedupeHistoryItems(items: InputHistoryItem[]): InputHistoryItem[] {
     const sorted = [...items].sort((a, b) => b.timestamp - a.timestamp);
 
     return sorted.filter((item) => {
-        const key = queryKey(item.query);
+        const key = queryKey(item.query, item.kind);
         if (!key || seen.has(key)) {
             return false;
         }
@@ -36,11 +54,12 @@ function dedupeHistoryItems(items: InputHistoryItem[]): InputHistoryItem[] {
     });
 }
 
-function syncSuggestHistoryIndex(items: InputHistoryItem[]): void {
+function syncSuggestHistoryIndex(items: InputHistoryItem[], kind: InputHistoryKind): void {
     const smartService = getSmartSuggestService();
     smartService.clearHistoryEntries();
-    if (items.length > 0) {
-        smartService.addFromHistory(items);
+    const scopedItems = items.filter((item) => item.kind === kind);
+    if (scopedItems.length > 0) {
+        smartService.addFromHistory(scopedItems);
     }
 }
 
@@ -87,10 +106,12 @@ export const useInputHistoryStore = defineStore('inputHistory', {
                         const query = normalizeQuery(String(item.query || ''));
                         const timestamp = Number(item.timestamp || 0);
                         if (!query || !Number.isFinite(timestamp) || timestamp <= 0) return null;
+                        const kind = normalizeInputHistoryKind(item.kind || item.mode, query);
                         return {
                             id: typeof item.id === 'string' && item.id ? item.id : generateId(),
                             query,
                             timestamp,
+                            kind,
                         };
                     })
                     .filter((item): item is InputHistoryItem => Boolean(item));
@@ -130,14 +151,27 @@ export const useInputHistoryStore = defineStore('inputHistory', {
             }
         },
 
-        addRecord(query: string): void {
+        itemsForKind(kind: InputHistoryKind): InputHistoryItem[] {
+            this.loadHistory();
+            return this.sortedItems.filter((item) => item.kind === kind);
+        },
+
+        itemsForMode(mode: SearchMode | string): InputHistoryItem[] {
+            return this.itemsForKind(normalizeInputHistoryKind(mode));
+        },
+
+        addRecord(
+            query: string,
+            kindOrMode?: InputHistoryKind | SearchMode | string | null
+        ): void {
             this.loadHistory();
             const trimmedQuery = normalizeQuery(query);
             if (!trimmedQuery) return;
+            const kind = normalizeInputHistoryKind(kindOrMode, trimmedQuery);
 
             const now = Date.now();
             const existingIndex = this.items.findIndex(
-                (item) => queryKey(item.query) === queryKey(trimmedQuery)
+                (item) => queryKey(item.query, item.kind) === queryKey(trimmedQuery, kind)
             );
 
             if (existingIndex >= 0) {
@@ -147,12 +181,14 @@ export const useInputHistoryStore = defineStore('inputHistory', {
                     ...existingItem,
                     query: trimmedQuery,
                     timestamp: now,
+                    kind,
                 });
             } else {
                 this.items.unshift({
                     id: generateId(),
                     query: trimmedQuery,
                     timestamp: now,
+                    kind,
                 });
             }
 
@@ -161,23 +197,31 @@ export const useInputHistoryStore = defineStore('inputHistory', {
             }
 
             this.persistHistory();
-            syncSuggestHistoryIndex(this.items);
+            syncSuggestHistoryIndex(this.items, kind);
         },
 
         removeRecord(id: string): void {
             this.loadHistory();
             const next = this.items.filter((item) => item.id !== id);
             if (next.length === this.items.length) return;
+            const removedKind = this.items.find((item) => item.id === id)?.kind || 'chat';
             this.items = next;
             this.persistHistory();
-            syncSuggestHistoryIndex(this.items);
+            syncSuggestHistoryIndex(this.items, removedKind);
         },
 
-        clearAll(): void {
+        clearAll(kindOrMode?: InputHistoryKind | SearchMode | string | null): void {
             this.loadHistory();
-            this.items = [];
+            if (kindOrMode === undefined || kindOrMode === null) {
+                this.items = [];
+                this.persistHistory();
+                getSmartSuggestService().clearHistoryEntries();
+                return;
+            }
+            const kind = normalizeInputHistoryKind(kindOrMode);
+            this.items = this.items.filter((item) => item.kind !== kind);
             this.persistHistory();
-            syncSuggestHistoryIndex(this.items);
+            syncSuggestHistoryIndex(this.items, kind);
         },
     },
 });
