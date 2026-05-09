@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+
+import { describe, expect, it, vi } from 'vitest';
+
 import {
     DEFAULT_CHAT_EXPORT_OPTIONS,
     buildChatExportFileName,
     cloneChatExportOptions,
     filterChatExportBundle,
     generateChatExport,
+    generateChatExportFile,
 } from 'src/services/chatExport';
 import type { ChatExportSessionBundle } from 'src/stores/chatStore';
 
@@ -192,16 +196,17 @@ describe('chat export service', () => {
         options.sections.rawTimeline = false;
 
         const generated = generateChatExport(sampleBundle, options);
+        const content = generated.content as string;
 
         expect(generated.fileName.endsWith('.md')).toBe(true);
-        expect(generated.content).toContain('# Chat Session Export');
-        expect(generated.content).toContain('### 用户输入');
-        expect(generated.content).toContain('### 思考过程');
-        expect(generated.content).toContain('### 工具调用');
-        expect(generated.content).toContain('### 最终回答');
-        expect(generated.content).toContain('示例视频');
-        expect(generated.content).not.toContain('### 模型轨迹');
-        expect(generated.content).not.toContain('### 原始时间线');
+        expect(content).toContain('# Chat Session Export');
+        expect(content).toContain('### 用户输入');
+        expect(content).toContain('### 思考过程');
+        expect(content).toContain('### 工具调用');
+        expect(content).toContain('### 最终回答');
+        expect(content).toContain('示例视频');
+        expect(content).not.toContain('### 模型轨迹');
+        expect(content).not.toContain('### 原始时间线');
     });
 
     it('generates filtered json export without unselected tool results', () => {
@@ -211,7 +216,7 @@ describe('chat export service', () => {
         options.sections.rawTimeline = true;
 
         const generated = generateChatExport(sampleBundle, options);
-        const parsed = JSON.parse(generated.content) as {
+        const parsed = JSON.parse(generated.content as string) as {
             session: { mode: string };
             rounds: Array<{
                 user?: { content: string };
@@ -319,15 +324,16 @@ describe('chat export service', () => {
             bundleWithSparseParagraphs,
             cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS),
         );
+        const markdownContent = markdownExport.content as string;
 
-        expect(markdownExport.content).toContain('第一段\n\n\n第二段');
-        expect(markdownExport.content).toContain('回答开头\n\n\n回答结尾');
-        expect(markdownExport.content).not.toContain('\n\n\n\n');
+        expect(markdownContent).toContain('第一段\n\n\n第二段');
+        expect(markdownContent).toContain('回答开头\n\n\n回答结尾');
+        expect(markdownContent).not.toContain('\n\n\n\n');
 
         const jsonOptions = cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS);
         jsonOptions.format = 'json';
         const jsonExport = generateChatExport(bundleWithSparseParagraphs, jsonOptions);
-        const payload = JSON.parse(jsonExport.content) as {
+        const payload = JSON.parse(jsonExport.content as string) as {
             rounds: Array<{
                 user?: { content: string };
                 thinking?: { content: string };
@@ -338,5 +344,58 @@ describe('chat export service', () => {
         expect(payload.rounds[0]?.user?.content).toBe('第一段\n\n\n第二段');
         expect(payload.rounds[0]?.thinking?.content).toBe('第一段思考\n\n\n第二段思考');
         expect(payload.rounds[0]?.answer?.content).toBe('回答开头\n\n\n回答结尾');
+    });
+
+    it('builds png export metadata and uses a png blob for long-image export', async () => {
+        const options = cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS);
+        options.format = 'png';
+        options.pngTheme = 'dark';
+
+        class MockImage {
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            set src(_value: string) {
+                setTimeout(() => this.onload?.(), 0);
+            }
+        }
+        const context = {
+            drawImage: vi.fn(),
+        } as unknown as CanvasRenderingContext2D;
+        const canvas = {
+            width: 0,
+            height: 0,
+            getContext: vi.fn(() => context),
+            toBlob: vi.fn((callback: BlobCallback) => {
+                callback(new Blob(['png'], { type: 'image/png' }));
+            }),
+        } as unknown as HTMLCanvasElement;
+        const originalCreateElement = document.createElement.bind(document);
+        const originalImage = globalThis.Image;
+        const originalUrl = globalThis.URL;
+        vi.stubGlobal('Image', MockImage);
+        vi.stubGlobal('URL', {
+            createObjectURL: vi.fn(() => 'blob:chat-export-svg'),
+            revokeObjectURL: vi.fn(),
+        });
+        const createElementSpy = vi
+            .spyOn(document, 'createElement')
+            .mockImplementation((tagName: string) => {
+                if (tagName === 'canvas') {
+                    return canvas;
+                }
+                return originalCreateElement(tagName);
+            });
+
+        const generated = await generateChatExportFile(sampleBundle, options);
+
+        expect(generated.fileName.endsWith('.png')).toBe(true);
+        expect(generated.mimeType).toBe('image/png');
+        expect(generated.content).toBeInstanceOf(Blob);
+        expect((generated.content as Blob).type).toBe('image/png');
+        expect(context.drawImage).toHaveBeenCalled();
+
+        createElementSpy.mockRestore();
+        vi.stubGlobal('Image', originalImage);
+        vi.stubGlobal('URL', originalUrl);
     });
 });

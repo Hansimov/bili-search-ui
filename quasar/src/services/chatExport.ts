@@ -5,8 +5,10 @@ import type {
     ChatExportSessionBundle,
     ConversationMessage,
 } from 'src/stores/chatStore';
+import { renderMarkdown } from 'src/utils/markdown';
 
-export type ChatExportFormat = 'markdown' | 'json';
+export type ChatExportFormat = 'markdown' | 'json' | 'png';
+export type ChatExportPngTheme = 'light' | 'dark';
 
 export interface ChatExportSections {
     sessionMeta: boolean;
@@ -23,18 +25,20 @@ export interface ChatExportSections {
 export interface ChatExportOptions {
     format: ChatExportFormat;
     prettyJson: boolean;
+    pngTheme: ChatExportPngTheme;
     sections: ChatExportSections;
 }
 
 export interface GeneratedChatExport {
     fileName: string;
     mimeType: string;
-    content: string;
+    content: string | Blob;
 }
 
 export const DEFAULT_CHAT_EXPORT_OPTIONS: ChatExportOptions = {
     format: 'markdown',
     prettyJson: true,
+    pngTheme: 'light',
     sections: {
         sessionMeta: true,
         userInputs: true,
@@ -598,8 +602,592 @@ export function buildChatExportFileName(
 ): string {
     const query = buildChatExportSummary(bundle);
     const timestamp = buildTimestampTag(bundle.exportedAt);
-    const extension = format === 'markdown' ? 'md' : 'json';
+    const extension =
+        format === 'markdown' ? 'md' : format === 'json' ? 'json' : 'png';
     return `${query}-${timestamp}.${extension}`;
+}
+
+const PNG_EXPORT_WIDTH = 920;
+const PNG_EXPORT_PADDING_X = 36;
+const PNG_EXPORT_PADDING_Y = 34;
+const PNG_EXPORT_MAX_HEIGHT = 32767;
+
+const PNG_EXPORT_THEME: Record<ChatExportPngTheme, Record<string, string>> = {
+    light: {
+        background: '#f6f8fb',
+        panel: '#ffffff',
+        subtlePanel: '#f8fafc',
+        foreground: '#202939',
+        muted: '#667085',
+        heading: '#111827',
+        border: 'rgba(15, 23, 42, 0.10)',
+        accent: '#0f8fb8',
+        userBackground: 'rgba(128, 128, 128, 0.042)',
+        codeBackground: 'rgba(15, 23, 42, 0.055)',
+    },
+    dark: {
+        background: '#0f141d',
+        panel: '#161c27',
+        subtlePanel: 'rgba(255, 255, 255, 0.035)',
+        foreground: 'rgba(245, 247, 250, 0.92)',
+        muted: 'rgba(245, 247, 250, 0.58)',
+        heading: '#f8fafc',
+        border: 'rgba(255, 255, 255, 0.10)',
+        accent: '#23ade5',
+        userBackground: 'rgba(255, 255, 255, 0.055)',
+        codeBackground: 'rgba(255, 255, 255, 0.08)',
+    },
+};
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (blob) {
+                resolve(blob);
+                return;
+            }
+            reject(new Error('PNG 生成失败'));
+        }, 'image/png');
+    });
+}
+
+function escapeExportHtml(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function summarizeToolResult(call: FilteredToolCall): string {
+    const result = call.result as Record<string, unknown> | undefined;
+    if (!result) {
+        return call.status;
+    }
+
+    if (Array.isArray(result.hits)) {
+        return `${result.hits.length} 条视频结果`;
+    }
+    if (Array.isArray(result.owners)) {
+        return `${result.owners.length} 位作者`;
+    }
+    if (Array.isArray(result.results)) {
+        const total = result.results.reduce((count, item) => {
+            const hits = (item as { hits?: unknown[] }).hits;
+            return count + (Array.isArray(hits) ? hits.length : 0);
+        }, 0);
+        return `${total} 条视频结果`;
+    }
+    const transcript = result.transcript as { text_length?: number; text?: string } | undefined;
+    if (transcript?.text_length || transcript?.text) {
+        return `转写 ${transcript.text_length || transcript.text?.length || 0} 字`;
+    }
+    if (typeof result.result === 'string') {
+        return result.result.slice(0, 80);
+    }
+    return call.status;
+}
+
+function appendExportToolHtml(
+    parts: string[],
+    round: ChatExportRound,
+    options: ChatExportOptions,
+) {
+    const toolEvents = filterToolEvents(round, options);
+    if (!toolEvents.length) {
+        return;
+    }
+
+    parts.push('<div class="export-tool-stack">');
+    for (const event of toolEvents) {
+        for (const call of event.calls || []) {
+            const args = options.sections.toolInputs
+                ? formatToolArgsForExport(call.args || {})
+                : '';
+            parts.push(
+                `<div class="export-tool-card"><div class="export-tool-head"><span class="export-tool-icon">◆</span><span class="export-tool-name">${escapeExportHtml(call.type)}</span><span class="export-tool-status">${escapeExportHtml(call.status)}</span></div>`
+            );
+            if (args) {
+                parts.push(`<div class="export-tool-args">${escapeExportHtml(args)}</div>`);
+            }
+            if (options.sections.toolResults) {
+                parts.push(`<div class="export-tool-result">${escapeExportHtml(summarizeToolResult(call))}</div>`);
+            }
+            parts.push('</div>');
+        }
+    }
+    parts.push('</div>');
+}
+
+function formatToolArgsForExport(args: Record<string, unknown>): string {
+    const entries = Object.entries(args)
+        .filter(([, value]) => value != null && value !== '')
+        .slice(0, 4)
+        .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`);
+    return entries.join(' · ');
+}
+
+function renderExportMarkdown(content: string): string {
+    return renderMarkdown(normalizeExportTextContent(content || ''));
+}
+
+function buildPngExportHtml(
+    bundle: ChatExportSessionBundle,
+    options: ChatExportOptions,
+    theme: ChatExportPngTheme,
+): string {
+    const palette = PNG_EXPORT_THEME[theme];
+    const parts: string[] = [];
+    parts.push(
+        `<div class="chat-export-image chat-export-image--${theme}" xmlns="http://www.w3.org/1999/xhtml">`
+    );
+    parts.push(`<style>
+      * { box-sizing: border-box; }
+      .chat-export-image {
+        width: ${PNG_EXPORT_WIDTH}px;
+        padding: ${PNG_EXPORT_PADDING_Y}px ${PNG_EXPORT_PADDING_X}px;
+        background: ${palette.background};
+        color: ${palette.foreground};
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 16px;
+        line-height: 1.65;
+      }
+      .export-session-title {
+        margin: 0 0 18px;
+        color: ${palette.heading};
+        font-size: 18px;
+        font-weight: 650;
+      }
+      .export-round { margin: 0 0 24px; }
+      .export-user-query {
+        margin: 0 0 12px;
+        padding: 10px 14px;
+        border: 1px solid ${palette.border};
+        border-radius: 10px;
+        background: ${palette.userBackground};
+        color: ${palette.foreground};
+        font-weight: 560;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .export-answer-card,
+      .export-thinking-card,
+      .export-tool-card {
+        border: 1px solid ${palette.border};
+        border-radius: 10px;
+        background: ${palette.panel};
+      }
+      .export-answer-card { padding: 14px 16px; }
+      .export-thinking-card {
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        background: ${palette.subtlePanel};
+        color: ${palette.muted};
+        font-size: 14px;
+      }
+      .export-tool-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 0 0 12px;
+      }
+      .export-tool-card {
+        padding: 9px 11px;
+        background: ${palette.subtlePanel};
+        font-size: 13px;
+      }
+      .export-tool-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: ${palette.foreground};
+        font-weight: 600;
+      }
+      .export-tool-icon { color: ${palette.accent}; font-size: 10px; }
+      .export-tool-status {
+        margin-left: auto;
+        color: ${palette.muted};
+        font-weight: 500;
+      }
+      .export-tool-args,
+      .export-tool-result {
+        margin-top: 4px;
+        color: ${palette.muted};
+        word-break: break-word;
+      }
+      .export-perf {
+        margin-top: 8px;
+        color: ${palette.muted};
+        font-size: 12px;
+      }
+      .markdown-body { color: ${palette.foreground}; }
+      .markdown-body :first-child { margin-top: 0; }
+      .markdown-body :last-child { margin-bottom: 0; }
+      .markdown-body p { margin: 0 0 10px; }
+      .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
+        margin: 16px 0 8px;
+        color: ${palette.heading};
+        line-height: 1.35;
+      }
+      .markdown-body h1 { font-size: 24px; }
+      .markdown-body h2 { font-size: 21px; }
+      .markdown-body h3 { font-size: 18px; }
+      .markdown-body h4 { font-size: 16px; }
+      .markdown-body ul, .markdown-body ol { margin: 8px 0 12px; padding-left: 24px; }
+      .markdown-body li { margin: 4px 0; }
+      .markdown-body a { color: ${palette.accent}; text-decoration: none; }
+      .markdown-body code {
+        padding: 2px 5px;
+        border-radius: 5px;
+        background: ${palette.codeBackground};
+        color: ${palette.accent};
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+      .markdown-body pre {
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: ${palette.codeBackground};
+      }
+      .markdown-body blockquote {
+        margin: 8px 0;
+        padding: 6px 12px;
+        border-left: 3px solid ${palette.border};
+        color: ${palette.muted};
+      }
+    </style>`);
+
+    if (options.sections.sessionMeta) {
+        parts.push(
+            `<div class="export-session-title">${escapeExportHtml(getLatestQuery(bundle))}</div>`
+        );
+    }
+
+    bundle.rounds.forEach((round) => {
+        const userContent = normalizeExportTextContent(round.user?.content);
+        const answerContent = normalizeExportTextContent(round.assistant?.content);
+        parts.push('<section class="export-round">');
+        if (options.sections.userInputs && userContent) {
+            parts.push(`<div class="export-user-query">${escapeExportHtml(userContent)}</div>`);
+        }
+        if (options.sections.thinking) {
+            const thinkingText = getThinkingText(round.assistant);
+            if (thinkingText) {
+                parts.push(`<div class="export-thinking-card">${escapeExportHtml(thinkingText.slice(0, 900))}</div>`);
+            }
+        }
+        if (options.sections.toolInputs || options.sections.toolResults) {
+            appendExportToolHtml(parts, round, options);
+        }
+        if (options.sections.finalAnswers && answerContent) {
+            parts.push(`<div class="export-answer-card markdown-body">${renderExportMarkdown(answerContent)}</div>`);
+        }
+        if (options.sections.perfStats && (round.assistant?.perfStats || round.assistant?.usage)) {
+            const stats = round.assistant?.perfStats;
+            const usage = round.assistant?.usage;
+            parts.push(
+                `<div class="export-perf">${escapeExportHtml([
+                    stats?.total_elapsed ? `用时 ${stats.total_elapsed}` : '',
+                    usage?.prompt_tokens ? `输入 ${usage.prompt_tokens} tokens` : '',
+                    usage?.completion_tokens ? `输出 ${usage.completion_tokens} tokens` : '',
+                ].filter(Boolean).join(' · '))}</div>`
+            );
+        }
+        parts.push('</section>');
+    });
+
+    parts.push('</div>');
+    return parts.join('');
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('PNG 渲染失败'));
+        image.src = src;
+    });
+}
+
+function drawRoundedRect(
+    context: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+    fill: string,
+    stroke?: string,
+) {
+    context.beginPath();
+    if (typeof context.roundRect === 'function') {
+        context.roundRect(x, y, width, height, radius);
+    } else {
+        const r = Math.min(radius, width / 2, height / 2);
+        context.moveTo(x + r, y);
+        context.arcTo(x + width, y, x + width, y + height, r);
+        context.arcTo(x + width, y + height, x, y + height, r);
+        context.arcTo(x, y + height, x, y, r);
+        context.arcTo(x, y, x + width, y, r);
+    }
+    context.fillStyle = fill;
+    context.fill();
+    if (stroke) {
+        context.strokeStyle = stroke;
+        context.lineWidth = 1;
+        context.stroke();
+    }
+}
+
+function stripMarkdownForPng(text: string): string {
+    return text
+        .replace(/^#{1,6}\s+/u, '')
+        .replace(/^[-*+]\s+/u, '• ')
+        .replace(/\*\*([^*]+)\*\*/gu, '$1')
+        .replace(/`([^`]+)`/gu, '$1')
+        .replace(/\[([^\]]+)\]\([^)]+\)/gu, '$1');
+}
+
+function wrapCanvasText(
+    context: CanvasRenderingContext2D,
+    text: string,
+    maxWidth: number,
+): string[] {
+    const normalized = text || '';
+    if (!normalized) return [''];
+    const rows: string[] = [];
+    let current = '';
+    for (const char of normalized) {
+        const candidate = current + char;
+        if (current && context.measureText(candidate).width > maxWidth) {
+            rows.push(current.trimEnd());
+            current = char.trimStart();
+            continue;
+        }
+        current = candidate;
+    }
+    if (current) rows.push(current.trimEnd());
+    return rows.length ? rows : [''];
+}
+
+function drawWrappedText(
+    context: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    lineHeight: number,
+): number {
+    const paragraphs = text.split('\n');
+    let currentY = y;
+    paragraphs.forEach((paragraph, index) => {
+        const line = stripMarkdownForPng(paragraph);
+        const rows = wrapCanvasText(context, line, maxWidth);
+        rows.forEach((row) => {
+            if (row) context.fillText(row, x, currentY);
+            currentY += lineHeight;
+        });
+        if (index < paragraphs.length - 1) {
+            currentY += Math.round(lineHeight * 0.35);
+        }
+    });
+    return currentY;
+}
+
+function measureWrappedTextHeight(
+    context: CanvasRenderingContext2D,
+    text: string,
+    maxWidth: number,
+    lineHeight: number,
+): number {
+    return text.split('\n').reduce((height, paragraph, index, list) => {
+        const rows = wrapCanvasText(context, stripMarkdownForPng(paragraph), maxWidth);
+        return height + rows.length * lineHeight + (index < list.length - 1 ? Math.round(lineHeight * 0.35) : 0);
+    }, 0);
+}
+
+function buildPngRoundCanvasRows(
+    bundle: ChatExportSessionBundle,
+    options: ChatExportOptions,
+): Array<{ kind: 'user' | 'thinking' | 'tool' | 'answer' | 'meta'; text: string }> {
+    const rows: Array<{ kind: 'user' | 'thinking' | 'tool' | 'answer' | 'meta'; text: string }> = [];
+    if (options.sections.sessionMeta) {
+        rows.push({ kind: 'meta', text: getLatestQuery(bundle) });
+    }
+    bundle.rounds.forEach((round) => {
+        const userContent = normalizeExportTextContent(round.user?.content);
+        const answerContent = normalizeExportTextContent(round.assistant?.content);
+        if (options.sections.userInputs && userContent) {
+            rows.push({ kind: 'user', text: userContent });
+        }
+        if (options.sections.thinking) {
+            const thinkingText = getThinkingText(round.assistant);
+            if (thinkingText) {
+                rows.push({ kind: 'thinking', text: thinkingText.slice(0, 900) });
+            }
+        }
+        if (options.sections.toolInputs || options.sections.toolResults) {
+            filterToolEvents(round, options).forEach((event) => {
+                (event.calls || []).forEach((call) => {
+                    const args = options.sections.toolInputs ? formatToolArgsForExport(call.args || {}) : '';
+                    const result = options.sections.toolResults ? summarizeToolResult(call) : '';
+                    rows.push({
+                        kind: 'tool',
+                        text: [call.type, args, result].filter(Boolean).join('\n'),
+                    });
+                });
+            });
+        }
+        if (options.sections.finalAnswers && answerContent) {
+            rows.push({ kind: 'answer', text: answerContent });
+        }
+    });
+    return rows;
+}
+
+async function buildCanvasPngExport(
+    bundle: ChatExportSessionBundle,
+    options: ChatExportOptions,
+): Promise<Blob> {
+    const theme = options.pngTheme === 'dark' ? 'dark' : 'light';
+    const palette = PNG_EXPORT_THEME[theme];
+    const measureCanvas = document.createElement('canvas');
+    const measureContext = measureCanvas.getContext('2d');
+    if (!measureContext) throw new Error('当前浏览器不支持 Canvas 导出');
+    const rows = buildPngRoundCanvasRows(bundle, options);
+    const contentWidth = PNG_EXPORT_WIDTH - PNG_EXPORT_PADDING_X * 2;
+    const cardPadding = 16;
+    const textWidth = contentWidth - cardPadding * 2;
+    const lineHeight = 27;
+    let totalHeight = PNG_EXPORT_PADDING_Y * 2;
+
+    rows.forEach((row) => {
+        measureContext.font =
+            row.kind === 'meta'
+                ? '650 22px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+                : '400 16px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        const height = measureWrappedTextHeight(measureContext, row.text, textWidth, lineHeight);
+        totalHeight += row.kind === 'meta' ? height + 18 : height + cardPadding * 2 + 12;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = PNG_EXPORT_WIDTH;
+    canvas.height = Math.min(PNG_EXPORT_MAX_HEIGHT, Math.max(240, Math.ceil(totalHeight)));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('当前浏览器不支持 Canvas 导出');
+    context.fillStyle = palette.background;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.textBaseline = 'top';
+
+    let y = PNG_EXPORT_PADDING_Y;
+    rows.forEach((row) => {
+        const isMeta = row.kind === 'meta';
+        const fill =
+            row.kind === 'user'
+                ? palette.userBackground
+                : row.kind === 'thinking' || row.kind === 'tool'
+                    ? palette.subtlePanel
+                    : palette.panel;
+        context.font = isMeta
+            ? '650 22px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+            : row.kind === 'tool'
+                ? '400 14px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+                : '400 16px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        context.fillStyle = isMeta ? palette.heading : palette.foreground;
+        const height = measureWrappedTextHeight(
+            context,
+            row.text,
+            textWidth,
+            row.kind === 'tool' ? 23 : lineHeight
+        );
+        if (isMeta) {
+            drawWrappedText(context, row.text, PNG_EXPORT_PADDING_X, y, contentWidth, lineHeight + 2);
+            y += height + 18;
+            return;
+        }
+        drawRoundedRect(
+            context,
+            PNG_EXPORT_PADDING_X,
+            y,
+            contentWidth,
+            height + cardPadding * 2,
+            10,
+            fill,
+            palette.border
+        );
+        context.fillStyle =
+            row.kind === 'thinking' || row.kind === 'tool' ? palette.muted : palette.foreground;
+        drawWrappedText(
+            context,
+            row.text,
+            PNG_EXPORT_PADDING_X + cardPadding,
+            y + cardPadding,
+            textWidth,
+            row.kind === 'tool' ? 23 : lineHeight
+        );
+        y += height + cardPadding * 2 + 12;
+    });
+
+    return canvasToPngBlob(canvas);
+}
+
+async function buildPngExport(
+    bundle: ChatExportSessionBundle,
+    options: ChatExportOptions,
+): Promise<Blob> {
+    if (
+        typeof document === 'undefined' ||
+        typeof XMLSerializer === 'undefined' ||
+        typeof Image === 'undefined' ||
+        typeof URL === 'undefined' ||
+        typeof Blob === 'undefined'
+    ) {
+        throw new Error('当前环境不支持 PNG 导出');
+    }
+
+    const theme = options.pngTheme === 'dark' ? 'dark' : 'light';
+    const host = document.createElement('div');
+    host.style.position = 'fixed';
+    host.style.left = '-10000px';
+    host.style.top = '0';
+    host.style.width = `${PNG_EXPORT_WIDTH}px`;
+    host.style.pointerEvents = 'none';
+    host.innerHTML = buildPngExportHtml(bundle, options, theme);
+    document.body.append(host);
+    const exportNode = host.firstElementChild as HTMLElement | null;
+    if (!exportNode) {
+        host.remove();
+        throw new Error('PNG 导出内容为空');
+    }
+    const measuredHeight = Math.ceil(
+        Math.max(exportNode.scrollHeight, exportNode.getBoundingClientRect().height)
+    );
+    const height = Math.min(PNG_EXPORT_MAX_HEIGHT, Math.max(240, measuredHeight));
+    const xhtml = new XMLSerializer().serializeToString(exportNode);
+    host.remove();
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${PNG_EXPORT_WIDTH}" height="${height}"><foreignObject width="100%" height="100%">${xhtml}</foreignObject></svg>`;
+    const objectUrl = URL.createObjectURL(
+        new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+    );
+    try {
+        const image = await loadImage(objectUrl);
+        const canvas = document.createElement('canvas');
+        canvas.width = PNG_EXPORT_WIDTH;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        if (!context) {
+            throw new Error('当前浏览器不支持 Canvas 导出');
+        }
+        context.drawImage(image, 0, 0);
+        return await canvasToPngBlob(canvas);
+    } catch {
+        return buildCanvasPngExport(bundle, options);
+    } finally {
+        URL.revokeObjectURL(objectUrl);
+    }
 }
 
 export function generateChatExport(
@@ -618,10 +1206,32 @@ export function generateChatExport(
         };
     }
 
+    if (normalized.format === 'png') {
+        throw new Error('PNG 导出需要使用异步生成流程');
+    }
+
     return {
         fileName,
         mimeType: 'text/markdown;charset=utf-8',
         content: buildMarkdownExport(bundle, normalized),
+    };
+}
+
+export async function generateChatExportFile(
+    bundle: ChatExportSessionBundle,
+    options: ChatExportOptions,
+): Promise<GeneratedChatExport> {
+    const normalized = cloneChatExportOptions(options);
+    const fileName = buildChatExportFileName(bundle, normalized.format);
+
+    if (normalized.format !== 'png') {
+        return generateChatExport(bundle, normalized);
+    }
+
+    return {
+        fileName,
+        mimeType: 'image/png',
+        content: await buildPngExport(bundle, normalized),
     };
 }
 
@@ -637,9 +1247,11 @@ function downloadChatExportWithBlobUrl(generated: GeneratedChatExport): boolean 
         return false;
     }
 
-    const objectUrl = URL.createObjectURL(
-        new Blob([generated.content], { type: generated.mimeType })
-    );
+    const contentBlob =
+        generated.content instanceof Blob
+            ? generated.content
+            : new Blob([generated.content], { type: generated.mimeType });
+    const objectUrl = URL.createObjectURL(contentBlob);
     const anchor = document.createElement('a');
     anchor.href = objectUrl;
     anchor.download = generated.fileName;
@@ -671,6 +1283,10 @@ export function triggerChatExportDownload(
 
     if (downloadChatExportWithBlobUrl(generated)) {
         return generated;
+    }
+
+    if (generated.content instanceof Blob) {
+        throw new Error('当前浏览器无法下载 PNG 导出文件');
     }
 
     const exportResult = exportFile(generated.fileName, generated.content, {

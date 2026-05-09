@@ -1705,6 +1705,23 @@ export default defineComponent({
   border-color: rgba(128, 128, 128, 0.28);
 }
 
+body.body--light .chat-query-editor-input {
+  background: rgba(255, 255, 255, 0.82);
+  color: #1f2937;
+}
+
+body.body--dark .chat-query-editor-input {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(245, 247, 250, 0.92);
+  caret-color: rgba(245, 247, 250, 0.96);
+}
+
+body.body--dark .chat-query-editor-input:focus {
+  background: rgba(255, 255, 255, 0.085);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
 .chat-query-editor-actions {
   display: flex;
   align-items: center;

@@ -11,7 +11,7 @@ const quasarMocks = vi.hoisted(() => ({
 }));
 
 const exportServiceMocks = vi.hoisted(() => ({
-    generateChatExport: vi.fn(() => ({
+    generateChatExportFile: vi.fn(() => Promise.resolve({
         fileName: 'chat-export.json',
         mimeType: 'application/json;charset=utf-8',
         content: '{"ok":true}',
@@ -21,6 +21,9 @@ const exportServiceMocks = vi.hoisted(() => ({
 
 vi.mock('quasar', () => ({
     exportFile: vi.fn(() => true),
+    Dark: {
+        isActive: true,
+    },
     Notify: {
         create: quasarMocks.notifyCreate,
     },
@@ -32,7 +35,7 @@ vi.mock('src/services/chatExport', async () => {
     );
     return {
         ...actual,
-        generateChatExport: exportServiceMocks.generateChatExport,
+        generateChatExportFile: exportServiceMocks.generateChatExportFile,
         triggerChatExportDownload: exportServiceMocks.triggerChatExportDownload,
     };
 });
@@ -178,8 +181,10 @@ describe('ChatExportDialog', () => {
             .find((node) => node.text().includes('导出 JSON'))
             ?.trigger('click');
 
-        expect(exportServiceMocks.generateChatExport).toHaveBeenCalledTimes(1);
-        const [generatedBundle, usedOptions] = exportServiceMocks.generateChatExport
+        await nextTick();
+
+        expect(exportServiceMocks.generateChatExportFile).toHaveBeenCalledTimes(1);
+        const [generatedBundle, usedOptions] = exportServiceMocks.generateChatExportFile
             .mock.calls[0] as unknown as [
                 ChatExportSessionBundle,
                 { format: string },

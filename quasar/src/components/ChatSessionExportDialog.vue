@@ -73,6 +73,30 @@
                 dense
               />
             </div>
+            <div
+              v-if="exportOptions.format === 'png'"
+              class="chat-export-format-preferences"
+            >
+              <span class="chat-export-preference-label">长图样式</span>
+              <div class="chat-export-format-switch">
+                <button
+                  type="button"
+                  class="chat-export-format-option chat-export-format-option--small"
+                  :class="{ active: exportOptions.pngTheme === 'light' }"
+                  @click="exportOptions.pngTheme = 'light'"
+                >
+                  浅色
+                </button>
+                <button
+                  type="button"
+                  class="chat-export-format-option chat-export-format-option--small"
+                  :class="{ active: exportOptions.pngTheme === 'dark' }"
+                  @click="exportOptions.pngTheme = 'dark'"
+                >
+                  深色
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="chat-export-section">
@@ -196,7 +220,8 @@
         <q-btn
           color="primary"
           unelevated
-          :disable="isExportDisabled"
+          :disable="isExportDisabled || isExporting"
+          :loading="isExporting"
           :label="exportButtonLabel"
           @click="handleExportSession"
         />
@@ -206,7 +231,7 @@
 </template>
 
 <script setup lang="ts">
-import { Notify } from 'quasar';
+import { Dark, Notify } from 'quasar';
 import { computed, reactive, ref, watch } from 'vue';
 import type {
   ChatExportRound,
@@ -220,7 +245,7 @@ import {
   cloneChatExportOptions,
   countExportToolCalls,
   filterChatExportBundle,
-  generateChatExport,
+  generateChatExportFile,
   getAvailableExportRoundIndexes,
   normalizeSelectedRoundIndexes,
   triggerChatExportDownload,
@@ -231,7 +256,7 @@ defineOptions({ name: 'ChatExportDialog' });
 const EXPORT_PREFERENCES_KEY = 'chatExportOptions';
 
 type StoredChatExportOptions = Partial<
-  Pick<ChatExportOptions, 'format' | 'prettyJson'>
+  Pick<ChatExportOptions, 'format' | 'prettyJson' | 'pngTheme'>
 > & {
   sections?: Partial<ChatExportOptions['sections']>;
 };
@@ -250,14 +275,25 @@ const exportOptions = reactive(
   cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS)
 );
 const selectedRoundIndexes = ref<number[]>([]);
+const isExporting = ref(false);
 const exportFormatOptions: Array<{ label: string; value: ChatExportFormat }> = [
   { label: 'Markdown', value: 'markdown' },
   { label: 'JSON', value: 'json' },
+  { label: 'PNG', value: 'png' },
 ];
 
 const isChatExportFormat = (value: unknown): value is ChatExportFormat => {
-  return value === 'markdown' || value === 'json';
+  return value === 'markdown' || value === 'json' || value === 'png';
 };
+
+const isChatExportPngTheme = (
+  value: unknown
+): value is ChatExportOptions['pngTheme'] => {
+  return value === 'light' || value === 'dark';
+};
+
+const getCurrentPagePngTheme = (): ChatExportOptions['pngTheme'] =>
+  Dark.isActive ? 'dark' : 'light';
 
 const applyStoredExportOptions = (stored?: StoredChatExportOptions | null) => {
   const defaults = cloneChatExportOptions(DEFAULT_CHAT_EXPORT_OPTIONS);
@@ -269,6 +305,9 @@ const applyStoredExportOptions = (stored?: StoredChatExportOptions | null) => {
       typeof stored?.prettyJson === 'boolean'
         ? stored.prettyJson
         : defaults.prettyJson,
+    pngTheme: isChatExportPngTheme(stored?.pngTheme)
+      ? stored.pngTheme
+      : getCurrentPagePngTheme(),
     sections: {
       ...defaults.sections,
       ...(stored?.sections || {}),
@@ -408,13 +447,20 @@ const selectedRoundLabel = computed(() => {
 });
 
 const exportSelectionSummary = computed(() => {
-  const formatText = exportOptions.format === 'json' ? 'JSON' : 'Markdown';
+  const formatText =
+    exportOptions.format === 'json'
+      ? 'JSON'
+      : exportOptions.format === 'png'
+        ? `PNG 长图（${exportOptions.pngTheme === 'dark' ? '深色' : '浅色'}）`
+        : 'Markdown';
   return `将导出 ${selectedRoundLabel.value}，共 ${selectedRoundCount.value} 轮，${selectedExportSectionCount.value} 个内容分区，格式为 ${formatText}`;
 });
 
-const exportButtonLabel = computed(() =>
-  exportOptions.format === 'json' ? '导出 JSON' : '导出 Markdown'
-);
+const exportButtonLabel = computed(() => {
+  if (exportOptions.format === 'json') return '导出 JSON';
+  if (exportOptions.format === 'png') return '导出 PNG';
+  return '导出 Markdown';
+});
 
 const isExportDisabled = computed(
   () =>
@@ -488,13 +534,17 @@ const closeDialog = () => {
   emit('update:modelValue', false);
 };
 
-const handleExportSession = () => {
-  if (isExportDisabled.value) {
+const handleExportSession = async () => {
+  if (isExportDisabled.value || isExporting.value) {
     return;
   }
 
+  isExporting.value = true;
   try {
-    const generated = generateChatExport(filteredBundle.value, exportOptions);
+    const generated = await generateChatExportFile(
+      filteredBundle.value,
+      exportOptions
+    );
     triggerChatExportDownload(generated);
     persistExportOptions();
     closeDialog();
@@ -513,6 +563,8 @@ const handleExportSession = () => {
       position: 'bottom',
       timeout: 1800,
     });
+  } finally {
+    isExporting.value = false;
   }
 };
 </script>
@@ -648,6 +700,14 @@ const handleExportSession = () => {
 .chat-export-format-preferences {
   display: flex;
   align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.chat-export-preference-label {
+  font-size: 12px;
+  line-height: 1.2;
+  opacity: 0.62;
 }
 
 .chat-export-format-option {
@@ -677,6 +737,11 @@ const handleExportSession = () => {
   opacity: 1;
   background: rgba(24, 144, 255, 0.1);
   border-color: rgba(24, 144, 255, 0.34);
+}
+
+.chat-export-format-option--small {
+  min-width: 64px;
+  padding-inline: 10px;
 }
 
 .chat-export-round-grid {

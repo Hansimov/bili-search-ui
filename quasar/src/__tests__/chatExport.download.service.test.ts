@@ -54,6 +54,31 @@ describe('triggerChatExportDownload', () => {
         vi.useRealTimers();
     });
 
+    it('downloads blob exports such as png through the blob URL path', () => {
+        vi.useFakeTimers();
+        const pngBlob = new Blob(['png'], { type: 'image/png' });
+        const clickSpy = vi
+            .spyOn(HTMLAnchorElement.prototype, 'click')
+            .mockImplementation(() => { });
+
+        triggerChatExportDownload({
+            fileName: 'chat-export.png',
+            mimeType: 'image/png',
+            content: pngBlob,
+        });
+
+        const anchor = document.querySelector('a') as HTMLAnchorElement | null;
+
+        expect(urlMocks.createObjectURL).toHaveBeenCalledWith(pngBlob);
+        expect(clickSpy).toHaveBeenCalledTimes(1);
+        expect(anchor?.download).toBe('chat-export.png');
+        expect(quasarMocks.exportFile).not.toHaveBeenCalled();
+
+        vi.runAllTimers();
+        clickSpy.mockRestore();
+        vi.useRealTimers();
+    });
+
     it('falls back to Quasar exportFile when blob download fails', () => {
         const clickSpy = vi
             .spyOn(HTMLAnchorElement.prototype, 'click')

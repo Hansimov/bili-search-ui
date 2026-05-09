@@ -43,7 +43,11 @@
         variant="page"
         class="results-empty-landing"
       />
-      <div v-else class="tool-results-layout">
+      <div
+        v-else
+        class="tool-results-layout"
+        :class="{ 'tool-results-layout--with-videos': showVideoResultsPanel }"
+      >
         <div v-if="showToolCallPanel" class="tool-call-panel">
           <ToolCallDisplay :tool-calls="toolCalls" force-expanded />
         </div>
@@ -185,8 +189,11 @@ export default {
     const showToolEmptyLanding = computed(() => {
       const hasDraftQuery = !!queryStore.query?.trim();
       const hasSubmittedQuery = !!exploreStore.submittedQuery?.trim();
+      const isUtilityMode =
+        searchModeStore.currentMode === 'utility' ||
+        searchModeStore.currentMode === 'tool';
       return (
-        searchModeStore.currentMode === 'utility' &&
+        isUtilityMode &&
         !isChatMode.value &&
         !hasDraftQuery &&
         !hasSubmittedQuery &&
@@ -659,6 +666,12 @@ body.body--dark .search-bar-row {
   padding-bottom: calc(var(--search-bar-total-height, 84px) + 28px);
 }
 
+.tool-results-layout--with-videos {
+  overflow-y: hidden;
+  padding-bottom: 0;
+  scroll-padding-bottom: 0;
+}
+
 .tool-call-panel {
   width: var(--search-input-width);
   max-width: var(--search-input-max-width, 95vw);
@@ -671,6 +684,7 @@ body.body--dark .search-bar-row {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+  height: 100%;
   width: 100%;
   background: transparent;
 }

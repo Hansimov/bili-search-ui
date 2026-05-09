@@ -1117,11 +1117,17 @@ const enhanceRenderedVideoLayout = (
         });
 
         const blocks = Array.from(
-            template.content.querySelectorAll('p, blockquote, td')
+            template.content.querySelectorAll('h1, h2, h3, h4, h5, h6, p, blockquote, td')
         ) as HTMLElement[];
 
         blocks.forEach((block) => {
             if (block.closest('.bili-video-compact-gallery')) {
+                return;
+            }
+            if (
+                /^h[1-6]$/i.test(block.tagName) &&
+                !block.querySelector('a.bili-video-compact-ref')
+            ) {
                 return;
             }
 

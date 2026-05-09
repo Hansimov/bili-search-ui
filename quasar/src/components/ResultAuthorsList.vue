@@ -2,7 +2,7 @@
   <details
     v-if="isShowAuthorsList"
     ref="detailsElement"
-    open
+    :open="isOpen"
     class="result-authors-details"
   >
     <summary @click.prevent="toggleDetails">相关作者</summary>
@@ -22,6 +22,7 @@
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
+import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { isNonEmptyArray } from 'src/stores/resultStore';
 import ResultAuthorItem from './ResultAuthorItem.vue';
 
@@ -32,9 +33,15 @@ export default {
   setup() {
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
+    const searchModeStore = useSearchModeStore();
     const detailsElement = ref(null);
     const contentElement = ref(null);
-    const isOpen = ref(true);
+    const isUtilityMode = computed(
+      () =>
+        searchModeStore.currentMode === 'utility' ||
+        searchModeStore.currentMode === 'tool'
+    );
+    const isOpen = ref(!isUtilityMode.value);
     let animationCleanup = null; // cleanup function for in-progress animation
     let measureRAFId = null;
 
@@ -71,6 +78,19 @@ export default {
       async () => {
         await nextTick();
         syncExpandedMaxHeight();
+      },
+      { immediate: true }
+    );
+
+    watch(
+      isUtilityMode,
+      async (utilityMode) => {
+        if (!utilityMode) return;
+        isOpen.value = false;
+        await nextTick();
+        if (detailsElement.value) {
+          detailsElement.value.removeAttribute('open');
+        }
       },
       { immediate: true }
     );

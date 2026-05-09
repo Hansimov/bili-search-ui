@@ -1007,4 +1007,31 @@ describe('ChatResponsePanel video layout', () => {
         expect(html).toContain('bili-video-compact-group-cards-section--video');
         expect(html).toContain('bili-video-compact-group-cards-section--owner');
     });
+
+    it('moves compact video cards out of markdown headings instead of leaving full-width cards in context text', () => {
+        const html = renderAnswerMarkdownWithVideoView(
+            '#### 1. BV1zNdNBSE7J《红警原始森林一块地！被两家左右夹击》\n\n主播围绕原始森林地图讲解防守反击。',
+            'compact',
+            new Map([
+                [
+                    'BV1zNdNBSE7J',
+                    {
+                        bvid: 'BV1zNdNBSE7J',
+                        title: '红警原始森林一块地！被两家左右夹击',
+                        pic: 'https://example.com/BV1zNdNBSE7J.jpg',
+                        duration: 600,
+                        owner: { name: '红警月亮3' },
+                        stat: { view: 91000 },
+                    },
+                ],
+            ])
+        );
+
+        const host = document.createElement('div');
+        host.innerHTML = html;
+
+        expect(host.querySelectorAll('.bili-video-compact-gallery')).toHaveLength(1);
+        expect(host.querySelectorAll('.bili-video-compact-context-block a.bili-rich-compact-ref')).toHaveLength(0);
+        expect(host.querySelectorAll('.bili-video-compact-gallery a.bili-video-compact-ref')).toHaveLength(1);
+    });
 });
