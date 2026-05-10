@@ -271,6 +271,9 @@
                 rel="noopener noreferrer"
                 @click.stop
               >
+                <div class="tool-google-result-title">
+                  {{ result.title || result.link }}
+                </div>
                 <div
                   v-if="getGoogleDisplayedUrl(result)"
                   class="tool-google-result-topline"
@@ -284,11 +287,11 @@
                     class="tool-google-result-open"
                   />
                 </div>
-                <div class="tool-google-result-title">
-                  {{ result.title || result.link }}
-                </div>
-                <div v-if="result.snippet" class="tool-google-result-snippet">
-                  {{ result.snippet }}
+                <div
+                  v-if="getGoogleSnippet(result)"
+                  class="tool-google-result-snippet"
+                >
+                  {{ getGoogleSnippet(result) }}
                 </div>
               </a>
             </div>
@@ -804,6 +807,13 @@ export default defineComponent({
       }
     };
 
+    const getGoogleSnippet = (result: GoogleResult): string => {
+      const snippet = (result.snippet || '').trim();
+      if (!snippet) return '';
+      if (snippet.endsWith('...') || snippet.endsWith('…')) return snippet;
+      return `${snippet}...`;
+    };
+
     const getOwnerResults = (call: ToolCall): OwnerResult[] => {
       if (call.type !== 'search_owners' || !call.result) return [];
       const owners = (call.result as Record<string, unknown>)?.owners;
@@ -1164,6 +1174,7 @@ export default defineComponent({
       getAuthorResult,
       getGoogleResults,
       getGoogleDisplayedUrl,
+      getGoogleSnippet,
       getOwnerResults,
       getOwnerGroups,
       getTranscriptResult,
@@ -1695,15 +1706,6 @@ export default defineComponent({
     transform 0.15s ease,
     box-shadow 0.15s ease;
 
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 10px auto 10px 8px;
-    width: 2px;
-    border-radius: 999px;
-    background: rgba(25, 118, 210, 0.5);
-  }
-
   &:hover {
     border-color: rgba(25, 118, 210, 0.25);
     background: linear-gradient(
@@ -1765,10 +1767,6 @@ body.body--dark .tool-google-result {
     rgba(255, 255, 255, 0.025)
   );
   box-shadow: none;
-
-  &::before {
-    background: rgba(144, 202, 249, 0.55);
-  }
 
   &:hover {
     border-color: rgba(144, 202, 249, 0.28);
