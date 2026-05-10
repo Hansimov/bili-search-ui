@@ -3,7 +3,10 @@
     v-if="suggestions.length || activeCommand"
     class="tool-command-suggestions"
   >
-    <div v-if="suggestions.length" class="tool-command-list">
+    <div
+      v-if="suggestions.length && !activeCommand"
+      class="tool-command-list"
+    >
       <button
         v-for="command in suggestions"
         :key="command.command"
@@ -22,12 +25,13 @@
         <q-icon :name="activeCommand.icon" size="16px" />
         <span class="tool-command-name">{{ activeCommand.command }}</span>
         <span class="tool-command-label">{{ activeCommand.label }}</span>
-      </div>
-      <div class="tool-command-detail-desc">
-        {{ activeCommand.description }}
+        <span class="tool-command-detail-desc">
+          {{ activeCommand.description }}
+        </span>
       </div>
       <div class="tool-command-detail-usage">
-        {{ activeCommand.usage }}
+        <span class="tool-command-usage-prefix">示例：</span>
+        <span class="tool-command-usage-text">{{ activeCommand.usage }}</span>
       </div>
     </div>
   </div>
@@ -46,10 +50,10 @@ import {
 const queryStore = useQueryStore();
 const layoutStore = useLayoutStore();
 
+const activeCommand = computed(() => getActiveToolCommand(queryStore.query));
 const suggestions = computed(() =>
   getToolCommandSuggestions(queryStore.query, { showAllWhenEmpty: true })
 );
-const activeCommand = computed(() => getActiveToolCommand(queryStore.query));
 
 const applyCommand = (command: string) => {
   queryStore.setQuery({
@@ -129,20 +133,32 @@ const applyCommand = (command: string) => {
   display: flex;
   align-items: center;
   gap: 7px;
+  min-width: 0;
 }
 
 .tool-command-detail-desc {
   font-size: 12px;
   opacity: 0.76;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .tool-command-detail-usage {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   color: #00897b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tool-command-usage-prefix {
+  font-weight: 600;
+}
+
+.tool-command-usage-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 body.body--dark {

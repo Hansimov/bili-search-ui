@@ -25,6 +25,19 @@ describe('tool command helpers', () => {
         expect(getToolCommandSuggestions('/').length).toBeGreaterThan(1);
         expect(getToolCommandSuggestions('', { showAllWhenEmpty: true }).length).toBeGreaterThan(1);
         expect(getToolCommandSuggestions('')).toEqual([]);
+        expect(
+            getToolCommandSuggestions('上海 外滩', { showAllWhenEmpty: true })
+        ).toEqual([]);
+        expect(
+            getToolCommandSuggestions('/google 上海', { showAllWhenEmpty: true }).map(
+                (item) => item.command
+            )
+        ).toEqual(['/google']);
+        expect(
+            getToolCommandSuggestions('/llm 1+2=?', { showAllWhenEmpty: true }).map(
+                (item) => item.command
+            )
+        ).toEqual(['/llm']);
         expect(getToolCommandSuggestions('/own').map((item) => item.command)).toEqual([
             '/owners',
         ]);

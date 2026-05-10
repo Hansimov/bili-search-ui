@@ -70,22 +70,29 @@
           </transition>
           <template v-if="sidebarExpanded">
             <q-space />
-            <q-icon
-              :name="showHistoryList ? 'expand_less' : 'expand_more'"
-              size="18px"
-              class="history-toggle-icon"
-            />
-            <q-btn
-              v-if="searchHistoryStore.totalCount > 0"
-              flat
-              round
-              dense
-              icon="delete"
-              size="xs"
-              class="history-clear-btn"
-              title="清除历史"
-              @click.stop="confirmClearHistory"
-            />
+            <span class="history-nav-actions">
+              <q-btn
+                v-if="searchHistoryStore.totalCount > 0"
+                flat
+                round
+                dense
+                icon="delete"
+                size="xs"
+                class="history-action-btn history-clear-btn"
+                title="清除历史"
+                @click.stop="confirmClearHistory"
+              />
+              <q-btn
+                flat
+                round
+                dense
+                :icon="showHistoryList ? 'expand_less' : 'expand_more'"
+                size="xs"
+                class="history-action-btn history-toggle-btn"
+                :title="showHistoryList ? '收起历史' : '展开历史'"
+                @click.stop="toggleHistory"
+              />
+            </span>
           </template>
         </div>
       </div>
@@ -139,7 +146,8 @@
                       dense
                       icon="more_vert"
                       size="xs"
-                      class="history-more-btn"
+                      class="history-row-action-btn history-more-btn"
+                      title="选项"
                       @click.stop="openHistoryActionMenu($event, item)"
                     />
                   </span>
@@ -178,14 +186,23 @@
                         </span>
                       </span>
                       <span class="history-item-right">
-                        <q-icon
-                          :name="
+                        <q-btn
+                          flat
+                          round
+                          dense
+                          :icon="
                             isHistorySubGroupExpanded(row.id)
                               ? 'expand_less'
                               : 'expand_more'
                           "
-                          size="18px"
-                          class="history-subgroup-toggle"
+                          size="xs"
+                          class="history-row-action-btn history-subgroup-toggle"
+                          :title="
+                            isHistorySubGroupExpanded(row.id)
+                              ? '收起分组'
+                              : '展开分组'
+                          "
+                          @click.stop="toggleHistorySubGroup(row.id)"
                         />
                       </span>
                     </div>
@@ -227,7 +244,8 @@
                             dense
                             icon="more_vert"
                             size="xs"
-                            class="history-more-btn"
+                            class="history-row-action-btn history-more-btn"
+                            title="选项"
                             @click.stop="openHistoryActionMenu($event, item)"
                           />
                         </span>
@@ -265,7 +283,8 @@
                         dense
                         icon="more_vert"
                         size="xs"
-                        class="history-more-btn"
+                        class="history-row-action-btn history-more-btn"
+                        title="选项"
                         @click.stop="openHistoryActionMenu($event, row)"
                       />
                     </span>
@@ -1358,6 +1377,21 @@ const handleGlobalKeydown = (event: KeyboardEvent) => {
   }
 };
 
+const isSidebarChromeScroll = (target: EventTarget | null): boolean => {
+  if (!(target instanceof Node)) return false;
+  const element =
+    target instanceof Element ? target : target.parentElement || null;
+  return !!element?.closest(
+    '.app-sidebar, .sidebar-edge-handle, .history-action-menu'
+  );
+};
+
+const handleGlobalScroll = (event: Event) => {
+  if (!isSidebarChromeScroll(event.target)) return;
+  hideSidebarTooltip();
+  closeHistoryActionMenu();
+};
+
 const sidebarTooltipStyle = computed(() => ({
   left: `${sidebarTooltip.value.left}px`,
   top: `${sidebarTooltip.value.top}px`,
@@ -1419,8 +1453,7 @@ watch(
 onMounted(() => {
   window.addEventListener('resize', hideSidebarTooltip, { passive: true });
   window.addEventListener('resize', closeHistoryActionMenu, { passive: true });
-  window.addEventListener('scroll', hideSidebarTooltip, true);
-  window.addEventListener('scroll', closeHistoryActionMenu, true);
+  window.addEventListener('scroll', handleGlobalScroll, true);
   document.addEventListener('mousedown', handleGlobalPointerDown);
   document.addEventListener('keydown', handleGlobalKeydown);
 });
@@ -1462,8 +1495,7 @@ onUnmounted(() => {
   authStore.cleanup();
   window.removeEventListener('resize', hideSidebarTooltip);
   window.removeEventListener('resize', closeHistoryActionMenu);
-  window.removeEventListener('scroll', hideSidebarTooltip, true);
-  window.removeEventListener('scroll', closeHistoryActionMenu, true);
+  window.removeEventListener('scroll', handleGlobalScroll, true);
   document.removeEventListener('mousedown', handleGlobalPointerDown);
   document.removeEventListener('keydown', handleGlobalKeydown);
 });
@@ -1727,12 +1759,6 @@ body.body--dark .nav-item-active {
   white-space: nowrap;
 }
 
-.history-toggle-icon {
-  flex-shrink: 0;
-  opacity: 0.4;
-  transition: transform 0.2s ease;
-}
-
 /* ============ 搜索历史区域 ============ */
 .sidebar-history {
   flex: 1;
@@ -1742,17 +1768,52 @@ body.body--dark .nav-item-active {
   min-height: 0;
 }
 
-.history-clear-btn {
-  opacity: 0.5;
+.history-nav-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.history-action-btn,
+.history-row-action-btn {
+  flex-shrink: 0;
+  align-self: center;
   width: 24px;
   height: 24px;
   min-width: 24px;
   min-height: 24px;
-  margin-right: -2px;
-  align-self: center;
+  border-radius: 7px;
+  color: inherit;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease;
 }
-.history-clear-btn:hover {
-  opacity: 1;
+
+.history-action-btn {
+  opacity: 0.48;
+}
+
+.history-row-action-btn {
+  opacity: 0.18;
+}
+
+.history-action-btn:hover,
+.history-row-action-btn:hover {
+  opacity: 0.9 !important;
+}
+
+.history-action-btn :deep(.q-icon),
+.history-row-action-btn :deep(.q-icon) {
+  font-size: 18px;
+}
+
+.history-clear-btn :deep(.q-icon) {
+  font-size: 16px;
+}
+
+.history-toggle-btn {
+  margin-right: -2px;
 }
 
 .history-scroll-area {
@@ -1820,7 +1881,7 @@ body.body--dark .nav-item-active {
 }
 
 .history-subgroup-toggle {
-  opacity: 0.42;
+  opacity: 0.54;
 }
 
 .history-subgroup-items {
@@ -2070,23 +2131,22 @@ body.body--dark .sidebar-user-menu .q-item:hover {
 
 /* ============ 历史记录 more 按钮（非scoped，q-btn 内部样式需穿透） ============ */
 .history-more-btn {
-  flex-shrink: 0;
-  align-self: center;
   opacity: 0.18;
-  transition: opacity 0.15s ease;
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
-  margin-left: 0;
-  margin-right: 0;
 }
-.history-item:hover .history-more-btn,
-.history-item:focus-within .history-more-btn {
-  opacity: 0.6;
+
+.history-item:hover .history-row-action-btn,
+.history-item:focus-within .history-row-action-btn {
+  opacity: 0.62;
 }
-.history-more-btn:hover {
-  opacity: 1 !important;
+
+body.body--light .history-action-btn:hover,
+body.body--light .history-row-action-btn:hover {
+  background-color: rgba(0, 0, 0, 0.075);
+}
+
+body.body--dark .history-action-btn:hover,
+body.body--dark .history-row-action-btn:hover {
+  background-color: rgba(255, 255, 255, 0.095);
 }
 
 .sidebar-hover-tooltip {

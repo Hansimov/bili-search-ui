@@ -91,6 +91,18 @@ export const getToolCommandDraft = (value: string): string => {
 const normalizeCommandDraft = (value: string): string =>
     String(value || '').replace(/^\//, '').toLowerCase();
 
+const findExactToolCommand = (value: string): ToolCommandOption | null => {
+    const normalized = normalizeToolCommandInput(value).trimStart();
+    const token = normalized.split(/\s+/, 1)[0] || '';
+    const commandName = normalizeCommandDraft(token);
+    if (!commandName) return null;
+    return (
+        TOOL_COMMANDS.find(
+            (item) => normalizeCommandDraft(item.command) === commandName
+        ) || null
+    );
+};
+
 const commandMatchScore = (
     item: ToolCommandOption,
     draftValue: string
@@ -118,9 +130,14 @@ export const getToolCommandSuggestions = (
     value: string,
     options: { showAllWhenEmpty?: boolean } = {}
 ): ToolCommandOption[] => {
+    const normalized = normalizeToolCommandInput(value).trim();
     const draft = getToolCommandDraft(value);
-    if (!draft && options.showAllWhenEmpty) return TOOL_COMMANDS;
-    if (!draft) return [];
+    if (!draft) {
+        const exactCommand = findExactToolCommand(value);
+        if (exactCommand) return [exactCommand];
+        if (!normalized && options.showAllWhenEmpty) return TOOL_COMMANDS;
+        return [];
+    }
     return TOOL_COMMANDS.map((item) => ({
         item,
         score: commandMatchScore(item, draft),
@@ -133,15 +150,7 @@ export const getToolCommandSuggestions = (
 export const getActiveToolCommand = (
     value: string
 ): ToolCommandOption | null => {
-    const normalized = normalizeToolCommandInput(value).trimStart();
-    const token = normalized.split(/\s+/, 1)[0] || '';
-    const commandName = normalizeCommandDraft(token);
-    if (!commandName) return null;
-    return (
-        TOOL_COMMANDS.find(
-            (item) => normalizeCommandDraft(item.command) === commandName
-        ) || null
-    );
+    return findExactToolCommand(value);
 };
 
 export const hasUnterminatedToolCommand = (value: string): boolean => {

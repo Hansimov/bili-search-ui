@@ -63,10 +63,7 @@ import {
   getSmartSuggestService,
   suggestIndexVersion,
 } from 'src/services/smartSuggestService';
-import {
-  getActiveToolCommand,
-  getToolCommandSuggestions,
-} from 'src/config/toolCommands';
+import { getToolCommandSuggestions } from 'src/config/toolCommands';
 
 const SuggestAuthorsList = defineAsyncComponent(() =>
   import('./SuggestAuthorsList.vue')
