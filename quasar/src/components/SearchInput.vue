@@ -843,12 +843,11 @@ export default {
         // 如果当前会话已是该 sessionId，无需恢复
         if (chatStore.currentSessionId === newChatId) return;
 
-        // 尝试从 chatStore 历史中恢复
-        if (chatStore.restoreBySessionId(newChatId)) {
+        // 后台运行中的会话优先恢复 live run；已完成会话优先使用完整历史快照。
+        if (chatStore.isSessionRunning(newChatId) && chatStore.restoreBySessionId(newChatId)) {
           return;
         }
 
-        // 尝试从搜索历史的快照中恢复
         await searchHistoryStore.loadHistory();
         const historyItem = searchHistoryStore.findBySessionId(newChatId);
         if (historyItem && historyItem.chatSnapshot) {
@@ -858,6 +857,12 @@ export default {
           searchModeStore.setMode(mode as SearchMode);
           searchModeStore.forceInitialSessionMode(mode as SearchMode);
           exploreStore.setSubmittedQuery(historyItem.query);
+          return;
+        }
+
+        // 兼容旧的内存会话：找不到持久化快照时，至少不要沿用上一个会话的历史。
+        if (chatStore.restoreBySessionId(newChatId)) {
+          return;
         }
       },
       { immediate: true }

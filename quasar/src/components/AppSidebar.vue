@@ -939,6 +939,7 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
   const restoredActiveChat =
     isChatMode &&
     activeChatSessionId &&
+    chatStore.isSessionRunning(activeChatSessionId) &&
     typeof chatStore.restoreBySessionId === 'function' &&
     chatStore.restoreBySessionId(activeChatSessionId);
 

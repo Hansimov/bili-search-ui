@@ -150,6 +150,37 @@ function isSessionIncludedInConversationHistory(
     );
 }
 
+function conversationHistoryFromSession(session: ChatSession): ConversationMessage[] {
+    if (!sessionHasRenderableState(session) || !session.query) {
+        return [];
+    }
+
+    return [
+        {
+            id: nextMsgId(),
+            createdAt: session.createdAt,
+            role: 'user',
+            content: session.query,
+        },
+        {
+            id: nextMsgId(),
+            createdAt: Date.now(),
+            role: 'assistant',
+            content: session.content,
+            thinkingContent: session.thinkingContent || undefined,
+            toolEvents: session.toolEvents.length > 0
+                ? cloneSerializable(session.toolEvents)
+                : undefined,
+            streamSegments: session.streamSegments.length > 0
+                ? cloneSerializable(session.streamSegments)
+                : undefined,
+            perfStats: session.perfStats || undefined,
+            usage: session.usage || undefined,
+            usageTrace: session.usageTrace || undefined,
+        },
+    ];
+}
+
 /** 上下文管理：最多保留的对话轮数（每轮 = 1 user + 1 assistant） */
 const MAX_CONVERSATION_TURNS = 5;
 
@@ -432,6 +463,8 @@ export const useChatStore = defineStore('chat', {
         _streamId: null as string | null,
         /** 正在后台运行的会话；每个会话拥有独立的流式请求状态 */
         activeRuns: {} as Record<string, ActiveChatRun>,
+        /** 已完成/恢复过的会话快照，用于按 sessionId 切换时恢复完整上下文 */
+        sessionSnapshots: {} as Record<string, ChatHistorySnapshot>,
         /** 当前历史记录 ID（用于更新 chat 快照） */
         _currentHistoryRecordId: null as string | null,
         /** 当前回合开始前的 conversationHistory 长度，用于分离历史消息和当前回合 */
@@ -984,7 +1017,7 @@ export const useChatStore = defineStore('chat', {
                                 this.conversationHistory = run.conversationHistory;
                             }
                             // 保存到会话历史列表
-                            this._saveToHistory(session);
+                            this._saveToHistory(session, run.conversationHistory);
                             // 更新搜索历史中的 chat 快照
                             if (run.historyRecordId) {
                                 this._updateHistorySnapshot(
@@ -1063,12 +1096,20 @@ export const useChatStore = defineStore('chat', {
         },
 
         /** 保存当前会话到历史 */
-        _saveToHistory(session?: ChatSession) {
+        _saveToHistory(
+            session?: ChatSession,
+            conversationHistory?: ConversationMessage[],
+        ) {
             const targetSession = session ?? this.currentSession;
+            const targetHistory = conversationHistory ?? this.conversationHistory;
             if (this.currentSessionIdx < this.sessions.length - 1) {
                 this.sessions.splice(this.currentSessionIdx + 1);
             }
             this.sessions.push(cloneSerializable(targetSession));
+            this.sessionSnapshots[targetSession.sessionId] = buildChatSnapshot(
+                targetSession,
+                targetHistory,
+            );
             this.currentSessionIdx = this.sessions.length - 1;
         },
 
@@ -1082,6 +1123,10 @@ export const useChatStore = defineStore('chat', {
             if (!targetRecordId) return;
             const targetSession = session ?? this.currentSession;
             const targetHistory = conversationHistory ?? this.conversationHistory;
+            this.sessionSnapshots[targetSession.sessionId] = buildChatSnapshot(
+                targetSession,
+                targetHistory,
+            );
             try {
                 const { useSearchHistoryStore } = await import('./searchHistoryStore');
                 const searchHistoryStore = useSearchHistoryStore();
@@ -1147,6 +1192,10 @@ export const useChatStore = defineStore('chat', {
                 isAborted: snapshot.session.isAborted,
                 error: snapshot.session.error,
             };
+            this.sessionSnapshots[sessionId] = buildChatSnapshot(
+                this.currentSession,
+                this.conversationHistory,
+            );
             this._abortController = null;
             this._streamId = null;
         },
@@ -1157,6 +1206,7 @@ export const useChatStore = defineStore('chat', {
                 this.abortSession(sessionId);
             }
             this.sessions = [];
+            this.sessionSnapshots = {};
             this.currentSessionIdx = -1;
             this.conversationHistory = [];
             this._currentHistoryRecordId = null;
@@ -1188,11 +1238,26 @@ export const useChatStore = defineStore('chat', {
                 this._streamId = activeRun.streamId;
                 return true;
             }
+            const cachedSnapshot = this.sessionSnapshots[sessionId];
+            if (cachedSnapshot) {
+                this.restoreFromSnapshot(cachedSnapshot);
+                return true;
+            }
             // 在历史会话中查找
             const idx = this.sessions.findIndex(s => s.sessionId === sessionId);
             if (idx >= 0) {
                 this.restoreSession(idx);
                 this.currentSessionId = sessionId;
+                this.conversationHistory = conversationHistoryFromSession(
+                    this.currentSession,
+                );
+                this._conversationLengthBeforeCurrentRound =
+                    this.conversationHistory.length >= 2
+                        ? Math.max(0, this.conversationHistory.length - 2)
+                        : this.conversationHistory.length;
+                this._currentHistoryRecordId = null;
+                this._abortController = null;
+                this._streamId = null;
                 return true;
             }
             return false;

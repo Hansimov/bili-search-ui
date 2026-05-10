@@ -1488,6 +1488,49 @@ describe('ChatStore 扩展功能', () => {
             expect(store.restoreBySessionId(sid)).toBe(true);
         });
 
+        it('restoreBySessionId 恢复旧内存会话时不应沿用上一个会话的历史', () => {
+            const store = useChatStore();
+            store.conversationHistory = [
+                {
+                    id: 'stale-user',
+                    role: 'user',
+                    content: '上一个会话的问题',
+                },
+                {
+                    id: 'stale-assistant',
+                    role: 'assistant',
+                    content: '上一个会话的回答',
+                },
+            ];
+            store.sessions.push({
+                ...store.currentSession,
+                sessionId: 'target-session',
+                query: '目标会话的问题',
+                mode: 'smart',
+                content: '目标会话的回答',
+                thinkingContent: '',
+                isLoading: false,
+                isThinkingPhase: false,
+                isDone: true,
+                isAborted: false,
+                error: null,
+                perfStats: null,
+                usage: null,
+                toolEvents: [],
+                streamSegments: [],
+                thinking: false,
+                createdAt: Date.now(),
+            });
+            store.currentSessionId = 'another-session';
+
+            expect(store.restoreBySessionId('target-session')).toBe(true);
+            expect(store.currentSession.query).toBe('目标会话的问题');
+            expect(store.conversationHistory.map((msg) => msg.content)).toEqual([
+                '目标会话的问题',
+                '目标会话的回答',
+            ]);
+        });
+
         it('restoreBySessionId 应在找不到会话时返回 false', () => {
             const store = useChatStore();
             expect(store.restoreBySessionId('nonexistent-id')).toBe(false);

@@ -103,6 +103,8 @@ const {
             createdAt: 0,
         },
         restoreFromSnapshot: vi.fn(),
+        restoreBySessionId: vi.fn().mockReturnValue(false),
+        isSessionRunning: vi.fn().mockReturnValue(false),
         setCurrentHistoryRecordId: vi.fn((id: string | null) => {
             mockChatStore.currentHistoryRecordId = id;
         }),
