@@ -68,6 +68,16 @@
           <transition name="fade">
             <span v-if="sidebarExpanded" class="nav-label">历史记录</span>
           </transition>
+          <span
+            v-if="sidebarExpanded && chatStore.backgroundRunningCount > 0"
+            class="history-running-badge"
+            title="后台会话运行中"
+          >
+            <q-icon name="sync" size="13px" />
+            <span v-if="chatStore.backgroundRunningCount > 1">
+              {{ chatStore.backgroundRunningCount }}
+            </span>
+          </span>
           <template v-if="sidebarExpanded">
             <q-space />
             <span class="history-nav-actions">
@@ -130,6 +140,14 @@
                   />
                   <span class="history-item-text">
                     {{ item.displayName || item.query }}
+                    <span
+                      v-if="getChatHistoryStatus(item)"
+                      class="history-status-pill"
+                      :class="`history-status-pill--${getChatHistoryStatus(item)}`"
+                      :title="getChatHistoryStatusLabel(item)"
+                    >
+                      <q-icon :name="getChatHistoryStatusIcon(item)" size="13px" />
+                    </span>
                   </span>
                   <transition name="fade">
                     <span
@@ -228,6 +246,17 @@
                         />
                         <span class="history-item-text">
                           {{ item.displayName || item.query }}
+                          <span
+                            v-if="getChatHistoryStatus(item)"
+                            class="history-status-pill"
+                            :class="`history-status-pill--${getChatHistoryStatus(item)}`"
+                            :title="getChatHistoryStatusLabel(item)"
+                          >
+                            <q-icon
+                              :name="getChatHistoryStatusIcon(item)"
+                              size="13px"
+                            />
+                          </span>
                         </span>
                         <transition name="fade">
                           <span
@@ -267,6 +296,14 @@
                     />
                     <span class="history-item-text">
                       {{ row.displayName || row.query }}
+                      <span
+                        v-if="getChatHistoryStatus(row)"
+                        class="history-status-pill"
+                        :class="`history-status-pill--${getChatHistoryStatus(row)}`"
+                        :title="getChatHistoryStatusLabel(row)"
+                      >
+                        <q-icon :name="getChatHistoryStatusIcon(row)" size="13px" />
+                      </span>
                     </span>
                     <transition name="fade">
                       <span
@@ -898,7 +935,23 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
       }
     : null;
 
-  if (isChatMode && fallbackChatSnapshot) {
+  const activeChatSessionId = item.sessionId;
+  const restoredActiveChat =
+    isChatMode &&
+    activeChatSessionId &&
+    typeof chatStore.restoreBySessionId === 'function' &&
+    chatStore.restoreBySessionId(activeChatSessionId);
+
+  if (restoredActiveChat) {
+    searchModeStore.setMode(mode);
+    searchModeStore.forceInitialSessionMode(mode);
+    exploreStore.setRestoringSession(true);
+    queryStore.setChatRoute(activeChatSessionId);
+    queryStore.setQuery({ newQuery: '' });
+    exploreStore.setSubmittedQuery(query);
+    chatStore.setCurrentHistoryRecordId(item.id);
+    setTimeout(() => exploreStore.setRestoringSession(false), 200);
+  } else if (isChatMode && fallbackChatSnapshot) {
     // Chat 模式：优先恢复完整快照；旧数据缺快照时退化为静态恢复，但不自动重提问
     chatStore.restoreFromSnapshot(fallbackChatSnapshot);
     // 设置搜索模式和布局
@@ -1135,14 +1188,43 @@ const getItemTooltip = (item: SearchHistoryItem): string => {
   const displayText = item.displayName || item.query;
   const timeText = formatFullTime(item.timestamp);
   const modeLabel = item.mode ? getSearchMode(item.mode).label || '' : '';
+  const statusLabel = getChatHistoryStatusLabel(item);
   if (item.displayName && item.displayName !== item.query) {
     return `${displayText}\n原始查询：${item.query}${
       modeLabel ? `\n模式：${modeLabel}` : ''
-    }\n${timeText}`;
+    }${statusLabel ? `\n状态：${statusLabel}` : ''}\n${timeText}`;
   }
   return `${displayText}${
     modeLabel ? `\n模式：${modeLabel}` : ''
-  }\n${timeText}`;
+  }${statusLabel ? `\n状态：${statusLabel}` : ''}\n${timeText}`;
+};
+
+const getChatHistoryStatus = (
+  item: SearchHistoryItem
+): 'running' | '' => {
+  const mode = item.mode === 'tool' ? 'utility' : item.mode || 'utility';
+  if (mode !== 'smart' && mode !== 'think') return '';
+  if (
+    item.sessionId &&
+    item.sessionId !== chatStore.currentSessionId &&
+    typeof chatStore.isSessionRunning === 'function' &&
+    chatStore.isSessionRunning(item.sessionId)
+  ) {
+    return 'running';
+  }
+  return '';
+};
+
+const getChatHistoryStatusLabel = (item: SearchHistoryItem): string => {
+  const status = getChatHistoryStatus(item);
+  if (status === 'running') return '后台运行中';
+  return '';
+};
+
+const getChatHistoryStatusIcon = (item: SearchHistoryItem): string => {
+  const status = getChatHistoryStatus(item);
+  if (status === 'running') return 'sync';
+  return '';
 };
 
 /** 根据搜索模式返回历史项图标 */
@@ -1759,6 +1841,22 @@ body.body--dark .nav-item-active {
   white-space: nowrap;
 }
 
+.history-running-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  color: #00897b;
+  background: rgba(0, 137, 123, 0.12);
+}
+
 /* ============ 搜索历史区域 ============ */
 .sidebar-history {
   flex: 1;
@@ -1926,6 +2024,29 @@ body.body--dark .history-item-active {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.history-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 999px;
+  line-height: 1;
+  vertical-align: 1px;
+}
+
+.history-status-pill--running {
+  color: #00897b;
+  background: rgba(0, 137, 123, 0.12);
+}
+
+body.body--dark .history-running-badge,
+body.body--dark .history-status-pill--running {
+  color: #4db6ac;
+  background: rgba(77, 182, 172, 0.16);
 }
 
 .history-item-right {

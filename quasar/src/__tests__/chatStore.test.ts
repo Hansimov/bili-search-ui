@@ -972,6 +972,63 @@ describe('ChatStore', () => {
             expect(callCount).toBe(2);
             expect(store.currentSession.query).toBe('问题2');
         });
+
+        it('startNewChat 不应中止正在后台运行的旧会话，且流式回调不污染当前会话', async () => {
+            const { chatCompletionStream } = await import(
+                'src/services/chatService'
+            );
+            const mockStream = vi.mocked(chatCompletionStream);
+            const calls: Array<{
+                callbacks: Parameters<typeof chatCompletionStream>[1];
+                signal?: AbortSignal;
+                resolve: () => void;
+            }> = [];
+
+            mockStream.mockImplementation(async (_params, callbacks, signal) => {
+                await new Promise<void>((resolve) => {
+                    calls.push({ callbacks, signal, resolve });
+                });
+            });
+
+            const store = useChatStore();
+            store.startNewChat();
+            const firstSessionId = store.currentSessionId;
+            const firstPromise = store.sendChat('后台问题', 'smart');
+            expect(calls).toHaveLength(1);
+
+            store.startNewChat();
+            const secondSessionId = store.currentSessionId;
+            const secondPromise = store.sendChat('当前问题', 'smart');
+            expect(calls).toHaveLength(2);
+
+            expect(firstSessionId).not.toBe(secondSessionId);
+            expect(calls[0].signal?.aborted).toBe(false);
+            expect(store.isSessionRunning(firstSessionId)).toBe(true);
+            expect(store.backgroundRunningCount).toBe(1);
+
+            calls[0].callbacks.onContent?.('后台回答');
+            expect(store.currentSession.sessionId).toBe(secondSessionId);
+            expect(store.currentSession.query).toBe('当前问题');
+            expect(store.currentSession.content).toBe('');
+            expect(store.activeRuns[firstSessionId].session.content).toBe(
+                '后台回答'
+            );
+
+            calls[0].callbacks.onDone?.();
+            calls[0].resolve();
+            await firstPromise;
+
+            expect(store.currentSession.sessionId).toBe(secondSessionId);
+            expect(store.currentSession.query).toBe('当前问题');
+
+            calls[1].callbacks.onContent?.('当前回答');
+            calls[1].callbacks.onDone?.();
+            calls[1].resolve();
+            await secondPromise;
+
+            expect(store.currentSession.content).toBe('当前回答');
+            expect(store.backgroundRunningCount).toBe(0);
+        });
     });
 });
 

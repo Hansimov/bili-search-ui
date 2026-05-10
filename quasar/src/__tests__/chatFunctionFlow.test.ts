@@ -187,7 +187,10 @@ describe('chat.ts flow', () => {
 
         expect(mockLayoutStore.setIsSuggestVisible).toHaveBeenCalledWith(false);
         expect(mockLayoutStore.resetSuggestNavigation).toHaveBeenCalledTimes(1);
-        expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith('direct query');
+        expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith(
+            'direct query',
+            'utility'
+        );
         expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith('utility');
         expect(mockExecuteToolCall).toHaveBeenCalledWith({
             queryValue: 'direct query',
@@ -210,7 +213,10 @@ describe('chat.ts flow', () => {
             setRoute: true,
         });
 
-        expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith('follow up');
+        expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith(
+            'follow up',
+            'smart'
+        );
         expect(mockChatStore.startNewChat).not.toHaveBeenCalled();
         expect(mockQueryStore.setQuery).not.toHaveBeenCalled();
         expect(mockQueryStore.setChatRoute).not.toHaveBeenCalled();
@@ -256,7 +262,10 @@ describe('chat.ts flow', () => {
             mode: 'think',
         });
 
-        expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith('uid=546195');
+        expect(mockInputHistoryStore.addRecord).toHaveBeenCalledWith(
+            'uid=546195',
+            'think'
+        );
         expect(mockSearchModeStore.setInitialSessionMode).toHaveBeenCalledWith('think');
         expect(mockChatStore.startNewChat).toHaveBeenCalledTimes(1);
         expect(mockQueryStore.setQuery).not.toHaveBeenCalled();
