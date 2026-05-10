@@ -30,6 +30,29 @@ const searchGoogleCall: ToolCall = {
     },
 };
 
+const truncatedSearchGoogleCall: ToolCall = {
+    type: 'search_google',
+    args: { query: '上海' },
+    status: 'completed',
+    result: {
+        query: '上海',
+        result_count: 6,
+        results: [
+            {
+                title: '上海市人民政府',
+                link: 'https://www.shanghai.gov.cn/',
+                snippet: '上海市政府门户网站。',
+                domain: 'shanghai.gov.cn',
+            },
+            {
+                title: '上海 - 维基百科',
+                link: 'https://zh.wikipedia.org/wiki/%E4%B8%8A%E6%B5%B7%E5%B8%82',
+                snippet: '上海市，简称沪。',
+            },
+        ],
+    },
+};
+
 const searchOwnersCall: ToolCall = {
     type: 'search_owners',
     args: { text: '何同学', mode: 'name' },
@@ -311,6 +334,33 @@ describe('ToolCallDisplay component', () => {
         expect(sources[0]?.text()).toBe('blog.google/gemini/release-notes');
         expect(sources[1]?.text()).toBe('ai.google.dev/gemini-api/changelog');
         expect(sources.some((source) => source.text() === 'Google')).toBe(false);
+    });
+
+    it('counts the visible Google result rows instead of the raw provider count', async () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [truncatedSearchGoogleCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('2 条结果');
+        expect(wrapper.text()).not.toContain('6 条结果');
+
+        await wrapper.find('.tool-call-header').trigger('click');
+
+        const sources = wrapper.findAll('.tool-google-result-source');
+        expect(sources[0]?.text()).toBe('shanghai.gov.cn');
+        expect(sources[1]?.text()).toBe('zh.wikipedia.org');
     });
 
     it('renders search_owners with a friendly label and compact text items', async () => {

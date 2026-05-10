@@ -409,6 +409,7 @@ interface GoogleResult {
   snippet?: string;
   displayed_url?: string;
   display_link?: string;
+  domain?: string;
 }
 
 interface OwnerResult {
@@ -737,9 +738,8 @@ export default defineComponent({
       }
       if (call.type === 'search_google') {
         const result = call.result as Record<string, unknown>;
-        const total = Number(
-          result?.result_count || getGoogleResults(call).length || 0
-        );
+        const visible = getGoogleResults(call).length;
+        const total = visible || Number(result?.result_count || 0);
         return `${total} 条结果`;
       }
       if (call.type === 'search_owners') {
@@ -793,7 +793,15 @@ export default defineComponent({
     };
 
     const getGoogleDisplayedUrl = (result: GoogleResult): string => {
-      return result.displayed_url || result.display_link || '';
+      const explicit =
+        result.displayed_url || result.display_link || result.domain || '';
+      if (explicit) return explicit;
+      if (!result.link) return '';
+      try {
+        return new URL(result.link).hostname.replace(/^www\./, '');
+      } catch {
+        return '';
+      }
     };
 
     const getOwnerResults = (call: ToolCall): OwnerResult[] => {
@@ -1451,7 +1459,7 @@ export default defineComponent({
 .tool-google-results {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .tool-owner-groups {
@@ -1666,18 +1674,45 @@ export default defineComponent({
 }
 
 .tool-google-result {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 12px 14px 12px 16px;
   border-radius: 8px;
+  border: 1px solid rgba(25, 118, 210, 0.12);
   text-decoration: none;
   color: inherit;
-  background: rgba(128, 128, 128, 0.03);
-  transition: background 0.15s ease;
+  background: linear-gradient(
+    135deg,
+    rgba(25, 118, 210, 0.055),
+    rgba(255, 255, 255, 0.02)
+  );
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 10px auto 10px 8px;
+    width: 2px;
+    border-radius: 999px;
+    background: rgba(25, 118, 210, 0.5);
+  }
 
   &:hover {
-    background: rgba(128, 128, 128, 0.08);
+    border-color: rgba(25, 118, 210, 0.25);
+    background: linear-gradient(
+      135deg,
+      rgba(25, 118, 210, 0.085),
+      rgba(255, 255, 255, 0.035)
+    );
+    box-shadow: 0 5px 16px rgba(0, 0, 0, 0.07);
+    transform: translateY(-1px);
   }
 }
 
@@ -1686,29 +1721,69 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
 }
 
 .tool-google-result-source {
   font-size: 11px;
-  opacity: 0.48;
+  font-weight: 600;
+  color: #1976d2;
+  opacity: 0.86;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tool-google-result-open {
-  opacity: 0.35;
+  color: #1976d2;
+  opacity: 0.55;
   flex-shrink: 0;
 }
 
 .tool-google-result-title {
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.35;
-  font-weight: 500;
-  opacity: 0.88;
+  font-weight: 650;
+  opacity: 0.92;
 }
 
 .tool-google-result-snippet {
-  font-size: 12px;
-  line-height: 1.45;
-  opacity: 0.62;
+  font-size: 12.5px;
+  line-height: 1.5;
+  opacity: 0.68;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+body.body--dark .tool-google-result {
+  border-color: rgba(144, 202, 249, 0.14);
+  background: linear-gradient(
+    135deg,
+    rgba(144, 202, 249, 0.075),
+    rgba(255, 255, 255, 0.025)
+  );
+  box-shadow: none;
+
+  &::before {
+    background: rgba(144, 202, 249, 0.55);
+  }
+
+  &:hover {
+    border-color: rgba(144, 202, 249, 0.28);
+    background: linear-gradient(
+      135deg,
+      rgba(144, 202, 249, 0.11),
+      rgba(255, 255, 255, 0.04)
+    );
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  }
+}
+
+body.body--dark .tool-google-result-source,
+body.body--dark .tool-google-result-open {
+  color: #90caf9;
 }
 
 .tool-result-more {
