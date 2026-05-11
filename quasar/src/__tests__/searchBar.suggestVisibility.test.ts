@@ -145,4 +145,13 @@ describe('SearchBar suggestion visibility', () => {
 
         expect(wrapper.find('.search-sub-container').exists()).toBe(true);
     });
+
+    it('实用工具模式下精确命令带参数时不应因命令详情渲染崩溃', () => {
+        mockQueryStore.query = '/google 上海';
+        mockSearchModeStore.currentMode = 'utility';
+
+        const wrapper = mountSearchBar();
+
+        expect(wrapper.find('.search-sub-container').exists()).toBe(true);
+    });
 });
