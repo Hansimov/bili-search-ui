@@ -13,7 +13,9 @@
               <span v-if="isExploreLoading" class="loading-indicator">
                 <q-spinner-dots size="16px" class="q-mr-xs" />
                 <span>{{ loadingLabel }}</span>
-                <span class="loading-query">{{ submittedQuery }}</span>
+                <span v-if="loadingQueryText" class="loading-query">{{
+                  loadingQueryText
+                }}</span>
                 <span class="loading-dots"></span>
               </span>
               <span v-else-if="isShowResultsStats">
@@ -171,6 +173,7 @@ import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
 import { resultsSortMethods, isNonEmptyArray } from 'src/stores/resultStore';
+import { TOOL_COMMANDS } from 'src/config/toolCommands';
 
 import ResultItem from './ResultItem.vue';
 import ResultsPagination from './ResultsPagination.vue';
@@ -185,6 +188,38 @@ const RESULTS_SHELL_INLINE_PADDING = 20;
 const RESULTS_SCROLLBAR_WIDTH = 8;
 const RESULTS_FLUID_TWO_COLUMN_THRESHOLD =
   RESULT_ITEM_WIDTH * 3 + RESULT_GRID_GAP * 2;
+
+const UTILITY_LOADING_LABELS = {
+  explore: '正在探索：',
+  search_videos: '正在搜索视频：',
+  search_owners: '正在搜索作者：',
+  check_author: '正在确认作者：',
+  search_google: '正在搜索网页：',
+  get_video_transcript: '正在读取转写：',
+  run_small_llm_task: '正在处理任务：',
+  summarize_transcript: '正在总结视频：',
+};
+
+const COMMAND_TO_TOOL = TOOL_COMMANDS.reduce((acc, item) => {
+  acc[item.command] = item.tool;
+  (item.aliases || []).forEach((alias) => {
+    acc[`/${alias}`] = item.tool;
+  });
+  return acc;
+}, {});
+
+const parseUtilityCommand = (query) => {
+  const trimmed = String(query || '').trimStart();
+  const match = trimmed.match(/^(\/\S+)(?:\s+([\s\S]*))?$/);
+  if (!match) {
+    return { command: '', rest: trimmed };
+  }
+  const command = match[1].toLowerCase();
+  return {
+    command,
+    rest: String(match[2] || '').trim(),
+  };
+};
 
 export default {
   props: {
@@ -559,9 +594,27 @@ function _setup(props) {
 
   // Submitted query for loading display (not the live input value)
   const submittedQuery = computed(() => exploreStore.submittedQuery || '');
-  const loadingLabel = computed(() =>
-    searchModeStore.currentMode === 'utility' ? '正在调用工具：' : '正在搜索：'
+  const submittedUtilityCommand = computed(() =>
+    parseUtilityCommand(submittedQuery.value)
   );
+  const activeUtilityTool = computed(
+    () =>
+      exploreStore.toolCall?.type ||
+      COMMAND_TO_TOOL[submittedUtilityCommand.value.command] ||
+      ''
+  );
+  const loadingLabel = computed(() => {
+    if (searchModeStore.currentMode !== 'utility') {
+      return '正在搜索：';
+    }
+    return UTILITY_LOADING_LABELS[activeUtilityTool.value] || '正在执行工具：';
+  });
+  const loadingQueryText = computed(() => {
+    if (searchModeStore.currentMode !== 'utility') {
+      return submittedQuery.value;
+    }
+    return submittedUtilityCommand.value.rest || submittedQuery.value;
+  });
 
   // Use composables
   const stepStatus = useStepResultStatus(exploreStore);
@@ -646,12 +699,15 @@ function _setup(props) {
 
   const contentWidthStyle = computed(() => dynamicResultsListStyle.value);
 
-  const isExploreSessionVisible = computed(() =>
-    exploreStore.isSessionSwitchVisible()
-  );
-
   const hasResults = computed(() => exploreStore.hasResults);
   const isExploreLoading = computed(() => exploreStore.isExploreLoading);
+  const isExploreSessionVisible = computed(
+    () =>
+      !isExploreLoading.value &&
+      hasResults.value &&
+      exploreStore.toolCall?.type === 'explore' &&
+      exploreStore.isSessionSwitchVisible()
+  );
 
   // Watch for results changes
   watch([() => sorting.sortedHits.value], () => {
@@ -780,6 +836,7 @@ function _setup(props) {
     isExploreLoading,
     submittedQuery,
     loadingLabel,
+    loadingQueryText,
     // DOM refs
     resultsListDiv,
     resultItemRefs,
@@ -852,7 +909,7 @@ function _setup(props) {
 }
 .loading-query {
   opacity: 0.75;
-  font-style: bold;
+  font-weight: 600;
   max-width: min(50vw, 420px);
   overflow: hidden;
   text-overflow: ellipsis;

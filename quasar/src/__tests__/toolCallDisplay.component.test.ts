@@ -149,6 +149,19 @@ const streamingSmallTaskPlaceholderCall: ToolCall = {
     },
 };
 
+const summarizeCall: ToolCall = {
+    type: 'summarize_transcript',
+    args: {
+        video_id: 'BV1YXZPB1Erc',
+    },
+    status: 'streaming',
+    result: {
+        task: '总结视频 BV1YXZPB1Erc',
+        model_name: 'doubao-seed-2-0-mini',
+        result: '# 视频总结\n\n- 第一条要点\n- 第二条要点\n\n[BV 链接](BV1YXZPB1Erc)',
+    },
+};
+
 const multiQuerySearchVideosCall: ToolCall = {
     type: 'search_videos',
     args: {
@@ -497,6 +510,38 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('生成中...');
         expect(wrapper.text()).toContain('小模型已开始处理，等待首批内容...');
         expect(wrapper.find('.tool-text-result').exists()).toBe(true);
+    });
+
+    it('renders summarize_transcript output as restrained markdown instead of pre text', () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [summarizeCall],
+                forceExpanded: true,
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('视频总结');
+        expect(wrapper.text()).toContain('总结中...');
+        expect(wrapper.find('.tool-markdown-result').exists()).toBe(true);
+        expect(wrapper.find('pre.tool-text-result').exists()).toBe(false);
+        expect(wrapper.find('.tool-markdown-result h2').text()).toBe('视频总结');
+        expect(wrapper.findAll('.tool-markdown-result li')).toHaveLength(2);
+        expect(wrapper.find('.tool-markdown-result a').attributes('href')).toBe(
+            'https://www.bilibili.com/video/BV1YXZPB1Erc'
+        );
+        expect(wrapper.find('.tool-text-result--small-task-streaming').exists()).toBe(
+            true
+        );
     });
 
     it('allows collapsing a streaming run_small_llm_task panel', async () => {

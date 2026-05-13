@@ -118,10 +118,10 @@ describe('ChatResponsePanel actions', () => {
         mockChatStore.currentSession.mode = 'smart';
         mockChatStore.currentSession.usageTrace = {
             models: {
-                planner: { config: 'deepseek', model: 'deepseek-reasoner' },
+                planner: { config: 'deepseek', model: 'deepseek-v4-flash' },
                 response: {
-                    config: 'doubao-seed-2-0-mini',
-                    model: 'doubao-seed-2-0-mini-260215',
+                    config: 'deepseek-v4-flash',
+                    model: 'deepseek-v4-flash',
                 },
             },
         };

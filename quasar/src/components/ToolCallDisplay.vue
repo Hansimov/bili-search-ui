@@ -62,7 +62,7 @@
             v-else-if="call.status === 'pending'"
             class="tool-call-status-pending"
           >
-            执行中...
+            {{ getPendingStatusText(call) }}
           </span>
           <q-btn
             v-if="
@@ -250,7 +250,15 @@
               v-else-if="isSmallModelTextTool(call)"
               class="tool-text-results"
             >
+              <div
+                v-if="shouldRenderSmallTaskMarkdown(call)"
+                class="tool-text-result tool-markdown-result"
+                :class="getSmallTaskResultClasses(call)"
+                @wheel="handleSmallTaskWheel($event, idx)"
+                v-html="renderSmallTaskMarkdown(call)"
+              ></div>
               <pre
+                v-else
                 class="tool-text-result"
                 :class="getSmallTaskResultClasses(call)"
                 @wheel="handleSmallTaskWheel($event, idx)"
@@ -387,6 +395,7 @@ import {
 } from 'src/utils/ownerRichView';
 import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
 import { formatToolCallArgs } from 'src/utils/toolCall';
+import { renderMarkdown } from 'src/utils/markdown';
 
 /** Video hit from search result */
 interface VideoHit {
@@ -498,6 +507,17 @@ const TOOL_ICONS: Record<string, string> = {
   related_videos_by_owners: 'video_library',
   related_owners_by_owners: 'groups',
   read_spec: 'description',
+};
+
+const TOOL_RUNNING_STATUS_TEXTS: Record<string, string> = {
+  explore: '探索中...',
+  search_videos: '搜索中...',
+  search_owners: '搜索中...',
+  check_author: '确认中...',
+  search_google: '搜索中...',
+  get_video_transcript: '读取中...',
+  run_small_llm_task: '生成中...',
+  summarize_transcript: '总结中...',
 };
 
 export default defineComponent({
@@ -894,13 +914,23 @@ export default defineComponent({
       return '';
     };
 
+    const shouldRenderSmallTaskMarkdown = (call: ToolCall): boolean =>
+      call.type === 'summarize_transcript';
+
+    const renderSmallTaskMarkdown = (call: ToolCall): string =>
+      renderMarkdown(getSmallTaskResultText(call));
+
     const getStreamingStatusText = (call: ToolCall): string =>
-      isSmallModelTextTool(call) ? '生成中...' : '执行中...';
+      TOOL_RUNNING_STATUS_TEXTS[call.type] || '执行中...';
+
+    const getPendingStatusText = (call: ToolCall): string =>
+      TOOL_RUNNING_STATUS_TEXTS[call.type] || '执行中...';
 
     const getSmallTaskResultClasses = (call: ToolCall) => ({
       'tool-text-result--small-task': true,
+      'tool-text-result--summary': call.type === 'summarize_transcript',
       'tool-text-result--small-task-streaming':
-        call.status === 'streaming' && !props.forceExpanded,
+        call.status === 'streaming',
     });
 
     const formatGenericResult = (call: ToolCall): string => {
@@ -1006,8 +1036,7 @@ export default defineComponent({
         visibleToolCalls.value.forEach((call, idx) => {
           if (
             !isSmallModelTextTool(call) ||
-            call.status !== 'streaming' ||
-            props.forceExpanded
+            call.status !== 'streaming'
           ) {
             return;
           }
@@ -1023,12 +1052,28 @@ export default defineComponent({
     };
 
     const handleSmallTaskWheel = (event: WheelEvent, idx: number) => {
+      const targetEl = event.currentTarget as HTMLElement | null;
+      if (targetEl) {
+        const canScroll = targetEl.scrollHeight > targetEl.clientHeight + 1;
+        const atTop = targetEl.scrollTop <= 0;
+        const atBottom =
+          targetEl.scrollTop + targetEl.clientHeight >=
+          targetEl.scrollHeight - 1;
+        const shouldUseInnerScroll =
+          canScroll &&
+          ((event.deltaY < 0 && !atTop) || (event.deltaY > 0 && !atBottom));
+
+        if (shouldUseInnerScroll) {
+          return;
+        }
+      }
+
       const itemEl = getToolItemElement(idx);
       if (!itemEl) {
         return;
       }
       const scrollEl = getScrollableAncestor(itemEl);
-      if (!scrollEl || scrollEl === event.currentTarget) {
+      if (!scrollEl || scrollEl === targetEl) {
         return;
       }
       event.preventDefault();
@@ -1182,7 +1227,10 @@ export default defineComponent({
       getTranscriptText,
       getSmallTaskResultClasses,
       getSmallTaskResultText,
+      shouldRenderSmallTaskMarkdown,
+      renderSmallTaskMarkdown,
       getStreamingStatusText,
+      getPendingStatusText,
       formatGenericResult,
       getOwnerDisplayName,
       getOwnerHref,
@@ -1550,7 +1598,7 @@ export default defineComponent({
 .tool-text-result {
   margin: 0;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(128, 128, 128, 0.04);
   border: 1px solid rgba(128, 128, 128, 0.08);
   white-space: pre-wrap;
@@ -1560,13 +1608,108 @@ export default defineComponent({
 }
 
 .tool-text-result--small-task {
+  max-height: min(36vh, 360px);
+  overflow-y: auto;
   overflow-anchor: none;
+  scrollbar-width: thin;
 }
 
 .tool-text-result--small-task-streaming {
-  max-height: 84px;
-  overflow-y: auto;
-  scrollbar-width: thin;
+  max-height: min(36vh, 360px);
+}
+
+.tool-text-result--summary {
+  max-height: min(48vh, 560px);
+}
+
+.tool-markdown-result {
+  white-space: normal;
+}
+
+.tool-markdown-result :deep(*) {
+  max-width: 100%;
+}
+
+.tool-markdown-result :deep(p),
+.tool-markdown-result :deep(ul),
+.tool-markdown-result :deep(ol),
+.tool-markdown-result :deep(blockquote),
+.tool-markdown-result :deep(pre) {
+  margin: 0 0 7px;
+}
+
+.tool-markdown-result :deep(p:last-child),
+.tool-markdown-result :deep(ul:last-child),
+.tool-markdown-result :deep(ol:last-child),
+.tool-markdown-result :deep(blockquote:last-child),
+.tool-markdown-result :deep(pre:last-child) {
+  margin-bottom: 0;
+}
+
+.tool-markdown-result :deep(h1),
+.tool-markdown-result :deep(h2),
+.tool-markdown-result :deep(h3),
+.tool-markdown-result :deep(h4),
+.tool-markdown-result :deep(h5),
+.tool-markdown-result :deep(h6) {
+  margin: 10px 0 6px;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: 700;
+}
+
+.tool-markdown-result :deep(h1:first-child),
+.tool-markdown-result :deep(h2:first-child),
+.tool-markdown-result :deep(h3:first-child),
+.tool-markdown-result :deep(h4:first-child),
+.tool-markdown-result :deep(h5:first-child),
+.tool-markdown-result :deep(h6:first-child) {
+  margin-top: 0;
+}
+
+.tool-markdown-result :deep(ul),
+.tool-markdown-result :deep(ol) {
+  padding-left: 18px;
+}
+
+.tool-markdown-result :deep(li + li) {
+  margin-top: 3px;
+}
+
+.tool-markdown-result :deep(a) {
+  color: #1976d2;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.tool-markdown-result :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.tool-markdown-result :deep(code) {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.12);
+  font-size: 0.95em;
+}
+
+.tool-markdown-result :deep(pre) {
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre;
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.08);
+}
+
+.tool-markdown-result :deep(pre code) {
+  padding: 0;
+  background: transparent;
+}
+
+.tool-markdown-result :deep(blockquote) {
+  padding-left: 10px;
+  border-left: 3px solid rgba(128, 128, 128, 0.24);
+  opacity: 0.82;
 }
 
 .tool-result-error {
@@ -1597,7 +1740,7 @@ export default defineComponent({
 
 .tool-transcript-text {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(128, 128, 128, 0.04);
   border: 1px solid rgba(128, 128, 128, 0.08);
   white-space: pre-wrap;
@@ -1901,6 +2044,15 @@ body.body--dark .tool-google-result-open {
 
   .tool-call-results {
     padding: 5px 8px 8px;
+  }
+
+  .tool-text-result--small-task,
+  .tool-text-result--small-task-streaming {
+    max-height: min(34vh, 300px);
+  }
+
+  .tool-text-result--summary {
+    max-height: min(44vh, 420px);
   }
 
   .tool-results-grid {
