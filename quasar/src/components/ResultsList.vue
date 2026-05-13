@@ -5,12 +5,15 @@
         <div
           v-if="showStatsBar"
           class="row results-list-info-top justify-between"
-          v-show="hasResults || isExploreLoading"
+          :class="{
+            'results-list-info-top--utility-loading': isUtilityLoading,
+          }"
+          v-show="hasResults || shouldShowLoadingStats"
         >
           <span class="results-stats">
             <ExploreSessionSwitch v-show="isExploreSessionVisible" />
             <span class="results-stats-text">
-              <span v-if="isExploreLoading" class="loading-indicator">
+              <span v-if="shouldShowLoadingStats" class="loading-indicator">
                 <q-spinner-dots size="16px" class="q-mr-xs" />
                 <span>{{ loadingLabel }}</span>
                 <span v-if="loadingQueryText" class="loading-query">{{
@@ -615,6 +618,19 @@ function _setup(props) {
     }
     return submittedUtilityCommand.value.rest || submittedQuery.value;
   });
+  const isUtilityLoading = computed(
+    () =>
+      searchModeStore.currentMode === 'utility' && exploreStore.isExploreLoading
+  );
+  const shouldHideUtilityLoadingStats = computed(
+    () =>
+      isUtilityLoading.value &&
+      exploreStore.toolCall?.type === 'summarize_transcript' &&
+      exploreStore.toolCall?.status === 'streaming'
+  );
+  const shouldShowLoadingStats = computed(
+    () => exploreStore.isExploreLoading && !shouldHideUtilityLoadingStats.value
+  );
 
   // Use composables
   const stepStatus = useStepResultStatus(exploreStore);
@@ -834,6 +850,8 @@ function _setup(props) {
     isExploreSessionVisible,
     hasResults,
     isExploreLoading,
+    isUtilityLoading,
+    shouldShowLoadingStats,
     submittedQuery,
     loadingLabel,
     loadingQueryText,
@@ -894,6 +912,12 @@ function _setup(props) {
   max-width: var(--results-normal-fixed-width, 100%);
   margin: 0 auto;
   flex-wrap: nowrap;
+}
+.results-list-info-top--utility-loading {
+  box-sizing: border-box;
+  width: var(--search-input-width);
+  max-width: var(--search-input-max-width, 95vw);
+  padding-inline: 12px;
 }
 .results-stats-text {
   padding-left: 4px;

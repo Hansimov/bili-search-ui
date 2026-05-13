@@ -1044,7 +1044,16 @@ export default defineComponent({
           const resultEl = itemEl?.querySelector(
             '.tool-text-result--small-task'
           ) as HTMLElement | null;
-          if (resultEl) {
+          if (!resultEl) {
+            return;
+          }
+
+          if (call.type === 'summarize_transcript') {
+            const scrollEl = getScrollableAncestor(itemEl);
+            if (scrollEl) {
+              scrollEl.scrollTop = scrollEl.scrollHeight;
+            }
+          } else {
             resultEl.scrollTop = resultEl.scrollHeight;
           }
         });
@@ -1619,7 +1628,8 @@ export default defineComponent({
 }
 
 .tool-text-result--summary {
-  max-height: min(48vh, 560px);
+  max-height: none;
+  overflow-y: visible;
 }
 
 .tool-markdown-result {
@@ -2052,7 +2062,8 @@ body.body--dark .tool-google-result-open {
   }
 
   .tool-text-result--summary {
-    max-height: min(44vh, 420px);
+    max-height: none;
+    overflow-y: visible;
   }
 
   .tool-results-grid {
