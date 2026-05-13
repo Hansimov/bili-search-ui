@@ -8,6 +8,7 @@ const port = Number(process.env.FRONTEND_PORT || 21002);
 const distDir = process.env.DIST_DIR;
 const backendHost = process.env.BACKEND_HOST || '127.0.0.1';
 const backendPort = Number(process.env.BACKEND_PORT || 21001);
+const apiProxyTimeoutMs = Number(process.env.API_PROXY_TIMEOUT_MS || 900000);
 const biliApiTarget = process.env.BILI_API_TARGET || 'https://api.bilibili.com';
 const biliImgTargetOrigin = process.env.BILI_IMG_TARGET_ORIGIN || '';
 const BILI_CDN_HOST_RE = /(^|\.)hdslb\.com$/i;
@@ -29,6 +30,8 @@ const apiProxy = httpProxy.createProxyServer({
     target: `http://${backendHost}:${backendPort}`,
     changeOrigin: true,
     xfwd: true,
+    timeout: apiProxyTimeoutMs,
+    proxyTimeout: apiProxyTimeoutMs,
 });
 
 const biliApiProxy = httpProxy.createProxyServer({
@@ -235,6 +238,8 @@ const server = http.createServer((req, res) => {
 
     handleStaticRequest(req, res);
 });
+server.requestTimeout = apiProxyTimeoutMs + 30000;
+server.headersTimeout = apiProxyTimeoutMs + 60000;
 
 server.listen(port, host, () => {
     process.stdout.write(`bxsv pro server listening on http://${host}:${port}\n`);

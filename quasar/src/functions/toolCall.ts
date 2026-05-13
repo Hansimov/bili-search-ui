@@ -64,6 +64,7 @@ const normalizeToolCall = (response: ToolCallResponse): ToolCall | null => {
 };
 
 const STREAMING_UTILITY_TOOLS = new Set([
+    'get_video_transcript',
     'run_small_llm_task',
     'summarize_transcript',
 ]);
@@ -89,6 +90,14 @@ const normalizeToolCallFromEvent = (event: ToolEvent): ToolCall | null => {
 
 const buildUtilityStepResults = (toolCall: ToolCall | null): ExploreStepResult[] => {
     if (!toolCall) return [];
+    const hasError = toolCall.result &&
+        typeof toolCall.result === 'object' &&
+        'error' in (toolCall.result as Record<string, unknown>);
+    const status = hasError
+        ? 'failed'
+        : toolCall.status === 'pending' || toolCall.status === 'streaming'
+          ? 'running'
+          : 'finished';
     return [
         {
             step: 1,
@@ -99,11 +108,7 @@ const buildUtilityStepResults = (toolCall: ToolCall | null): ExploreStepResult[]
                     : toolCall.type === 'run_small_llm_task'
                       ? '小模型'
                       : toolCall.type,
-            status: toolCall.result &&
-                typeof toolCall.result === 'object' &&
-                'error' in (toolCall.result as Record<string, unknown>)
-                ? 'failed'
-                : 'finished',
+            status,
             input: toolCall.args,
             output: { tool_result: toolCall.result || {} },
             output_type: 'tool_result',

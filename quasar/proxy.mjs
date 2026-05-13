@@ -1,6 +1,7 @@
 // 从环境变量或默认值获取端口配置
 const BACKEND_HOST = process.env.BACKEND_HOST || '127.0.0.1';
 const BACKEND_PORT = process.env.BACKEND_PORT || 21001;
+const API_PROXY_TIMEOUT_MS = Number(process.env.API_PROXY_TIMEOUT_MS || 900000);
 const BILI_IMG_TARGET_ORIGIN = process.env.BILI_IMG_TARGET_ORIGIN || '';
 const BILI_CDN_HOST_RE = /(^|\.)hdslb\.com$/i;
 const biliUserAgent =
@@ -21,6 +22,8 @@ export default [
         rule: {
             target: `http://${BACKEND_HOST}:${BACKEND_PORT}`,
             changeOrigin: true,
+            timeout: API_PROXY_TIMEOUT_MS,
+            proxyTimeout: API_PROXY_TIMEOUT_MS,
             pathRewrite: { '^/api': '' },
         },
     },

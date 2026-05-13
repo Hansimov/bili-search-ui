@@ -14,6 +14,7 @@ const { configure } = require('quasar/wrappers');
 const BACKEND_HOST = process.env.BACKEND_HOST || '127.0.0.1';
 const BACKEND_PORT = process.env.BACKEND_PORT || 21001;
 const FRONTEND_PORT = process.env.FRONTEND_PORT || 21002;
+const API_PROXY_TIMEOUT_MS = Number(process.env.API_PROXY_TIMEOUT_MS || 900000);
 const CHAT_HMR_FULL_RELOAD_PATHS = [
     '/src/components/ChatResponsePanel.vue',
     '/src/components/ToolCallDisplay.vue',
@@ -198,6 +199,8 @@ module.exports = configure(function (/* ctx */) {
                 '/api': {
                     target: `http://${BACKEND_HOST}:${BACKEND_PORT}`,
                     changeOrigin: true,
+                    timeout: API_PROXY_TIMEOUT_MS,
+                    proxyTimeout: API_PROXY_TIMEOUT_MS,
                     rewrite: (path) => path.replace(/^\/api/, ''),
                 },
                 // proxy login requests to passport server
