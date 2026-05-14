@@ -633,8 +633,13 @@ body.body--dark .search-bar-row {
 
 .results-tabs-card--tool {
   height: calc(
-    var(--viewport-height-css, 100vh) - 36px -
-      var(--search-bar-total-height, 84px) + 2px
+    var(
+        --search-input-top-edge,
+        calc(
+          var(--viewport-height-css, 100vh) -
+            var(--search-bar-total-height, 84px)
+        )
+      ) - 36px
   );
 }
 

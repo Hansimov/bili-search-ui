@@ -72,7 +72,7 @@ export const useExploreStore = defineStore('explore', {
             const queryStore = useQueryStore();
             this.isRestoringSession = true;
             const session = this.exploreSessions[this.currentSessionIdx];
-            queryStore.setQuery({ newQuery: session.query, setRoute: true });
+            queryStore.setQuery({ newQuery: session.query, setRoute: false });
             this.stepResults = [...session.stepResults];
             this.latestHitsResult = session.latestHitsResult;
             this.latestAuthorsResult = session.latestAuthorsResult;

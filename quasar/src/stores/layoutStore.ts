@@ -26,6 +26,7 @@ export const useLayoutStore = defineStore('layout', {
         screenWidth: getViewportCssWidth(),
         searchRecordsListWidth: 300,
         isMouseInSearchBar: false,
+        isMouseInSuggestPanel: false,
         isSuggestVisible: false,
         activeTab: 'videos',
         currentPage: 1 as number,
@@ -156,6 +157,9 @@ export const useLayoutStore = defineStore('layout', {
         },
         setIsMouseInSearchBar(newIsMouseInSearchBar: boolean) {
             this.isMouseInSearchBar = newIsMouseInSearchBar;
+        },
+        setIsMouseInSuggestPanel(newIsMouseInSuggestPanel: boolean) {
+            this.isMouseInSuggestPanel = newIsMouseInSuggestPanel;
         },
         setIsSuggestVisible(newVisibility: boolean) {
             this.isSuggestVisible = newVisibility;

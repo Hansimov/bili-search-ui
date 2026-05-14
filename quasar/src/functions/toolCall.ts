@@ -4,7 +4,7 @@ import { useExploreStore } from 'src/stores/exploreStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { useSearchModeStore } from 'src/stores/searchModeStore';
-import { useChatStore } from 'src/stores/chatStore';
+import { generateSessionId, useChatStore } from 'src/stores/chatStore';
 import { cacheService, STORE_NAMES, EXPLORE_CACHE_TTL } from 'src/services/cacheService';
 import { getSmartSuggestService } from 'src/services/smartSuggestService';
 import { saveToolHistorySelection } from 'src/utils/toolHistorySelection';
@@ -16,6 +16,8 @@ import type { ToolCallResponse, ExploreStepResult } from 'src/stores/resultStore
 import type { ToolCall, ToolEvent } from 'src/services/chatService';
 
 let toolCallAbortController = new AbortController();
+
+export const generateUtilitySessionId = generateSessionId;
 
 /** 中止当前的实用工具请求 */
 export const abortToolCall = () => {
@@ -226,10 +228,14 @@ const cacheToolCallResults = async (
 };
 
 /** 从缓存恢复搜索结果，跳过网络请求 */
-export const restoreToolCallFromCache = async (queryValue: string): Promise<boolean> => {
+export const restoreToolCallFromCache = async (
+    queryValue: string,
+    options: { setRoute?: boolean; sessionId?: string } = {}
+): Promise<boolean> => {
     const queryStore = useQueryStore();
     const exploreStore = useExploreStore();
     const layoutStore = useLayoutStore();
+    const { setRoute = true, sessionId } = options;
 
     queryValue = normalizeToolCommandInput(queryValue);
     if (!queryValue) return false;
@@ -252,7 +258,10 @@ export const restoreToolCallFromCache = async (queryValue: string): Promise<bool
             exploreStore.setSubmittedQuery(queryValue);
             exploreStore.setRestoringSession(true);
 
-            queryStore.setQuery({ newQuery: queryValue, setRoute: true });
+            queryStore.setQuery({ newQuery: queryValue, setRoute: false });
+            if (setRoute && sessionId) {
+                queryStore.setChatRoute(sessionId);
+            }
             exploreStore.setStepResults(cached.stepResults);
             exploreStore.setToolCall(cached.toolCall || null);
             exploreStore.saveExploreSession();
@@ -271,11 +280,13 @@ export const restoreToolCallFromCache = async (queryValue: string): Promise<bool
 };
 
 export const executeToolCall = async ({
-    queryValue, setQuery = true, setRoute = false,
+    queryValue, setQuery = true, setRoute = false, sessionId, recordHistory = true,
 }: {
     queryValue: string,
     setQuery?: boolean,
     setRoute?: boolean,
+    sessionId?: string,
+    recordHistory?: boolean,
 }) => {
     // Get store instances inside function to ensure they are always fresh
     const queryStore = useQueryStore();
@@ -297,9 +308,25 @@ export const executeToolCall = async ({
     // Set loading state and submitted query BEFORE route change to ensure UI shows correct query
     exploreStore.setExploreLoading(true);
     exploreStore.setSubmittedQuery(queryValue);
+    let utilitySessionId = sessionId;
+    if (setRoute) {
+        if (!utilitySessionId) {
+            chatStore.startNewChat();
+            utilitySessionId = chatStore.currentSessionId;
+        } else if (chatStore.currentSessionId !== utilitySessionId) {
+            chatStore.startNewChat(utilitySessionId);
+        }
+    }
 
     if (setQuery) {
-        queryStore.setQuery({ newQuery: queryValue, setRoute: setRoute });
+        queryStore.setQuery({ newQuery: queryValue, setRoute: false });
+    }
+    if (setRoute && utilitySessionId) {
+        exploreStore.setRestoringSession(true);
+        queryStore.setChatRoute(utilitySessionId);
+        setTimeout(() => {
+            exploreStore.setRestoringSession(false);
+        }, 200);
     }
     try {
         toolCallAbortController.abort();
@@ -335,8 +362,14 @@ export const executeToolCall = async ({
 
             const searchModeStore = useSearchModeStore();
             const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
-            if (currentMode === 'utility') {
-                const recordId = await searchHistoryStore.addRecord(queryValue, 0, currentMode);
+            if (currentMode === 'utility' && recordHistory) {
+                const recordId = await searchHistoryStore.addRecord(
+                    queryValue,
+                    0,
+                    currentMode,
+                    undefined,
+                    utilitySessionId
+                );
                 chatStore.setCurrentHistoryRecordId(recordId);
                 saveToolHistorySelection(recordId, queryValue);
             }
@@ -384,11 +417,13 @@ export const executeToolCall = async ({
             const totalHits = exploreResult.data.reduce(
                 (sum, step) => sum + (Array.isArray(step.output?.hits) ? step.output.hits.length : 0), 0
             );
-            if (currentMode === 'utility') {
+            if (currentMode === 'utility' && recordHistory) {
                 const recordId = await searchHistoryStore.addRecord(
                     queryValue,
                     totalHits,
                     currentMode,
+                    undefined,
+                    utilitySessionId
                 );
                 chatStore.setCurrentHistoryRecordId(recordId);
                 saveToolHistorySelection(recordId, queryValue);
@@ -400,11 +435,13 @@ export const executeToolCall = async ({
             // 即使无结果也记录搜索历史（仅限实用工具模式）
             const searchModeStore = useSearchModeStore();
             const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
-            if (currentMode === 'utility') {
+            if (currentMode === 'utility' && recordHistory) {
                 const recordId = await searchHistoryStore.addRecord(
                     queryValue,
                     0,
                     currentMode,
+                    undefined,
+                    utilitySessionId
                 );
                 chatStore.setCurrentHistoryRecordId(recordId);
                 saveToolHistorySelection(recordId, queryValue);

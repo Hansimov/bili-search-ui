@@ -310,6 +310,7 @@ describe('AppSidebar history interactions', () => {
             timestamp: Date.now(),
             pinned: false,
             mode: 'tool',
+            sessionId: 'utility-1',
         };
 
         mockChatStore.currentHistoryRecordId = 'smart-1';
@@ -323,14 +324,14 @@ describe('AppSidebar history interactions', () => {
         expect(setupState.isHistoryItemActive(smartItem)).toBe(true);
 
         mockRouter.currentRoute.value = {
-            path: '/chat',
-            query: { q: 'direct query' },
+            path: '/chat/utility-1',
+            query: {},
         };
         expect(setupState.isHistoryItemActive(directItem)).toBe(true);
 
         mockRouter.currentRoute.value = {
             path: '/chat',
-            query: { q: 'direct query', mode: 'smart' },
+            query: { q: 'direct query' },
         };
         expect(setupState.isHistoryItemActive(directItem)).toBe(false);
     });
@@ -345,6 +346,7 @@ describe('AppSidebar history interactions', () => {
             timestamp: Date.now() - 1000,
             pinned: false,
             mode: 'tool',
+            sessionId: 'utility-old',
         };
         const currentDirect: SearchHistoryItem = {
             id: 'direct-current',
@@ -352,19 +354,20 @@ describe('AppSidebar history interactions', () => {
             timestamp: Date.now(),
             pinned: false,
             mode: 'tool',
+            sessionId: 'utility-current',
         };
 
         mockChatStore.currentHistoryRecordId = 'direct-current';
         mockRouter.currentRoute.value = {
-            path: '/chat',
-            query: { q: '同一个查询' },
+            path: '/chat/utility-current',
+            query: {},
         };
 
         expect(setupState.isHistoryItemActive(olderDirect)).toBe(false);
         expect(setupState.isHistoryItemActive(currentDirect)).toBe(true);
     });
 
-    it('刷新后应优先按持久化的 tool 记录 ID 恢复高亮', () => {
+    it('刷新后按 utility sessionId 恢复高亮', () => {
         const wrapper = mountSidebar();
         const setupState = wrapper.vm as unknown as SidebarSetupState;
 
@@ -374,6 +377,7 @@ describe('AppSidebar history interactions', () => {
             timestamp: Date.now() - 1000,
             pinned: false,
             mode: 'tool',
+            sessionId: 'utility-old',
         };
         const currentDirect: SearchHistoryItem = {
             id: 'direct-current',
@@ -381,20 +385,16 @@ describe('AppSidebar history interactions', () => {
             timestamp: Date.now(),
             pinned: false,
             mode: 'tool',
+            sessionId: 'utility-current',
         };
 
-        sessionStorage.setItem(
-            'tool-history-selection.v1',
-            JSON.stringify({ recordId: 'direct-old', query: '同一个查询' })
-        );
         mockRouter.currentRoute.value = {
-            path: '/chat',
-            query: { q: '同一个查询' },
+            path: '/chat/utility-current',
+            query: {},
         };
-        mockSearchHistoryStore.findLatestRecord.mockReturnValue(currentDirect);
 
-        expect(setupState.isHistoryItemActive(olderDirect)).toBe(true);
-        expect(setupState.isHistoryItemActive(currentDirect)).toBe(false);
+        expect(setupState.isHistoryItemActive(olderDirect)).toBe(false);
+        expect(setupState.isHistoryItemActive(currentDirect)).toBe(true);
     });
 
     it('缺少 chatSnapshot 的 chat 历史应静态恢复而不是重新提交', async () => {

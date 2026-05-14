@@ -22,7 +22,7 @@ describe('QueryStore route flow', () => {
         mockRouter.currentRoute.value.fullPath = '/';
     });
 
-    it('tool 模式 setQuery(setRoute=true) 应写入 /chat?q=', () => {
+    it('没有 chatSessionId 时 setQuery(setRoute=true) 不再生成 q 路由', () => {
         const store = useQueryStore();
 
         store.setQuery({
@@ -31,7 +31,8 @@ describe('QueryStore route flow', () => {
             mode: 'tool',
         });
 
-        expect(mockRouter.replace).toHaveBeenCalledWith('/chat?q=hello+world');
+        expect(store.query).toBe('hello world');
+        expect(mockRouter.replace).not.toHaveBeenCalled();
     });
 
     it('chat 模式且有 chatSessionId 应写入 /chat/<sessionId>', () => {
@@ -47,7 +48,7 @@ describe('QueryStore route flow', () => {
         expect(mockRouter.replace).toHaveBeenCalledWith('/chat/session-abc');
     });
 
-    it('非 tool 且无 chatSessionId 时应回落到 /chat?q=...&mode=...', () => {
+    it('非 tool 且无 chatSessionId 时也不再回落到 q 路由', () => {
         const store = useQueryStore();
 
         store.setQuery({
@@ -56,19 +57,18 @@ describe('QueryStore route flow', () => {
             mode: 'think',
         });
 
-        expect(mockRouter.replace).toHaveBeenCalledWith(
-            '/chat?q=fallback+route&mode=think'
-        );
+        expect(store.query).toBe('fallback route');
+        expect(mockRouter.replace).not.toHaveBeenCalled();
     });
 
     it('目标路由与当前 fullPath 相同则不应重复 replace', () => {
         const store = useQueryStore();
-        mockRouter.currentRoute.value.fullPath = '/chat?q=same';
+        mockRouter.currentRoute.value.fullPath = '/chat/session-same';
 
         store.setQuery({
             newQuery: 'same',
             setRoute: true,
-            mode: 'tool',
+            chatSessionId: 'session-same',
         });
 
         expect(mockRouter.replace).not.toHaveBeenCalled();

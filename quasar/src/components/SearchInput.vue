@@ -135,10 +135,13 @@ import {
 import { getSearchMode, getSearchModeThemeVars } from 'src/config/searchModes';
 import { useSearchHistoryStore } from 'src/stores/searchHistoryStore';
 import { useInputHistoryStore } from 'src/stores/inputHistoryStore';
-import { executeToolCall, abortToolCall } from 'src/functions/toolCall';
+import {
+  executeToolCall,
+  abortToolCall,
+  restoreToolCallFromCache,
+} from 'src/functions/toolCall';
 import {
   clearToolHistorySelection,
-  getToolHistorySelectionRecordId,
   saveToolHistorySelection,
 } from 'src/utils/toolHistorySelection';
 import {
@@ -170,6 +173,7 @@ const TEXTAREA_MAX_ROWS = 6;
 const COMPACT_WINDOW_HEIGHT = 500;
 const COMPACT_MODE_CONTROLS_QUERY = '(max-width: 640px), (pointer: coarse)';
 const SEARCH_INPUT_FOCUS_EVENT = 'bili-search:focus-input';
+const EMPTY_SUGGEST_AUTO_HIDE_MS = 3000;
 
 type SearchInputFocusDetail = {
   selectAll?: boolean;
@@ -234,6 +238,7 @@ export default {
 
     /** 提交后抑制建议显示，直到用户再次输入或重新聚焦 */
     const suppressSuggest = ref(false);
+    let emptySuggestAutoHideTimer: ReturnType<typeof setTimeout> | null = null;
 
     const onCompositionStart = () => {
       isComposing.value = true;
@@ -253,6 +258,40 @@ export default {
     const displayValue = computed(
       () => displayOverride.value ?? queryModel.value
     );
+
+    const clearEmptySuggestAutoHideTimer = () => {
+      if (emptySuggestAutoHideTimer !== null) {
+        clearTimeout(emptySuggestAutoHideTimer);
+        emptySuggestAutoHideTimer = null;
+      }
+    };
+
+    const shouldAutoHideEmptySuggest = () =>
+      isInputFocused.value &&
+      layoutStore.isSuggestVisible &&
+      !layoutStore.isMouseInSuggestPanel &&
+      !String(queryModel.value || '').trim();
+
+    const scheduleEmptySuggestAutoHide = () => {
+      clearEmptySuggestAutoHideTimer();
+      if (!shouldAutoHideEmptySuggest()) return;
+      emptySuggestAutoHideTimer = setTimeout(() => {
+        emptySuggestAutoHideTimer = null;
+        if (!shouldAutoHideEmptySuggest()) return;
+        suppressSuggest.value = true;
+        displayOverride.value = null;
+        layoutStore.resetSuggestNavigation();
+        layoutStore.setIsSuggestVisible(false);
+      }, EMPTY_SUGGEST_AUTO_HIDE_MS);
+    };
+
+    const refreshEmptySuggestAutoHide = () => {
+      if (String(queryModel.value || '').trim()) {
+        clearEmptySuggestAutoHideTimer();
+        return;
+      }
+      scheduleEmptySuggestAutoHide();
+    };
 
     const isDense = computed(() => route.path !== '/');
     const currentMode = computed(() => searchModeStore.currentMode);
@@ -375,6 +414,7 @@ export default {
       const viewportWidthCss = getViewportCssWidth(zoom);
       const viewportHeightCss = getViewportCssHeight(zoom);
       const inputLeftCss = viewportPxToCssPx(rect.left, zoom);
+      const inputTopCss = viewportPxToCssPx(rect.top, zoom);
       const inputRightCss =
         viewportWidthCss - viewportPxToCssPx(rect.right, zoom);
       const inputWidthCss = viewportPxToCssPx(rect.width, zoom);
@@ -384,6 +424,8 @@ export default {
       root.style.setProperty('--viewport-height-css', `${viewportHeightCss}px`);
       // 输入框左侧距 viewport 左边缘的距离（用于 chat 面板对齐）
       root.style.setProperty('--search-input-left-edge', `${inputLeftCss}px`);
+      // 输入框顶部距 viewport 顶部的距离（用于工具结果区高度贴齐输入框）
+      root.style.setProperty('--search-input-top-edge', `${inputTopCss}px`);
       // 输入框右侧距 viewport 右边缘的距离（用于“回到底部”按钮对齐）
       root.style.setProperty('--search-input-right-edge', `${inputRightCss}px`);
       // 输入框实际渲染宽度（用于 chat 面板宽度匹配）
@@ -398,6 +440,7 @@ export default {
 
     /** 处理输入 — 更新 store + 触发自动调整 + 重置建议导航 */
     const handleInput = (event: Event) => {
+      clearEmptySuggestAutoHideTimer();
       suppressSuggest.value = false;
       const target = event.target as HTMLTextAreaElement;
       const nextValue =
@@ -416,12 +459,17 @@ export default {
       if (!layoutStore.isSuggestVisible && target.value.trim()) {
         layoutStore.setIsSuggestVisible(true);
       }
+      if (!target.value.trim() && isInputFocused.value) {
+        layoutStore.setIsSuggestVisible(true);
+      }
+      refreshEmptySuggestAutoHide();
     };
 
     /** Keydown 处理：Enter 提交, Shift+Enter 换行, Tab 确认建议, 上下箭头导航建议 */
     const handleKeydown = (event: KeyboardEvent) => {
       // IME 输入法组合输入期间，跳过所有快捷键处理
       if (event.isComposing || isComposing.value) return;
+      refreshEmptySuggestAutoHide();
 
       if (event.key === 'Enter' && !event.shiftKey) {
         if (completeToolCommand()) {
@@ -567,6 +615,7 @@ export default {
 
     const handleBlur = () => {
       isInputFocused.value = false;
+      clearEmptySuggestAutoHideTimer();
       if (!layoutStore.isMouseInSearchBar) {
         layoutStore.setIsSuggestVisible(false);
       }
@@ -578,14 +627,17 @@ export default {
         layoutStore.setIsSuggestVisible(true);
       }
       await initSmartSuggest();
+      refreshEmptySuggestAutoHide();
     };
 
     /** 输入框发生新的点击/触摸/输入交互后，才允许重新弹出建议。 */
     const handleInputInteraction = () => {
+      clearEmptySuggestAutoHideTimer();
       suppressSuggest.value = false;
       if (!layoutStore.isSuggestVisible) {
         layoutStore.setIsSuggestVisible(true);
       }
+      refreshEmptySuggestAutoHide();
     };
 
     /** 点击输入框 — 确保建议列表可见（处理已聚焦但建议被隐藏的情况） */
@@ -595,6 +647,7 @@ export default {
 
     const handleGlobalClick = () => {
       if (!layoutStore.isMouseInSearchBar) {
+        clearEmptySuggestAutoHideTimer();
         layoutStore.setIsSuggestVisible(false);
       }
     };
@@ -617,6 +670,7 @@ export default {
 
     /** 清除输入框内容 */
     const clearQuery = () => {
+      clearEmptySuggestAutoHideTimer();
       queryModel.value = '';
       displayOverride.value = null;
       if (textareaRef.value) {
@@ -632,6 +686,7 @@ export default {
     };
 
     const clearVisibleQueryImmediately = () => {
+      clearEmptySuggestAutoHideTimer();
       queryModel.value = '';
       displayOverride.value = null;
       if (textareaRef.value) {
@@ -681,6 +736,7 @@ export default {
     });
 
     onBeforeUnmount(() => {
+      clearEmptySuggestAutoHideTimer();
       document.removeEventListener('click', handleGlobalClick);
       window.removeEventListener('resize', handleWindowResize);
       window.removeEventListener(
@@ -705,7 +761,19 @@ export default {
       }
     );
 
+    watch(
+      () => layoutStore.isMouseInSuggestPanel,
+      (isInsideSuggestPanel) => {
+        if (isInsideSuggestPanel) {
+          clearEmptySuggestAutoHideTimer();
+        } else {
+          refreshEmptySuggestAutoHide();
+        }
+      }
+    );
+
     const submitQuery = async () => {
+      clearEmptySuggestAutoHideTimer();
       const mode = searchModeStore.currentMode;
       const rawSubmittedQuery = queryModel.value;
       const submittedQuery =
@@ -761,77 +829,8 @@ export default {
       chatStore.abortCurrentRequest();
     };
 
-    // URL 驱动的搜索
-    // - route.query.q 变化时触发实用工具
-    // - route.params.sessionId 变化时尝试恢复 chat 会话（快速问答/智能思考模式）
-    // LLM 聊天仅在用户显式提交（回车/点击发送）时触发
-    watch(
-      () => route.query.q,
-      async (newQuery, oldQuery) => {
-        if (newQuery && newQuery !== oldQuery) {
-          if (exploreStore.isRestoringSession) {
-            return;
-          }
-          // 从 URL 恢复搜索模式
-          const urlMode = route.query.mode as string | undefined;
-          if (urlMode && ['smart', 'think', 'utility', 'tool'].includes(urlMode)) {
-            searchModeStore.setMode(urlMode as SearchMode);
-          }
-
-          // Chat 模式下 (smart/think)，URL 变更不触发 explore
-          // 搜索由 LLM 工具调用处理
-          const effectiveMode = urlMode || searchModeStore.currentMode;
-          if (effectiveMode === 'smart' || effectiveMode === 'think') {
-            return;
-          }
-
-          const currentQuery = queryStore.query;
-          if (newQuery !== currentQuery || !exploreStore.isExploreLoading) {
-            queryStore.setQuery({
-              newQuery: String(newQuery),
-            });
-
-            await searchHistoryStore.loadHistory();
-            const toolQuery = String(newQuery);
-            const persistedRecordId =
-              getToolHistorySelectionRecordId(toolQuery);
-            const toolHistoryItem = persistedRecordId
-              ? searchHistoryStore.items.find(
-                  (item) =>
-                    item.id === persistedRecordId &&
-                    ((item.mode || 'utility') === 'utility' || item.mode === 'tool') &&
-                    item.query === toolQuery
-                )
-              : searchHistoryStore.findLatestRecord(toolQuery, 'utility') ||
-                searchHistoryStore.findLatestRecord(toolQuery, 'tool');
-
-            chatStore.setCurrentHistoryRecordId(toolHistoryItem?.id || null);
-            if (toolHistoryItem) {
-              saveToolHistorySelection(toolHistoryItem.id, toolQuery);
-            } else {
-              clearToolHistorySelection();
-            }
-
-            if (
-              !exploreStore.hasResults ||
-              exploreStore.isExploreLoading === false
-            ) {
-              // URL 导航只触发搜索，不触发 LLM 聊天
-              executeToolCall({
-                queryValue: String(newQuery),
-                setQuery: false,
-                setRoute: false,
-              });
-              layoutStore.setCurrentPage(1);
-            }
-          }
-        }
-      },
-      { immediate: true }
-    );
-
-    // URL 驱动的 chat 会话恢复 (route.params.sessionId 变化时)
-    // 当 URL 为 /chat/<sessionId> 时，尝试从搜索历史恢复对应的聊天会话
+    // URL 驱动的会话恢复：/chat/<sessionId>
+    // 快速问答、智能思考、实用工具都只通过 sessionId 恢复。
     watch(
       () => route.params.sessionId as string | undefined,
       async (newChatId) => {
@@ -850,9 +849,62 @@ export default {
 
         await searchHistoryStore.loadHistory();
         const historyItem = searchHistoryStore.findBySessionId(newChatId);
-        if (historyItem && historyItem.chatSnapshot) {
+        const historyMode =
+          historyItem?.mode === 'tool'
+            ? 'utility'
+            : historyItem?.mode || 'utility';
+        if (historyItem && historyMode === 'utility') {
+          const toolQuery = historyItem.query;
+          searchModeStore.setMode('utility');
+          searchModeStore.resetInitialSessionMode();
+          chatStore.startNewChat(newChatId);
+          chatStore.setCurrentHistoryRecordId(historyItem.id);
+          queryStore.setQuery({ newQuery: toolQuery });
+          exploreStore.setSubmittedQuery(toolQuery);
+          saveToolHistorySelection(historyItem.id, toolQuery);
+
+          const restored = await restoreToolCallFromCache(toolQuery, {
+            setRoute: false,
+            sessionId: newChatId,
+          });
+          if (!restored) {
+            await executeToolCall({
+              queryValue: toolQuery,
+              setQuery: true,
+              setRoute: false,
+              sessionId: newChatId,
+              recordHistory: false,
+            });
+          }
+          layoutStore.setCurrentPage(1);
+          return;
+        }
+        if (historyItem && (historyMode === 'smart' || historyMode === 'think')) {
           const mode = historyItem.mode || 'smart';
-          chatStore.restoreFromSnapshot(historyItem.chatSnapshot);
+          const snapshot =
+            historyItem.chatSnapshot || {
+              session: {
+                ...chatStore.currentSession,
+                sessionId: newChatId,
+                query: historyItem.query,
+                mode: mode as 'smart' | 'think',
+                content: '',
+                thinkingContent: '',
+                isLoading: false,
+                isThinkingPhase: false,
+                isDone: false,
+                isAborted: true,
+                error: null,
+                perfStats: null,
+                usage: null,
+                toolEvents: [],
+                streamSegments: [],
+                thinking: mode === 'think',
+                createdAt: historyItem.timestamp || Date.now(),
+              },
+              conversationHistory: [],
+            };
+          chatStore.restoreFromSnapshot(snapshot);
           chatStore.setCurrentHistoryRecordId(historyItem.id);
           searchModeStore.setMode(mode as SearchMode);
           searchModeStore.forceInitialSessionMode(mode as SearchMode);

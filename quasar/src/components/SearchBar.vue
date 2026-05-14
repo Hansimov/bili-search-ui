@@ -3,56 +3,60 @@
     <div class="search-container">
       <SearchInput />
     </div>
-    <div
-      v-if="isSuggestVisible && hasSuggestContent"
-      class="search-sub-container"
-      :class="{
-        'search-sub-bottom': true,
-        'search-sub-bordered': true,
-      }"
-    >
+    <transition name="search-sub-fade">
       <div
-        class="suggest-container"
+        v-if="isSuggestVisible && hasSuggestContent"
+        class="search-sub-container"
+        @mouseenter="suggestMouseEnter"
+        @mouseleave="suggestMouseLeave"
         :class="{
-          'suggest-container-reverse': true,
+          'search-sub-bottom': true,
+          'search-sub-bordered': true,
         }"
       >
-        <div class="search-sub-space-top"></div>
+        <div
+          class="suggest-container"
+          :class="{
+            'suggest-container-reverse': true,
+          }"
+        >
+          <div class="search-sub-space-top"></div>
 
-        <!-- 工具命令补全（实用工具模式） -->
-        <ToolCommandSuggestions v-if="showToolCommandSuggestions" />
+          <!-- 工具命令补全（实用工具模式） -->
+          <ToolCommandSuggestions v-if="showToolCommandSuggestions" />
 
-        <!-- 智能补全建议（输入内容时显示） -->
-        <SmartSuggestions v-if="hasSmartSuggestions" />
+          <!-- 智能补全建议（输入内容时显示） -->
+          <SmartSuggestions v-if="hasSmartSuggestions" />
 
-        <!-- 纠错建议 -->
-        <SuggestReplace v-if="showSuggestReplace" />
+          <!-- 纠错建议 -->
+          <SuggestReplace v-if="showSuggestReplace" />
 
-        <q-separator
-          inset
-          class="suggest-component-sep"
-          v-if="showSuggestAuthors"
-        />
-        <SuggestAuthorsList v-if="showSuggestAuthors" />
+          <q-separator
+            inset
+            class="suggest-component-sep"
+            v-if="showSuggestAuthors"
+          />
+          <SuggestAuthorsList v-if="showSuggestAuthors" />
 
-        <q-separator
-          inset
-          class="suggest-component-sep"
-          v-if="showSuggestionsList"
-        />
-        <SuggestionsList v-if="showSuggestionsList" />
+          <q-separator
+            inset
+            class="suggest-component-sep"
+            v-if="showSuggestionsList"
+          />
+          <SuggestionsList v-if="showSuggestionsList" />
 
-        <!-- 搜索历史（无输入时显示） -->
-        <SearchHistoryPanel v-if="showSearchHistory" />
+          <!-- 搜索历史（无输入时显示） -->
+          <SearchHistoryPanel v-if="showSearchHistory" />
 
-        <div class="search-sub-space-bottom"></div>
+          <div class="search-sub-space-bottom"></div>
+        </div>
       </div>
-    </div>
+    </transition>
   </div>
 </template>
 
 <script>
-import { computed, defineAsyncComponent } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, watch } from 'vue';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useSearchStore } from 'src/stores/searchStore';
 import { useLayoutStore } from 'src/stores/layoutStore';
@@ -185,9 +189,25 @@ export default {
     const mouseLeave = () => {
       layoutStore.setIsMouseInSearchBar(false);
     };
+    const suggestMouseEnter = () => {
+      layoutStore.setIsMouseInSuggestPanel(true);
+    };
+    const suggestMouseLeave = () => {
+      layoutStore.setIsMouseInSuggestPanel(false);
+    };
+    watch(hasSuggestContent, (visible) => {
+      if (!visible) {
+        layoutStore.setIsMouseInSuggestPanel(false);
+      }
+    });
+    onBeforeUnmount(() => {
+      layoutStore.setIsMouseInSuggestPanel(false);
+    });
     return {
       mouseEnter,
       mouseLeave,
+      suggestMouseEnter,
+      suggestMouseLeave,
       isQueryEmpty,
       isSuggestVisible,
       hasSuggestContent,
@@ -276,5 +296,18 @@ body.body--dark {
 }
 .suggest-container-reverse {
   flex-direction: column-reverse;
+}
+
+.search-sub-fade-enter-active {
+  transition: opacity 0.12s ease;
+}
+
+.search-sub-fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.search-sub-fade-enter-from,
+.search-sub-fade-leave-to {
+  opacity: 0;
 }
 </style>

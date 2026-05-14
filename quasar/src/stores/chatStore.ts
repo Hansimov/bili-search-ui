@@ -24,7 +24,7 @@ import {
 import { useExploreStore } from './exploreStore';
 
 /** 生成 UUID v4 */
-function generateSessionId(): string {
+export function generateSessionId(): string {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return crypto.randomUUID();
     }
@@ -664,15 +664,15 @@ export const useChatStore = defineStore('chat', {
         },
 
         /**
-         * 开始全新对话：重置当前会话 + 清除对话历史 + 生成新 sessionId
+         * 开始全新对话：重置当前会话 + 清除对话历史 + 生成/指定 sessionId
          *
          * 注意：不在此处重置 initialSessionMode，由调用方按需处理。
          * - 导航到首页时：调用方自行调用 searchModeStore.resetInitialSessionMode()
          * - 提交新聊天时：调用方先设置 setInitialSessionMode(mode) 再调用本方法
          */
-        startNewChat() {
+        startNewChat(sessionId?: string) {
             this.clearConversation();
-            const newId = generateSessionId();
+            const newId = sessionId || generateSessionId();
             this.currentSessionId = newId;
             this.currentSession = defaultSession(newId);
             this._abortController = null;

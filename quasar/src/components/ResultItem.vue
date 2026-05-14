@@ -3,9 +3,11 @@
     flat
     class="result-item q-pt-none q-pb-sm"
     :class="{ 'result-item-menu-open': contextMenuOpen }"
+    @contextmenu.prevent="openContextMenu"
   >
     <!-- Right-click context menu -->
     <ResultItemContextMenu
+      ref="contextMenuRef"
       :bvid="result.bvid"
       @view-snapshot="showSnapshotViewer = true"
       @menu-open="contextMenuOpen = true"
@@ -132,6 +134,7 @@ export default {
     );
     const coverLoaded = ref(false);
     const showSnapshotViewer = ref(false);
+    const contextMenuRef = ref(null);
 
     // Reset coverLoaded when the image source changes
     watch(coverSrc, () => {
@@ -143,6 +146,9 @@ export default {
     };
 
     const contextMenuOpen = ref(false);
+    const openContextMenu = (event) => {
+      contextMenuRef.value?.open(event);
+    };
 
     const titleHasLeadingCjkPunct = computed(() =>
       hasLeadingCjkPunctuation(props.result?.title || '')
@@ -154,7 +160,9 @@ export default {
       coverLoaded,
       onCoverLoad,
       showSnapshotViewer,
+      contextMenuRef,
       contextMenuOpen,
+      openContextMenu,
       titleHasLeadingCjkPunct,
     };
   },

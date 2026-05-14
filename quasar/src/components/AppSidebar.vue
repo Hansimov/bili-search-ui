@@ -187,7 +187,7 @@
                         'history-item-active': isHistorySubGroupActive(row),
                       }"
                       :title="getHistorySubGroupTooltip(row)"
-                      @click="toggleHistorySubGroup(row.id)"
+                      @click="openLatestHistorySubGroupItem(row)"
                     >
                       <q-icon
                         :name="getHistorySubGroupIcon(row)"
@@ -729,7 +729,11 @@ import {
   formatFullTime,
 } from 'src/stores/searchHistoryStore';
 import type { SearchHistoryItem } from 'src/stores/searchHistoryStore';
-import { executeToolCall, restoreToolCallFromCache } from 'src/functions/toolCall';
+import {
+  executeToolCall,
+  generateUtilitySessionId,
+  restoreToolCallFromCache,
+} from 'src/functions/toolCall';
 import { useChatStore } from 'src/stores/chatStore';
 import { useQueryStore } from 'src/stores/queryStore';
 import { useExploreStore } from 'src/stores/exploreStore';
@@ -738,7 +742,6 @@ import type { SearchMode } from 'src/stores/searchModeStore';
 import { getSearchMode } from 'src/config/searchModes';
 import {
   clearToolHistorySelection,
-  getToolHistorySelectionRecordId,
   saveToolHistorySelection,
 } from 'src/utils/toolHistorySelection';
 import { normalizeToolCommandInput } from 'src/config/toolCommands';
@@ -972,14 +975,27 @@ const searchFromHistory = async (item: SearchHistoryItem) => {
     // 实用工具模式：恢复结果
     searchModeStore.setMode(mode as SearchMode);
     searchModeStore.resetInitialSessionMode();
-    chatStore.startNewChat();
+    const utilitySessionId = item.sessionId || generateUtilitySessionId();
+    if (!item.sessionId) {
+      await searchHistoryStore.updateSessionId(item.id, utilitySessionId);
+    }
+    chatStore.startNewChat(utilitySessionId);
     chatStore.setCurrentHistoryRecordId(item.id);
     saveToolHistorySelection(item.id, query);
     // 尝试从缓存恢复搜索结果，避免重复的网络请求
-    const restored = await restoreToolCallFromCache(query);
+    const restored = await restoreToolCallFromCache(query, {
+      setRoute: true,
+      sessionId: utilitySessionId,
+    });
     if (!restored) {
       // 缓存未命中，执行新的搜索
-      await executeToolCall({ queryValue: query, setQuery: true, setRoute: true });
+      await executeToolCall({
+        queryValue: query,
+        setQuery: true,
+        setRoute: true,
+        sessionId: utilitySessionId,
+        recordHistory: false,
+      });
     }
   }
   if (isOverlayMode.value) layoutStore.closeMobileSidebar();
@@ -1129,6 +1145,13 @@ const toggleHistorySubGroup = (id: string) => {
   };
 };
 
+const openLatestHistorySubGroupItem = async (group: HistorySubGroup) => {
+  toggleHistorySubGroup(group.id);
+  const latest = group.items[0];
+  if (!latest) return;
+  await searchFromHistory(latest);
+};
+
 const isHistorySubGroupActive = (group: HistorySubGroup): boolean =>
   group.items.some((item) => isHistoryItemActive(item));
 
@@ -1155,30 +1178,7 @@ const isHistoryItemActive = (item: SearchHistoryItem): boolean => {
   }
 
   if (itemMode === 'utility') {
-    const routeQuery = currentRoute.query.q;
-    const routeMode = currentRoute.query.mode;
-    const isToolRoute =
-      currentRoute.path === '/chat' &&
-      typeof routeQuery === 'string' &&
-      routeQuery === item.query &&
-      (routeMode == null || routeMode === 'utility' || routeMode === 'tool');
-
-    if (isToolRoute) {
-      const persistedRecordId = getToolHistorySelectionRecordId(routeQuery);
-      if (persistedRecordId) {
-        return persistedRecordId === item.id;
-      }
-
-      const latestToolRecord = searchHistoryStore.findLatestRecord(
-        routeQuery,
-        'utility'
-      );
-      if (latestToolRecord) {
-        return latestToolRecord.id === item.id;
-      }
-
-      return true;
-    }
+    return !!item.sessionId && currentRoute.path === `/chat/${item.sessionId}`;
   }
 
   return false;
@@ -1271,13 +1271,18 @@ const confirmRename = async () => {
 // Copy link
 const copiedItemId = ref<string | null>(null);
 const copySearchLink = async (query: string, itemId: string) => {
-  // Chat 模式使用 /chat/<sessionId> URL，实用工具模式使用 /chat?q=<query> URL
+  // Chat and utility modes both use /chat/<sessionId> URLs for shareable restores.
   const item = searchHistoryStore.items.find((i) => i.id === itemId);
   let url: string;
-  if (item?.sessionId && (item.mode === 'smart' || item.mode === 'think')) {
-    url = `${window.location.origin}/chat/${item.sessionId}`;
+  let sessionId = item?.sessionId || '';
+  if (item && !sessionId) {
+    sessionId = generateUtilitySessionId();
+    await searchHistoryStore.updateSessionId(item.id, sessionId);
+  }
+  if (sessionId) {
+    url = `${window.location.origin}/chat/${sessionId}`;
   } else {
-    url = `${window.location.origin}/chat?q=${encodeURIComponent(query)}`;
+    url = `${window.location.origin}/chat`;
   }
   try {
     await copyToClipboard(url);

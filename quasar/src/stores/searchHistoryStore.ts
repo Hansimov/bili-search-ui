@@ -32,7 +32,7 @@ export interface SearchHistoryItem {
     displayName?: string;
     /** 搜索模式 (tool/smart/think/research)，用于恢复正确的页面布局 */
     mode?: SearchMode;
-    /** 聊天会话 ID（仅 smart/think 模式），用于 URL 恢复会话 */
+    /** 会话 ID（chat 与 utility 模式），用于 URL 恢复会话 */
     sessionId?: string;
     /** Chat 模式下的对话历史快照（仅 smart/think 模式） */
     chatSnapshot?: ChatHistorySnapshot;
@@ -211,7 +211,7 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
          * @param resultCount - 搜索结果数量
          * @param mode - 搜索模式 (tool/smart/think/research)
          * @param chatSnapshot - Chat 模式下的对话历史快照
-         * @param sessionId - 聊天会话 ID（仅 chat 模式）
+         * @param sessionId - 会话 ID（chat 和 utility 模式共用 /chat/<sessionId>）
          */
         async addRecord(
             query: string,
@@ -419,14 +419,14 @@ export const useSearchHistoryStore = defineStore('searchHistory', {
 
         /**
          * 根据 sessionId 查找历史记录
-         * 用于从 URL 参数 chat=<sessionId> 恢复会话
+         * 用于从 /chat/<sessionId> 恢复会话
          */
         findBySessionId(sessionId: string): SearchHistoryItem | undefined {
             return this.items.find((item) => item.sessionId === sessionId);
         },
 
         /**
-         * 更新记录的 sessionId（用于无快照的 chat 记录重新发起聊天时）
+         * 更新记录的 sessionId（用于补齐旧历史记录的会话路由）
          */
         async updateSessionId(id: string, sessionId: string): Promise<void> {
             const index = this.items.findIndex((item) => item.id === id);
