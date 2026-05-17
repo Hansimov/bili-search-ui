@@ -67,8 +67,11 @@ const normalizeToolCall = (response: ToolCallResponse): ToolCall | null => {
 
 const STREAMING_UTILITY_TOOLS = new Set([
     'get_video_transcript',
+    'ask_transcript',
     'run_small_llm_task',
     'summarize_transcript',
+    'video_comments',
+    'video_comments_full',
 ]);
 
 const shouldUseUtilityStream = (queryValue: string): boolean => {
@@ -107,8 +110,14 @@ const buildUtilityStepResults = (toolCall: ToolCall | null): ExploreStepResult[]
             name_zh:
                 toolCall.type === 'summarize_transcript'
                     ? '总结转写'
+                    : toolCall.type === 'ask_transcript'
+                      ? '提问'
                     : toolCall.type === 'run_small_llm_task'
                       ? '小模型'
+                      : toolCall.type === 'video_comments'
+                        ? '视频评论'
+                        : toolCall.type === 'video_comments_full'
+                          ? '完整评论'
                       : toolCall.type,
             status,
             input: toolCall.args,

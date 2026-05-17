@@ -199,8 +199,11 @@ const UTILITY_LOADING_LABELS = {
   check_author: '正在确认作者：',
   search_google: '正在搜索网页：',
   get_video_transcript: '正在读取转写：',
+  ask_transcript: '正在提问：',
   run_small_llm_task: '正在处理任务：',
   summarize_transcript: '正在总结视频：',
+  video_comments: '正在读取评论：',
+  video_comments_full: '正在读取完整评论：',
 };
 
 const COMMAND_TO_TOOL = TOOL_COMMANDS.reduce((acc, item) => {
@@ -625,7 +628,8 @@ function _setup(props) {
   const shouldHideUtilityLoadingStats = computed(
     () =>
       isUtilityLoading.value &&
-      exploreStore.toolCall?.type === 'summarize_transcript' &&
+      (exploreStore.toolCall?.type === 'summarize_transcript' ||
+        exploreStore.toolCall?.type === 'ask_transcript') &&
       exploreStore.toolCall?.status === 'streaming'
   );
   const shouldShowLoadingStats = computed(

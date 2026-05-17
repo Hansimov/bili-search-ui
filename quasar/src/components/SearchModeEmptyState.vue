@@ -67,8 +67,10 @@ const utilityCommands = [
   '/explore',
   '/google',
   '/transcript',
-  '/llm',
+  '/ask',
   '/summarize',
+  '/comments',
+  '/comments_full',
 ];
 </script>
 

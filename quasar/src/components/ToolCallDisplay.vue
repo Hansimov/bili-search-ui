@@ -468,6 +468,7 @@ interface SmallTaskResult {
 
 const DISPLAYABLE_INTERNAL_TOOLS = new Set(['run_small_llm_task']);
 const SMALL_MODEL_TEXT_TOOLS = new Set([
+  'ask_transcript',
   'run_small_llm_task',
   'summarize_transcript',
 ]);
@@ -480,8 +481,11 @@ const TOOL_LABELS: Record<string, string> = {
   check_author: '搜索作者',
   search_google: '搜索网页',
   get_video_transcript: '读取转写',
+  ask_transcript: '提问',
   run_small_llm_task: '小模型',
   summarize_transcript: '视频总结',
+  video_comments: '视频评论',
+  video_comments_full: '完整评论',
   related_tokens_by_tokens: '相关词补全',
   related_owners_by_tokens: '相关作者',
   related_videos_by_videos: '相关视频',
@@ -498,8 +502,11 @@ const TOOL_ICONS: Record<string, string> = {
   check_author: 'person_search',
   search_google: 'travel_explore',
   get_video_transcript: 'subtitles',
+  ask_transcript: 'smart_toy',
   run_small_llm_task: 'smart_toy',
   summarize_transcript: 'summarize',
+  video_comments: 'forum',
+  video_comments_full: 'rate_review',
   related_tokens_by_tokens: 'token',
   related_owners_by_tokens: 'group',
   related_videos_by_videos: 'linked_camera',
@@ -516,8 +523,11 @@ const TOOL_RUNNING_STATUS_TEXTS: Record<string, string> = {
   check_author: '确认中...',
   search_google: '搜索中...',
   get_video_transcript: '读取中...',
+  ask_transcript: '提问中...',
   run_small_llm_task: '生成中...',
   summarize_transcript: '总结中...',
+  video_comments: '读取中...',
+  video_comments_full: '读取中...',
 };
 
 export default defineComponent({
@@ -563,6 +573,8 @@ export default defineComponent({
     const getToolIcon = (type: string) => TOOL_ICONS[type] || 'build';
     const isSmallModelTextTool = (call: ToolCall): boolean =>
       SMALL_MODEL_TEXT_TOOLS.has(call.type);
+    const isVideoCommentsTool = (call: ToolCall): boolean =>
+      call.type === 'video_comments' || call.type === 'video_comments_full';
 
     const buildLookupQueryLabels = (call: ToolCall): string[] => {
       const labels: string[] = [];
@@ -675,6 +687,14 @@ export default defineComponent({
         return (
           call.status === 'streaming' ||
           (typeof result?.result === 'string' && result.result.length > 0)
+        );
+      }
+      if (isVideoCommentsTool(call)) {
+        const result = call.result as Record<string, unknown>;
+        return (
+          Array.isArray(result?.items) ||
+          Array.isArray(result?.comments) ||
+          !!result?.status
         );
       }
       return Object.keys((call.result as Record<string, unknown>) || {}).length > 0;
@@ -790,6 +810,27 @@ export default defineComponent({
       }
       if (isSmallModelTextTool(call)) {
         return call.status === 'streaming' ? '输出中' : '已生成';
+      }
+      if (isVideoCommentsTool(call)) {
+        const result = call.result as Record<string, unknown>;
+        const items = Array.isArray(result?.items)
+          ? (result.items as Array<Record<string, unknown>>)
+          : [];
+        const count = items.reduce((sum, item) => {
+          const comments = Array.isArray(item.comments)
+            ? item.comments.length
+            : 0;
+          const groups = item.groups as Record<string, unknown> | undefined;
+          const grouped = groups
+            ? Object.values(groups).reduce<number>(
+                (groupSum, value) =>
+                  groupSum + (Array.isArray(value) ? value.length : 0),
+                0
+              )
+            : 0;
+          return sum + Math.max(comments, grouped);
+        }, 0);
+        return count ? `${count} 条评论` : String(result?.status || '已读取');
       }
       if (call.type === 'check_author') {
         const found = (call.result as Record<string, unknown>)?.found;
@@ -915,7 +956,7 @@ export default defineComponent({
     };
 
     const shouldRenderSmallTaskMarkdown = (call: ToolCall): boolean =>
-      call.type === 'summarize_transcript';
+      call.type === 'summarize_transcript' || call.type === 'ask_transcript';
 
     const renderSmallTaskMarkdown = (call: ToolCall): string =>
       renderMarkdown(getSmallTaskResultText(call));
@@ -928,7 +969,8 @@ export default defineComponent({
 
     const getSmallTaskResultClasses = (call: ToolCall) => ({
       'tool-text-result--small-task': true,
-      'tool-text-result--summary': call.type === 'summarize_transcript',
+      'tool-text-result--summary':
+        call.type === 'summarize_transcript' || call.type === 'ask_transcript',
       'tool-text-result--small-task-streaming':
         call.status === 'streaming',
     });

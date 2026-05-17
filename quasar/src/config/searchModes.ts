@@ -97,7 +97,7 @@ export const SEARCH_MODE_META: Record<SearchMode, SearchModeOption> = {
         icon: 'handyman',
         description: '实用工具，输入 /videos /owners /explore 等命令',
         placeholder: '实用工具 · 输入 / 选择工具，或直接输入关键词搜索视频',
-        subtitle: '输入 / 选择工具：/videos /owners /explore /google /transcript /llm /summarize',
+        subtitle: '输入 / 选择工具：/videos /owners /explore /google /transcript /ask /summarize /comments',
         apiType: 'utility',
         theme: {
             quasarColor: 'teal-5',
@@ -124,7 +124,7 @@ export const SEARCH_MODE_META: Record<SearchMode, SearchModeOption> = {
         icon: 'handyman',
         description: '实用工具，输入 /videos /owners /explore 等命令',
         placeholder: '实用工具 · 输入 / 选择工具，或直接输入关键词搜索视频',
-        subtitle: '输入 / 选择工具：/videos /owners /explore /google /transcript /llm /summarize',
+        subtitle: '输入 / 选择工具：/videos /owners /explore /google /transcript /ask /summarize /comments',
         apiType: 'utility',
         theme: {
             quasarColor: 'teal-5',

@@ -34,10 +34,10 @@ describe('tool command helpers', () => {
             )
         ).toEqual(['/google']);
         expect(
-            getToolCommandSuggestions('/llm 1+2=?', { showAllWhenEmpty: true }).map(
-                (item) => item.command
-            )
-        ).toEqual(['/llm']);
+            getToolCommandSuggestions('/ask BV1AA411c7mD 请总结', {
+                showAllWhenEmpty: true,
+            }).map((item) => item.command)
+        ).toEqual(['/ask']);
         expect(getToolCommandSuggestions('/own').map((item) => item.command)).toEqual([
             '/owners',
         ]);
@@ -47,7 +47,9 @@ describe('tool command helpers', () => {
         expect(getToolCommandSuggestions('vd')[0]?.command).toBe('/videos');
         expect(getToolCommandSuggestions('gg')[0]?.command).toBe('/google');
         expect(getToolCommandSuggestions('scr')[0]?.command).toBe('/transcript');
+        expect(getToolCommandSuggestions('qa')[0]?.command).toBe('/ask');
         expect(getToolCommandSuggestions('smr')[0]?.command).toBe('/summarize');
+        expect(getToolCommandSuggestions('cf')[0]?.command).toBe('/comments_full');
         expect(completeToolCommandText('/own', '/owners')).toBe('/owners ');
         expect(completeToolCommandText('、own', '/owners')).toBe('/owners ');
         expect(completeToolCommandText('\\own', '/owners')).toBe('/owners ');

@@ -55,22 +55,40 @@ export const TOOL_COMMANDS: ToolCommandOption[] = [
         aliases: ['t', 'ts', 'scr'],
     },
     {
-        command: '/llm',
-        tool: 'run_small_llm_task',
+        command: '/ask',
+        tool: 'ask_transcript',
         icon: 'smart_toy',
-        label: '小模型',
-        description: '让轻量模型执行计算、改写、抽取、压缩或归纳',
-        usage: '/llm 1+2=?',
-        aliases: ['l', 'ai', 'sm'],
+        label: '提问',
+        description: '读取一个或多个 BV 视频转写，并按你的问题回答',
+        usage: '/ask BV1... 请告诉我这个视频中提到了什么',
+        aliases: ['a', 'qa', 'ask'],
     },
     {
         command: '/summarize',
         tool: 'summarize_transcript',
         icon: 'summarize',
         label: '总结',
-        description: '读取指定 BV 视频的完整转写，并用小模型生成中文总结',
-        usage: '/summarize BV1...',
+        description: '读取一个或多个 BV 视频的完整转写，并生成中文总结',
+        usage: '/summarize BV1... BV2...',
         aliases: ['s', 'sum', 'summary', 'smr'],
+    },
+    {
+        command: '/comments',
+        tool: 'video_comments',
+        icon: 'forum',
+        label: '评论',
+        description: '快速读取指定 BV 视频的热门评论，默认最多 20 条',
+        usage: '/comments BV1...',
+        aliases: ['c', 'comment'],
+    },
+    {
+        command: '/comments_full',
+        tool: 'video_comments_full',
+        icon: 'rate_review',
+        label: '完整评论',
+        description: '完整模式读取指定 BV 视频评论，默认最多 100 条',
+        usage: '/comments_full BV1...',
+        aliases: ['cf', 'comments-full', 'comment_full'],
     },
 ];
 
@@ -116,6 +134,7 @@ const commandMatchScore = (
     const aliases = item.aliases || [];
     if (aliases.some((alias) => alias.toLowerCase() === draft)) return 85;
     if (aliases.some((alias) => alias.toLowerCase().startsWith(draft))) return 80;
+    if (draft.length <= 2) return -1;
 
     let index = 0;
     for (const char of draft) {

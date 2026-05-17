@@ -207,15 +207,16 @@ export default {
     const toolCalls = computed(() =>
       toolCall.value ? [toolCall.value] : []
     );
-    const isSummarizeStreaming = computed(
+    const isTranscriptLlmStreaming = computed(
       () =>
-        toolCall.value?.type === 'summarize_transcript' &&
+        (toolCall.value?.type === 'summarize_transcript' ||
+          toolCall.value?.type === 'ask_transcript') &&
         toolCall.value?.status === 'streaming'
     );
     const showVideoResultsPanel = computed(
       () =>
         exploreStore.hasResults ||
-        (exploreStore.isExploreLoading && !isSummarizeStreaming.value)
+        (exploreStore.isExploreLoading && !isTranscriptLlmStreaming.value)
     );
     const showToolCallPanel = computed(() => {
       const call = toolCall.value;
