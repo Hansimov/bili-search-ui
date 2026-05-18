@@ -412,6 +412,13 @@
                   <button
                     type="button"
                     class="tool-comments-chip"
+                    @click.stop="scrollCommentsToTop(idx)"
+                  >
+                    回到顶部
+                  </button>
+                  <button
+                    type="button"
+                    class="tool-comments-chip"
                     @click.stop="setAllCommentRootsCollapsed(idx, call, true)"
                   >
                     折叠楼层
@@ -462,9 +469,17 @@
                   class="tool-comments-video"
                 >
                   <div class="tool-comments-video-header">
-                    <span class="tool-comments-bvid">{{
-                      item.bvid || '视频评论'
-                    }}</span>
+                    <div class="tool-comments-video-title-block">
+                      <span class="tool-comments-video-title">
+                        {{ getVideoCommentTitle(item) }}
+                      </span>
+                      <span
+                        v-if="getVideoCommentOwnerText(item)"
+                        class="tool-comments-video-owner"
+                      >
+                        {{ getVideoCommentOwnerText(item) }}
+                      </span>
+                    </div>
                     <span class="tool-comments-video-meta">
                       {{ getVideoCommentItemMeta(item) }}
                     </span>
@@ -472,11 +487,20 @@
                   <div
                     v-if="getVisibleVideoCommentTree(idx, call, item).length"
                     class="tool-comments-tree"
+                    :class="{
+                      'tool-comments-tree--single-video':
+                        isSingleVideoCommentsResult(call),
+                    }"
                   >
                     <div
                       v-for="root in getVisibleVideoCommentTree(idx, call, item)"
                       :key="getCommentId(root)"
                       class="tool-comment-root"
+                      :class="{
+                        'tool-comment--highlighted':
+                          isCommentHighlighted(idx, item, root),
+                      }"
+                      :data-comment-id="getCommentId(root)"
                     >
                       <div class="tool-comment-row">
                         <div class="tool-comment-main">
@@ -493,6 +517,13 @@
                             </a>
                             <span v-else class="tool-comment-author">
                               {{ getCommentAuthor(root) }}
+                            </span>
+                            <span
+                              v-for="tag in getCommentAuthorTags(root, item)"
+                              :key="tag"
+                              class="tool-comment-author-tag"
+                            >
+                              {{ tag }}
                             </span>
                             <span class="tool-comment-time">{{
                               getCommentTime(root)
@@ -513,6 +544,20 @@
                             >
                               热门
                             </span>
+                            <button
+                              v-if="getReturnTargetForComment(idx, item, root)"
+                              type="button"
+                              class="tool-comment-jump-button"
+                              @click.stop="
+                                jumpToCommentById(
+                                  idx,
+                                  item,
+                                  getReturnTargetForComment(idx, item, root)
+                                )
+                              "
+                            >
+                              返回回复
+                            </button>
                           </div>
                           <div class="tool-comment-content">
                             {{ getCommentMessage(root) }}
@@ -532,8 +577,14 @@
                             >
                               <img
                                 :src="getCommentPictureUrl(picture)"
+                                :data-fallback-src="
+                                  getCommentPictureFallbackUrl(picture)
+                                "
                                 alt=""
-                                loading="lazy"
+                                loading="eager"
+                                decoding="async"
+                                referrerpolicy="no-referrer"
+                                @error="handleCommentPictureError"
                               />
                             </button>
                           </div>
@@ -584,6 +635,23 @@
                           >
                             仅看有赞
                           </button>
+                          <label
+                            class="tool-comments-sort tool-comments-sort--small"
+                            aria-label="楼层回复排序"
+                          >
+                            <select
+                              :value="getCommentLayerSortMode(idx, root)"
+                              title="楼层回复排序"
+                              @change="
+                                handleCommentLayerSortChange(idx, root, $event)
+                              "
+                            >
+                              <option value="default">默认</option>
+                              <option value="hot">热度</option>
+                              <option value="time_asc">时间正序</option>
+                              <option value="time_desc">时间逆序</option>
+                            </select>
+                          </label>
                         </div>
                         <div
                           v-show="!isCommentRootCollapsed(idx, item, root)"
@@ -593,6 +661,11 @@
                             v-for="reply in getVisibleCommentReplies(idx, root)"
                             :key="getCommentId(reply)"
                             class="tool-comment-reply"
+                            :class="{
+                              'tool-comment--highlighted':
+                                isCommentHighlighted(idx, item, reply),
+                            }"
+                            :data-comment-id="getCommentId(reply)"
                           >
                             <div class="tool-comment-header">
                               <a
@@ -607,6 +680,13 @@
                               </a>
                               <span v-else class="tool-comment-author">
                                 {{ getCommentAuthor(reply) }}
+                              </span>
+                              <span
+                                v-for="tag in getCommentAuthorTags(reply, item, root)"
+                                :key="tag"
+                                class="tool-comment-author-tag"
+                              >
+                                {{ tag }}
                               </span>
                               <span
                                 v-if="shouldShowCommentReplyAction(reply)"
@@ -628,7 +708,10 @@
                               <span class="tool-comment-time">{{
                                 getCommentTime(reply)
                               }}</span>
-                              <span class="tool-comment-like">
+                              <span
+                                v-if="getCommentLikeValue(reply) > 0"
+                                class="tool-comment-like"
+                              >
                                 <q-icon name="thumb_up" size="12px" />
                                 {{ getCommentLikeText(reply) }}
                               </span>
@@ -638,6 +721,20 @@
                               >
                                 热门
                               </span>
+                              <button
+                                v-if="getReturnTargetForComment(idx, item, reply)"
+                                type="button"
+                                class="tool-comment-jump-button"
+                                @click.stop="
+                                  jumpToCommentById(
+                                    idx,
+                                    item,
+                                    getReturnTargetForComment(idx, item, reply)
+                                  )
+                                "
+                              >
+                                返回回复
+                              </button>
                             </div>
                             <div class="tool-comment-content">
                               {{ getCommentMessage(reply) }}
@@ -657,8 +754,14 @@
                               >
                                 <img
                                   :src="getCommentPictureUrl(picture)"
+                                  :data-fallback-src="
+                                    getCommentPictureFallbackUrl(picture)
+                                  "
                                   alt=""
-                                  loading="lazy"
+                                  loading="eager"
+                                  decoding="async"
+                                  referrerpolicy="no-referrer"
+                                  @error="handleCommentPictureError"
                                 />
                               </button>
                             </div>
@@ -692,6 +795,20 @@
                                     )
                                   }}
                                 </span>
+                                <button
+                                  type="button"
+                                  class="tool-comment-jump-button"
+                                  @click.stop="
+                                    jumpToComment(
+                                      idx,
+                                      item,
+                                      getReferencedComment(reply, root),
+                                      reply
+                                    )
+                                  "
+                                >
+                                  跳到原文
+                                </button>
                               </div>
                               <div class="tool-comment-reference-content">
                                 {{
@@ -787,7 +904,7 @@ import {
   getOwnerHref,
   getOwnerUidText,
 } from 'src/utils/ownerRichView';
-import { getRenderableImageUrl } from 'src/utils/imageUrl';
+import { getRenderableImageUrl, normalizeRemoteImageUrl } from 'src/utils/imageUrl';
 import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
 import { formatToolCallArgs } from 'src/utils/toolCall';
 import { renderMarkdown } from 'src/utils/markdown';
@@ -905,6 +1022,7 @@ interface VideoCommentNode extends VideoComment {
 
 interface VideoCommentsItem {
   bvid?: string;
+  title?: string;
   owner?: {
     mid?: string | number;
     name?: string;
@@ -929,6 +1047,7 @@ interface CommentFilterState {
 interface CommentLayerFilterState {
   ownerOnly: boolean;
   likedOnly: boolean;
+  sortMode: CommentSortMode;
 }
 
 interface CommentImageEntry {
@@ -1039,6 +1158,8 @@ export default defineComponent({
     const commentLayerFilters = ref<Record<string, CommentLayerFilterState>>({});
     const collapsedCommentRoots = ref<Record<string, boolean>>({});
     const expandedCommentReferences = ref<Record<string, boolean>>({});
+    const commentReturnTargets = ref<Record<string, string>>({});
+    const highlightedComments = ref<Record<string, boolean>>({});
     const commentImageViewer = ref<CommentImageViewerState>({
       open: false,
       images: [],
@@ -1152,6 +1273,7 @@ export default defineComponent({
         commentLayerFilters.value[key] = {
           ownerOnly: false,
           likedOnly: false,
+          sortMode: 'default',
         };
       }
       return commentLayerFilters.value[key];
@@ -1181,6 +1303,35 @@ export default defineComponent({
     ) => {
       const filters = getCommentLayerFilters(idx, root);
       filters.likedOnly = !filters.likedOnly;
+    };
+
+    const getCommentLayerSortMode = (
+      idx: number,
+      root: VideoComment
+    ): CommentSortMode => getCommentLayerFilters(idx, root).sortMode;
+
+    const setCommentLayerSortMode = (
+      idx: number,
+      root: VideoComment,
+      mode: CommentSortMode
+    ) => {
+      getCommentLayerFilters(idx, root).sortMode = mode;
+    };
+
+    const handleCommentLayerSortChange = (
+      idx: number,
+      root: VideoComment,
+      event: Event
+    ) => {
+      const value = (event.target as HTMLSelectElement | null)?.value;
+      if (
+        value === 'default' ||
+        value === 'hot' ||
+        value === 'time_asc' ||
+        value === 'time_desc'
+      ) {
+        setCommentLayerSortMode(idx, root, value);
+      }
     };
 
     const buildLookupQueryLabels = (call: ToolCall): string[] => {
@@ -1600,6 +1751,7 @@ export default defineComponent({
         return [
           {
             bvid: String(call.args?.bvid || ''),
+            title: String(result.title || ''),
             mode: String(call.args?.mode || ''),
             comments: result.comments as VideoComment[],
             pagination: result.pagination as Record<string, unknown>,
@@ -1675,8 +1827,38 @@ export default defineComponent({
         String(picture.url || picture.src || picture.img_src || '').trim()
       );
 
+    const getCommentPictureFallbackUrl = (
+      picture: VideoCommentPicture
+    ): string =>
+      normalizeRemoteImageUrl(
+        String(picture.url || picture.src || picture.img_src || '').trim()
+      );
+
+    const handleCommentPictureError = (event: Event) => {
+      const image = event.target as HTMLImageElement | null;
+      if (!image) return;
+      const fallback = image.dataset.fallbackSrc || '';
+      if (fallback && image.src !== fallback) {
+        image.src = fallback;
+        return;
+      }
+      image.closest('.tool-comment-image-thumb')?.classList.add(
+        'tool-comment-image-thumb--failed'
+      );
+    };
+
     const getVideoOwnerMid = (item: VideoCommentsItem): string =>
       String(item.owner?.mid || '').trim();
+
+    const getVideoCommentTitle = (item: VideoCommentsItem): string => {
+      const title = String(item.title || '').trim();
+      return title || item.bvid || '视频评论';
+    };
+
+    const getVideoCommentOwnerText = (item: VideoCommentsItem): string => {
+      const owner = item.owner || {};
+      return String(owner.name || owner.uname || '').trim();
+    };
 
     const isVideoOwnerComment = (
       comment: VideoComment,
@@ -1685,6 +1867,31 @@ export default defineComponent({
       const ownerMid = getVideoOwnerMid(item);
       const commentMid = String(comment.member?.mid || '').trim();
       return Boolean(ownerMid && commentMid && ownerMid === commentMid);
+    };
+
+    const isLayerOwnerComment = (
+      comment: VideoComment,
+      root?: VideoCommentNode
+    ): boolean => {
+      if (!root || getCommentId(comment) === getCommentId(root)) return false;
+      const rootMid = String(root.member?.mid || '').trim();
+      const commentMid = String(comment.member?.mid || '').trim();
+      return Boolean(rootMid && commentMid && rootMid === commentMid);
+    };
+
+    const getCommentAuthorTags = (
+      comment: VideoComment,
+      item: VideoCommentsItem,
+      root?: VideoCommentNode
+    ): string[] => {
+      const tags: string[] = [];
+      if (isLayerOwnerComment(comment, root)) {
+        tags.push('层主');
+      }
+      if (isVideoOwnerComment(comment, item)) {
+        tags.push('视频作者');
+      }
+      return tags;
     };
 
     const getItemComments = (item: VideoCommentsItem): VideoComment[] => {
@@ -1801,7 +2008,7 @@ export default defineComponent({
       const mode = getCommentSortMode(idx, call);
       return sortComments(roots, mode).map((root) => ({
         ...root,
-        replies: sortComments(root.replies, mode),
+        replies: root.replies,
       }));
     };
 
@@ -1810,6 +2017,27 @@ export default defineComponent({
       item: VideoCommentsItem,
       root: VideoComment
     ): string => `${idx}:${item.bvid || ''}:${getCommentId(root)}`;
+
+    const getCommentDomKey = (
+      idx: number,
+      item: VideoCommentsItem,
+      commentOrId: VideoComment | string
+    ): string => {
+      const commentId =
+        typeof commentOrId === 'string'
+          ? commentOrId
+          : getCommentId(commentOrId);
+      return `${idx}:${item.bvid || ''}:comment:${commentId}`;
+    };
+
+    const isSingleVideoCommentsResult = (call: ToolCall): boolean =>
+      getVideoCommentItems(call).length === 1;
+
+    const isCommentHighlighted = (
+      idx: number,
+      item: VideoCommentsItem,
+      comment: VideoComment
+    ): boolean => highlightedComments.value[getCommentDomKey(idx, item, comment)];
 
     const isCommentRootCollapsed = (
       idx: number,
@@ -1833,7 +2061,7 @@ export default defineComponent({
     ): VideoComment[] => {
       const filters = getCommentLayerFilters(idx, root);
       const rootMid = String(root.member?.mid || '').trim();
-      return root.replies.filter((reply) => {
+      const replies = root.replies.filter((reply) => {
         if (filters.likedOnly && getCommentLikeValue(reply) <= 0) {
           return false;
         }
@@ -1845,6 +2073,7 @@ export default defineComponent({
         }
         return true;
       });
+      return sortComments(replies, filters.sortMode);
     };
 
     const getMaxReplyLikeValue = (root: VideoCommentNode): number =>
@@ -1870,6 +2099,83 @@ export default defineComponent({
         });
       });
     };
+
+    const findCommentRootForId = (
+      item: VideoCommentsItem,
+      commentId: string
+    ): VideoCommentNode | null => {
+      for (const root of getVideoCommentTree(item)) {
+        if (getCommentId(root) === commentId) return root;
+        if (root.replies.some((reply) => getCommentId(reply) === commentId)) {
+          return root;
+        }
+      }
+      return null;
+    };
+
+    const getCommentElement = (
+      idx: number,
+      item: VideoCommentsItem,
+      commentId: string
+    ): HTMLElement | null => {
+      const itemEl = getToolItemElement(idx);
+      const nodes = itemEl?.querySelectorAll<HTMLElement>('[data-comment-id]');
+      return (
+        Array.from(nodes || []).find(
+          (node) => node.dataset.commentId === commentId
+        ) || null
+      );
+    };
+
+    const markCommentHighlighted = (
+      idx: number,
+      item: VideoCommentsItem,
+      commentId: string
+    ) => {
+      const key = getCommentDomKey(idx, item, commentId);
+      highlightedComments.value[key] = true;
+      window.setTimeout(() => {
+        delete highlightedComments.value[key];
+      }, 1600);
+    };
+
+    const jumpToCommentById = (
+      idx: number,
+      item: VideoCommentsItem,
+      commentId: string
+    ) => {
+      const root = findCommentRootForId(item, commentId);
+      if (root) {
+        collapsedCommentRoots.value[getCommentRootKey(idx, item, root)] = false;
+      }
+      nextTick(() => {
+        const element = getCommentElement(idx, item, commentId);
+        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (element) {
+          markCommentHighlighted(idx, item, commentId);
+        }
+      });
+    };
+
+    const jumpToComment = (
+      idx: number,
+      item: VideoCommentsItem,
+      target: VideoComment,
+      from?: VideoComment
+    ) => {
+      const targetId = getCommentId(target);
+      if (from) {
+        commentReturnTargets.value[getCommentDomKey(idx, item, targetId)] =
+          getCommentId(from);
+      }
+      jumpToCommentById(idx, item, targetId);
+    };
+
+    const getReturnTargetForComment = (
+      idx: number,
+      item: VideoCommentsItem,
+      comment: VideoComment
+    ): string => commentReturnTargets.value[getCommentDomKey(idx, item, comment)] || '';
 
     const getCommentReferenceKey = (
       idx: number,
@@ -2054,6 +2360,14 @@ export default defineComponent({
     const getToolItemElement = (idx: number): HTMLElement | null => {
       const items = containerRef.value?.querySelectorAll('.tool-call-item');
       return (items?.[idx] as HTMLElement | undefined) || null;
+    };
+
+    const scrollCommentsToTop = (idx: number) => {
+      const itemEl = getToolItemElement(idx);
+      const scrollEl = itemEl?.querySelector(
+        '.tool-comments-visual'
+      ) as HTMLElement | null;
+      scrollEl?.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const getScrollableAncestor = (element: HTMLElement | null) => {
@@ -2312,20 +2626,31 @@ export default defineComponent({
       getVideoCommentTree,
       getVisibleVideoCommentTree,
       getVisibleCommentReplies,
+      getVideoCommentTitle,
+      getVideoCommentOwnerText,
       getVideoCommentItemMeta,
       getVideoCommentsToolbarText,
       getCommentId,
       getCommentAuthor,
+      getCommentAuthorTags,
       getCommentAuthorHref,
       getCommentTime,
+      getCommentLikeValue,
       getCommentLikeText,
       getCommentMessage,
       getCommentPictures,
       getCommentPictureUrl,
+      getCommentPictureFallbackUrl,
+      handleCommentPictureError,
       shouldShowCommentReplyAction,
       getCommentReplyActionText,
       getCommentReplyTarget,
       getReferencedComment,
+      isSingleVideoCommentsResult,
+      isCommentHighlighted,
+      jumpToComment,
+      jumpToCommentById,
+      getReturnTargetForComment,
       isCommentRootCollapsed,
       toggleCommentRoot,
       setAllCommentRootsCollapsed,
@@ -2334,8 +2659,11 @@ export default defineComponent({
       isCommentLayerLikedFilterActive,
       toggleCommentLayerOwnerFilter,
       toggleCommentLayerLikedFilter,
+      getCommentLayerSortMode,
+      handleCommentLayerSortChange,
       isCommentReferenceExpanded,
       toggleCommentReference,
+      scrollCommentsToTop,
       commentImageViewer,
       openCommentImageViewer,
       getActiveCommentImage,
@@ -2814,10 +3142,27 @@ export default defineComponent({
   padding: 0 2px;
 }
 
-.tool-comments-bvid {
+.tool-comments-video-title-block {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 6px;
+}
+
+.tool-comments-video-title {
   font-size: 12px;
   font-weight: 700;
   opacity: 0.76;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(520px, 52vw);
+}
+
+.tool-comments-video-owner {
+  font-size: 11px;
+  color: rgba(92, 107, 125, 0.68);
 }
 
 .tool-comments-video-meta {
@@ -2837,6 +3182,18 @@ export default defineComponent({
   gap: 6px;
   padding: 0 0 0 10px;
   border-left: 2px solid rgba(128, 128, 128, 0.13);
+  border-radius: 6px;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tool-comments-tree--single-video .tool-comment-root {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.tool-comment--highlighted {
+  background: rgba(25, 118, 210, 0.08);
+  box-shadow: 0 0 0 4px rgba(25, 118, 210, 0.08);
 }
 
 .tool-comment-row,
@@ -2887,6 +3244,19 @@ a.tool-comment-author:hover {
   color: rgba(142, 102, 38, 0.82);
 }
 
+.tool-comment-author-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(25, 118, 210, 0.09);
+  color: rgba(25, 118, 210, 0.9);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+}
+
 .tool-comment-reply-target {
   display: inline-flex;
   align-items: center;
@@ -2919,6 +3289,24 @@ a.tool-comment-author:hover {
   border-radius: 999px;
   color: #1976d2;
   background: rgba(25, 118, 210, 0.1);
+}
+
+.tool-comment-jump-button {
+  appearance: none;
+  min-height: 18px;
+  padding: 0 6px;
+  border: 1px solid rgba(25, 118, 210, 0.16);
+  border-radius: 999px;
+  background: rgba(25, 118, 210, 0.06);
+  color: rgba(25, 118, 210, 0.9);
+  font-size: 10.5px;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(25, 118, 210, 0.12);
+    border-color: rgba(25, 118, 210, 0.24);
+  }
 }
 
 .tool-comment-content {
@@ -2954,11 +3342,35 @@ a.tool-comment-author:hover {
   }
 }
 
+.tool-comment-image-thumb--failed {
+  cursor: default;
+  background:
+    linear-gradient(135deg, rgba(128, 128, 128, 0.08), rgba(128, 128, 128, 0.14));
+}
+
+.tool-comment-image-thumb--failed::after {
+  content: "图片加载失败";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 6px;
+  color: rgba(92, 107, 125, 0.62);
+  font-size: 10px;
+  line-height: 1.25;
+  text-align: center;
+}
+
 .tool-comment-image-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.tool-comment-image-thumb--failed img {
+  display: none;
 }
 
 .tool-comment-reference {
@@ -3017,19 +3429,36 @@ a.tool-comment-author:hover {
 
 .tool-comment-replies-toggle {
   align-self: flex-start;
+  min-width: 0 !important;
   min-height: 22px;
   padding: 0 !important;
+  margin-left: -4px;
   font-size: 11px !important;
   opacity: 0.58;
+}
+
+.tool-comment-replies-toggle :deep(.q-btn) {
+  min-width: 0 !important;
+  padding-left: 0 !important;
 }
 
 .tool-comment-replies-toggle :deep(.q-btn__content) {
   justify-content: flex-start;
   gap: 2px;
+  min-width: 0;
 }
 
 .tool-comment-replies-toggle :deep(.q-icon) {
-  margin-left: 0;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.tool-comments-sort--small select {
+  height: 21px;
+  min-width: 68px;
+  max-width: 82px;
+  padding-left: 6px;
+  font-size: 10.5px;
 }
 
 .tool-comment-reply-list {
@@ -3043,6 +3472,10 @@ body.body--dark .tool-comment-reference-author {
   color: #90caf9;
 }
 
+body.body--dark .tool-comments-video-owner {
+  color: rgba(209, 217, 224, 0.58);
+}
+
 body.body--dark .tool-comment-time,
 body.body--dark .tool-comment-reply-target,
 body.body--dark .tool-comment-reference-time,
@@ -3052,6 +3485,22 @@ body.body--dark .tool-comment-reference-like {
 
 body.body--dark .tool-comment-like {
   color: rgba(255, 213, 128, 0.72);
+}
+
+body.body--dark .tool-comment-author-tag {
+  background: rgba(144, 202, 249, 0.12);
+  color: #90caf9;
+}
+
+body.body--dark .tool-comment-jump-button {
+  background: rgba(144, 202, 249, 0.09);
+  border-color: rgba(144, 202, 249, 0.18);
+  color: #90caf9;
+}
+
+body.body--dark .tool-comment--highlighted {
+  background: rgba(144, 202, 249, 0.1);
+  box-shadow: 0 0 0 4px rgba(144, 202, 249, 0.08);
 }
 
 body.body--dark .tool-comment-reference {

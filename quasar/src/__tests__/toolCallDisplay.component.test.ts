@@ -230,7 +230,8 @@ const videoCommentsCall: ToolCall = {
         items: [
             {
                 bvid: 'BV1comments',
-                owner: { mid: 1, name: '根评论作者' },
+                title: '评论测试视频',
+                owner: { mid: 1, name: '测试UP主' },
                 mode: 'full',
                 summary: { comment_count: 3, root_count: 1, reply_count: 2 },
                 pagination: { returned: 3, limit: 1000, max_depth: 2 },
@@ -290,7 +291,7 @@ const videoCommentsCall: ToolCall = {
                         root_rpid: 100,
                         is_root: false,
                         depth: 2,
-                        member: { mid: 3, uname: '楼中楼作者' },
+                        member: { mid: 1, uname: '根评论作者' },
                         content: { message: '回复 @回复作者 ：回复楼中楼' },
                         like: 0,
                         is_hot: false,
@@ -521,12 +522,19 @@ describe('ToolCallDisplay component', () => {
         await wrapper.find('.tool-call-header').trigger('click');
 
         expect(wrapper.find('.tool-comments-visual').exists()).toBe(true);
-        expect(wrapper.text()).toContain('BV1comments');
+        expect(wrapper.find('.tool-comments-video-header').text()).toContain(
+            '评论测试视频'
+        );
+        expect(wrapper.find('.tool-comments-video-header').text()).toContain(
+            '测试UP主'
+        );
+        expect(wrapper.find('.tool-comments-video-header').text()).not.toContain(
+            'BV1comments'
+        );
         expect(wrapper.text()).toContain('根评论作者');
         expect(wrapper.text()).not.toContain('根评论作者 · 1');
         expect(wrapper.text()).toContain('一级评论内容');
         expect(wrapper.text()).toContain('回复作者');
-        expect(wrapper.text()).toContain('楼中楼作者');
         expect(wrapper.text()).toContain('回复一级评论');
         expect(wrapper.text()).toContain('回复楼中楼');
         expect(wrapper.text()).not.toContain('回复 @根评论作者');
@@ -535,9 +543,12 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).not.toContain('2026-05-17 14:40:00');
         expect(wrapper.text()).toContain('88');
         expect(wrapper.text()).toContain('7');
-        expect(wrapper.text()).toContain('0');
         expect(wrapper.text()).toContain('置顶');
         expect(wrapper.text()).toContain('热门');
+        expect(wrapper.findAll('.tool-comment-like')).toHaveLength(2);
+        expect(wrapper.find('.tool-comment-author-tag').exists()).toBe(true);
+        expect(wrapper.text()).toContain('层主');
+        expect(wrapper.text()).toContain('视频作者');
         const authorLinks = wrapper.findAll('.tool-comment-author');
         expect(authorLinks[0]?.attributes('href')).toBe(
             'https://space.bilibili.com/1'
@@ -549,6 +560,10 @@ describe('ToolCallDisplay component', () => {
         );
         expect(thumbnails[0]?.attributes('src')).not.toContain(
             'web-space-upload-video'
+        );
+        await thumbnails[0]?.trigger('error');
+        expect(thumbnails[0]?.attributes('src')).toContain(
+            'https://i0.hdslb.com/bfs/new_dyn/root.jpg'
         );
         expect(wrapper.find('.tool-comments-sort span').exists()).toBe(false);
         const replyWords = wrapper.findAll('.tool-comment-reply-word');
@@ -572,10 +587,10 @@ describe('ToolCallDisplay component', () => {
         );
 
         await wrapper.findAll('.tool-comments-chip')[0]?.trigger('click');
-        expect(wrapper.text()).not.toContain('楼中楼作者');
+        expect(wrapper.text()).not.toContain('回复楼中楼');
         await wrapper.findAll('.tool-comments-chip')[0]?.trigger('click');
 
-        await wrapper.findAll('.tool-comments-chip')[2]?.trigger('click');
+        await wrapper.findAll('.tool-comments-chip')[3]?.trigger('click');
         expect(wrapper.text()).toContain('展开 2 条回复 · 最高赞 7');
 
         await wrapper.findAll('.tool-comments-view-toggle button')[1]?.trigger('click');
