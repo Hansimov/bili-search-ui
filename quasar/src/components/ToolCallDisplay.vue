@@ -374,6 +374,56 @@
                 <div class="tool-comments-toolbar-meta">
                   {{ getVideoCommentsToolbarText(call) }}
                 </div>
+                <div class="tool-comments-controls" @click.stop>
+                  <label class="tool-comments-sort">
+                    <span>排序</span>
+                    <select
+                      :value="getCommentSortMode(idx, call)"
+                      @change="handleCommentSortChange(idx, call, $event)"
+                    >
+                      <option value="default">默认排序</option>
+                      <option value="hot">按热度</option>
+                      <option value="time_asc">时间正序</option>
+                      <option value="time_desc">时间逆序</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    class="tool-comments-chip"
+                    :class="{
+                      'tool-comments-chip--active':
+                        isCommentLikedFilterActive(idx, call),
+                    }"
+                    @click.stop="toggleCommentLikedFilter(idx, call)"
+                  >
+                    仅看有赞
+                  </button>
+                  <button
+                    type="button"
+                    class="tool-comments-chip"
+                    :class="{
+                      'tool-comments-chip--active':
+                        isCommentAuthorFilterActive(idx, call),
+                    }"
+                    @click.stop="toggleCommentAuthorFilter(idx, call)"
+                  >
+                    仅看视频作者回复
+                  </button>
+                  <button
+                    type="button"
+                    class="tool-comments-chip"
+                    @click.stop="setAllCommentRootsCollapsed(idx, call, true)"
+                  >
+                    折叠楼层
+                  </button>
+                  <button
+                    type="button"
+                    class="tool-comments-chip"
+                    @click.stop="setAllCommentRootsCollapsed(idx, call, false)"
+                  >
+                    展开楼层
+                  </button>
+                </div>
                 <div class="tool-comments-view-toggle" @click.stop>
                   <q-btn
                     flat
@@ -420,11 +470,11 @@
                     </span>
                   </div>
                   <div
-                    v-if="getVideoCommentTree(item).length"
+                    v-if="getVisibleVideoCommentTree(idx, call, item).length"
                     class="tool-comments-tree"
                   >
                     <div
-                      v-for="root in getVideoCommentTree(item)"
+                      v-for="root in getVisibleVideoCommentTree(idx, call, item)"
                       :key="getCommentId(root)"
                       class="tool-comment-root"
                     >
@@ -467,36 +517,80 @@
                           <div class="tool-comment-content">
                             {{ getCommentMessage(root) }}
                           </div>
+                          <div
+                            v-if="getCommentPictures(root).length"
+                            class="tool-comment-images"
+                          >
+                            <button
+                              v-for="(picture, pidx) in getCommentPictures(root)"
+                              :key="`${getCommentId(root)}-${pidx}`"
+                              type="button"
+                              class="tool-comment-image-thumb"
+                              @click.stop="
+                                openCommentImageViewer(call, root, pidx)
+                              "
+                            >
+                              <img
+                                :src="getCommentPictureUrl(picture)"
+                                alt=""
+                                loading="lazy"
+                              />
+                            </button>
+                          </div>
                         </div>
                       </div>
                       <div
                         v-if="root.replies.length"
                         class="tool-comment-replies"
                       >
-                        <q-btn
-                          flat
-                          dense
-                          no-caps
-                          size="sm"
-                          :icon="
-                            isCommentRootCollapsed(idx, item, root)
-                              ? 'chevron_right'
-                              : 'expand_more'
-                          "
-                          :label="
-                            isCommentRootCollapsed(idx, item, root)
-                              ? `展开 ${root.replies.length} 条回复`
-                              : `收起 ${root.replies.length} 条回复`
-                          "
-                          class="tool-comment-replies-toggle"
-                          @click.stop="toggleCommentRoot(idx, item, root)"
-                        />
+                        <div class="tool-comment-replies-actions">
+                          <q-btn
+                            flat
+                            dense
+                            no-caps
+                            size="sm"
+                            :icon="
+                              isCommentRootCollapsed(idx, item, root)
+                                ? 'chevron_right'
+                                : 'expand_more'
+                            "
+                            :label="
+                              isCommentRootCollapsed(idx, item, root)
+                                ? `展开 ${getVisibleCommentReplies(idx, root).length} 条回复${getMaxReplyLikeSuffix(root)}`
+                                : `收起 ${getVisibleCommentReplies(idx, root).length} 条回复`
+                            "
+                            class="tool-comment-replies-toggle"
+                            @click.stop="toggleCommentRoot(idx, item, root)"
+                          />
+                          <button
+                            type="button"
+                            class="tool-comments-chip tool-comments-chip--small"
+                            :class="{
+                              'tool-comments-chip--active':
+                                isCommentLayerOwnerFilterActive(idx, root),
+                            }"
+                            @click.stop="toggleCommentLayerOwnerFilter(idx, root)"
+                          >
+                            仅看层主回复
+                          </button>
+                          <button
+                            type="button"
+                            class="tool-comments-chip tool-comments-chip--small"
+                            :class="{
+                              'tool-comments-chip--active':
+                                isCommentLayerLikedFilterActive(idx, root),
+                            }"
+                            @click.stop="toggleCommentLayerLikedFilter(idx, root)"
+                          >
+                            仅看有赞
+                          </button>
+                        </div>
                         <div
                           v-show="!isCommentRootCollapsed(idx, item, root)"
                           class="tool-comment-reply-list"
                         >
                           <div
-                            v-for="reply in root.replies"
+                            v-for="reply in getVisibleCommentReplies(idx, root)"
                             :key="getCommentId(reply)"
                             class="tool-comment-reply"
                           >
@@ -545,6 +639,26 @@
                             </div>
                             <div class="tool-comment-content">
                               {{ getCommentMessage(reply) }}
+                            </div>
+                            <div
+                              v-if="getCommentPictures(reply).length"
+                              class="tool-comment-images"
+                            >
+                              <button
+                                v-for="(picture, pidx) in getCommentPictures(reply)"
+                                :key="`${getCommentId(reply)}-${pidx}`"
+                                type="button"
+                                class="tool-comment-image-thumb"
+                                @click.stop="
+                                  openCommentImageViewer(call, reply, pidx)
+                                "
+                              >
+                                <img
+                                  :src="getCommentPictureUrl(picture)"
+                                  alt=""
+                                  loading="lazy"
+                                />
+                              </button>
                             </div>
                             <div
                               v-if="
@@ -608,6 +722,49 @@
         </div>
       </div>
     </div>
+  </div>
+  <div
+    v-if="commentImageViewer.open && getActiveCommentImage()"
+    class="tool-comment-image-overlay"
+    @click.self="closeCommentImageViewer"
+  >
+    <button
+      type="button"
+      class="tool-comment-image-nav tool-comment-image-nav--prev"
+      @click.stop="showPreviousCommentImage"
+    >
+      ‹
+    </button>
+    <figure class="tool-comment-image-stage">
+      <img :src="getActiveCommentImage()?.url" alt="" />
+      <figcaption class="tool-comment-image-meta">
+        <span>
+          {{ getCommentAuthor(getActiveCommentImageComment()) }}
+        </span>
+        <span>{{ getCommentTime(getActiveCommentImageComment()) }}</span>
+        <span>
+          {{ commentImageViewer.index + 1 }} /
+          {{ commentImageViewer.images.length }}
+        </span>
+      </figcaption>
+      <div class="tool-comment-image-caption">
+        {{ getCommentMessage(getActiveCommentImageComment()) }}
+      </div>
+    </figure>
+    <button
+      type="button"
+      class="tool-comment-image-nav tool-comment-image-nav--next"
+      @click.stop="showNextCommentImage"
+    >
+      ›
+    </button>
+    <button
+      type="button"
+      class="tool-comment-image-close"
+      @click.stop="closeCommentImageViewer"
+    >
+      关闭
+    </button>
   </div>
 </template>
 
@@ -716,6 +873,8 @@ interface VideoComment {
   };
   content?: {
     message?: string;
+    pictures?: VideoCommentPicture[];
+    images?: VideoCommentPicture[];
   };
   like?: string | number;
   is_hot?: boolean;
@@ -723,6 +882,15 @@ interface VideoComment {
   reply_to_name?: string;
   reply_to_rpid?: string;
   reply_to_comment?: VideoComment;
+}
+
+interface VideoCommentPicture {
+  url?: string;
+  src?: string;
+  img_src?: string;
+  width?: string | number;
+  height?: string | number;
+  size?: string | number;
 }
 
 interface VideoCommentNode extends VideoComment {
@@ -734,6 +902,11 @@ interface VideoCommentNode extends VideoComment {
 
 interface VideoCommentsItem {
   bvid?: string;
+  owner?: {
+    mid?: string | number;
+    name?: string;
+    uname?: string;
+  };
   mode?: string;
   status?: string;
   summary?: Record<string, unknown>;
@@ -743,6 +916,29 @@ interface VideoCommentsItem {
 }
 
 type CommentRenderMode = 'visual' | 'json';
+type CommentSortMode = 'default' | 'hot' | 'time_asc' | 'time_desc';
+
+interface CommentFilterState {
+  likedOnly: boolean;
+  authorOnly: boolean;
+}
+
+interface CommentLayerFilterState {
+  ownerOnly: boolean;
+  likedOnly: boolean;
+}
+
+interface CommentImageEntry {
+  url: string;
+  comment: VideoComment;
+  bvid: string;
+}
+
+interface CommentImageViewerState {
+  open: boolean;
+  images: CommentImageEntry[];
+  index: number;
+}
 
 const DISPLAYABLE_INTERNAL_TOOLS = new Set(['run_small_llm_task']);
 const SMALL_MODEL_TEXT_TOOLS = new Set([
@@ -835,8 +1031,16 @@ export default defineComponent({
     const containerRef = ref<HTMLElement | null>(null);
     const expanded = ref<Record<number, boolean>>({});
     const commentRenderModes = ref<Record<string, CommentRenderMode>>({});
+    const commentSortModes = ref<Record<string, CommentSortMode>>({});
+    const commentFilters = ref<Record<string, CommentFilterState>>({});
+    const commentLayerFilters = ref<Record<string, CommentLayerFilterState>>({});
     const collapsedCommentRoots = ref<Record<string, boolean>>({});
     const expandedCommentReferences = ref<Record<string, boolean>>({});
+    const commentImageViewer = ref<CommentImageViewerState>({
+      open: false,
+      images: [],
+      index: 0,
+    });
     const previousStatuses = ref<Record<number, string | undefined>>({});
     const isCompactToolDisplay = ref(false);
     let compactMediaQuery: MediaQueryList | null = null;
@@ -872,6 +1076,108 @@ export default defineComponent({
       mode: CommentRenderMode
     ) => {
       commentRenderModes.value[getCommentModeKey(idx, call)] = mode;
+    };
+
+    const getCommentSortMode = (
+      idx: number,
+      call: ToolCall
+    ): CommentSortMode =>
+      commentSortModes.value[getCommentModeKey(idx, call)] || 'default';
+
+    const setCommentSortMode = (
+      idx: number,
+      call: ToolCall,
+      mode: CommentSortMode
+    ) => {
+      commentSortModes.value[getCommentModeKey(idx, call)] = mode;
+    };
+
+    const handleCommentSortChange = (
+      idx: number,
+      call: ToolCall,
+      event: Event
+    ) => {
+      const value = (event.target as HTMLSelectElement | null)?.value;
+      if (
+        value === 'default' ||
+        value === 'hot' ||
+        value === 'time_asc' ||
+        value === 'time_desc'
+      ) {
+        setCommentSortMode(idx, call, value);
+      }
+    };
+
+    const getCommentFilters = (
+      idx: number,
+      call: ToolCall
+    ): CommentFilterState => {
+      const key = getCommentModeKey(idx, call);
+      if (!commentFilters.value[key]) {
+        commentFilters.value[key] = { likedOnly: false, authorOnly: false };
+      }
+      return commentFilters.value[key];
+    };
+
+    const isCommentLikedFilterActive = (idx: number, call: ToolCall): boolean =>
+      getCommentFilters(idx, call).likedOnly;
+
+    const isCommentAuthorFilterActive = (idx: number, call: ToolCall): boolean =>
+      getCommentFilters(idx, call).authorOnly;
+
+    const toggleCommentLikedFilter = (idx: number, call: ToolCall) => {
+      const filters = getCommentFilters(idx, call);
+      filters.likedOnly = !filters.likedOnly;
+    };
+
+    const toggleCommentAuthorFilter = (idx: number, call: ToolCall) => {
+      const filters = getCommentFilters(idx, call);
+      filters.authorOnly = !filters.authorOnly;
+    };
+
+    const getCommentLayerKey = (
+      idx: number,
+      root: VideoComment
+    ): string => `${idx}:layer:${getCommentId(root)}`;
+
+    const getCommentLayerFilters = (
+      idx: number,
+      root: VideoComment
+    ): CommentLayerFilterState => {
+      const key = getCommentLayerKey(idx, root);
+      if (!commentLayerFilters.value[key]) {
+        commentLayerFilters.value[key] = {
+          ownerOnly: false,
+          likedOnly: false,
+        };
+      }
+      return commentLayerFilters.value[key];
+    };
+
+    const isCommentLayerOwnerFilterActive = (
+      idx: number,
+      root: VideoComment
+    ): boolean => getCommentLayerFilters(idx, root).ownerOnly;
+
+    const isCommentLayerLikedFilterActive = (
+      idx: number,
+      root: VideoComment
+    ): boolean => getCommentLayerFilters(idx, root).likedOnly;
+
+    const toggleCommentLayerOwnerFilter = (
+      idx: number,
+      root: VideoComment
+    ) => {
+      const filters = getCommentLayerFilters(idx, root);
+      filters.ownerOnly = !filters.ownerOnly;
+    };
+
+    const toggleCommentLayerLikedFilter = (
+      idx: number,
+      root: VideoComment
+    ) => {
+      const filters = getCommentLayerFilters(idx, root);
+      filters.likedOnly = !filters.likedOnly;
     };
 
     const buildLookupQueryLabels = (call: ToolCall): string[] => {
@@ -1326,13 +1632,53 @@ export default defineComponent({
       return String(Math.max(value, 0));
     };
 
+    const getCommentLikeValue = (comment: VideoComment | undefined): number =>
+      Math.max(Number(comment?.like || 0), 0);
+
+    const padDateUnit = (value: number): string => String(value).padStart(2, '0');
+
     const getCommentTime = (comment: VideoComment): string => {
-      if (comment.ctime_str) return comment.ctime_str;
       const ctime = Number(comment.ctime || 0);
-      if (!ctime) return '';
-      return new Date(ctime * 1000).toLocaleString('zh-CN', {
-        hour12: false,
-      });
+      let date: Date | null = ctime ? new Date(ctime * 1000) : null;
+      if (!date && comment.ctime_str) {
+        const parsed = new Date(comment.ctime_str.replace(' ', 'T'));
+        date = Number.isNaN(parsed.getTime()) ? null : parsed;
+      }
+      if (!date) return String(comment.ctime_str || '');
+      const monthDay = `${padDateUnit(date.getMonth() + 1)}-${padDateUnit(
+        date.getDate()
+      )}`;
+      const time = `${padDateUnit(date.getHours())}:${padDateUnit(
+        date.getMinutes()
+      )}`;
+      return date.getFullYear() === new Date().getFullYear()
+        ? `${monthDay} ${time}`
+        : `${date.getFullYear()}-${monthDay} ${time}`;
+    };
+
+    const getCommentPictures = (comment: VideoComment): VideoCommentPicture[] => {
+      const pictures = comment.content?.pictures || comment.content?.images || [];
+      if (!Array.isArray(pictures)) return [];
+      return pictures.filter((picture) =>
+        Boolean(picture?.url || picture?.src || picture?.img_src)
+      );
+    };
+
+    const getCommentPictureUrl = (picture: VideoCommentPicture): string =>
+      normalizePicUrl(
+        String(picture.url || picture.src || picture.img_src || '').trim()
+      );
+
+    const getVideoOwnerMid = (item: VideoCommentsItem): string =>
+      String(item.owner?.mid || '').trim();
+
+    const isVideoOwnerComment = (
+      comment: VideoComment,
+      item: VideoCommentsItem
+    ): boolean => {
+      const ownerMid = getVideoOwnerMid(item);
+      const commentMid = String(comment.member?.mid || '').trim();
+      return Boolean(ownerMid && commentMid && ownerMid === commentMid);
     };
 
     const getItemComments = (item: VideoCommentsItem): VideoComment[] => {
@@ -1400,10 +1746,57 @@ export default defineComponent({
         });
       });
 
-      roots.forEach((root) => {
-        root.replies.sort((a, b) => Number(a.ctime || 0) - Number(b.ctime || 0));
-      });
       return roots;
+    };
+
+    const commentHeatScore = (comment: VideoCommentNode | VideoComment): number =>
+      (comment.is_top ? 1_000_000_000_000 : 0) +
+      (comment.is_hot ? 1_000_000_000 : 0) +
+      getCommentLikeValue(comment) * 10_000 +
+      Number((comment as VideoCommentNode).replies?.length || 0) * 100 +
+      Number(comment.ctime || 0);
+
+    const sortComments = <T extends VideoComment>(
+      comments: T[],
+      mode: CommentSortMode
+    ): T[] => {
+      if (mode === 'default') return comments;
+      const sorted = [...comments];
+      if (mode === 'hot') {
+        return sorted.sort((a, b) => commentHeatScore(b) - commentHeatScore(a));
+      }
+      return sorted.sort((a, b) => {
+        const delta = Number(a.ctime || 0) - Number(b.ctime || 0);
+        return mode === 'time_asc' ? delta : -delta;
+      });
+    };
+
+    const getVisibleVideoCommentTree = (
+      idx: number,
+      call: ToolCall,
+      item: VideoCommentsItem
+    ): VideoCommentNode[] => {
+      const filters = getCommentFilters(idx, call);
+      const matchesGlobalFilters = (comment: VideoComment): boolean => {
+        if (filters.likedOnly && getCommentLikeValue(comment) <= 0) {
+          return false;
+        }
+        if (filters.authorOnly && !isVideoOwnerComment(comment, item)) {
+          return false;
+        }
+        return true;
+      };
+      const roots = getVideoCommentTree(item)
+        .map((root) => {
+          const replies = root.replies.filter(matchesGlobalFilters);
+          return { ...root, replies };
+        })
+        .filter((root) => matchesGlobalFilters(root) || root.replies.length > 0);
+      const mode = getCommentSortMode(idx, call);
+      return sortComments(roots, mode).map((root) => ({
+        ...root,
+        replies: sortComments(root.replies, mode),
+      }));
     };
 
     const getCommentRootKey = (
@@ -1426,6 +1819,50 @@ export default defineComponent({
     ) => {
       const key = getCommentRootKey(idx, item, root);
       collapsedCommentRoots.value[key] = !collapsedCommentRoots.value[key];
+    };
+
+    const getVisibleCommentReplies = (
+      idx: number,
+      root: VideoCommentNode
+    ): VideoComment[] => {
+      const filters = getCommentLayerFilters(idx, root);
+      const rootMid = String(root.member?.mid || '').trim();
+      return root.replies.filter((reply) => {
+        if (filters.likedOnly && getCommentLikeValue(reply) <= 0) {
+          return false;
+        }
+        if (
+          filters.ownerOnly &&
+          (!rootMid || String(reply.member?.mid || '').trim() !== rootMid)
+        ) {
+          return false;
+        }
+        return true;
+      });
+    };
+
+    const getMaxReplyLikeValue = (root: VideoCommentNode): number =>
+      root.replies.reduce(
+        (maxValue, reply) => Math.max(maxValue, getCommentLikeValue(reply)),
+        0
+      );
+
+    const getMaxReplyLikeSuffix = (root: VideoCommentNode): string => {
+      const value = getMaxReplyLikeValue(root);
+      return value > 0 ? ` · 最高赞 ${getCommentLikeText({ like: value })}` : '';
+    };
+
+    const setAllCommentRootsCollapsed = (
+      idx: number,
+      call: ToolCall,
+      collapsed: boolean
+    ) => {
+      getVideoCommentItems(call).forEach((item) => {
+        getVisibleVideoCommentTree(idx, call, item).forEach((root) => {
+          collapsedCommentRoots.value[getCommentRootKey(idx, item, root)] =
+            collapsed;
+        });
+      });
     };
 
     const getCommentReferenceKey = (
@@ -1471,6 +1908,79 @@ export default defineComponent({
         return `#${parentId}`;
       }
       return '';
+    };
+
+    const collectCommentImages = (call: ToolCall): CommentImageEntry[] => {
+      const images: CommentImageEntry[] = [];
+      getVideoCommentItems(call).forEach((item) => {
+        getVideoCommentTree(item).forEach((root) => {
+          [root, ...root.replies].forEach((comment) => {
+            getCommentPictures(comment).forEach((picture) => {
+              const url = getCommentPictureUrl(picture);
+              if (!url) return;
+              images.push({
+                url,
+                comment,
+                bvid: String(item.bvid || ''),
+              });
+            });
+          });
+        });
+      });
+      return images;
+    };
+
+    const openCommentImageViewer = (
+      call: ToolCall,
+      comment: VideoComment,
+      pictureIndex: number
+    ) => {
+      const currentPictures = getCommentPictures(comment);
+      const currentUrl = getCommentPictureUrl(currentPictures[pictureIndex] || {});
+      const images = collectCommentImages(call);
+      const currentCommentId = getCommentId(comment);
+      const index = Math.max(
+        images.findIndex(
+          (entry) =>
+            getCommentId(entry.comment) === currentCommentId &&
+            entry.url === currentUrl
+        ),
+        0
+      );
+      commentImageViewer.value = {
+        open: true,
+        images: images.length
+          ? images
+          : currentUrl
+          ? [{ url: currentUrl, comment, bvid: '' }]
+          : [],
+        index,
+      };
+    };
+
+    const getActiveCommentImage = (): CommentImageEntry | null => {
+      if (!commentImageViewer.value.open) return null;
+      return commentImageViewer.value.images[commentImageViewer.value.index] || null;
+    };
+
+    const getActiveCommentImageComment = (): VideoComment =>
+      getActiveCommentImage()?.comment || {};
+
+    const closeCommentImageViewer = () => {
+      commentImageViewer.value = { open: false, images: [], index: 0 };
+    };
+
+    const showPreviousCommentImage = () => {
+      const length = commentImageViewer.value.images.length;
+      if (!length) return;
+      commentImageViewer.value.index =
+        (commentImageViewer.value.index - 1 + length) % length;
+    };
+
+    const showNextCommentImage = () => {
+      const length = commentImageViewer.value.images.length;
+      if (!length) return;
+      commentImageViewer.value.index = (commentImageViewer.value.index + 1) % length;
     };
 
     const getVideoCommentItemMeta = (item: VideoCommentsItem): string => {
@@ -1773,8 +2283,16 @@ export default defineComponent({
       isVideoCommentsTool,
       getCommentRenderMode,
       setCommentRenderMode,
+      getCommentSortMode,
+      handleCommentSortChange,
+      isCommentLikedFilterActive,
+      isCommentAuthorFilterActive,
+      toggleCommentLikedFilter,
+      toggleCommentAuthorFilter,
       getVideoCommentItems,
       getVideoCommentTree,
+      getVisibleVideoCommentTree,
+      getVisibleCommentReplies,
       getVideoCommentItemMeta,
       getVideoCommentsToolbarText,
       getCommentId,
@@ -1783,12 +2301,27 @@ export default defineComponent({
       getCommentTime,
       getCommentLikeText,
       getCommentMessage,
+      getCommentPictures,
+      getCommentPictureUrl,
       getCommentReplyTarget,
       getReferencedComment,
       isCommentRootCollapsed,
       toggleCommentRoot,
+      setAllCommentRootsCollapsed,
+      getMaxReplyLikeSuffix,
+      isCommentLayerOwnerFilterActive,
+      isCommentLayerLikedFilterActive,
+      toggleCommentLayerOwnerFilter,
+      toggleCommentLayerLikedFilter,
       isCommentReferenceExpanded,
       toggleCommentReference,
+      commentImageViewer,
+      openCommentImageViewer,
+      getActiveCommentImage,
+      getActiveCommentImageComment,
+      closeCommentImageViewer,
+      showPreviousCommentImage,
+      showNextCommentImage,
       getToolError,
       getQueryList,
       formatToolArgs,
@@ -2126,6 +2659,7 @@ export default defineComponent({
   justify-content: space-between;
   gap: 10px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .tool-comments-toolbar-meta {
@@ -2136,6 +2670,65 @@ export default defineComponent({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tool-comments-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.tool-comments-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: rgba(92, 107, 125, 0.72);
+}
+
+.tool-comments-sort select {
+  height: 24px;
+  max-width: 92px;
+  padding: 0 22px 0 7px;
+  border: 1px solid rgba(128, 128, 128, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(35, 45, 58, 0.82);
+  font-size: 11px;
+}
+
+.tool-comments-chip {
+  appearance: none;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(128, 128, 128, 0.14);
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.045);
+  color: rgba(65, 78, 94, 0.72);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: rgba(25, 118, 210, 0.08);
+    border-color: rgba(25, 118, 210, 0.16);
+    color: rgba(25, 118, 210, 0.9);
+  }
+}
+
+.tool-comments-chip--active {
+  background: rgba(25, 118, 210, 0.12);
+  border-color: rgba(25, 118, 210, 0.2);
+  color: #1976d2;
+}
+
+.tool-comments-chip--small {
+  min-height: 21px;
+  padding: 0 7px;
+  font-size: 10.5px;
 }
 
 .tool-comments-view-toggle {
@@ -2302,6 +2895,38 @@ a.tool-comment-author:hover {
   word-break: break-word;
 }
 
+.tool-comment-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.tool-comment-image-thumb {
+  appearance: none;
+  width: 74px;
+  height: 74px;
+  padding: 0;
+  border: 1px solid rgba(128, 128, 128, 0.14);
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(128, 128, 128, 0.05);
+  cursor: zoom-in;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    border-color: rgba(25, 118, 210, 0.3);
+    transform: translateY(-1px);
+  }
+}
+
+.tool-comment-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .tool-comment-reference {
   display: flex;
   flex-direction: column;
@@ -2349,6 +2974,13 @@ a.tool-comment-author:hover {
   border-left: 1px dashed rgba(128, 128, 128, 0.16);
 }
 
+.tool-comment-replies-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
 .tool-comment-replies-toggle {
   align-self: flex-start;
   min-height: 22px;
@@ -2388,12 +3020,105 @@ body.body--dark .tool-comment-reference-content {
   color: rgba(235, 238, 242, 0.78);
 }
 
+body.body--dark .tool-comments-sort,
+body.body--dark .tool-comments-chip {
+  color: rgba(209, 217, 224, 0.7);
+}
+
+body.body--dark .tool-comments-sort select,
+body.body--dark .tool-comments-chip {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+body.body--dark .tool-comments-chip--active {
+  background: rgba(144, 202, 249, 0.14);
+  border-color: rgba(144, 202, 249, 0.24);
+  color: #90caf9;
+}
+
 .tool-comments-empty {
   padding: 8px 10px;
   font-size: 12px;
   opacity: 0.5;
   border-radius: 6px;
   background: rgba(128, 128, 128, 0.04);
+}
+
+.tool-comment-image-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 7000;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 10px;
+  padding: 28px;
+  background: rgba(12, 18, 26, 0.88);
+}
+
+.tool-comment-image-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-height: calc(100vh - 56px);
+  margin: 0;
+}
+
+.tool-comment-image-stage img {
+  max-width: 100%;
+  max-height: calc(100vh - 142px);
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.36);
+}
+
+.tool-comment-image-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+}
+
+.tool-comment-image-caption {
+  max-width: 760px;
+  max-height: 44px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.tool-comment-image-nav,
+.tool-comment-image-close {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.88);
+  cursor: pointer;
+}
+
+.tool-comment-image-nav {
+  width: 44px;
+  height: 52px;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.tool-comment-image-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 
 .tool-owner-group {
@@ -2942,6 +3667,10 @@ body.body--dark .tool-google-result-open {
     white-space: normal;
   }
 
+  .tool-comments-controls {
+    margin-left: 0;
+  }
+
   .tool-comments-visual {
     max-height: 58vh;
   }
@@ -2953,6 +3682,17 @@ body.body--dark .tool-google-result-open {
   .tool-comment-replies {
     margin-left: 6px;
     padding-left: 8px;
+  }
+
+  .tool-comment-image-overlay {
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    gap: 6px;
+    padding: 18px 10px;
+  }
+
+  .tool-comment-image-nav {
+    width: 34px;
+    height: 44px;
   }
 
   .per-query-header {

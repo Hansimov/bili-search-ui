@@ -230,6 +230,7 @@ const videoCommentsCall: ToolCall = {
         items: [
             {
                 bvid: 'BV1comments',
+                owner: { mid: 1, name: '根评论作者' },
                 mode: 'full',
                 summary: { comment_count: 3, root_count: 1, reply_count: 2 },
                 pagination: { returned: 3, limit: 1000, max_depth: 2 },
@@ -244,7 +245,16 @@ const videoCommentsCall: ToolCall = {
                         is_root: true,
                         depth: 1,
                         member: { mid: 1, uname: '根评论作者' },
-                        content: { message: '一级评论内容' },
+                        content: {
+                            message: '一级评论内容',
+                            pictures: [
+                                {
+                                    url: '//i0.hdslb.com/bfs/new_dyn/root.jpg',
+                                    width: 640,
+                                    height: 360,
+                                },
+                            ],
+                        },
                         like: 88,
                         is_hot: true,
                         is_top: true,
@@ -259,7 +269,14 @@ const videoCommentsCall: ToolCall = {
                         is_root: false,
                         depth: 2,
                         member: { mid: 2, uname: '回复作者' },
-                        content: { message: '回复一级评论' },
+                        content: {
+                            message: '回复一级评论',
+                            pictures: [
+                                {
+                                    url: 'https://i0.hdslb.com/bfs/new_dyn/reply.jpg',
+                                },
+                            ],
+                        },
                         like: 7,
                         is_hot: false,
                         is_top: false,
@@ -510,6 +527,8 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('一级评论内容');
         expect(wrapper.text()).toContain('回复作者');
         expect(wrapper.text()).toContain('楼中楼作者');
+        expect(wrapper.text()).toContain('05-17 14:40');
+        expect(wrapper.text()).not.toContain('2026-05-17 14:40:00');
         expect(wrapper.text()).toContain('88');
         expect(wrapper.text()).toContain('7');
         expect(wrapper.text()).toContain('0');
@@ -519,6 +538,20 @@ describe('ToolCallDisplay component', () => {
         expect(authorLinks[0]?.attributes('href')).toBe(
             'https://space.bilibili.com/1'
         );
+        const thumbnails = wrapper.findAll('.tool-comment-image-thumb img');
+        expect(thumbnails).toHaveLength(2);
+        expect(thumbnails[0]?.attributes('src')).toContain(
+            'i0.hdslb.com/bfs/new_dyn/root.jpg'
+        );
+
+        await wrapper.find('.tool-comment-image-thumb').trigger('click');
+
+        expect(wrapper.find('.tool-comment-image-overlay').exists()).toBe(true);
+        expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('1 / 2');
+        await wrapper.find('.tool-comment-image-nav--next').trigger('click');
+        expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('2 / 2');
+        await wrapper.find('.tool-comment-image-close').trigger('click');
+        expect(wrapper.find('.tool-comment-image-overlay').exists()).toBe(false);
 
         await wrapper.find('.tool-comment-reply-word').trigger('click');
 
@@ -526,6 +559,13 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.find('.tool-comment-reference').text()).toContain(
             '一级评论内容'
         );
+
+        await wrapper.findAll('.tool-comments-chip')[0]?.trigger('click');
+        expect(wrapper.text()).not.toContain('楼中楼作者');
+        await wrapper.findAll('.tool-comments-chip')[0]?.trigger('click');
+
+        await wrapper.findAll('.tool-comments-chip')[2]?.trigger('click');
+        expect(wrapper.text()).toContain('展开 2 条回复 · 最高赞 7');
 
         await wrapper.findAll('.tool-comments-view-toggle button')[1]?.trigger('click');
 
