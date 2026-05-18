@@ -408,23 +408,18 @@
                   </button>
                   <button
                     type="button"
-                    class="tool-comments-chip"
-                    @click.stop="scrollCommentsToTop(idx)"
-                  >
-                    回到顶部
-                  </button>
-                  <button
-                    type="button"
-                    class="tool-comments-chip"
+                    class="tool-comments-chip tool-comments-chip--icon"
                     @click.stop="setAllCommentRootsCollapsed(idx, call, true)"
                   >
+                    <q-icon name="unfold_less" size="14px" />
                     折叠楼层
                   </button>
                   <button
                     type="button"
-                    class="tool-comments-chip"
+                    class="tool-comments-chip tool-comments-chip--icon"
                     @click.stop="setAllCommentRootsCollapsed(idx, call, false)"
                   >
+                    <q-icon name="unfold_more" size="14px" />
                     展开楼层
                   </button>
                 </div>
@@ -435,6 +430,14 @@
                 >
                   <q-icon name="download" size="13px" />
                   下载 JSON
+                </button>
+                <button
+                  type="button"
+                  class="tool-comments-chip tool-comments-chip--icon tool-comments-top-chip"
+                  @click.stop="scrollCommentsToTop(idx)"
+                >
+                  <q-icon name="keyboard_double_arrow_up" size="14px" />
+                  回到顶部
                 </button>
               </div>
 
@@ -618,32 +621,6 @@
                               }}
                             </span>
                           </button>
-                          <button
-                            type="button"
-                            class="tool-comments-chip tool-comments-chip--small"
-                            :class="{
-                              'tool-comments-chip--active':
-                                isCommentLayerOwnerFilterActive(idx, root),
-                            }"
-                            @click.stop="
-                              toggleCommentLayerOwnerFilter(idx, item, root)
-                            "
-                          >
-                            仅看层主回复
-                          </button>
-                          <button
-                            type="button"
-                            class="tool-comments-chip tool-comments-chip--small"
-                            :class="{
-                              'tool-comments-chip--active':
-                                isCommentLayerLikedFilterActive(idx, root),
-                            }"
-                            @click.stop="
-                              toggleCommentLayerLikedFilter(idx, item, root)
-                            "
-                          >
-                            仅看有赞
-                          </button>
                           <label
                             class="tool-comments-sort tool-comments-sort--small"
                             aria-label="楼层回复排序"
@@ -661,6 +638,32 @@
                               <option value="time_desc">时间逆序</option>
                             </select>
                           </label>
+                          <button
+                            type="button"
+                            class="tool-comments-chip tool-comments-chip--small"
+                            :class="{
+                              'tool-comments-chip--active':
+                                isCommentLayerLikedFilterActive(idx, root),
+                            }"
+                            @click.stop="
+                              toggleCommentLayerLikedFilter(idx, item, root)
+                            "
+                          >
+                            仅看有赞
+                          </button>
+                          <button
+                            type="button"
+                            class="tool-comments-chip tool-comments-chip--small"
+                            :class="{
+                              'tool-comments-chip--active':
+                                isCommentLayerOwnerFilterActive(idx, root),
+                            }"
+                            @click.stop="
+                              toggleCommentLayerOwnerFilter(idx, item, root)
+                            "
+                          >
+                            仅看层主回复
+                          </button>
                         </div>
                         <div
                           v-if="!isCommentRootCollapsed(idx, item, root)"
@@ -2878,6 +2881,17 @@ export default defineComponent({
       return Math.min(Math.max(raw || 1000, 1), 1000);
     };
 
+    const getCommentDesiredLoadedCount = (
+      call: ToolCall,
+      item: VideoCommentsItem
+    ): number => {
+      const summary = item.summary || {};
+      const requested = Number(call.args?.limit || call.args?.ps || 1000);
+      const target = Math.min(Math.max(requested || 1000, 1), 1000);
+      const estimated = Number(summary.estimated_total || 0);
+      return estimated > 0 ? Math.min(target, estimated) : target;
+    };
+
     const hasMoreStoredComments = (item: VideoCommentsItem): boolean => {
       const pagination = item.pagination || {};
       const summary = item.summary || {};
@@ -2897,11 +2911,8 @@ export default defineComponent({
       }
       const summary = item.summary || {};
       if (
-        item.status === 'completed' ||
         summary.is_complete === true ||
-        summary.complete_exhausted === true ||
-        getVideoCommentLoadedCount(item) > 0 ||
-        Number(summary.comment_count || summary.stored_count || 0) > 0
+        summary.complete_exhausted === true
       ) {
         return false;
       }
@@ -2913,7 +2924,10 @@ export default defineComponent({
       const running = Array.isArray(result.running)
         ? result.running.map((value) => String(value))
         : [];
-      return Boolean(bvid && (scheduled.includes(bvid) || running.includes(bvid)));
+      if (bvid && (scheduled.includes(bvid) || running.includes(bvid))) {
+        return true;
+      }
+      return item.status === 'running';
     };
 
     const needsMoreCommentSync = (item: VideoCommentsItem): boolean => {
@@ -2932,6 +2946,28 @@ export default defineComponent({
       );
     };
 
+    const needsMoreInitialComments = (
+      call: ToolCall,
+      item: VideoCommentsItem
+    ): boolean => {
+      if (item.mode !== 'full') return false;
+      const summary = item.summary || {};
+      if (summary.is_complete === true || summary.complete_exhausted === true) {
+        return false;
+      }
+      const loaded = getVideoCommentLoadedCount(item);
+      const desired = getCommentDesiredLoadedCount(call, item);
+      if (loaded >= desired) return false;
+      const estimated = Number(summary.estimated_total || 0);
+      const stored = Number(summary.comment_count || summary.stored_count || 0);
+      return (
+        estimated > loaded ||
+        stored > loaded ||
+        summary.is_complete === false ||
+        isCommentItemQueuedOrRunning(call, item)
+      );
+    };
+
     const isCommentItemActivelySyncing = (item: VideoCommentsItem): boolean =>
       item.mode === 'full' &&
       (item.status === 'running' || item.refresh_status === 'running') &&
@@ -2947,8 +2983,8 @@ export default defineComponent({
         (Boolean(state.loading) ||
           hasMoreStoredComments(item) ||
           needsMoreCommentSync(item) ||
-          (getVideoCommentLoadedCount(item) === 0 &&
-            isCommentItemQueuedOrRunning(call, item)))
+          needsMoreInitialComments(call, item) ||
+          isCommentItemQueuedOrRunning(call, item))
       );
     };
 
@@ -2959,6 +2995,7 @@ export default defineComponent({
       const state = getCommentItemState(call, item);
       if (state.loading) return '加载中...';
       if (hasMoreStoredComments(item)) return '加载更多评论';
+      if (needsMoreInitialComments(call, item)) return '继续加载评论';
       if (needsMoreCommentSync(item)) return '继续同步评论';
       if (isCommentItemActivelySyncing(item)) {
         return '刷新已下载评论';
@@ -3002,17 +3039,29 @@ export default defineComponent({
       const currentComments = getItemComments(item);
       const shouldFetchStored = hasMoreStoredComments(item);
       const shouldSyncMore = needsMoreCommentSync(item);
+      const shouldLoadInitialMore = needsMoreInitialComments(call, item);
       const shouldPollRunning = isCommentItemQueuedOrRunning(call, item);
-      if (!shouldFetchStored && !shouldSyncMore && !shouldPollRunning) return;
+      if (
+        !shouldFetchStored &&
+        !shouldSyncMore &&
+        !shouldLoadInitialMore &&
+        !shouldPollRunning
+      ) {
+        return;
+      }
       const pageSize = getCommentPageSize(call, item);
       const nextPn =
         shouldFetchStored && currentComments.length >= pageSize
           ? Math.floor(currentComments.length / pageSize) + 1
           : 1;
       const shouldWait =
-        options.wait ?? (shouldSyncMore && currentComments.length === 0);
+        options.wait ??
+        ((shouldSyncMore || shouldLoadInitialMore) && currentComments.length === 0);
       const shouldForce =
-        options.force ?? (shouldSyncMore && !shouldFetchStored && !shouldPollRunning);
+        options.force ??
+        ((shouldSyncMore || shouldLoadInitialMore) &&
+          !shouldFetchStored &&
+          !shouldPollRunning);
       loadedCommentItems.value[key] = { ...state, loading: true, error: '' };
       try {
         const response = await fetch('/api/video_comments', {
@@ -3099,7 +3148,15 @@ export default defineComponent({
       if (item.mode !== 'full' || getCommentItemState(call, item).loading) {
         return false;
       }
+      const loaded = getVideoCommentLoadedCount(item);
+      const desired = getCommentDesiredLoadedCount(call, item);
+      if (loaded >= desired) {
+        return false;
+      }
       if (hasMoreStoredComments(item)) {
+        return true;
+      }
+      if (needsMoreInitialComments(call, item)) {
         return true;
       }
       if (needsMoreCommentSync(item)) {
@@ -3127,7 +3184,7 @@ export default defineComponent({
       const timer = window.setTimeout(() => {
         commentAutoRefreshTimers.delete(key);
         commentAutoRefreshAttempts.set(key, attempts + 1);
-        void loadMoreComments(idx, call, item, { wait: false, force: false });
+        void loadMoreComments(idx, call, item, { wait: false });
       }, delay);
       commentAutoRefreshTimers.set(key, timer);
     };
@@ -3919,6 +3976,10 @@ export default defineComponent({
 
 .tool-comments-chip {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   min-height: 24px;
   padding: 0 8px;
   border: 1px solid rgba(128, 128, 128, 0.14);
@@ -3937,6 +3998,11 @@ export default defineComponent({
   }
 }
 
+.tool-comments-chip--icon :deep(.q-icon) {
+  line-height: 1;
+  transform: translateY(-0.5px);
+}
+
 .tool-comments-chip--active {
   background: rgba(25, 118, 210, 0.12);
   border-color: rgba(25, 118, 210, 0.2);
@@ -3946,7 +4012,12 @@ export default defineComponent({
 .tool-comments-chip--small {
   min-height: 21px;
   padding: 0 7px;
+  gap: 3px;
   font-size: 10.5px;
+}
+
+.tool-comments-top-chip {
+  margin-left: 0;
 }
 
 .tool-comments-download-json {
@@ -4362,7 +4433,7 @@ a.tool-comment-author:hover {
   width: 14px;
   min-width: 14px;
   height: 15px;
-  margin-left: -2px;
+  margin-left: calc(-1 * var(--reply-indent) - 7px);
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;

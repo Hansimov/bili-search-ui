@@ -619,7 +619,10 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).not.toContain('回复楼中楼');
         await wrapper.findAll('.tool-comments-chip')[0]?.trigger('click');
 
-        await wrapper.findAll('.tool-comments-chip')[3]?.trigger('click');
+        await wrapper
+            .findAll('button')
+            .find((button) => button.text().includes('折叠楼层'))
+            ?.trigger('click');
         expect(wrapper.text()).toContain('展开 2 条回复 · 最高赞 7');
 
         expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(false);
@@ -633,7 +636,9 @@ describe('ToolCallDisplay component', () => {
         await expandButton?.trigger('click');
         await nextTick();
         expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(false);
-        await wrapper.findAll('.tool-comments-chip')[5]?.trigger('click');
+        await wrapper
+            .find('.tool-comment-replies-actions .tool-comments-chip')
+            .trigger('click');
         await nextTick();
         expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(true);
 
