@@ -48,6 +48,7 @@
         ref="toolResultsLayoutRef"
         class="tool-results-layout"
         :class="{ 'tool-results-layout--with-videos': showVideoResultsPanel }"
+        @wheel="handleToolResultsWheel"
       >
         <div v-if="showToolCallPanel" class="tool-call-panel">
           <ToolCallDisplay :tool-calls="toolCalls" force-expanded />
@@ -533,6 +534,32 @@ export default {
       toolSelectionListenerEl = el;
     };
 
+    const canScrollElementInDirection = (el, deltaY) => {
+      if (!el || !deltaY) return false;
+      const maxScrollTop = el.scrollHeight - el.clientHeight;
+      if (maxScrollTop <= 1) return false;
+      if (deltaY > 0) return el.scrollTop < maxScrollTop - 1;
+      return el.scrollTop > 1;
+    };
+
+    const handleToolResultsWheel = (event) => {
+      if (isChatMode.value || event.ctrlKey || event.metaKey) return;
+      const layout = toolResultsLayoutRef.value;
+      if (!layout) return;
+      const target = event.target instanceof Element ? event.target : layout;
+      const item =
+        target.closest?.('.tool-call-item') ||
+        layout.querySelector('.tool-call-item');
+      const innerScroll = item?.querySelector?.('.tool-comments-visual');
+      if (
+        innerScroll instanceof HTMLElement &&
+        canScrollElementInDirection(innerScroll, event.deltaY)
+      ) {
+        event.preventDefault();
+        innerScroll.scrollTop += event.deltaY;
+      }
+    };
+
     const updateScrollMetrics = () => {
       const el = chatContainerRef.value;
       if (!el) return;
@@ -765,6 +792,7 @@ export default {
       chatContainerRef,
       toolResultsLayoutRef,
       handleChatScroll,
+      handleToolResultsWheel,
       scrollToBottom,
       showScrollToBottom,
     };

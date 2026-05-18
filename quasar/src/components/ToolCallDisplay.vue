@@ -549,7 +549,7 @@
                               type="button"
                               class="tool-comment-jump-button"
                               @click.stop="
-                                jumpToCommentById(
+                                returnToCommentById(
                                   idx,
                                   item,
                                   getReturnTargetForComment(idx, item, root)
@@ -726,7 +726,7 @@
                                 type="button"
                                 class="tool-comment-jump-button"
                                 @click.stop="
-                                  jumpToCommentById(
+                                  returnToCommentById(
                                     idx,
                                     item,
                                     getReturnTargetForComment(idx, item, reply)
@@ -2127,6 +2127,35 @@ export default defineComponent({
       );
     };
 
+    const getCommentScrollContainer = (
+      idx: number,
+      item: VideoCommentsItem,
+      commentId: string
+    ): HTMLElement | null => {
+      const element = getCommentElement(idx, item, commentId);
+      return (
+        (element?.closest('.tool-comments-visual') as HTMLElement | null) ||
+        ((getToolItemElement(idx)?.querySelector(
+          '.tool-comments-visual'
+        ) as HTMLElement | null) ?? null)
+      );
+    };
+
+    const scrollCommentElementToCenter = (
+      element: HTMLElement,
+      container: HTMLElement
+    ) => {
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const elementCenter = elementRect.top + elementRect.height / 2;
+      const containerCenter = containerRect.top + container.clientHeight / 2;
+      const delta = elementCenter - containerCenter;
+      container.scrollTo({
+        top: container.scrollTop + delta,
+        behavior: 'smooth',
+      });
+    };
+
     const markCommentHighlighted = (
       idx: number,
       item: VideoCommentsItem,
@@ -2150,11 +2179,24 @@ export default defineComponent({
       }
       nextTick(() => {
         const element = getCommentElement(idx, item, commentId);
-        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        if (element) {
+        const container = getCommentScrollContainer(idx, item, commentId);
+        if (element && container) {
+          scrollCommentElementToCenter(element, container);
+          markCommentHighlighted(idx, item, commentId);
+        } else if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
           markCommentHighlighted(idx, item, commentId);
         }
       });
+    };
+
+    const returnToCommentById = (
+      idx: number,
+      item: VideoCommentsItem,
+      commentId: string
+    ) => {
+      commentReturnTargets.value = {};
+      jumpToCommentById(idx, item, commentId);
     };
 
     const jumpToComment = (
@@ -2165,8 +2207,9 @@ export default defineComponent({
     ) => {
       const targetId = getCommentId(target);
       if (from) {
-        commentReturnTargets.value[getCommentDomKey(idx, item, targetId)] =
-          getCommentId(from);
+        commentReturnTargets.value = {
+          [getCommentDomKey(idx, item, targetId)]: getCommentId(from),
+        };
       }
       jumpToCommentById(idx, item, targetId);
     };
@@ -2650,6 +2693,7 @@ export default defineComponent({
       isCommentHighlighted,
       jumpToComment,
       jumpToCommentById,
+      returnToCommentById,
       getReturnTargetForComment,
       isCommentRootCollapsed,
       toggleCommentRoot,
@@ -2721,7 +2765,7 @@ export default defineComponent({
 
 .tool-call-item {
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   transition: background 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
 }
 
@@ -2741,10 +2785,15 @@ export default defineComponent({
 }
 
 .tool-call-header {
+  position: sticky;
+  top: 0;
+  z-index: 18;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
+  background: rgba(250, 251, 253, 0.96);
+  backdrop-filter: blur(10px);
   cursor: pointer;
   transition: background 0.15s ease, opacity 0.15s ease;
   opacity: 0.78;
@@ -2880,6 +2929,10 @@ export default defineComponent({
   min-height: 0;
 }
 
+.tool-call-results-wrapper.expanded .tool-call-results-inner {
+  overflow: visible;
+}
+
 /* 搜索结果预览 */
 .tool-call-results {
   padding: 6px 10px 10px;
@@ -3003,12 +3056,20 @@ export default defineComponent({
 }
 
 .tool-comments-toolbar {
+  position: sticky;
+  top: 31px;
+  z-index: 16;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   min-width: 0;
   flex-wrap: wrap;
+  margin: -6px -10px 0;
+  padding: 6px 10px 8px;
+  background: rgba(250, 251, 253, 0.96);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .tool-comments-toolbar-meta {
@@ -3470,6 +3531,11 @@ a.tool-comment-author:hover {
 body.body--dark .tool-comment-author,
 body.body--dark .tool-comment-reference-author {
   color: #90caf9;
+}
+
+body.body--dark .tool-call-header,
+body.body--dark .tool-comments-toolbar {
+  background: rgba(18, 22, 28, 0.96);
 }
 
 body.body--dark .tool-comments-video-owner {
