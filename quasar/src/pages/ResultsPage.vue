@@ -887,7 +887,7 @@ body.body--dark .search-bar-row {
           var(--viewport-height-css, 100vh) -
             var(--search-bar-total-height, 84px)
         )
-      ) - 36px
+      ) - 44px
   );
 }
 
@@ -911,19 +911,20 @@ body.body--dark .search-bar-row {
 .tool-results-layout {
   display: flex;
   flex: 1 1 auto;
+  height: 100%;
   min-height: 0;
   width: 100%;
   box-sizing: border-box;
   flex-direction: column;
   align-items: center;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: hidden;
   overscroll-behavior: contain;
   overflow-anchor: none;
   scrollbar-gutter: stable;
   scroll-padding-top: 12px;
-  scroll-padding-bottom: calc(var(--search-bar-total-height, 84px) + 28px);
-  padding-bottom: calc(var(--search-bar-total-height, 84px) + 28px);
+  scroll-padding-bottom: 8px;
+  padding-bottom: 0;
 }
 
 .tool-results-layout--with-videos {
@@ -935,9 +936,49 @@ body.body--dark .search-bar-row {
 .tool-call-panel {
   width: var(--search-input-width);
   max-width: var(--search-input-max-width, 95vw);
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  padding: 8px 12px 8px;
+}
+
+.tool-call-panel :deep(.tool-call-container) {
+  height: 100%;
+  min-height: 0;
+}
+
+.tool-call-panel :deep(.tool-call-item) {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.tool-call-panel :deep(.tool-call-header) {
   flex: 0 0 auto;
-  overflow-y: visible;
-  padding: 8px 12px 10px;
+}
+
+.tool-call-panel :deep(.tool-call-results-wrapper.expanded) {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.tool-call-panel :deep(.tool-call-results-inner),
+.tool-call-panel :deep(.tool-call-results),
+.tool-call-panel :deep(.tool-comments-result) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tool-call-panel :deep(.tool-comments-visual) {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .results-panels-card :deep(.q-tab-panels) {

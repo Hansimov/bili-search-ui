@@ -498,7 +498,7 @@ describe('ToolCallDisplay component', () => {
         expect(ownerCards[0]?.text()).not.toContain('粉丝');
     });
 
-    it('renders video comments as a collapsible tree with a JSON mode', async () => {
+    it('renders video comments as a collapsible tree with JSON download', async () => {
         const wrapper = mount(ToolCallDisplay, {
             props: {
                 toolCalls: [videoCommentsCall],
@@ -593,10 +593,41 @@ describe('ToolCallDisplay component', () => {
         await wrapper.findAll('.tool-comments-chip')[3]?.trigger('click');
         expect(wrapper.text()).toContain('展开 2 条回复 · 最高赞 7');
 
-        await wrapper.findAll('.tool-comments-view-toggle button')[1]?.trigger('click');
+        const replyList = wrapper.find('.tool-comment-reply-list');
+        expect(replyList.attributes('style')).toContain('display: none');
+        const expandButton = wrapper
+            .findAll('button')
+            .find((button) => button.text().includes('展开 2 条回复'));
+        await expandButton?.trigger('click');
+        await nextTick();
+        expect(wrapper.find('.tool-comment-reply-list').attributes('style') || '').not.toContain(
+            'display: none'
+        );
 
-        expect(wrapper.find('.tool-comments-visual').exists()).toBe(false);
-        expect(wrapper.find('.tool-generic-json').text()).toContain('"limit": 1000');
+        await expandButton?.trigger('click');
+        await nextTick();
+        expect(wrapper.find('.tool-comment-reply-list').attributes('style')).toContain(
+            'display: none'
+        );
+        await wrapper.findAll('.tool-comments-chip')[5]?.trigger('click');
+        await nextTick();
+        expect(wrapper.find('.tool-comment-reply-list').attributes('style') || '').not.toContain(
+            'display: none'
+        );
+
+        const createObjectURL = vi.fn(() => 'blob:comments');
+        const revokeObjectURL = vi.fn();
+        vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+        const anchorClick = vi
+            .spyOn(HTMLAnchorElement.prototype, 'click')
+            .mockImplementation(() => undefined);
+
+        await wrapper.find('.tool-comments-download-json').trigger('click');
+
+        expect(wrapper.find('.tool-comments-visual').exists()).toBe(true);
+        expect(createObjectURL).toHaveBeenCalledTimes(1);
+        expect(anchorClick).toHaveBeenCalledTimes(1);
+        anchorClick.mockRestore();
     });
 
     it('renders transcript results with full text', async () => {

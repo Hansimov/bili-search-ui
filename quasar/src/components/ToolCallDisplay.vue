@@ -431,38 +431,17 @@
                     展开楼层
                   </button>
                 </div>
-                <div class="tool-comments-view-toggle" @click.stop>
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    size="sm"
-                    label="可视化"
-                    :class="{
-                      'tool-comments-view-toggle-active':
-                        getCommentRenderMode(idx, call) === 'visual',
-                    }"
-                    @click.stop="setCommentRenderMode(idx, call, 'visual')"
-                  />
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    size="sm"
-                    label="纯JSON"
-                    :class="{
-                      'tool-comments-view-toggle-active':
-                        getCommentRenderMode(idx, call) === 'json',
-                    }"
-                    @click.stop="setCommentRenderMode(idx, call, 'json')"
-                  />
-                </div>
+                <button
+                  type="button"
+                  class="tool-comments-download-json"
+                  @click.stop="downloadCommentsJson(call)"
+                >
+                  <q-icon name="download" size="13px" />
+                  下载 JSON
+                </button>
               </div>
 
-              <div
-                v-if="getCommentRenderMode(idx, call) === 'visual'"
-                class="tool-comments-visual"
-              >
+              <div class="tool-comments-visual">
                 <div
                   v-for="item in getVideoCommentItems(call)"
                   :key="item.bvid || 'comments'"
@@ -620,7 +599,9 @@
                               'tool-comments-chip--active':
                                 isCommentLayerOwnerFilterActive(idx, root),
                             }"
-                            @click.stop="toggleCommentLayerOwnerFilter(idx, root)"
+                            @click.stop="
+                              toggleCommentLayerOwnerFilter(idx, item, root)
+                            "
                           >
                             仅看层主回复
                           </button>
@@ -631,7 +612,9 @@
                               'tool-comments-chip--active':
                                 isCommentLayerLikedFilterActive(idx, root),
                             }"
-                            @click.stop="toggleCommentLayerLikedFilter(idx, root)"
+                            @click.stop="
+                              toggleCommentLayerLikedFilter(idx, item, root)
+                            "
                           >
                             仅看有赞
                           </button>
@@ -848,9 +831,6 @@
                 </div>
               </div>
 
-              <pre v-else class="tool-generic-json">{{
-                formatGenericResult(call)
-              }}</pre>
             </div>
 
             <div v-else class="tool-generic-result">
@@ -1066,7 +1046,6 @@ interface LoadedCommentItemState {
   error?: string;
 }
 
-type CommentRenderMode = 'visual' | 'json';
 type CommentSortMode = 'default' | 'hot' | 'time_asc' | 'time_desc';
 
 interface CommentFilterState {
@@ -1182,7 +1161,6 @@ export default defineComponent({
   setup(props) {
     const containerRef = ref<HTMLElement | null>(null);
     const expanded = ref<Record<number, boolean>>({});
-    const commentRenderModes = ref<Record<string, CommentRenderMode>>({});
     const commentSortModes = ref<Record<string, CommentSortMode>>({});
     const commentFilters = ref<Record<string, CommentFilterState>>({});
     const commentLayerFilters = ref<Record<string, CommentLayerFilterState>>({});
@@ -1218,20 +1196,6 @@ export default defineComponent({
 
     const getCommentModeKey = (idx: number, call: ToolCall): string =>
       `${idx}:${call.type}:${call.result_id || ''}`;
-
-    const getCommentRenderMode = (
-      idx: number,
-      call: ToolCall
-    ): CommentRenderMode =>
-      commentRenderModes.value[getCommentModeKey(idx, call)] || 'visual';
-
-    const setCommentRenderMode = (
-      idx: number,
-      call: ToolCall,
-      mode: CommentRenderMode
-    ) => {
-      commentRenderModes.value[getCommentModeKey(idx, call)] = mode;
-    };
 
     const getCommentSortMode = (
       idx: number,
@@ -1322,18 +1286,22 @@ export default defineComponent({
 
     const toggleCommentLayerOwnerFilter = (
       idx: number,
+      item: VideoCommentsItem,
       root: VideoComment
     ) => {
       const filters = getCommentLayerFilters(idx, root);
       filters.ownerOnly = !filters.ownerOnly;
+      collapsedCommentRoots.value[getCommentRootKey(idx, item, root)] = false;
     };
 
     const toggleCommentLayerLikedFilter = (
       idx: number,
+      item: VideoCommentsItem,
       root: VideoComment
     ) => {
       const filters = getCommentLayerFilters(idx, root);
       filters.likedOnly = !filters.likedOnly;
+      collapsedCommentRoots.value[getCommentRootKey(idx, item, root)] = false;
     };
 
     const getCommentLayerSortMode = (
@@ -2109,7 +2077,7 @@ export default defineComponent({
       root: VideoCommentNode
     ) => {
       const key = getCommentRootKey(idx, item, root);
-      collapsedCommentRoots.value[key] = !collapsedCommentRoots.value[key];
+      collapsedCommentRoots.value[key] = !isCommentRootCollapsed(idx, item, root);
     };
 
     const getVisibleCommentReplies = (
@@ -2505,8 +2473,7 @@ export default defineComponent({
           0
       );
       const mode = item.mode === 'full' ? '完整' : '快速';
-      const running =
-        item.status === 'running' || item.refresh_status === 'running';
+      const running = isCommentItemActivelySyncing(item);
       const incomplete =
         !running &&
         item.mode === 'full' &&
@@ -2519,6 +2486,37 @@ export default defineComponent({
         return `${mode} · 展示 ${loaded} / 已存 ${total}${estimateText}${suffix}`;
       }
       return `${mode} · ${loaded || returned} 条${suffix}`;
+    };
+
+    const downloadCommentsJson = (call: ToolCall) => {
+      const items = getVideoCommentItems(call);
+      const bvids = items
+        .map((item) => String(item.bvid || '').trim())
+        .filter(Boolean);
+      const payload = {
+        tool: call.type,
+        args: call.args || {},
+        count: items.reduce(
+          (sum, item) => sum + getItemComments(item).length,
+          0
+        ),
+        items,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json;charset=utf-8',
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      const name =
+        bvids.length === 1
+          ? `comments-${bvids[0]}.json`
+          : `comments-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+      anchor.href = url;
+      anchor.download = name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
 
     const getCommentItemState = (
@@ -2559,9 +2557,15 @@ export default defineComponent({
       return (
         item.mode === 'full' &&
         summary.is_complete === false &&
+        summary.complete_exhausted !== true &&
         estimated > Math.max(loaded, stored)
       );
     };
+
+    const isCommentItemActivelySyncing = (item: VideoCommentsItem): boolean =>
+      item.mode === 'full' &&
+      (item.status === 'running' || item.refresh_status === 'running') &&
+      needsMoreCommentSync(item);
 
     const shouldShowCommentsLoadMore = (
       call: ToolCall,
@@ -2570,8 +2574,7 @@ export default defineComponent({
       item.mode === 'full' &&
       (hasMoreStoredComments(item) ||
         needsMoreCommentSync(item) ||
-        item.status === 'running' ||
-        item.refresh_status === 'running' ||
+        isCommentItemActivelySyncing(item) ||
         Boolean(getCommentItemState(call, item).loading));
 
     const getCommentsLoadMoreText = (
@@ -2582,7 +2585,7 @@ export default defineComponent({
       if (state.loading) return '加载中...';
       if (hasMoreStoredComments(item)) return '加载更多评论';
       if (needsMoreCommentSync(item)) return '继续同步评论';
-      if (item.status === 'running' || item.refresh_status === 'running') {
+      if (isCommentItemActivelySyncing(item)) {
         return '刷新已下载评论';
       }
       return '加载更多评论';
@@ -2621,9 +2624,12 @@ export default defineComponent({
       const state = getCommentItemState(call, item);
       if (state.loading || !item.bvid) return;
       const currentComments = getItemComments(item);
+      const shouldFetchStored = hasMoreStoredComments(item);
+      const shouldSyncMore = needsMoreCommentSync(item);
+      if (!shouldFetchStored && !shouldSyncMore) return;
       const pageSize = getCommentPageSize(call, item);
       const nextPn =
-        hasMoreStoredComments(item) && currentComments.length >= pageSize
+        shouldFetchStored && currentComments.length >= pageSize
           ? Math.floor(currentComments.length / pageSize) + 1
           : 1;
       loadedCommentItems.value[key] = { ...state, loading: true, error: '' };
@@ -2637,10 +2643,10 @@ export default defineComponent({
             pn: nextPn,
             ps: pageSize,
             order: getBackendCommentOrder(getCommentSortMode(idx, call)),
-            wait: needsMoreCommentSync(item) && currentComments.length === 0,
+            wait: shouldSyncMore && currentComments.length === 0,
             timeout_seconds: currentComments.length === 0 ? 60 : 180,
             complete: true,
-            force: needsMoreCommentSync(item) && !hasMoreStoredComments(item),
+            force: shouldSyncMore && !shouldFetchStored,
             max_depth: 2,
             max_child_count: 1000,
           }),
@@ -2656,6 +2662,13 @@ export default defineComponent({
           throw new Error('评论服务没有返回视频评论数据');
         }
         const nextComments = getItemComments(nextItem);
+        const runningBvids = Array.isArray(payload.running)
+          ? payload.running.map((value) => String(value))
+          : [];
+        const nextStatus =
+          nextItem.status === 'running' && !runningBvids.includes(String(item.bvid))
+            ? 'completed'
+            : nextItem.status;
         const comments =
           nextPn <= 1 && currentComments.length < pageSize
             ? mergeCommentsById(currentComments, nextComments)
@@ -2668,8 +2681,9 @@ export default defineComponent({
             loaded: comments.length,
             returned: comments.length,
           },
-          status: nextItem.status,
-          refresh_status: nextItem.refresh_status,
+          status: nextStatus,
+          refresh_status:
+            nextStatus === 'running' ? nextItem.refresh_status : undefined,
           loading: false,
           error: '',
         };
@@ -2971,8 +2985,6 @@ export default defineComponent({
       getToolIcon,
       isSmallModelTextTool,
       isVideoCommentsTool,
-      getCommentRenderMode,
-      setCommentRenderMode,
       getCommentSortMode,
       handleCommentSortChange,
       isCommentLikedFilterActive,
@@ -2987,6 +2999,7 @@ export default defineComponent({
       getVideoCommentOwnerText,
       getVideoCommentItemMeta,
       getVideoCommentsToolbarText,
+      downloadCommentsJson,
       getCommentItemState,
       shouldShowCommentsLoadMore,
       getCommentsLoadMoreText,
@@ -3472,28 +3485,26 @@ export default defineComponent({
   font-size: 10.5px;
 }
 
-.tool-comments-view-toggle {
+.tool-comments-download-json {
+  appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
+  gap: 4px;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid rgba(25, 118, 210, 0.16);
   border-radius: 6px;
-  background: rgba(128, 128, 128, 0.06);
-  flex: 0 0 auto;
-}
-
-.tool-comments-view-toggle :deep(.q-btn) {
-  min-height: 22px;
-  padding: 0 8px;
+  background: rgba(25, 118, 210, 0.08);
+  color: rgba(25, 118, 210, 0.9);
   font-size: 11px;
-  opacity: 0.56;
-  border-radius: 5px;
-}
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 
-.tool-comments-view-toggle :deep(.tool-comments-view-toggle-active) {
-  background: rgba(25, 118, 210, 0.12);
-  color: #1976d2;
-  opacity: 0.9;
+  &:hover {
+    background: rgba(25, 118, 210, 0.13);
+    border-color: rgba(25, 118, 210, 0.24);
+  }
 }
 
 .tool-comments-visual {
@@ -3897,12 +3908,14 @@ body.body--dark .tool-comment-reference-content {
 }
 
 body.body--dark .tool-comments-sort,
-body.body--dark .tool-comments-chip {
+body.body--dark .tool-comments-chip,
+body.body--dark .tool-comments-download-json {
   color: rgba(209, 217, 224, 0.7);
 }
 
 body.body--dark .tool-comments-sort select,
-body.body--dark .tool-comments-chip {
+body.body--dark .tool-comments-chip,
+body.body--dark .tool-comments-download-json {
   border-color: rgba(255, 255, 255, 0.11);
 }
 
@@ -3930,6 +3943,12 @@ body.body--dark .tool-comments-sort select option {
 
 body.body--dark .tool-comments-chip {
   background: rgba(255, 255, 255, 0.07);
+}
+
+body.body--dark .tool-comments-download-json {
+  background: rgba(144, 202, 249, 0.1);
+  border-color: rgba(144, 202, 249, 0.18);
+  color: #90caf9;
 }
 
 body.body--dark .tool-comments-chip--active {
