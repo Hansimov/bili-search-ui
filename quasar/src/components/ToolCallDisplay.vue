@@ -2141,18 +2141,101 @@ export default defineComponent({
       );
     };
 
+    const getCommentAnchorElement = (element: HTMLElement): HTMLElement =>
+      (element.classList.contains('tool-comment-root')
+        ? (element.querySelector('.tool-comment-row') as HTMLElement | null)
+        : null) || element;
+
+    const getVisibleCenterInCommentContainer = (
+      container: HTMLElement
+    ): number => {
+      const containerRect = container.getBoundingClientRect();
+      let visibleTop = containerRect.top;
+      let visibleBottom = containerRect.bottom;
+      const scrollLayout = container.closest(
+        '.tool-results-layout'
+      ) as HTMLElement | null;
+      if (scrollLayout) {
+        const layoutRect = scrollLayout.getBoundingClientRect();
+        visibleTop = Math.max(visibleTop, layoutRect.top);
+        visibleBottom = Math.min(visibleBottom, layoutRect.bottom);
+      }
+
+      const toolItem = container.closest('.tool-call-item');
+      const stickySelectors = ['.tool-call-header', '.tool-comments-toolbar'];
+      stickySelectors.forEach((selector) => {
+        const sticky = toolItem?.querySelector(selector) as HTMLElement | null;
+        if (!sticky) return;
+        const stickyRect = sticky.getBoundingClientRect();
+        if (stickyRect.bottom > visibleTop && stickyRect.top < visibleBottom) {
+          visibleTop = Math.max(visibleTop, stickyRect.bottom);
+        }
+      });
+
+      if (visibleBottom <= visibleTop) {
+        return container.clientHeight / 2;
+      }
+      return (visibleTop + visibleBottom) / 2 - containerRect.top;
+    };
+
+    const getElementTopInCommentContainer = (
+      element: HTMLElement,
+      container: HTMLElement
+    ): number => {
+      if (
+        element.offsetParent &&
+        element.offsetParent === container.offsetParent
+      ) {
+        return element.offsetTop - container.offsetTop;
+      }
+
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      return container.scrollTop + elementRect.top - containerRect.top;
+    };
+
+    const clampScrollTop = (container: HTMLElement, top: number): number =>
+      Math.min(
+        Math.max(top, 0),
+        Math.max(0, container.scrollHeight - container.clientHeight)
+      );
+
+    const getCommentCenterDelta = (
+      element: HTMLElement,
+      container: HTMLElement
+    ): number => {
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const visibleCenter =
+        containerRect.top + getVisibleCenterInCommentContainer(container);
+      return elementRect.top + elementRect.height / 2 - visibleCenter;
+    };
+
     const scrollCommentElementToCenter = (
       element: HTMLElement,
       container: HTMLElement
     ) => {
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      const elementCenter = elementRect.top + elementRect.height / 2;
-      const containerCenter = containerRect.top + container.clientHeight / 2;
-      const delta = elementCenter - containerCenter;
+      const anchorElement = getCommentAnchorElement(element);
+      const elementTop = getElementTopInCommentContainer(
+        anchorElement,
+        container
+      );
+      const visibleCenter = getVisibleCenterInCommentContainer(container);
+      const targetTop =
+        elementTop - visibleCenter + anchorElement.offsetHeight / 2;
       container.scrollTo({
-        top: container.scrollTop + delta,
-        behavior: 'smooth',
+        top: clampScrollTop(container, targetTop),
+        behavior: 'auto',
+      });
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const correction = getCommentCenterDelta(anchorElement, container);
+          if (Math.abs(correction) < 8) return;
+          container.scrollTo({
+            top: clampScrollTop(container, container.scrollTop + correction),
+            behavior: 'smooth',
+          });
+        });
       });
     };
 
