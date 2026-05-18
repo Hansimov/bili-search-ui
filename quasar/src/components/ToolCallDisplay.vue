@@ -366,6 +366,165 @@
               </div>
             </div>
 
+            <div
+              v-else-if="isVideoCommentsTool(call)"
+              class="tool-comments-result"
+            >
+              <div class="tool-comments-toolbar">
+                <div class="tool-comments-toolbar-meta">
+                  {{ getVideoCommentsToolbarText(call) }}
+                </div>
+                <div class="tool-comments-view-toggle" @click.stop>
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    size="sm"
+                    label="可视化"
+                    :class="{
+                      'tool-comments-view-toggle-active':
+                        getCommentRenderMode(idx, call) === 'visual',
+                    }"
+                    @click.stop="setCommentRenderMode(idx, call, 'visual')"
+                  />
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    size="sm"
+                    label="纯JSON"
+                    :class="{
+                      'tool-comments-view-toggle-active':
+                        getCommentRenderMode(idx, call) === 'json',
+                    }"
+                    @click.stop="setCommentRenderMode(idx, call, 'json')"
+                  />
+                </div>
+              </div>
+
+              <div
+                v-if="getCommentRenderMode(idx, call) === 'visual'"
+                class="tool-comments-visual"
+              >
+                <div
+                  v-for="item in getVideoCommentItems(call)"
+                  :key="item.bvid || 'comments'"
+                  class="tool-comments-video"
+                >
+                  <div class="tool-comments-video-header">
+                    <span class="tool-comments-bvid">{{
+                      item.bvid || '视频评论'
+                    }}</span>
+                    <span class="tool-comments-video-meta">
+                      {{ getVideoCommentItemMeta(item) }}
+                    </span>
+                  </div>
+                  <div
+                    v-if="getVideoCommentTree(item).length"
+                    class="tool-comments-tree"
+                  >
+                    <div
+                      v-for="root in getVideoCommentTree(item)"
+                      :key="getCommentId(root)"
+                      class="tool-comment-root"
+                    >
+                      <div class="tool-comment-row">
+                        <div class="tool-comment-main">
+                          <div class="tool-comment-header">
+                            <span class="tool-comment-author">{{
+                              getCommentAuthor(root)
+                            }}</span>
+                            <span class="tool-comment-time">{{
+                              getCommentTime(root)
+                            }}</span>
+                            <span
+                              v-if="root.is_top"
+                              class="tool-comment-badge"
+                            >
+                              置顶
+                            </span>
+                            <span
+                              v-if="root.is_hot"
+                              class="tool-comment-badge"
+                            >
+                              热门
+                            </span>
+                          </div>
+                          <div class="tool-comment-content">
+                            {{ getCommentMessage(root) }}
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        v-if="root.replies.length"
+                        class="tool-comment-replies"
+                      >
+                        <q-btn
+                          flat
+                          dense
+                          no-caps
+                          size="sm"
+                          :icon="
+                            isCommentRootCollapsed(idx, item, root)
+                              ? 'chevron_right'
+                              : 'expand_more'
+                          "
+                          :label="
+                            isCommentRootCollapsed(idx, item, root)
+                              ? `展开 ${root.replies.length} 条回复`
+                              : `收起 ${root.replies.length} 条回复`
+                          "
+                          class="tool-comment-replies-toggle"
+                          @click.stop="toggleCommentRoot(idx, item, root)"
+                        />
+                        <div
+                          v-show="!isCommentRootCollapsed(idx, item, root)"
+                          class="tool-comment-reply-list"
+                        >
+                          <div
+                            v-for="reply in root.replies"
+                            :key="getCommentId(reply)"
+                            class="tool-comment-reply"
+                          >
+                            <div class="tool-comment-header">
+                              <span class="tool-comment-author">{{
+                                getCommentAuthor(reply)
+                              }}</span>
+                              <span
+                                v-if="getCommentReplyTarget(reply, root)"
+                                class="tool-comment-reply-target"
+                              >
+                                回复 {{ getCommentReplyTarget(reply, root) }}
+                              </span>
+                              <span class="tool-comment-time">{{
+                                getCommentTime(reply)
+                              }}</span>
+                              <span
+                                v-if="reply.is_hot"
+                                class="tool-comment-badge"
+                              >
+                                热门
+                              </span>
+                            </div>
+                            <div class="tool-comment-content">
+                              {{ getCommentMessage(reply) }}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="tool-comments-empty">
+                    当前没有可展示的评论。
+                  </div>
+                </div>
+              </div>
+
+              <pre v-else class="tool-generic-json">{{
+                formatGenericResult(call)
+              }}</pre>
+            </div>
+
             <div v-else class="tool-generic-result">
               <pre class="tool-generic-json">{{ formatGenericResult(call) }}</pre>
             </div>
@@ -466,6 +625,46 @@ interface SmallTaskResult {
   result?: string;
 }
 
+interface VideoComment {
+  rpid?: string | number;
+  ctime?: string | number;
+  ctime_str?: string;
+  parent?: string | number;
+  root?: string | number;
+  root_rpid?: string | number;
+  is_root?: boolean;
+  depth?: number;
+  member?: {
+    mid?: string | number;
+    uname?: string;
+  };
+  content?: {
+    message?: string;
+  };
+  is_hot?: boolean;
+  is_top?: boolean;
+  reply_to_name?: string;
+  reply_to_rpid?: string;
+}
+
+interface VideoCommentNode extends VideoComment {
+  replies: VideoComment[];
+  reply_to_name?: string;
+  reply_to_rpid?: string;
+}
+
+interface VideoCommentsItem {
+  bvid?: string;
+  mode?: string;
+  status?: string;
+  summary?: Record<string, unknown>;
+  pagination?: Record<string, unknown>;
+  comments?: VideoComment[];
+  groups?: Record<string, VideoComment[]>;
+}
+
+type CommentRenderMode = 'visual' | 'json';
+
 const DISPLAYABLE_INTERNAL_TOOLS = new Set(['run_small_llm_task']);
 const SMALL_MODEL_TEXT_TOOLS = new Set([
   'ask_transcript',
@@ -556,6 +755,8 @@ export default defineComponent({
   setup(props) {
     const containerRef = ref<HTMLElement | null>(null);
     const expanded = ref<Record<number, boolean>>({});
+    const commentRenderModes = ref<Record<string, CommentRenderMode>>({});
+    const collapsedCommentRoots = ref<Record<string, boolean>>({});
     const previousStatuses = ref<Record<number, string | undefined>>({});
     const isCompactToolDisplay = ref(false);
     let compactMediaQuery: MediaQueryList | null = null;
@@ -575,6 +776,23 @@ export default defineComponent({
       SMALL_MODEL_TEXT_TOOLS.has(call.type);
     const isVideoCommentsTool = (call: ToolCall): boolean =>
       call.type === 'video_comments' || call.type === 'video_comments_full';
+
+    const getCommentModeKey = (idx: number, call: ToolCall): string =>
+      `${idx}:${call.type}:${call.result_id || ''}`;
+
+    const getCommentRenderMode = (
+      idx: number,
+      call: ToolCall
+    ): CommentRenderMode =>
+      commentRenderModes.value[getCommentModeKey(idx, call)] || 'visual';
+
+    const setCommentRenderMode = (
+      idx: number,
+      call: ToolCall,
+      mode: CommentRenderMode
+    ) => {
+      commentRenderModes.value[getCommentModeKey(idx, call)] = mode;
+    };
 
     const buildLookupQueryLabels = (call: ToolCall): string[] => {
       const labels: string[] = [];
@@ -983,6 +1201,183 @@ export default defineComponent({
       }
     };
 
+    const getVideoCommentItems = (call: ToolCall): VideoCommentsItem[] => {
+      if (!isVideoCommentsTool(call) || !call.result) return [];
+      const result = call.result as Record<string, unknown>;
+      if (Array.isArray(result.items)) {
+        return result.items as VideoCommentsItem[];
+      }
+      if (Array.isArray(result.comments)) {
+        return [
+          {
+            bvid: String(call.args?.bvid || ''),
+            mode: String(call.args?.mode || ''),
+            comments: result.comments as VideoComment[],
+            pagination: result.pagination as Record<string, unknown>,
+            summary: result.summary as Record<string, unknown>,
+          },
+        ];
+      }
+      return [];
+    };
+
+    const getCommentId = (comment: VideoComment): string =>
+      String(comment.rpid || `${comment.ctime || ''}:${getCommentMessage(comment)}`);
+
+    const getCommentMessage = (comment: VideoComment): string =>
+      String(comment.content?.message || '').trim();
+
+    const getCommentAuthor = (comment: VideoComment): string => {
+      const uname = String(comment.member?.uname || '').trim();
+      const mid = comment.member?.mid;
+      if (uname && mid) return `${uname} · ${mid}`;
+      return uname || (mid ? `UID ${mid}` : '未知用户');
+    };
+
+    const getCommentTime = (comment: VideoComment): string => {
+      if (comment.ctime_str) return comment.ctime_str;
+      const ctime = Number(comment.ctime || 0);
+      if (!ctime) return '';
+      return new Date(ctime * 1000).toLocaleString('zh-CN', {
+        hour12: false,
+      });
+    };
+
+    const getItemComments = (item: VideoCommentsItem): VideoComment[] => {
+      if (Array.isArray(item.comments) && item.comments.length) {
+        return item.comments;
+      }
+      const seen = new Set<string>();
+      const comments: VideoComment[] = [];
+      Object.values(item.groups || {}).forEach((group) => {
+        if (!Array.isArray(group)) return;
+        group.forEach((comment) => {
+          const id = getCommentId(comment);
+          if (seen.has(id)) return;
+          seen.add(id);
+          comments.push(comment);
+        });
+      });
+      return comments;
+    };
+
+    const isRootComment = (comment: VideoComment): boolean => {
+      const rpid = getCommentId(comment);
+      const root = String(comment.root || '');
+      const rootRpid = String(comment.root_rpid || '');
+      return (
+        comment.is_root === true ||
+        !root ||
+        root === '0' ||
+        root === rpid ||
+        rootRpid === rpid
+      );
+    };
+
+    const getVideoCommentTree = (item: VideoCommentsItem): VideoCommentNode[] => {
+      const comments = getItemComments(item);
+      const byId = new Map<string, VideoComment>();
+      comments.forEach((comment) => byId.set(getCommentId(comment), comment));
+
+      const roots: VideoCommentNode[] = [];
+      const rootById = new Map<string, VideoCommentNode>();
+      comments.forEach((comment) => {
+        if (!isRootComment(comment)) return;
+        const node: VideoCommentNode = { ...comment, replies: [] };
+        roots.push(node);
+        rootById.set(getCommentId(comment), node);
+      });
+
+      comments.forEach((comment) => {
+        if (isRootComment(comment)) return;
+        const rootId = String(comment.root_rpid || comment.root || '');
+        const root = rootById.get(rootId);
+        if (!root) {
+          const node: VideoCommentNode = { ...comment, replies: [] };
+          roots.push(node);
+          rootById.set(getCommentId(comment), node);
+          return;
+        }
+        const parentId = String(comment.parent || '');
+        const parent = parentId && parentId !== rootId ? byId.get(parentId) : null;
+        root.replies.push({
+          ...comment,
+          reply_to_name: parent ? getCommentAuthor(parent) : undefined,
+          reply_to_rpid: parentId && parentId !== rootId ? parentId : undefined,
+        });
+      });
+
+      roots.forEach((root) => {
+        root.replies.sort((a, b) => Number(a.ctime || 0) - Number(b.ctime || 0));
+      });
+      return roots;
+    };
+
+    const getCommentRootKey = (
+      idx: number,
+      item: VideoCommentsItem,
+      root: VideoComment
+    ): string => `${idx}:${item.bvid || ''}:${getCommentId(root)}`;
+
+    const isCommentRootCollapsed = (
+      idx: number,
+      item: VideoCommentsItem,
+      root: VideoCommentNode
+    ): boolean =>
+      collapsedCommentRoots.value[getCommentRootKey(idx, item, root)] || false;
+
+    const toggleCommentRoot = (
+      idx: number,
+      item: VideoCommentsItem,
+      root: VideoCommentNode
+    ) => {
+      const key = getCommentRootKey(idx, item, root);
+      collapsedCommentRoots.value[key] = !collapsedCommentRoots.value[key];
+    };
+
+    const getCommentReplyTarget = (
+      reply: VideoCommentNode | VideoComment,
+      root: VideoCommentNode
+    ): string => {
+      const node = reply as VideoCommentNode;
+      if (node.reply_to_name) return node.reply_to_name;
+      const parentId = String(reply.parent || '');
+      const rootId = getCommentId(root);
+      if (parentId && parentId === rootId) {
+        return getCommentAuthor(root);
+      }
+      if (parentId && parentId !== '0' && parentId !== rootId) {
+        return `#${parentId}`;
+      }
+      return '';
+    };
+
+    const getVideoCommentItemMeta = (item: VideoCommentsItem): string => {
+      const pagination = item.pagination || {};
+      const summary = item.summary || {};
+      const returned = Number(pagination.returned || getItemComments(item).length || 0);
+      const total = Number(
+        summary.comment_count ||
+          summary.stored_count ||
+          summary.root_count ||
+          returned ||
+          0
+      );
+      const mode = item.mode === 'full' ? '完整' : '快速';
+      return total && total !== returned
+        ? `${mode} · 展示 ${returned} / 已存 ${total}`
+        : `${mode} · ${returned} 条`;
+    };
+
+    const getVideoCommentsToolbarText = (call: ToolCall): string => {
+      const items = getVideoCommentItems(call);
+      const count = items.reduce(
+        (sum, item) => sum + getItemComments(item).length,
+        0
+      );
+      return count ? `${items.length} 个视频 · ${count} 条评论` : '评论结果';
+    };
+
     /** Normalize bilibili pic URL to include https: protocol */
     const normalizePicUrl = (pic: string): string => {
       return normalizeVideoPicUrl(pic);
@@ -1254,6 +1649,20 @@ export default defineComponent({
       getToolLabel,
       getToolIcon,
       isSmallModelTextTool,
+      isVideoCommentsTool,
+      getCommentRenderMode,
+      setCommentRenderMode,
+      getVideoCommentItems,
+      getVideoCommentTree,
+      getVideoCommentItemMeta,
+      getVideoCommentsToolbarText,
+      getCommentId,
+      getCommentAuthor,
+      getCommentTime,
+      getCommentMessage,
+      getCommentReplyTarget,
+      isCommentRootCollapsed,
+      toggleCommentRoot,
       getToolError,
       getQueryList,
       formatToolArgs,
@@ -1576,6 +1985,187 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.tool-comments-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tool-comments-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tool-comments-toolbar-meta {
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0.56;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-comments-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.06);
+  flex: 0 0 auto;
+}
+
+.tool-comments-view-toggle :deep(.q-btn) {
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  opacity: 0.56;
+  border-radius: 5px;
+}
+
+.tool-comments-view-toggle :deep(.tool-comments-view-toggle-active) {
+  background: rgba(25, 118, 210, 0.12);
+  color: #1976d2;
+  opacity: 0.9;
+}
+
+.tool-comments-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: min(62vh, 680px);
+  overflow: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.tool-comments-video {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tool-comments-video-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px;
+}
+
+.tool-comments-bvid {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.76;
+}
+
+.tool-comments-video-meta {
+  font-size: 11px;
+  opacity: 0.48;
+}
+
+.tool-comments-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tool-comment-root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 0 0 10px;
+  border-left: 2px solid rgba(128, 128, 128, 0.13);
+}
+
+.tool-comment-row,
+.tool-comment-reply {
+  min-width: 0;
+}
+
+.tool-comment-main,
+.tool-comment-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tool-comment-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tool-comment-author {
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 700;
+  opacity: 0.82;
+}
+
+.tool-comment-time,
+.tool-comment-reply-target {
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0.48;
+}
+
+.tool-comment-badge {
+  font-size: 10px;
+  line-height: 1.3;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: #1976d2;
+  background: rgba(25, 118, 210, 0.1);
+}
+
+.tool-comment-content {
+  font-size: 13px;
+  line-height: 1.55;
+  opacity: 0.86;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tool-comment-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px dashed rgba(128, 128, 128, 0.16);
+}
+
+.tool-comment-replies-toggle {
+  align-self: flex-start;
+  min-height: 22px;
+  padding: 0 4px;
+  font-size: 11px !important;
+  opacity: 0.58;
+}
+
+.tool-comment-reply-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-comments-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  opacity: 0.5;
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.04);
 }
 
 .tool-owner-group {
@@ -2112,6 +2702,29 @@ body.body--dark .tool-google-result-open {
     grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
     gap: 6px;
     max-height: 360px;
+  }
+
+  .tool-comments-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tool-comments-toolbar-meta {
+    white-space: normal;
+  }
+
+  .tool-comments-visual {
+    max-height: 58vh;
+  }
+
+  .tool-comment-root {
+    padding-left: 8px;
+  }
+
+  .tool-comment-replies {
+    margin-left: 6px;
+    padding-left: 8px;
   }
 
   .per-query-header {

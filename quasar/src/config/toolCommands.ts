@@ -86,7 +86,7 @@ export const TOOL_COMMANDS: ToolCommandOption[] = [
         tool: 'video_comments_full',
         icon: 'rate_review',
         label: '完整评论',
-        description: '完整模式读取指定 BV 视频评论，默认最多 100 条',
+        description: '完整模式读取指定 BV 视频评论，默认最多 1000 条',
         usage: '/comments_full BV1...',
         aliases: ['cf', 'comments-full', 'comment_full'],
     },

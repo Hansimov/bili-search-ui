@@ -221,6 +221,67 @@ const lookupSearchVideosCall: ToolCall = {
     },
 };
 
+const videoCommentsCall: ToolCall = {
+    type: 'video_comments_full',
+    args: { bvid: 'BV1comments', mode: 'full', limit: 1000 },
+    status: 'completed',
+    result: {
+        status: 'ok',
+        items: [
+            {
+                bvid: 'BV1comments',
+                mode: 'full',
+                summary: { comment_count: 3, root_count: 1, reply_count: 2 },
+                pagination: { returned: 3, limit: 1000, max_depth: 2 },
+                comments: [
+                    {
+                        rpid: 100,
+                        ctime: 1779000000,
+                        ctime_str: '2026-05-17 14:40:00',
+                        parent: 0,
+                        root: 0,
+                        root_rpid: 100,
+                        is_root: true,
+                        depth: 1,
+                        member: { mid: 1, uname: '根评论作者' },
+                        content: { message: '一级评论内容' },
+                        is_hot: true,
+                        is_top: true,
+                    },
+                    {
+                        rpid: 101,
+                        ctime: 1779000060,
+                        ctime_str: '2026-05-17 14:41:00',
+                        parent: 100,
+                        root: 100,
+                        root_rpid: 100,
+                        is_root: false,
+                        depth: 2,
+                        member: { mid: 2, uname: '回复作者' },
+                        content: { message: '回复一级评论' },
+                        is_hot: false,
+                        is_top: false,
+                    },
+                    {
+                        rpid: 102,
+                        ctime: 1779000120,
+                        ctime_str: '2026-05-17 14:42:00',
+                        parent: 101,
+                        root: 100,
+                        root_rpid: 100,
+                        is_root: false,
+                        depth: 2,
+                        member: { mid: 3, uname: '楼中楼作者' },
+                        content: { message: '回复楼中楼' },
+                        is_hot: false,
+                        is_top: false,
+                    },
+                ],
+            },
+        ],
+    },
+};
+
 describe('ToolCallDisplay component', () => {
     afterEach(() => {
         vi.unstubAllGlobals();
@@ -414,6 +475,46 @@ describe('ToolCallDisplay component', () => {
         expect(ownerCards[1]?.text()).toContain('何同学切片');
         expect(ownerCards[1]?.find('.tool-owner-mini-ref').exists()).toBe(true);
         expect(ownerCards[0]?.text()).not.toContain('粉丝');
+    });
+
+    it('renders video comments as a collapsible tree with a JSON mode', async () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [videoCommentsCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label', 'icon'],
+                        emits: ['click'],
+                        template: '<button @click="$emit(\'click\', $event)">{{ icon }} {{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('完整评论');
+        expect(wrapper.text()).toContain('3 条评论');
+
+        await wrapper.find('.tool-call-header').trigger('click');
+
+        expect(wrapper.find('.tool-comments-visual').exists()).toBe(true);
+        expect(wrapper.text()).toContain('BV1comments');
+        expect(wrapper.text()).toContain('根评论作者 · 1');
+        expect(wrapper.text()).toContain('一级评论内容');
+        expect(wrapper.text()).toContain('回复作者 · 2');
+        expect(wrapper.text()).toContain('回复 根评论作者 · 1');
+        expect(wrapper.text()).toContain('楼中楼作者 · 3');
+        expect(wrapper.text()).toContain('回复 回复作者 · 2');
+        expect(wrapper.text()).toContain('置顶');
+        expect(wrapper.text()).toContain('热门');
+
+        await wrapper.findAll('.tool-comments-view-toggle button')[1]?.trigger('click');
+
+        expect(wrapper.find('.tool-comments-visual').exists()).toBe(false);
+        expect(wrapper.find('.tool-generic-json').text()).toContain('"limit": 1000');
     });
 
     it('renders transcript results with full text', async () => {
