@@ -245,6 +245,7 @@ const videoCommentsCall: ToolCall = {
                         depth: 1,
                         member: { mid: 1, uname: '根评论作者' },
                         content: { message: '一级评论内容' },
+                        like: 88,
                         is_hot: true,
                         is_top: true,
                     },
@@ -259,6 +260,7 @@ const videoCommentsCall: ToolCall = {
                         depth: 2,
                         member: { mid: 2, uname: '回复作者' },
                         content: { message: '回复一级评论' },
+                        like: 7,
                         is_hot: false,
                         is_top: false,
                     },
@@ -273,6 +275,7 @@ const videoCommentsCall: ToolCall = {
                         depth: 2,
                         member: { mid: 3, uname: '楼中楼作者' },
                         content: { message: '回复楼中楼' },
+                        like: 0,
                         is_hot: false,
                         is_top: false,
                     },
@@ -502,14 +505,27 @@ describe('ToolCallDisplay component', () => {
 
         expect(wrapper.find('.tool-comments-visual').exists()).toBe(true);
         expect(wrapper.text()).toContain('BV1comments');
-        expect(wrapper.text()).toContain('根评论作者 · 1');
+        expect(wrapper.text()).toContain('根评论作者');
+        expect(wrapper.text()).not.toContain('根评论作者 · 1');
         expect(wrapper.text()).toContain('一级评论内容');
-        expect(wrapper.text()).toContain('回复作者 · 2');
-        expect(wrapper.text()).toContain('回复 根评论作者 · 1');
-        expect(wrapper.text()).toContain('楼中楼作者 · 3');
-        expect(wrapper.text()).toContain('回复 回复作者 · 2');
+        expect(wrapper.text()).toContain('回复作者');
+        expect(wrapper.text()).toContain('楼中楼作者');
+        expect(wrapper.text()).toContain('88');
+        expect(wrapper.text()).toContain('7');
+        expect(wrapper.text()).toContain('0');
         expect(wrapper.text()).toContain('置顶');
         expect(wrapper.text()).toContain('热门');
+        const authorLinks = wrapper.findAll('.tool-comment-author');
+        expect(authorLinks[0]?.attributes('href')).toBe(
+            'https://space.bilibili.com/1'
+        );
+
+        await wrapper.find('.tool-comment-reply-word').trigger('click');
+
+        expect(wrapper.find('.tool-comment-reference').exists()).toBe(true);
+        expect(wrapper.find('.tool-comment-reference').text()).toContain(
+            '一级评论内容'
+        );
 
         await wrapper.findAll('.tool-comments-view-toggle button')[1]?.trigger('click');
 

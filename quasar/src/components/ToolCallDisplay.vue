@@ -431,12 +431,26 @@
                       <div class="tool-comment-row">
                         <div class="tool-comment-main">
                           <div class="tool-comment-header">
-                            <span class="tool-comment-author">{{
-                              getCommentAuthor(root)
-                            }}</span>
+                            <a
+                              v-if="getCommentAuthorHref(root)"
+                              class="tool-comment-author"
+                              :href="getCommentAuthorHref(root)"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              @click.stop
+                            >
+                              {{ getCommentAuthor(root) }}
+                            </a>
+                            <span v-else class="tool-comment-author">
+                              {{ getCommentAuthor(root) }}
+                            </span>
                             <span class="tool-comment-time">{{
                               getCommentTime(root)
                             }}</span>
+                            <span class="tool-comment-like">
+                              <q-icon name="thumb_up" size="12px" />
+                              {{ getCommentLikeText(root) }}
+                            </span>
                             <span
                               v-if="root.is_top"
                               class="tool-comment-badge"
@@ -487,18 +501,41 @@
                             class="tool-comment-reply"
                           >
                             <div class="tool-comment-header">
-                              <span class="tool-comment-author">{{
-                                getCommentAuthor(reply)
-                              }}</span>
+                              <a
+                                v-if="getCommentAuthorHref(reply)"
+                                class="tool-comment-author"
+                                :href="getCommentAuthorHref(reply)"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                @click.stop
+                              >
+                                {{ getCommentAuthor(reply) }}
+                              </a>
+                              <span v-else class="tool-comment-author">
+                                {{ getCommentAuthor(reply) }}
+                              </span>
                               <span
                                 v-if="getCommentReplyTarget(reply, root)"
                                 class="tool-comment-reply-target"
                               >
-                                回复 {{ getCommentReplyTarget(reply, root) }}
+                                <button
+                                  class="tool-comment-reply-word"
+                                  type="button"
+                                  @click.stop="
+                                    toggleCommentReference(idx, item, reply)
+                                  "
+                                >
+                                  回复
+                                </button>
+                                {{ getCommentReplyTarget(reply, root) }}
                               </span>
                               <span class="tool-comment-time">{{
                                 getCommentTime(reply)
                               }}</span>
+                              <span class="tool-comment-like">
+                                <q-icon name="thumb_up" size="12px" />
+                                {{ getCommentLikeText(reply) }}
+                              </span>
                               <span
                                 v-if="reply.is_hot"
                                 class="tool-comment-badge"
@@ -508,6 +545,45 @@
                             </div>
                             <div class="tool-comment-content">
                               {{ getCommentMessage(reply) }}
+                            </div>
+                            <div
+                              v-if="
+                                isCommentReferenceExpanded(idx, item, reply) &&
+                                getReferencedComment(reply, root)
+                              "
+                              class="tool-comment-reference"
+                            >
+                              <div class="tool-comment-reference-header">
+                                <span class="tool-comment-reference-author">
+                                  {{
+                                    getCommentAuthor(
+                                      getReferencedComment(reply, root)
+                                    )
+                                  }}
+                                </span>
+                                <span class="tool-comment-reference-time">
+                                  {{
+                                    getCommentTime(
+                                      getReferencedComment(reply, root)
+                                    )
+                                  }}
+                                </span>
+                                <span class="tool-comment-reference-like">
+                                  赞
+                                  {{
+                                    getCommentLikeText(
+                                      getReferencedComment(reply, root)
+                                    )
+                                  }}
+                                </span>
+                              </div>
+                              <div class="tool-comment-reference-content">
+                                {{
+                                  getCommentMessage(
+                                    getReferencedComment(reply, root)
+                                  )
+                                }}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -641,16 +717,19 @@ interface VideoComment {
   content?: {
     message?: string;
   };
+  like?: string | number;
   is_hot?: boolean;
   is_top?: boolean;
   reply_to_name?: string;
   reply_to_rpid?: string;
+  reply_to_comment?: VideoComment;
 }
 
 interface VideoCommentNode extends VideoComment {
   replies: VideoComment[];
   reply_to_name?: string;
   reply_to_rpid?: string;
+  reply_to_comment?: VideoComment;
 }
 
 interface VideoCommentsItem {
@@ -757,6 +836,7 @@ export default defineComponent({
     const expanded = ref<Record<number, boolean>>({});
     const commentRenderModes = ref<Record<string, CommentRenderMode>>({});
     const collapsedCommentRoots = ref<Record<string, boolean>>({});
+    const expandedCommentReferences = ref<Record<string, boolean>>({});
     const previousStatuses = ref<Record<number, string | undefined>>({});
     const isCompactToolDisplay = ref(false);
     let compactMediaQuery: MediaQueryList | null = null;
@@ -1229,9 +1309,21 @@ export default defineComponent({
 
     const getCommentAuthor = (comment: VideoComment): string => {
       const uname = String(comment.member?.uname || '').trim();
-      const mid = comment.member?.mid;
-      if (uname && mid) return `${uname} · ${mid}`;
-      return uname || (mid ? `UID ${mid}` : '未知用户');
+      return uname || '未知用户';
+    };
+
+    const getCommentAuthorHref = (comment: VideoComment): string => {
+      const mid = String(comment.member?.mid || '').trim();
+      return mid ? `https://space.bilibili.com/${mid}` : '';
+    };
+
+    const getCommentLikeText = (comment: VideoComment | undefined): string => {
+      const value = Number(comment?.like || 0);
+      if (value >= 10000) {
+        const text = (value / 10000).toFixed(value >= 100000 ? 0 : 1);
+        return `${text.replace(/\\.0$/, '')}万`;
+      }
+      return String(Math.max(value, 0));
     };
 
     const getCommentTime = (comment: VideoComment): string => {
@@ -1304,6 +1396,7 @@ export default defineComponent({
           ...comment,
           reply_to_name: parent ? getCommentAuthor(parent) : undefined,
           reply_to_rpid: parentId && parentId !== rootId ? parentId : undefined,
+          reply_to_comment: parent || root,
         });
       });
 
@@ -1334,6 +1427,34 @@ export default defineComponent({
       const key = getCommentRootKey(idx, item, root);
       collapsedCommentRoots.value[key] = !collapsedCommentRoots.value[key];
     };
+
+    const getCommentReferenceKey = (
+      idx: number,
+      item: VideoCommentsItem,
+      comment: VideoComment
+    ): string => `${idx}:${item.bvid || ''}:ref:${getCommentId(comment)}`;
+
+    const isCommentReferenceExpanded = (
+      idx: number,
+      item: VideoCommentsItem,
+      comment: VideoComment
+    ): boolean =>
+      expandedCommentReferences.value[getCommentReferenceKey(idx, item, comment)] ||
+      false;
+
+    const toggleCommentReference = (
+      idx: number,
+      item: VideoCommentsItem,
+      comment: VideoComment
+    ) => {
+      const key = getCommentReferenceKey(idx, item, comment);
+      expandedCommentReferences.value[key] = !expandedCommentReferences.value[key];
+    };
+
+    const getReferencedComment = (
+      reply: VideoComment,
+      root: VideoCommentNode
+    ): VideoComment => reply.reply_to_comment || root;
 
     const getCommentReplyTarget = (
       reply: VideoCommentNode | VideoComment,
@@ -1658,11 +1779,16 @@ export default defineComponent({
       getVideoCommentsToolbarText,
       getCommentId,
       getCommentAuthor,
+      getCommentAuthorHref,
       getCommentTime,
+      getCommentLikeText,
       getCommentMessage,
       getCommentReplyTarget,
+      getReferencedComment,
       isCommentRootCollapsed,
       toggleCommentRoot,
+      isCommentReferenceExpanded,
+      toggleCommentReference,
       getToolError,
       getQueryList,
       formatToolArgs,
@@ -2110,14 +2236,53 @@ export default defineComponent({
   font-size: 12px;
   line-height: 1.35;
   font-weight: 700;
-  opacity: 0.82;
+  color: #1e6bb8;
+  opacity: 0.92;
+  text-decoration: none;
 }
 
-.tool-comment-time,
-.tool-comment-reply-target {
+a.tool-comment-author:hover {
+  text-decoration: underline;
+}
+
+.tool-comment-time {
   font-size: 11px;
   line-height: 1.35;
-  opacity: 0.48;
+  color: rgba(92, 107, 125, 0.78);
+}
+
+.tool-comment-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(142, 102, 38, 0.82);
+}
+
+.tool-comment-reply-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(85, 99, 116, 0.72);
+}
+
+.tool-comment-reply-word {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: #1976d2;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .tool-comment-badge {
@@ -2133,6 +2298,44 @@ export default defineComponent({
   font-size: 13px;
   line-height: 1.55;
   opacity: 0.86;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tool-comment-reference {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 3px;
+  padding: 7px 9px;
+  border-left: 3px solid rgba(25, 118, 210, 0.22);
+  border-radius: 6px;
+  background: rgba(25, 118, 210, 0.045);
+}
+
+.tool-comment-reference-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tool-comment-reference-author {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e6bb8;
+}
+
+.tool-comment-reference-time,
+.tool-comment-reference-like {
+  font-size: 10.5px;
+  color: rgba(92, 107, 125, 0.72);
+}
+
+.tool-comment-reference-content {
+  font-size: 12px;
+  line-height: 1.48;
+  color: rgba(50, 62, 76, 0.82);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -2158,6 +2361,31 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+body.body--dark .tool-comment-author,
+body.body--dark .tool-comment-reference-author {
+  color: #90caf9;
+}
+
+body.body--dark .tool-comment-time,
+body.body--dark .tool-comment-reply-target,
+body.body--dark .tool-comment-reference-time,
+body.body--dark .tool-comment-reference-like {
+  color: rgba(209, 217, 224, 0.58);
+}
+
+body.body--dark .tool-comment-like {
+  color: rgba(255, 213, 128, 0.72);
+}
+
+body.body--dark .tool-comment-reference {
+  border-left-color: rgba(144, 202, 249, 0.25);
+  background: rgba(144, 202, 249, 0.07);
+}
+
+body.body--dark .tool-comment-reference-content {
+  color: rgba(235, 238, 242, 0.78);
 }
 
 .tool-comments-empty {
