@@ -503,6 +503,7 @@
                               v-for="tag in getCommentAuthorTags(root, item)"
                               :key="tag"
                               class="tool-comment-author-tag"
+                              :class="getCommentAuthorTagClass(tag)"
                             >
                               {{ tag }}
                             </span>
@@ -555,7 +556,7 @@
                             {{
                               isLongCommentExpanded(root)
                                 ? '收起全文'
-                                : '点击查看全文'
+                                : '查看全文'
                             }}
                           </button>
                           <div
@@ -682,12 +683,13 @@
                                 {{ getCommentAuthor(reply) }}
                               </span>
                               <span
-                                v-for="tag in getCommentAuthorTags(reply, item, root)"
-                                :key="tag"
-                                class="tool-comment-author-tag"
-                              >
-                                {{ tag }}
-                              </span>
+                              v-for="tag in getCommentAuthorTags(reply, item, root)"
+                              :key="tag"
+                              class="tool-comment-author-tag"
+                              :class="getCommentAuthorTagClass(tag)"
+                            >
+                              {{ tag }}
+                            </span>
                               <span
                                 v-if="shouldShowCommentReplyAction(reply)"
                                 class="tool-comment-reply-target"
@@ -748,7 +750,7 @@
                               {{
                                 isLongCommentExpanded(reply)
                                   ? '收起全文'
-                                  : '点击查看全文'
+                                  : '查看全文'
                               }}
                             </button>
                             <div
@@ -848,7 +850,7 @@
                                     getReferencedComment(reply, root)
                                   )
                                     ? '收起全文'
-                                    : '点击查看全文'
+                                    : '查看全文'
                                 }}
                               </button>
                             </div>
@@ -2017,6 +2019,11 @@ export default defineComponent({
       return tags;
     };
 
+    const getCommentAuthorTagClass = (tag: string): Record<string, boolean> => ({
+      'tool-comment-author-tag--layer-owner': tag === '层主',
+      'tool-comment-author-tag--video-owner': tag === '视频作者',
+    });
+
     const getItemComments = (item: VideoCommentsItem): VideoComment[] => {
       if (Array.isArray(item.comments) && item.comments.length) {
         return item.comments;
@@ -2134,21 +2141,82 @@ export default defineComponent({
       return roots;
     };
 
+    const getCommentReplyCount = (
+      comment: VideoCommentNode | VideoComment
+    ): number => Number((comment as VideoCommentNode).replies?.length || 0);
+
     const commentHeatScore = (comment: VideoCommentNode | VideoComment): number =>
       (comment.is_top ? 1_000_000_000_000 : 0) +
       (comment.is_hot ? 1_000_000_000 : 0) +
       getCommentLikeValue(comment) * 10_000 +
-      Number((comment as VideoCommentNode).replies?.length || 0) * 100 +
+      getCommentReplyCount(comment) * 100 +
       Number(comment.ctime || 0);
+
+    const getHybridDefaultCommentScore = <T extends VideoComment>(
+      comment: T,
+      stats: {
+        minCtime: number;
+        maxCtime: number;
+        maxLike: number;
+        maxReplyCount: number;
+      }
+    ): number => {
+      const ctime = Number(comment.ctime || 0);
+      const range = stats.maxCtime - stats.minCtime;
+      const recencyScore =
+        range > 0 ? (ctime - stats.minCtime) / range : ctime > 0 ? 0.5 : 0;
+      const likeScore = stats.maxLike
+        ? Math.log1p(getCommentLikeValue(comment)) / Math.log1p(stats.maxLike)
+        : 0;
+      const replyScore = stats.maxReplyCount
+        ? Math.log1p(getCommentReplyCount(comment)) /
+          Math.log1p(stats.maxReplyCount)
+        : 0;
+      const markerScore = (comment.is_top ? 0.16 : 0) + (comment.is_hot ? 0.1 : 0);
+      const heatScore = Math.min(1, likeScore * 0.72 + replyScore * 0.18 + markerScore);
+      return heatScore * 0.58 + recencyScore * 0.42;
+    };
 
     const sortComments = <T extends VideoComment>(
       comments: T[],
       mode: CommentSortMode
     ): T[] => {
-      if (mode === 'default') return comments;
+      if (comments.length <= 1) return comments;
       const sorted = [...comments];
       if (mode === 'hot') {
         return sorted.sort((a, b) => commentHeatScore(b) - commentHeatScore(a));
+      }
+      if (mode === 'default') {
+        const stats = sorted.reduce(
+          (acc, comment) => {
+            const ctime = Number(comment.ctime || 0);
+            return {
+              minCtime: ctime > 0 ? Math.min(acc.minCtime, ctime) : acc.minCtime,
+              maxCtime: Math.max(acc.maxCtime, ctime),
+              maxLike: Math.max(acc.maxLike, getCommentLikeValue(comment)),
+              maxReplyCount: Math.max(acc.maxReplyCount, getCommentReplyCount(comment)),
+            };
+          },
+          {
+            minCtime: Number.POSITIVE_INFINITY,
+            maxCtime: 0,
+            maxLike: 0,
+            maxReplyCount: 0,
+          }
+        );
+        if (!Number.isFinite(stats.minCtime)) {
+          stats.minCtime = 0;
+        }
+        return sorted
+          .map((comment, index) => ({ comment, index }))
+          .sort((a, b) => {
+            const delta =
+              getHybridDefaultCommentScore(b.comment, stats) -
+              getHybridDefaultCommentScore(a.comment, stats);
+            if (Math.abs(delta) > 0.000001) return delta;
+            return a.index - b.index;
+          })
+          .map((entry) => entry.comment);
       }
       return sorted.sort((a, b) => {
         const delta = Number(a.ctime || 0) - Number(b.ctime || 0);
@@ -3247,6 +3315,7 @@ export default defineComponent({
       getCommentId,
       getCommentAuthor,
       getCommentAuthorTags,
+      getCommentAuthorTagClass,
       getCommentAuthorHref,
       getCommentTime,
       getCommentLikeValue,
@@ -3773,8 +3842,7 @@ export default defineComponent({
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  padding: 7px 9px 7px 10px;
-  border-left: 3px solid rgba(25, 118, 210, 0.28);
+  padding: 7px 9px;
   border-radius: 6px;
   background:
     linear-gradient(90deg, rgba(25, 118, 210, 0.075), rgba(25, 118, 210, 0.018)),
@@ -3878,23 +3946,44 @@ a.tool-comment-author:hover {
 .tool-comment-like {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  align-self: center;
+  gap: 3px;
+  height: 14px;
   font-size: 11px;
-  line-height: 1.35;
-  color: rgba(142, 102, 38, 0.82);
+  line-height: 14px;
+  color: rgba(214, 72, 122, 0.86);
+}
+
+.tool-comment-like :deep(.q-icon) {
+  line-height: 1;
+  transform: translateY(1px);
 }
 
 .tool-comment-author-tag {
   display: inline-flex;
   align-items: center;
+  align-self: center;
   height: 16px;
   padding: 0 5px;
-  border-radius: 999px;
-  background: rgba(25, 118, 210, 0.09);
-  color: rgba(25, 118, 210, 0.9);
+  border: 1px solid rgba(109, 120, 133, 0.13);
+  border-radius: 4px;
+  background: rgba(109, 120, 133, 0.075);
+  color: rgba(72, 84, 98, 0.78);
   font-size: 10px;
-  line-height: 1;
-  font-weight: 700;
+  line-height: 16px;
+  font-weight: 650;
+}
+
+.tool-comment-author-tag--layer-owner {
+  background: rgba(0, 150, 136, 0.09);
+  border-color: rgba(0, 150, 136, 0.16);
+  color: rgba(0, 121, 107, 0.82);
+}
+
+.tool-comment-author-tag--video-owner {
+  background: rgba(245, 124, 0, 0.09);
+  border-color: rgba(245, 124, 0, 0.16);
+  color: rgba(173, 92, 17, 0.86);
 }
 
 .tool-comment-reply-target {
@@ -3961,18 +4050,20 @@ a.tool-comment-author:hover {
   appearance: none;
   align-self: flex-start;
   margin-top: -1px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: rgba(25, 118, 210, 0.88);
-  font-size: 12px;
-  font-weight: 600;
+  padding: 1px 6px;
+  border: 1px solid rgba(109, 120, 133, 0.12);
+  border-radius: 999px;
+  background: rgba(109, 120, 133, 0.045);
+  color: rgba(92, 107, 125, 0.7);
+  font-size: 11px;
+  font-weight: 500;
   line-height: 1.4;
   cursor: pointer;
 
   &:hover {
-    color: #1976d2;
-    text-decoration: underline;
+    background: rgba(25, 118, 210, 0.055);
+    border-color: rgba(25, 118, 210, 0.12);
+    color: rgba(25, 118, 210, 0.68);
   }
 }
 
@@ -4075,11 +4166,13 @@ a.tool-comment-author:hover {
 }
 
 .tool-comment-replies {
+  --reply-indent: 6px;
+
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-left: 10px;
-  padding-left: 10px;
+  margin-left: 4px;
+  padding-left: var(--reply-indent);
   border-left: 1px dashed rgba(128, 128, 128, 0.16);
 }
 
@@ -4095,7 +4188,7 @@ a.tool-comment-author:hover {
   min-width: 0 !important;
   min-height: 22px;
   padding: 0 !important;
-  margin-left: -4px;
+  margin-left: 0 !important;
   font-size: 11px !important;
   opacity: 0.58;
 }
@@ -4112,8 +4205,11 @@ a.tool-comment-author:hover {
 }
 
 .tool-comment-replies-toggle :deep(.q-icon) {
+  width: 14px;
+  min-width: 14px;
   margin-left: 0 !important;
   margin-right: 0 !important;
+  text-align: left;
 }
 
 .tool-comments-sort--small select {
@@ -4145,7 +4241,6 @@ body.body--dark .tool-comments-video-owner {
 }
 
 body.body--dark .tool-comments-video-header {
-  border-left-color: rgba(144, 202, 249, 0.32);
   background:
     linear-gradient(90deg, rgba(144, 202, 249, 0.11), rgba(144, 202, 249, 0.025)),
     rgba(255, 255, 255, 0.035);
@@ -4163,12 +4258,25 @@ body.body--dark .tool-comment-reference-like {
 }
 
 body.body--dark .tool-comment-like {
-  color: rgba(255, 213, 128, 0.72);
+  color: rgba(244, 143, 177, 0.82);
 }
 
 body.body--dark .tool-comment-author-tag {
-  background: rgba(144, 202, 249, 0.12);
-  color: #90caf9;
+  background: rgba(209, 217, 224, 0.075);
+  border-color: rgba(209, 217, 224, 0.12);
+  color: rgba(209, 217, 224, 0.68);
+}
+
+body.body--dark .tool-comment-author-tag--layer-owner {
+  background: rgba(77, 182, 172, 0.12);
+  border-color: rgba(77, 182, 172, 0.18);
+  color: rgba(128, 218, 208, 0.82);
+}
+
+body.body--dark .tool-comment-author-tag--video-owner {
+  background: rgba(255, 183, 77, 0.12);
+  border-color: rgba(255, 183, 77, 0.18);
+  color: rgba(255, 202, 119, 0.82);
 }
 
 body.body--dark .tool-comment-jump-button {
@@ -4178,7 +4286,15 @@ body.body--dark .tool-comment-jump-button {
 }
 
 body.body--dark .tool-comment-read-more {
-  color: #90caf9;
+  background: rgba(209, 217, 224, 0.05);
+  border-color: rgba(209, 217, 224, 0.1);
+  color: rgba(209, 217, 224, 0.62);
+
+  &:hover {
+    background: rgba(144, 202, 249, 0.08);
+    border-color: rgba(144, 202, 249, 0.14);
+    color: rgba(144, 202, 249, 0.76);
+  }
 }
 
 body.body--dark .tool-comment--highlighted {

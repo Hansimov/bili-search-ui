@@ -577,8 +577,9 @@ describe('ToolCallDisplay component', () => {
         );
         expect(wrapper.find('.tool-comments-sort span').exists()).toBe(false);
         const replyWords = wrapper.findAll('.tool-comment-reply-word');
-        expect(replyWords[0]?.text()).toBe('评论');
-        expect(replyWords[1]?.text()).toBe('回复');
+        expect(replyWords.map((node) => node.text())).toEqual(
+            expect.arrayContaining(['评论', '回复'])
+        );
 
         await wrapper.find('.tool-comment-image-thumb').trigger('click');
 
@@ -589,7 +590,10 @@ describe('ToolCallDisplay component', () => {
         await wrapper.find('.tool-comment-image-close').trigger('click');
         expect(wrapper.find('.tool-comment-image-overlay').exists()).toBe(false);
 
-        await wrapper.find('.tool-comment-reply-word').trigger('click');
+        const commentReplyWord = wrapper
+            .findAll('.tool-comment-reply-word')
+            .find((node) => node.text() === '评论');
+        await commentReplyWord?.trigger('click');
 
         expect(wrapper.find('.tool-comment-reference').exists()).toBe(true);
         expect(wrapper.find('.tool-comment-reference').text()).toContain(
@@ -756,11 +760,90 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.find('.tool-comments-toolbar-meta').text()).toBe(
             '1000/3456 条评论'
         );
-        expect(wrapper.text()).toContain('点击查看全文');
+        expect(wrapper.text()).toContain('查看全文');
+        expect(wrapper.text()).not.toContain('点击查看全文');
         expect(wrapper.text()).toContain('第8行');
         expect(wrapper.text()).not.toContain('第12行');
         await wrapper.find('.tool-comment-read-more').trigger('click');
         expect(wrapper.text()).toContain('第12行');
+    });
+
+    it('uses a hybrid heat and recency score for default comment sorting', async () => {
+        const hybridCall: ToolCall = {
+            type: 'video_comments_full',
+            args: { bvid: 'BV1hybrid', mode: 'full', limit: 1000 },
+            status: 'completed',
+            result: {
+                status: 'ok',
+                items: [
+                    {
+                        bvid: 'BV1hybrid',
+                        title: '混合排序测试',
+                        owner: { mid: 1, name: '测试UP主' },
+                        mode: 'full',
+                        summary: { comment_count: 3 },
+                        pagination: { returned: 3, loaded: 3, limit: 1000 },
+                        comments: [
+                            {
+                                rpid: 1,
+                                ctime: 1000,
+                                parent: 0,
+                                root: 0,
+                                root_rpid: 1,
+                                is_root: true,
+                                depth: 1,
+                                member: { mid: 11, uname: '旧低赞' },
+                                content: { message: '旧低赞内容' },
+                                like: 0,
+                            },
+                            {
+                                rpid: 2,
+                                ctime: 2000,
+                                parent: 0,
+                                root: 0,
+                                root_rpid: 2,
+                                is_root: true,
+                                depth: 1,
+                                member: { mid: 12, uname: '较久热评' },
+                                content: { message: '较久热评内容' },
+                                like: 40,
+                            },
+                            {
+                                rpid: 3,
+                                ctime: 3000,
+                                parent: 0,
+                                root: 0,
+                                root_rpid: 3,
+                                is_root: true,
+                                depth: 1,
+                                member: { mid: 13, uname: '最新低赞' },
+                                content: { message: '最新低赞内容' },
+                                like: 1,
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+        const wrapper = mount(ToolCallDisplay, {
+            props: { toolCalls: [hybridCall], forceExpanded: true },
+            global: {
+                stubs: {
+                    'q-btn': true,
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        const contents = wrapper
+            .findAll('.tool-comment-content')
+            .map((node) => node.text());
+        expect(contents).toEqual([
+            '较久热评内容',
+            '最新低赞内容',
+            '旧低赞内容',
+        ]);
     });
 
     it('renders transcript results with full text', async () => {
