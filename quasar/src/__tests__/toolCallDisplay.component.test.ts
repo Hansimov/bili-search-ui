@@ -656,6 +656,113 @@ describe('ToolCallDisplay component', () => {
         anchorClick.mockRestore();
     });
 
+    it('shows running cold-cache comments as syncing instead of empty', async () => {
+        const coldCall: ToolCall = {
+            type: 'video_comments_full',
+            args: { bvid: 'BV1cold', mode: 'full', limit: 1000 },
+            status: 'completed',
+            result: {
+                status: 'partial',
+                items: [
+                    {
+                        bvid: 'BV1cold',
+                        title: '冷缓存视频',
+                        owner: { mid: 1, name: '测试UP主' },
+                        mode: 'full',
+                        status: 'running',
+                        summary: { stored_count: 0, estimated_total: 120 },
+                        pagination: { returned: 0, loaded: 0, limit: 1000 },
+                        comments: [],
+                    },
+                ],
+                scheduled: ['BV1cold'],
+                running: ['BV1cold'],
+            },
+        };
+        const wrapper = mount(ToolCallDisplay, {
+            props: { toolCalls: [coldCall], forceExpanded: true },
+            global: {
+                stubs: {
+                    'q-btn': true,
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('后台同步中，正在加载首批评论');
+        expect(wrapper.text()).not.toContain('当前没有可展示的评论');
+        expect(wrapper.find('.tool-comments-toolbar-meta').text()).toBe(
+            '0/120 条评论'
+        );
+        wrapper.unmount();
+    });
+
+    it('uses loaded over total comment counts and collapses very long comments', async () => {
+        const longMessage = `${Array.from({ length: 12 }, (_, idx) => `第${idx + 1}行`).join('\n')}`;
+        const largeCall: ToolCall = {
+            ...videoCommentsCall,
+            result: {
+                ...(videoCommentsCall.result as Record<string, unknown>),
+                items: [
+                    {
+                        ...((videoCommentsCall.result as { items: Record<string, unknown>[] })
+                            .items[0] || {}),
+                        summary: {
+                            stored_count: 3443,
+                            estimated_total: 3456,
+                            root_count: 1155,
+                            reply_count: 2288,
+                        },
+                        pagination: {
+                            returned: 1000,
+                            loaded: 1000,
+                            limit: 1000,
+                            has_more_stored: true,
+                        },
+                        comments: [
+                            {
+                                rpid: 900,
+                                ctime: 1779000000,
+                                parent: 0,
+                                root: 0,
+                                root_rpid: 900,
+                                is_root: true,
+                                depth: 1,
+                                member: { mid: 3, uname: '长评论作者' },
+                                content: { message: longMessage },
+                                like: 0,
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+        const wrapper = mount(ToolCallDisplay, {
+            props: { toolCalls: [largeCall] },
+            global: {
+                stubs: {
+                    'q-btn': true,
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.find('.tool-call-status-completed').text()).toContain(
+            '1000/3456 条评论'
+        );
+        await wrapper.find('.tool-call-header').trigger('click');
+        expect(wrapper.find('.tool-comments-toolbar-meta').text()).toBe(
+            '1000/3456 条评论'
+        );
+        expect(wrapper.text()).toContain('点击查看全文');
+        expect(wrapper.text()).toContain('第8行');
+        expect(wrapper.text()).not.toContain('第12行');
+        await wrapper.find('.tool-comment-read-more').trigger('click');
+        expect(wrapper.text()).toContain('第12行');
+    });
+
     it('renders transcript results with full text', async () => {
         const transcriptResult = transcriptCall.result as {
             transcript: Record<string, unknown>;
