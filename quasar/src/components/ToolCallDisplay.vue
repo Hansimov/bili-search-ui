@@ -408,37 +408,46 @@
                   </button>
                   <button
                     type="button"
-                    class="tool-comments-chip tool-comments-chip--icon"
+                    class="tool-comments-chip tool-comments-chip--fold"
+                    :class="{
+                      'tool-comments-chip--active':
+                        getAllCommentRootsCollapseMode(idx, call) ===
+                        'collapsed',
+                    }"
                     @click.stop="setAllCommentRootsCollapsed(idx, call, true)"
                   >
-                    <q-icon name="unfold_less" size="14px" />
                     折叠楼层
                   </button>
                   <button
                     type="button"
-                    class="tool-comments-chip tool-comments-chip--icon"
+                    class="tool-comments-chip tool-comments-chip--expand"
+                    :class="{
+                      'tool-comments-chip--active':
+                        getAllCommentRootsCollapseMode(idx, call) ===
+                        'expanded',
+                    }"
                     @click.stop="setAllCommentRootsCollapsed(idx, call, false)"
                   >
-                    <q-icon name="unfold_more" size="14px" />
                     展开楼层
                   </button>
                 </div>
-                <button
-                  type="button"
-                  class="tool-comments-download-json"
-                  @click.stop="downloadCommentsJson(call)"
-                >
-                  <q-icon name="download" size="13px" />
-                  下载 JSON
-                </button>
-                <button
-                  type="button"
-                  class="tool-comments-chip tool-comments-chip--icon tool-comments-top-chip"
-                  @click.stop="scrollCommentsToTop(idx)"
-                >
-                  <q-icon name="keyboard_double_arrow_up" size="14px" />
-                  回到顶部
-                </button>
+                <div class="tool-comments-toolbar-actions">
+                  <button
+                    type="button"
+                    class="tool-comments-download-json"
+                    @click.stop="downloadCommentsJson(call)"
+                  >
+                    <q-icon name="download" size="13px" />
+                    下载 JSON
+                  </button>
+                  <button
+                    type="button"
+                    class="tool-comments-chip tool-comments-chip--top tool-comments-top-chip"
+                    @click.stop="scrollCommentsToTop(idx)"
+                  >
+                    回到顶部
+                  </button>
+                </div>
               </div>
 
               <div
@@ -597,12 +606,16 @@
                       <div
                         v-if="root.replies.length"
                         class="tool-comment-replies"
+                        :class="{
+                          'tool-comment-replies--expanded':
+                            !isCommentRootCollapsed(idx, item, root),
+                        }"
                       >
                         <div class="tool-comment-replies-actions">
                           <button
                             type="button"
                             class="tool-comment-replies-toggle"
-                            @click.stop="toggleCommentRoot(idx, item, root)"
+                            @click.stop="toggleCommentRoot(idx, call, item, root)"
                           >
                             <q-icon
                               class="tool-comment-replies-toggle-icon"
@@ -646,7 +659,7 @@
                                 isCommentLayerLikedFilterActive(idx, root),
                             }"
                             @click.stop="
-                              toggleCommentLayerLikedFilter(idx, item, root)
+                              toggleCommentLayerLikedFilter(idx, call, item, root)
                             "
                           >
                             仅看有赞
@@ -659,7 +672,7 @@
                                 isCommentLayerOwnerFilterActive(idx, root),
                             }"
                             @click.stop="
-                              toggleCommentLayerOwnerFilter(idx, item, root)
+                              toggleCommentLayerOwnerFilter(idx, call, item, root)
                             "
                           >
                             仅看层主回复
@@ -1148,6 +1161,8 @@ interface CommentLayerFilterState {
   sortMode: CommentSortMode;
 }
 
+type CommentRootCollapseMode = 'collapsed' | 'expanded' | 'mixed';
+
 interface CommentImageEntry {
   url: string;
   comment: VideoComment;
@@ -1254,6 +1269,9 @@ export default defineComponent({
     const commentFilters = ref<Record<string, CommentFilterState>>({});
     const commentLayerFilters = ref<Record<string, CommentLayerFilterState>>({});
     const collapsedCommentRoots = ref<Record<string, boolean>>({});
+    const commentRootCollapseModes = ref<Record<string, CommentRootCollapseMode>>(
+      {}
+    );
     const commentRootRenderLimits = ref<Record<string, number>>({});
     const loadedCommentItems = ref<Record<string, LoadedCommentItemState>>({});
     const expandedCommentReferences = ref<Record<string, boolean>>({});
@@ -1385,22 +1403,26 @@ export default defineComponent({
 
     const toggleCommentLayerOwnerFilter = (
       idx: number,
+      call: ToolCall,
       item: VideoCommentsItem,
       root: VideoComment
     ) => {
       const filters = getCommentLayerFilters(idx, root);
       filters.ownerOnly = !filters.ownerOnly;
       collapsedCommentRoots.value[getCommentRootKey(idx, item, root)] = false;
+      markCommentRootsCollapseModeMixed(idx, call);
     };
 
     const toggleCommentLayerLikedFilter = (
       idx: number,
+      call: ToolCall,
       item: VideoCommentsItem,
       root: VideoComment
     ) => {
       const filters = getCommentLayerFilters(idx, root);
       filters.likedOnly = !filters.likedOnly;
       collapsedCommentRoots.value[getCommentRootKey(idx, item, root)] = false;
+      markCommentRootsCollapseModeMixed(idx, call);
     };
 
     const getCommentLayerSortMode = (
@@ -2413,13 +2435,26 @@ export default defineComponent({
     ): boolean =>
       collapsedCommentRoots.value[getCommentRootKey(idx, item, root)] ?? true;
 
+    const getAllCommentRootsCollapseMode = (
+      idx: number,
+      call: ToolCall
+    ): CommentRootCollapseMode =>
+      commentRootCollapseModes.value[getCommentModeKey(idx, call)] ??
+      'collapsed';
+
+    const markCommentRootsCollapseModeMixed = (idx: number, call: ToolCall) => {
+      commentRootCollapseModes.value[getCommentModeKey(idx, call)] = 'mixed';
+    };
+
     const toggleCommentRoot = (
       idx: number,
+      call: ToolCall,
       item: VideoCommentsItem,
       root: VideoCommentNode
     ) => {
       const key = getCommentRootKey(idx, item, root);
       collapsedCommentRoots.value[key] = !isCommentRootCollapsed(idx, item, root);
+      markCommentRootsCollapseModeMixed(idx, call);
     };
 
     const getFilteredCommentReplies = (
@@ -2477,6 +2512,9 @@ export default defineComponent({
             collapsed;
         });
       });
+      commentRootCollapseModes.value[getCommentModeKey(idx, call)] = collapsed
+        ? 'collapsed'
+        : 'expanded';
     };
 
     const findCommentRootForId = (
@@ -3548,6 +3586,7 @@ export default defineComponent({
       returnToCommentById,
       getReturnTargetForComment,
       isCommentRootCollapsed,
+      getAllCommentRootsCollapseMode,
       toggleCommentRoot,
       setAllCommentRootsCollapsed,
       getMaxReplyLikeSuffix,
@@ -3939,7 +3978,19 @@ export default defineComponent({
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
   margin-left: 0;
+}
+
+.tool-comments-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 6px;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .tool-comments-sort {
@@ -3979,7 +4030,7 @@ export default defineComponent({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  flex: 0 0 auto;
   min-height: 24px;
   padding: 0 8px;
   border: 1px solid rgba(128, 128, 128, 0.14);
@@ -3998,35 +4049,50 @@ export default defineComponent({
   }
 }
 
-.tool-comments-chip--icon :deep(.q-icon) {
-  line-height: 1;
-  transform: translateY(-0.5px);
+.tool-comments-chip--fold {
+  background: rgba(92, 107, 125, 0.06);
+  border-color: rgba(92, 107, 125, 0.14);
+  color: rgba(77, 91, 109, 0.74);
+}
+
+.tool-comments-chip--expand {
+  background: rgba(0, 150, 136, 0.07);
+  border-color: rgba(0, 150, 136, 0.15);
+  color: rgba(0, 121, 107, 0.78);
+}
+
+.tool-comments-chip--top {
+  background: rgba(245, 124, 0, 0.07);
+  border-color: rgba(245, 124, 0, 0.14);
+  color: rgba(173, 92, 17, 0.76);
 }
 
 .tool-comments-chip--active {
-  background: rgba(25, 118, 210, 0.12);
-  border-color: rgba(25, 118, 210, 0.2);
-  color: #1976d2;
+  background: rgba(0, 150, 136, 0.12);
+  border-color: rgba(0, 150, 136, 0.24);
+  color: rgba(0, 121, 107, 0.92);
 }
 
 .tool-comments-chip--small {
   min-height: 21px;
   padding: 0 7px;
-  gap: 3px;
   font-size: 10.5px;
 }
 
 .tool-comments-top-chip {
   margin-left: 0;
+  min-width: 66px;
 }
 
 .tool-comments-download-json {
   appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  flex: 0 0 auto;
   min-height: 24px;
-  padding: 0 9px;
+  min-width: 82px;
+  padding: 0 8px 0 7px;
   border: 1px solid rgba(25, 118, 210, 0.16);
   border-radius: 6px;
   background: rgba(25, 118, 210, 0.08);
@@ -4042,6 +4108,13 @@ export default defineComponent({
   }
 }
 
+.tool-comments-download-json :deep(.q-icon) {
+  width: 12px;
+  min-width: 12px;
+  margin-left: -1px;
+  line-height: 1;
+}
+
 .tool-comments-visual {
   display: flex;
   flex-direction: column;
@@ -4050,6 +4123,27 @@ export default defineComponent({
   overflow: auto;
   padding-right: 2px;
   scrollbar-width: thin;
+}
+
+.tool-call-container * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.22) transparent;
+}
+
+.tool-call-container *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.tool-call-container *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tool-call-container *::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.22);
+  background-clip: padding-box;
 }
 
 .tool-comments-video {
@@ -4388,14 +4482,25 @@ a.tool-comment-author:hover {
 }
 
 .tool-comment-replies {
-  --reply-indent: 6px;
+  --reply-indent: 16px;
+  --reply-line-x: 6px;
 
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-left: 4px;
+  margin-left: 7px;
   padding-left: var(--reply-indent);
+}
+
+.tool-comment-replies--expanded::before {
+  content: "";
+  position: absolute;
+  left: var(--reply-line-x);
+  top: 22px;
+  bottom: 0;
   border-left: 1px dashed rgba(128, 128, 128, 0.16);
+  pointer-events: none;
 }
 
 .tool-comment-replies-actions {
@@ -4433,7 +4538,7 @@ a.tool-comment-author:hover {
   width: 14px;
   min-width: 14px;
   height: 15px;
-  margin-left: calc(-1 * var(--reply-indent) - 7px);
+  margin-left: calc(var(--reply-line-x) - var(--reply-indent) - 7px);
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
@@ -4490,6 +4595,25 @@ body.body--dark .tool-comment-reference-author {
 body.body--dark .tool-call-header,
 body.body--dark .tool-comments-toolbar {
   background: rgba(18, 22, 28, 0.96);
+}
+
+body.body--dark .tool-call-container * {
+  scrollbar-color: rgba(144, 202, 249, 0.24) rgba(18, 22, 28, 0.28);
+}
+
+body.body--dark .tool-call-container *::-webkit-scrollbar-track {
+  background: rgba(18, 22, 28, 0.28);
+}
+
+body.body--dark .tool-call-container *::-webkit-scrollbar-thumb {
+  border-color: rgba(18, 22, 28, 0.28);
+  background: rgba(144, 202, 249, 0.24);
+  background-clip: padding-box;
+}
+
+body.body--dark .tool-call-container *::-webkit-scrollbar-thumb:hover {
+  background: rgba(144, 202, 249, 0.34);
+  background-clip: padding-box;
 }
 
 body.body--dark .tool-comments-video-owner {
@@ -4607,6 +4731,30 @@ body.body--dark .tool-comments-chip {
   background: rgba(255, 255, 255, 0.07);
 }
 
+body.body--dark .tool-comments-chip--fold {
+  background: rgba(209, 217, 224, 0.065);
+  border-color: rgba(209, 217, 224, 0.12);
+  color: rgba(209, 217, 224, 0.7);
+}
+
+body.body--dark .tool-comments-chip--expand {
+  background: rgba(77, 182, 172, 0.105);
+  border-color: rgba(77, 182, 172, 0.18);
+  color: rgba(128, 218, 208, 0.82);
+}
+
+body.body--dark .tool-comments-chip--top {
+  background: rgba(255, 183, 77, 0.105);
+  border-color: rgba(255, 183, 77, 0.18);
+  color: rgba(255, 202, 119, 0.82);
+}
+
+body.body--dark .tool-comments-chip--active {
+  background: rgba(77, 182, 172, 0.16);
+  border-color: rgba(77, 182, 172, 0.28);
+  color: rgba(128, 218, 208, 0.92);
+}
+
 body.body--dark .tool-comments-render-more-button {
   background: rgba(255, 255, 255, 0.055);
 
@@ -4620,12 +4768,6 @@ body.body--dark .tool-comments-render-more-button {
 body.body--dark .tool-comments-download-json {
   background: rgba(144, 202, 249, 0.1);
   border-color: rgba(144, 202, 249, 0.18);
-  color: #90caf9;
-}
-
-body.body--dark .tool-comments-chip--active {
-  background: rgba(144, 202, 249, 0.14);
-  border-color: rgba(144, 202, 249, 0.24);
   color: #90caf9;
 }
 
@@ -5298,8 +5440,8 @@ body.body--dark .tool-google-result-open {
   }
 
   .tool-comments-toolbar {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
     gap: 6px;
   }
 
@@ -5311,6 +5453,16 @@ body.body--dark .tool-google-result-open {
     margin-left: 0;
   }
 
+  .tool-comments-toolbar-actions {
+    margin-left: auto;
+  }
+
+  .tool-comments-download-json,
+  .tool-comments-top-chip {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
   .tool-comments-visual {
     max-height: 58vh;
   }
@@ -5320,8 +5472,10 @@ body.body--dark .tool-google-result-open {
   }
 
   .tool-comment-replies {
-    margin-left: 6px;
-    padding-left: 8px;
+    --reply-indent: 16px;
+    --reply-line-x: 6px;
+    margin-left: 7px;
+    padding-left: var(--reply-indent);
   }
 
   .tool-comment-image-overlay {

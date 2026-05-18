@@ -921,7 +921,6 @@ body.body--dark .search-bar-row {
   overflow-y: hidden;
   overscroll-behavior: contain;
   overflow-anchor: none;
-  scrollbar-gutter: stable;
   scroll-padding-top: 12px;
   scroll-padding-bottom: 8px;
   padding-bottom: 0;
@@ -934,13 +933,17 @@ body.body--dark .search-bar-row {
 }
 
 .tool-call-panel {
-  width: var(--search-input-width);
-  max-width: var(--search-input-max-width, 95vw);
+  box-sizing: border-box;
+  width: var(--search-input-actual-width, var(--search-input-width));
+  max-width: var(
+    --search-input-actual-width,
+    var(--search-input-max-width, 95vw)
+  );
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  padding: 8px 12px 8px;
+  padding: 8px 0;
 }
 
 .tool-call-panel :deep(.tool-call-container) {
@@ -1025,9 +1028,8 @@ body.body--dark .search-bar-row {
   overflow-x: hidden;
   overflow-y: auto;
   overflow-anchor: none;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
   /* 底部留出空间，避免最后内容被输入框遮挡 */
-  padding-right: 6px;
   padding-bottom: calc(var(--search-bar-total-height, 84px) + 24px);
 }
 
