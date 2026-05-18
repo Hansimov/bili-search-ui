@@ -475,13 +475,15 @@
                       v-for="root in getVisibleVideoCommentTree(idx, call, item)"
                       :key="getCommentId(root)"
                       class="tool-comment-root"
-                      :class="{
-                        'tool-comment--highlighted':
-                          isCommentHighlighted(idx, item, root),
-                      }"
                       :data-comment-id="getCommentId(root)"
                     >
-                      <div class="tool-comment-row">
+                      <div
+                        class="tool-comment-row"
+                        :class="{
+                          'tool-comment--highlighted':
+                            isCommentHighlighted(idx, item, root),
+                        }"
+                      >
                         <div class="tool-comment-main">
                           <div class="tool-comment-header">
                             <a
@@ -507,7 +509,10 @@
                             <span class="tool-comment-time">{{
                               getCommentTime(root)
                             }}</span>
-                            <span class="tool-comment-like">
+                            <span
+                              v-if="getCommentLikeValue(root) > 0"
+                              class="tool-comment-like"
+                            >
                               <q-icon name="thumb_up" size="12px" />
                               {{ getCommentLikeText(root) }}
                             </span>
@@ -1569,15 +1574,11 @@ export default defineComponent({
         return call.status === 'streaming' ? '输出中' : '已生成';
       }
       if (isVideoCommentsTool(call)) {
-        const result = call.result as Record<string, unknown>;
-        const items = Array.isArray(result?.items)
-          ? (result.items as Array<Record<string, unknown>>)
-          : [];
+        const result = (call.result as Record<string, unknown>) || {};
+        const items = getVideoCommentItems(call);
         const count = items.reduce((sum, item) => {
-          const comments = Array.isArray(item.comments)
-            ? item.comments.length
-            : 0;
-          const groups = item.groups as Record<string, unknown> | undefined;
+          const comments = getItemComments(item).length;
+          const groups = item.groups;
           const grouped = groups
             ? Object.values(groups).reduce<number>(
                 (groupSum, value) =>
@@ -2702,7 +2703,10 @@ export default defineComponent({
         (sum, item) => sum + getItemComments(item).length,
         0
       );
-      return count ? `${items.length} 个视频 · ${count} 条评论` : '评论结果';
+      if (!count) return '评论结果';
+      return items.length === 1
+        ? `${count} 条评论`
+        : `${items.length} 个视频 · ${count} 条评论`;
     };
 
     /** Normalize bilibili pic URL to include https: protocol */
@@ -3589,6 +3593,7 @@ export default defineComponent({
 .tool-comment-row,
 .tool-comment-reply {
   min-width: 0;
+  border-radius: 6px;
 }
 
 .tool-comment-main,

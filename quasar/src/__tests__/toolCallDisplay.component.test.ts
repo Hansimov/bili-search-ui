@@ -518,10 +518,17 @@ describe('ToolCallDisplay component', () => {
 
         expect(wrapper.text()).toContain('完整评论');
         expect(wrapper.text()).toContain('3 条评论');
+        expect(wrapper.find('.tool-call-status-completed').text()).toContain(
+            '3 条评论'
+        );
 
         await wrapper.find('.tool-call-header').trigger('click');
 
         expect(wrapper.find('.tool-comments-visual').exists()).toBe(true);
+        expect(wrapper.find('.tool-comments-toolbar-meta').text()).toBe('3 条评论');
+        expect(wrapper.find('.tool-comments-toolbar-meta').text()).not.toContain(
+            '1 个视频'
+        );
         expect(wrapper.find('.tool-comments-video-header').text()).toContain(
             '评论测试视频'
         );
@@ -546,6 +553,9 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('置顶');
         expect(wrapper.text()).toContain('热门');
         expect(wrapper.findAll('.tool-comment-like')).toHaveLength(2);
+        expect(
+            wrapper.findAll('.tool-comment-like').some((node) => /\b0\b/.test(node.text()))
+        ).toBe(false);
         expect(wrapper.find('.tool-comment-author-tag').exists()).toBe(true);
         expect(wrapper.text()).toContain('层主');
         expect(wrapper.text()).toContain('视频作者');
@@ -585,6 +595,22 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.find('.tool-comment-reference').text()).toContain(
             '一级评论内容'
         );
+        const originalScrollTo = HTMLElement.prototype.scrollTo;
+        HTMLElement.prototype.scrollTo =
+            vi.fn() as unknown as typeof HTMLElement.prototype.scrollTo;
+        await wrapper.find('.tool-comment-reference .tool-comment-jump-button').trigger('click');
+        await nextTick();
+        expect(wrapper.find('.tool-comment-root.tool-comment--highlighted').exists()).toBe(
+            false
+        );
+        expect(wrapper.find('.tool-comment-row.tool-comment--highlighted').exists()).toBe(
+            true
+        );
+        if (originalScrollTo) {
+            HTMLElement.prototype.scrollTo = originalScrollTo;
+        } else {
+            delete (HTMLElement.prototype as unknown as { scrollTo?: unknown }).scrollTo;
+        }
 
         await wrapper.findAll('.tool-comments-chip')[0]?.trigger('click');
         expect(wrapper.text()).not.toContain('回复楼中楼');

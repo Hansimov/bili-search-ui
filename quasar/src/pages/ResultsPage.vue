@@ -959,6 +959,11 @@ body.body--dark .search-bar-row {
   flex: 0 0 auto;
 }
 
+.tool-call-panel :deep(.tool-comments-toolbar) {
+  position: relative;
+  top: auto;
+}
+
 .tool-call-panel :deep(.tool-call-results-wrapper.expanded) {
   flex: 1 1 auto;
   min-height: 0;
