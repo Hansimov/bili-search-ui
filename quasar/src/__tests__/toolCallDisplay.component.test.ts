@@ -270,7 +270,7 @@ const videoCommentsCall: ToolCall = {
                         depth: 2,
                         member: { mid: 2, uname: '回复作者' },
                         content: {
-                            message: '回复一级评论',
+                            message: '回复 @根评论作者: 回复一级评论',
                             pictures: [
                                 {
                                     url: 'https://i0.hdslb.com/bfs/new_dyn/reply.jpg',
@@ -291,7 +291,7 @@ const videoCommentsCall: ToolCall = {
                         is_root: false,
                         depth: 2,
                         member: { mid: 3, uname: '楼中楼作者' },
-                        content: { message: '回复楼中楼' },
+                        content: { message: '回复 @回复作者 ：回复楼中楼' },
                         like: 0,
                         is_hot: false,
                         is_top: false,
@@ -527,6 +527,10 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('一级评论内容');
         expect(wrapper.text()).toContain('回复作者');
         expect(wrapper.text()).toContain('楼中楼作者');
+        expect(wrapper.text()).toContain('回复一级评论');
+        expect(wrapper.text()).toContain('回复楼中楼');
+        expect(wrapper.text()).not.toContain('回复 @根评论作者');
+        expect(wrapper.text()).not.toContain('回复 @回复作者');
         expect(wrapper.text()).toContain('05-17 14:40');
         expect(wrapper.text()).not.toContain('2026-05-17 14:40:00');
         expect(wrapper.text()).toContain('88');
@@ -543,6 +547,13 @@ describe('ToolCallDisplay component', () => {
         expect(thumbnails[0]?.attributes('src')).toContain(
             'i0.hdslb.com/bfs/new_dyn/root.jpg'
         );
+        expect(thumbnails[0]?.attributes('src')).not.toContain(
+            'web-space-upload-video'
+        );
+        expect(wrapper.find('.tool-comments-sort span').exists()).toBe(false);
+        const replyWords = wrapper.findAll('.tool-comment-reply-word');
+        expect(replyWords[0]?.text()).toBe('评论');
+        expect(replyWords[1]?.text()).toBe('回复');
 
         await wrapper.find('.tool-comment-image-thumb').trigger('click');
 

@@ -142,13 +142,18 @@ module.exports = configure(function (/* ctx */) {
                         const http = require('http');
                         server.middlewares.use('/bili-img', (req, res) => {
                             // URL format: /bili-img/{hostname}/{rest_path}
-                            const match = (req.url || '').match(/^\/([^/]+)(\/.*)/);
+                            const requestUrl = new URL(
+                                req.url || '/',
+                                'http://127.0.0.1'
+                            );
+                            const match = requestUrl.pathname.match(/^\/([^/]+)(\/.*)/);
                             if (!match) {
                                 res.statusCode = 400;
                                 res.end('Bad Request');
                                 return;
                             }
-                            const [, hostname, restPath] = match;
+                            const [, hostname, restPathname] = match;
+                            const restPath = `${restPathname}${requestUrl.search}`;
                             const useHttps = true;
                             const mod = useHttps ? https : http;
                             const proxyReq = mod.request(

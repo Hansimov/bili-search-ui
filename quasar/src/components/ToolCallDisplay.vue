@@ -375,10 +375,10 @@
                   {{ getVideoCommentsToolbarText(call) }}
                 </div>
                 <div class="tool-comments-controls" @click.stop>
-                  <label class="tool-comments-sort">
-                    <span>排序</span>
+                  <label class="tool-comments-sort" aria-label="评论排序">
                     <select
                       :value="getCommentSortMode(idx, call)"
+                      title="评论排序"
                       @change="handleCommentSortChange(idx, call, $event)"
                     >
                       <option value="default">默认排序</option>
@@ -609,7 +609,7 @@
                                 {{ getCommentAuthor(reply) }}
                               </span>
                               <span
-                                v-if="getCommentReplyTarget(reply, root)"
+                                v-if="shouldShowCommentReplyAction(reply)"
                                 class="tool-comment-reply-target"
                               >
                                 <button
@@ -619,9 +619,11 @@
                                     toggleCommentReference(idx, item, reply)
                                   "
                                 >
-                                  回复
+                                  {{ getCommentReplyActionText(reply, root) }}
                                 </button>
-                                {{ getCommentReplyTarget(reply, root) }}
+                                <span v-if="getCommentReplyTarget(reply, root)">
+                                  {{ getCommentReplyTarget(reply, root) }}
+                                </span>
                               </span>
                               <span class="tool-comment-time">{{
                                 getCommentTime(reply)
@@ -785,6 +787,7 @@ import {
   getOwnerHref,
   getOwnerUidText,
 } from 'src/utils/ownerRichView';
+import { getRenderableImageUrl } from 'src/utils/imageUrl';
 import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
 import { formatToolCallArgs } from 'src/utils/toolCall';
 import { renderMarkdown } from 'src/utils/markdown';
@@ -1610,8 +1613,11 @@ export default defineComponent({
     const getCommentId = (comment: VideoComment): string =>
       String(comment.rpid || `${comment.ctime || ''}:${getCommentMessage(comment)}`);
 
+    const stripOfficialReplyPrefix = (message: string): string =>
+      message.replace(/^回复\s*@[^:：]+?\s*[:：]\s*/, '').trim();
+
     const getCommentMessage = (comment: VideoComment): string =>
-      String(comment.content?.message || '').trim();
+      stripOfficialReplyPrefix(String(comment.content?.message || '').trim());
 
     const getCommentAuthor = (comment: VideoComment): string => {
       const uname = String(comment.member?.uname || '').trim();
@@ -1665,7 +1671,7 @@ export default defineComponent({
     };
 
     const getCommentPictureUrl = (picture: VideoCommentPicture): string =>
-      normalizePicUrl(
+      getRenderableImageUrl(
         String(picture.url || picture.src || picture.img_src || '').trim()
       );
 
@@ -1893,17 +1899,30 @@ export default defineComponent({
       root: VideoCommentNode
     ): VideoComment => reply.reply_to_comment || root;
 
+    const shouldShowCommentReplyAction = (reply: VideoComment): boolean => {
+      const parentId = String(reply.parent || '');
+      return Boolean(parentId && parentId !== '0');
+    };
+
+    const getCommentReplyActionText = (
+      reply: VideoComment,
+      root: VideoCommentNode
+    ): string => {
+      const parentId = String(reply.parent || '');
+      return parentId && parentId === getCommentId(root) ? '评论' : '回复';
+    };
+
     const getCommentReplyTarget = (
       reply: VideoCommentNode | VideoComment,
       root: VideoCommentNode
     ): string => {
       const node = reply as VideoCommentNode;
-      if (node.reply_to_name) return node.reply_to_name;
       const parentId = String(reply.parent || '');
       const rootId = getCommentId(root);
       if (parentId && parentId === rootId) {
-        return getCommentAuthor(root);
+        return '';
       }
+      if (node.reply_to_name) return node.reply_to_name;
       if (parentId && parentId !== '0' && parentId !== rootId) {
         return `#${parentId}`;
       }
@@ -2303,6 +2322,8 @@ export default defineComponent({
       getCommentMessage,
       getCommentPictures,
       getCommentPictureUrl,
+      shouldShowCommentReplyAction,
+      getCommentReplyActionText,
       getCommentReplyTarget,
       getReferencedComment,
       isCommentRootCollapsed,
@@ -2683,20 +2704,33 @@ export default defineComponent({
 .tool-comments-sort {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
   font-size: 11px;
   color: rgba(92, 107, 125, 0.72);
 }
 
 .tool-comments-sort select {
   height: 24px;
-  max-width: 92px;
+  min-width: 86px;
+  max-width: 96px;
   padding: 0 22px 0 7px;
   border: 1px solid rgba(128, 128, 128, 0.16);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.72);
+  background-color: rgba(255, 255, 255, 0.84);
   color: rgba(35, 45, 58, 0.82);
   font-size: 11px;
+  line-height: 22px;
+  color-scheme: light;
+  outline: none;
+
+  &:hover {
+    border-color: rgba(25, 118, 210, 0.22);
+    background-color: rgba(255, 255, 255, 0.96);
+  }
+
+  &:focus {
+    border-color: rgba(25, 118, 210, 0.36);
+    box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.08);
+  }
 }
 
 .tool-comments-chip {
@@ -2984,9 +3018,18 @@ a.tool-comment-author:hover {
 .tool-comment-replies-toggle {
   align-self: flex-start;
   min-height: 22px;
-  padding: 0 4px;
+  padding: 0 !important;
   font-size: 11px !important;
   opacity: 0.58;
+}
+
+.tool-comment-replies-toggle :deep(.q-btn__content) {
+  justify-content: flex-start;
+  gap: 2px;
+}
+
+.tool-comment-replies-toggle :deep(.q-icon) {
+  margin-left: 0;
 }
 
 .tool-comment-reply-list {
@@ -3027,8 +3070,33 @@ body.body--dark .tool-comments-chip {
 
 body.body--dark .tool-comments-sort select,
 body.body--dark .tool-comments-chip {
-  background: rgba(255, 255, 255, 0.07);
   border-color: rgba(255, 255, 255, 0.11);
+}
+
+body.body--dark .tool-comments-sort select {
+  background-color: rgba(30, 35, 43, 0.96);
+  color: rgba(235, 238, 242, 0.9);
+  border-color: rgba(144, 202, 249, 0.18);
+  color-scheme: dark;
+
+  &:hover {
+    background-color: rgba(38, 44, 54, 0.98);
+    border-color: rgba(144, 202, 249, 0.28);
+  }
+
+  &:focus {
+    border-color: rgba(144, 202, 249, 0.4);
+    box-shadow: 0 0 0 2px rgba(144, 202, 249, 0.1);
+  }
+}
+
+body.body--dark .tool-comments-sort select option {
+  background: #202630;
+  color: rgba(235, 238, 242, 0.92);
+}
+
+body.body--dark .tool-comments-chip {
+  background: rgba(255, 255, 255, 0.07);
 }
 
 body.body--dark .tool-comments-chip--active {

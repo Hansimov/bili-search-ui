@@ -44,7 +44,7 @@ export function rewriteImageUrl(url: string): string {
         return normalized;
     }
 
-    return `/bili-img/${parsed.host}${parsed.pathname}`;
+    return `/bili-img/${parsed.host}${parsed.pathname}${parsed.search}`;
 }
 
 export const getRenderableImageUrl = (url?: string | null): string => {

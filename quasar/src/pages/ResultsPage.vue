@@ -45,6 +45,7 @@
       />
       <div
         v-else
+        ref="toolResultsLayoutRef"
         class="tool-results-layout"
         :class="{ 'tool-results-layout--with-videos': showVideoResultsPanel }"
       >
@@ -314,6 +315,7 @@ export default {
 
     /** 滚动容器引用：chat 结果容器自身 */
     const chatContainerRef = ref(null);
+    const toolResultsLayoutRef = ref(null);
 
     /** 用户是否手动向上滚动（脱离底部） */
     const userScrolledUp = ref(false);
@@ -326,6 +328,13 @@ export default {
     let intentListenerEl = null;
     let lastUserScrollIntentAt = 0;
     let lastTouchClientY = null;
+    let selectionDragStart = null;
+    let isSelectingText = false;
+    let selectionResetTimer = 0;
+    let toolSelectionListenerEl = null;
+    let selectionScrollEl = null;
+    let selectionScrollTop = 0;
+    let selectionScrollAt = 0;
     let lastScrollMetrics = {
       scrollTop: 0,
       scrollHeight: 0,
@@ -378,13 +387,123 @@ export default {
       lastTouchClientY = nextY;
     };
 
+    const isTextSelectionTarget = (target) => {
+      if (!(target instanceof Element)) return false;
+      const inChat = chatContainerRef.value?.contains(target);
+      const inToolResults = toolResultsLayoutRef.value?.contains(target);
+      if (!inChat && !inToolResults) return false;
+      return !target.closest(
+        'button, a, input, textarea, select, [role="button"], [contenteditable="true"], .q-btn'
+      );
+    };
+
+    const getSelectionScrollElement = (target) => {
+      if (!(target instanceof Element)) return null;
+      const boundary =
+        chatContainerRef.value?.contains(target)
+          ? chatContainerRef.value
+          : toolResultsLayoutRef.value?.contains(target)
+          ? toolResultsLayoutRef.value
+          : null;
+      let current = target;
+      while (current && current !== document.body) {
+        if (current instanceof HTMLElement) {
+          const style = window.getComputedStyle(current);
+          if (
+            /(auto|scroll)/.test(style.overflowY || '') &&
+            current.scrollHeight > current.clientHeight + 1
+          ) {
+            return current;
+          }
+        }
+        if (boundary && current === boundary) break;
+        current = current.parentElement;
+      }
+      return boundary instanceof HTMLElement ? boundary : null;
+    };
+
+    const detachSelectionScrollListener = () => {
+      if (!selectionScrollEl) return;
+      selectionScrollEl.removeEventListener('scroll', handleSelectionScroll);
+      selectionScrollEl = null;
+    };
+
+    const handleSelectionScroll = () => {
+      if (!isSelectingText || !selectionScrollEl) return;
+      const now = performance.now();
+      const elapsed = selectionScrollAt ? Math.max(now - selectionScrollAt, 16) : 16;
+      const maxSpeed = isCompactOrTouchViewport() ? 0.38 : 0.5;
+      const maxStep = Math.max(8, elapsed * maxSpeed);
+      const delta = selectionScrollEl.scrollTop - selectionScrollTop;
+      if (Math.abs(delta) > maxStep) {
+        selectionScrollEl.scrollTop =
+          selectionScrollTop + Math.sign(delta) * maxStep;
+      }
+      selectionScrollTop = selectionScrollEl.scrollTop;
+      selectionScrollAt = now;
+    };
+
+    const handleSelectionMouseDown = (event) => {
+      if (event.button !== 0 || !isTextSelectionTarget(event.target)) {
+        selectionDragStart = null;
+        detachSelectionScrollListener();
+        return;
+      }
+      selectionDragStart = { x: event.clientX, y: event.clientY };
+      detachSelectionScrollListener();
+      selectionScrollEl = getSelectionScrollElement(event.target);
+      selectionScrollTop = selectionScrollEl?.scrollTop || 0;
+      selectionScrollAt = performance.now();
+      selectionScrollEl?.addEventListener('scroll', handleSelectionScroll, {
+        passive: true,
+      });
+    };
+
+    const handleSelectionMouseMove = (event) => {
+      if (!selectionDragStart || event.buttons !== 1) return;
+      const moved =
+        Math.abs(event.clientX - selectionDragStart.x) +
+        Math.abs(event.clientY - selectionDragStart.y);
+      if (moved < 4) return;
+      isSelectingText = true;
+      userScrolledUp.value = true;
+      lastUserScrollIntentAt = Date.now();
+    };
+
+    const handleSelectionMouseUp = () => {
+      selectionDragStart = null;
+      detachSelectionScrollListener();
+      if (!isSelectingText) return;
+      if (selectionResetTimer) {
+        window.clearTimeout(selectionResetTimer);
+      }
+      selectionResetTimer = window.setTimeout(() => {
+        isSelectingText = false;
+        selectionResetTimer = 0;
+        updateScrollMetrics();
+      }, 180);
+    };
+
     const detachUserScrollIntentListeners = () => {
       if (!intentListenerEl) return;
       intentListenerEl.removeEventListener('wheel', markUserScrollIntent);
       intentListenerEl.removeEventListener('touchstart', markUserTouchStart);
       intentListenerEl.removeEventListener('touchmove', markUserTouchMove);
-      intentListenerEl.removeEventListener('mousedown', markUserScrollIntent);
+      intentListenerEl.removeEventListener('mousedown', handleSelectionMouseDown);
+      document.removeEventListener('mousemove', handleSelectionMouseMove);
+      document.removeEventListener('mouseup', handleSelectionMouseUp);
       intentListenerEl = null;
+    };
+
+    const detachToolSelectionListeners = () => {
+      if (!toolSelectionListenerEl) return;
+      toolSelectionListenerEl.removeEventListener(
+        'mousedown',
+        handleSelectionMouseDown
+      );
+      document.removeEventListener('mousemove', handleSelectionMouseMove);
+      document.removeEventListener('mouseup', handleSelectionMouseUp);
+      toolSelectionListenerEl = null;
     };
 
     const attachUserScrollIntentListeners = () => {
@@ -398,8 +517,20 @@ export default {
       el.addEventListener('touchmove', markUserTouchMove, {
         passive: true,
       });
-      el.addEventListener('mousedown', markUserScrollIntent);
+      el.addEventListener('mousedown', handleSelectionMouseDown);
+      document.addEventListener('mousemove', handleSelectionMouseMove);
+      document.addEventListener('mouseup', handleSelectionMouseUp);
       intentListenerEl = el;
+    };
+
+    const attachToolSelectionListeners = () => {
+      const el = toolResultsLayoutRef.value;
+      if (!el || el === toolSelectionListenerEl) return;
+      detachToolSelectionListeners();
+      el.addEventListener('mousedown', handleSelectionMouseDown);
+      document.addEventListener('mousemove', handleSelectionMouseMove);
+      document.addEventListener('mouseup', handleSelectionMouseUp);
+      toolSelectionListenerEl = el;
     };
 
     const updateScrollMetrics = () => {
@@ -421,6 +552,7 @@ export default {
     };
 
     const scheduleScrollToBottomInstant = () => {
+      if (isSelectingText) return;
       if (scrollRaf) return;
       scrollRaf = window.requestAnimationFrame(() => {
         scrollRaf = 0;
@@ -446,6 +578,7 @@ export default {
       if (!resizeObserver) {
         resizeObserver = new ResizeObserver(() => {
           if (!isChatMode.value) return;
+          if (isSelectingText) return;
           const shouldKeepPinned = !userScrolledUp.value && wasPinnedToBottom();
           updateScrollMetrics();
           if (shouldKeepPinned) {
@@ -472,6 +605,11 @@ export default {
       const el = chatContainerRef.value;
       if (!el) return;
       if (isProgrammaticScroll) {
+        updateScrollMetrics();
+        return;
+      }
+      if (isSelectingText) {
+        userScrolledUp.value = true;
         updateScrollMetrics();
         return;
       }
@@ -540,6 +678,7 @@ export default {
       () => {
         if (!isChatMode.value) return;
         if (userScrolledUp.value) return;
+        if (isSelectingText) return;
         nextTick(() => scheduleScrollToBottomInstant());
       }
     );
@@ -574,6 +713,18 @@ export default {
       { immediate: true }
     );
 
+    watch(
+      [toolResultsLayoutRef, isChatMode],
+      ([container, enabled]) => {
+        if (enabled || !container) {
+          detachToolSelectionListeners();
+          return;
+        }
+        nextTick(() => attachToolSelectionListeners());
+      },
+      { immediate: true }
+    );
+
     onBeforeUnmount(() => {
       if (scrollRaf) {
         window.cancelAnimationFrame(scrollRaf);
@@ -581,6 +732,12 @@ export default {
       }
       disconnectResizeObserver();
       detachUserScrollIntentListeners();
+      detachToolSelectionListeners();
+      detachSelectionScrollListener();
+      if (selectionResetTimer) {
+        window.clearTimeout(selectionResetTimer);
+        selectionResetTimer = 0;
+      }
     });
 
     // Chat 面板与输入框对齐：完全依赖 CSS 变量 + align-items: center，
@@ -606,6 +763,7 @@ export default {
       continueChat,
       editChatQuery,
       chatContainerRef,
+      toolResultsLayoutRef,
       handleChatScroll,
       scrollToBottom,
       showScrollToBottom,
