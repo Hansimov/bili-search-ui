@@ -438,7 +438,10 @@
                 </button>
               </div>
 
-              <div class="tool-comments-visual">
+              <div
+                class="tool-comments-visual"
+                @scroll.passive="handleCommentsVisualScroll(idx, call, $event)"
+              >
                 <div
                   v-for="item in getVideoCommentItems(call)"
                   :key="item.bvid || 'comments'"
@@ -461,7 +464,7 @@
                     </span>
                   </div>
                   <div
-                    v-if="getVisibleVideoCommentTree(idx, call, item).length"
+                    v-if="getRenderedVisibleVideoCommentTree(idx, call, item).length"
                     class="tool-comments-tree"
                     :class="{
                       'tool-comments-tree--single-video':
@@ -469,7 +472,11 @@
                     }"
                   >
                     <div
-                      v-for="root in getVisibleVideoCommentTree(idx, call, item)"
+                      v-for="root in getRenderedVisibleVideoCommentTree(
+                        idx,
+                        call,
+                        item
+                      )"
                       :key="getCommentId(root)"
                       class="tool-comment-root"
                       :data-comment-id="getCommentId(root)"
@@ -601,13 +608,13 @@
                                   ? 'chevron_right'
                                   : 'expand_more'
                               "
-                              size="14px"
+                              size="15px"
                             />
                             <span>
                               {{
                                 isCommentRootCollapsed(idx, item, root)
-                                  ? `展开 ${getVisibleCommentReplies(idx, root).length} 条回复${getMaxReplyLikeSuffix(root)}`
-                                  : `收起 ${getVisibleCommentReplies(idx, root).length} 条回复`
+                                  ? `展开 ${getVisibleCommentReplyCount(idx, root)} 条回复${getMaxReplyLikeSuffix(root)}`
+                                  : `收起 ${getVisibleCommentReplyCount(idx, root)} 条回复`
                               }}
                             </span>
                           </button>
@@ -656,7 +663,7 @@
                           </label>
                         </div>
                         <div
-                          v-show="!isCommentRootCollapsed(idx, item, root)"
+                          v-if="!isCommentRootCollapsed(idx, item, root)"
                           class="tool-comment-reply-list"
                         >
                           <div
@@ -858,6 +865,20 @@
                           </div>
                         </div>
                       </div>
+                    </div>
+                    <div
+                      v-if="shouldShowMoreRenderedCommentRoots(idx, call, item)"
+                      class="tool-comments-render-more"
+                    >
+                      <button
+                        type="button"
+                        class="tool-comments-render-more-button"
+                        @click.stop="showMoreRenderedCommentRoots(idx, call, item)"
+                      >
+                        {{
+                          getRenderMoreCommentRootsText(idx, call, item)
+                        }}
+                      </button>
                     </div>
                   </div>
                   <div
@@ -1230,6 +1251,7 @@ export default defineComponent({
     const commentFilters = ref<Record<string, CommentFilterState>>({});
     const commentLayerFilters = ref<Record<string, CommentLayerFilterState>>({});
     const collapsedCommentRoots = ref<Record<string, boolean>>({});
+    const commentRootRenderLimits = ref<Record<string, number>>({});
     const loadedCommentItems = ref<Record<string, LoadedCommentItemState>>({});
     const expandedCommentReferences = ref<Record<string, boolean>>({});
     const expandedLongComments = ref<Record<string, boolean>>({});
@@ -1245,6 +1267,12 @@ export default defineComponent({
     let compactMediaQuery: MediaQueryList | null = null;
     const commentAutoRefreshTimers = new Map<string, number>();
     const commentAutoRefreshAttempts = new Map<string, number>();
+    const commentTreeCache = new WeakMap<
+      VideoComment[],
+      { length: number; roots: VideoCommentNode[] }
+    >();
+    const COMMENT_ROOT_INITIAL_RENDER_LIMIT = 160;
+    const COMMENT_ROOT_RENDER_STEP = 160;
     const visibleToolCalls = computed(() =>
       props.toolCalls.filter(
         (call) =>
@@ -2107,6 +2135,10 @@ export default defineComponent({
 
     const getVideoCommentTree = (item: VideoCommentsItem): VideoCommentNode[] => {
       const comments = getItemComments(item);
+      const cached = commentTreeCache.get(comments);
+      if (cached && cached.length === comments.length) {
+        return cached.roots;
+      }
       const byId = new Map<string, VideoComment>();
       comments.forEach((comment) => byId.set(getCommentId(comment), comment));
 
@@ -2139,6 +2171,7 @@ export default defineComponent({
         });
       });
 
+      commentTreeCache.set(comments, { length: comments.length, roots });
       return roots;
     };
 
@@ -2253,6 +2286,96 @@ export default defineComponent({
       }));
     };
 
+    const getCommentRootRenderKey = (
+      idx: number,
+      call: ToolCall,
+      item: VideoCommentsItem
+    ): string => {
+      const filters = getCommentFilters(idx, call);
+      return [
+        getCommentItemStateKey(call, item),
+        getCommentSortMode(idx, call),
+        filters.likedOnly ? 'liked' : 'all',
+        filters.authorOnly ? 'author' : 'any-author',
+      ].join(':');
+    };
+
+    const getCommentRootRenderLimit = (
+      idx: number,
+      call: ToolCall,
+      item: VideoCommentsItem
+    ): number =>
+      commentRootRenderLimits.value[getCommentRootRenderKey(idx, call, item)] ||
+      COMMENT_ROOT_INITIAL_RENDER_LIMIT;
+
+    const getRenderedVisibleVideoCommentTree = (
+      idx: number,
+      call: ToolCall,
+      item: VideoCommentsItem
+    ): VideoCommentNode[] =>
+      getVisibleVideoCommentTree(idx, call, item).slice(
+        0,
+        getCommentRootRenderLimit(idx, call, item)
+      );
+
+    const getHiddenRenderedCommentRootCount = (
+      idx: number,
+      call: ToolCall,
+      item: VideoCommentsItem
+    ): number =>
+      Math.max(
+        0,
+        getVisibleVideoCommentTree(idx, call, item).length -
+          getCommentRootRenderLimit(idx, call, item)
+      );
+
+    const shouldShowMoreRenderedCommentRoots = (
+      idx: number,
+      call: ToolCall,
+      item: VideoCommentsItem
+    ): boolean => getHiddenRenderedCommentRootCount(idx, call, item) > 0;
+
+    const showMoreRenderedCommentRoots = (
+      idx: number,
+      call: ToolCall,
+      item: VideoCommentsItem
+    ) => {
+      const key = getCommentRootRenderKey(idx, call, item);
+      const current = getCommentRootRenderLimit(idx, call, item);
+      const total = getVisibleVideoCommentTree(idx, call, item).length;
+      commentRootRenderLimits.value[key] = Math.min(
+        total,
+        current + COMMENT_ROOT_RENDER_STEP
+      );
+    };
+
+    const getRenderMoreCommentRootsText = (
+      idx: number,
+      call: ToolCall,
+      item: VideoCommentsItem
+    ): string => {
+      const hidden = getHiddenRenderedCommentRootCount(idx, call, item);
+      const next = Math.min(hidden, COMMENT_ROOT_RENDER_STEP);
+      return `继续显示 ${next} 个楼层`;
+    };
+
+    const handleCommentsVisualScroll = (
+      idx: number,
+      call: ToolCall,
+      event: Event
+    ) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const distanceToBottom =
+        target.scrollHeight - target.scrollTop - target.clientHeight;
+      if (distanceToBottom > 360) return;
+      getVideoCommentItems(call).forEach((item) => {
+        if (shouldShowMoreRenderedCommentRoots(idx, call, item)) {
+          showMoreRenderedCommentRoots(idx, call, item);
+        }
+      });
+    };
+
     const getCommentRootKey = (
       idx: number,
       item: VideoCommentsItem,
@@ -2296,13 +2419,13 @@ export default defineComponent({
       collapsedCommentRoots.value[key] = !isCommentRootCollapsed(idx, item, root);
     };
 
-    const getVisibleCommentReplies = (
+    const getFilteredCommentReplies = (
       idx: number,
       root: VideoCommentNode
     ): VideoComment[] => {
       const filters = getCommentLayerFilters(idx, root);
       const rootMid = String(root.member?.mid || '').trim();
-      const replies = root.replies.filter((reply) => {
+      return root.replies.filter((reply) => {
         if (filters.likedOnly && getCommentLikeValue(reply) <= 0) {
           return false;
         }
@@ -2314,7 +2437,19 @@ export default defineComponent({
         }
         return true;
       });
-      return sortComments(replies, filters.sortMode);
+    };
+
+    const getVisibleCommentReplyCount = (
+      idx: number,
+      root: VideoCommentNode
+    ): number => getFilteredCommentReplies(idx, root).length;
+
+    const getVisibleCommentReplies = (
+      idx: number,
+      root: VideoCommentNode
+    ): VideoComment[] => {
+      const filters = getCommentLayerFilters(idx, root);
+      return sortComments(getFilteredCommentReplies(idx, root), filters.sortMode);
     };
 
     const getMaxReplyLikeValue = (root: VideoCommentNode): number =>
@@ -3312,7 +3447,13 @@ export default defineComponent({
       getVideoCommentItems,
       getVideoCommentTree,
       getVisibleVideoCommentTree,
+      getRenderedVisibleVideoCommentTree,
+      shouldShowMoreRenderedCommentRoots,
+      showMoreRenderedCommentRoots,
+      getRenderMoreCommentRootsText,
+      handleCommentsVisualScroll,
       getVisibleCommentReplies,
+      getVisibleCommentReplyCount,
       getVideoCommentTitle,
       getVideoCommentOwnerText,
       getVideoCommentItemMeta,
@@ -4218,12 +4359,42 @@ a.tool-comment-author:hover {
 }
 
 .tool-comment-replies-toggle-icon {
-  width: 12px;
-  min-width: 12px;
+  width: 14px;
+  min-width: 14px;
+  height: 15px;
   margin-left: -2px;
   display: inline-flex;
+  align-items: center;
   justify-content: flex-start;
+  font-size: 15px !important;
+  line-height: 15px;
+  transform: translateY(-1px);
+}
+
+.tool-comments-render-more {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 2px;
+}
+
+.tool-comments-render-more-button {
+  appearance: none;
+  min-height: 26px;
+  padding: 0 12px;
+  border: 1px solid rgba(128, 128, 128, 0.14);
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.045);
+  color: rgba(65, 78, 94, 0.68);
+  font-size: 11px;
   line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: rgba(25, 118, 210, 0.075);
+    border-color: rgba(25, 118, 210, 0.16);
+    color: rgba(25, 118, 210, 0.82);
+  }
 }
 
 .tool-comments-sort--small select {
@@ -4327,12 +4498,14 @@ body.body--dark .tool-comment-reference-content {
 
 body.body--dark .tool-comments-sort,
 body.body--dark .tool-comments-chip,
+body.body--dark .tool-comments-render-more-button,
 body.body--dark .tool-comments-download-json {
   color: rgba(209, 217, 224, 0.7);
 }
 
 body.body--dark .tool-comments-sort select,
 body.body--dark .tool-comments-chip,
+body.body--dark .tool-comments-render-more-button,
 body.body--dark .tool-comments-download-json {
   border-color: rgba(255, 255, 255, 0.11);
 }
@@ -4361,6 +4534,16 @@ body.body--dark .tool-comments-sort select option {
 
 body.body--dark .tool-comments-chip {
   background: rgba(255, 255, 255, 0.07);
+}
+
+body.body--dark .tool-comments-render-more-button {
+  background: rgba(255, 255, 255, 0.055);
+
+  &:hover {
+    background: rgba(144, 202, 249, 0.1);
+    border-color: rgba(144, 202, 249, 0.18);
+    color: rgba(144, 202, 249, 0.86);
+  }
 }
 
 body.body--dark .tool-comments-download-json {

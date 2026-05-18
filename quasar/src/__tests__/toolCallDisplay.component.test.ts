@@ -538,6 +538,8 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('根评论作者');
         expect(wrapper.text()).not.toContain('根评论作者 · 1');
         expect(wrapper.text()).toContain('一级评论内容');
+        expect(wrapper.text()).not.toContain('回复作者');
+        await wrapper.find('.tool-comment-replies-toggle').trigger('click');
         expect(wrapper.text()).toContain('回复作者');
         expect(wrapper.text()).toContain('回复一级评论');
         expect(wrapper.text()).toContain('回复楼中楼');
@@ -620,27 +622,20 @@ describe('ToolCallDisplay component', () => {
         await wrapper.findAll('.tool-comments-chip')[3]?.trigger('click');
         expect(wrapper.text()).toContain('展开 2 条回复 · 最高赞 7');
 
-        const replyList = wrapper.find('.tool-comment-reply-list');
-        expect(replyList.attributes('style')).toContain('display: none');
+        expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(false);
         const expandButton = wrapper
             .findAll('button')
             .find((button) => button.text().includes('展开 2 条回复'));
         await expandButton?.trigger('click');
         await nextTick();
-        expect(wrapper.find('.tool-comment-reply-list').attributes('style') || '').not.toContain(
-            'display: none'
-        );
+        expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(true);
 
         await expandButton?.trigger('click');
         await nextTick();
-        expect(wrapper.find('.tool-comment-reply-list').attributes('style')).toContain(
-            'display: none'
-        );
+        expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(false);
         await wrapper.findAll('.tool-comments-chip')[5]?.trigger('click');
         await nextTick();
-        expect(wrapper.find('.tool-comment-reply-list').attributes('style') || '').not.toContain(
-            'display: none'
-        );
+        expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(true);
 
         const createObjectURL = vi.fn(() => 'blob:comments');
         const revokeObjectURL = vi.fn();
