@@ -336,6 +336,7 @@ export default {
     let selectionScrollEl = null;
     let selectionScrollTop = 0;
     let selectionScrollAt = 0;
+    let lockedSelectionScrollEls = [];
     let lastScrollMetrics = {
       scrollTop: 0,
       scrollHeight: 0,
@@ -423,10 +424,64 @@ export default {
       return boundary instanceof HTMLElement ? boundary : null;
     };
 
+    const isScrollableY = (element) => {
+      if (!(element instanceof HTMLElement)) return false;
+      const style = window.getComputedStyle(element);
+      return (
+        /(auto|scroll)/.test(style.overflowY || '') &&
+        element.scrollHeight > element.clientHeight + 1
+      );
+    };
+
+    const restoreLockedSelectionScroll = (item) => {
+      if (!item?.element) return;
+      if (Math.abs(item.element.scrollTop - item.scrollTop) > 1) {
+        item.element.scrollTop = item.scrollTop;
+      }
+    };
+
+    const detachSelectionScrollLocks = () => {
+      lockedSelectionScrollEls.forEach((item) => {
+        item.element.removeEventListener('scroll', item.handler, true);
+      });
+      lockedSelectionScrollEls = [];
+    };
+
+    const collectSelectionScrollLocks = (target) => {
+      detachSelectionScrollLocks();
+      if (!(target instanceof Element)) return;
+      const layout = toolResultsLayoutRef.value;
+      if (!layout?.contains(target)) return;
+      const toolItem = target.closest('.tool-call-item');
+      let current = target.parentElement;
+      while (current && current !== document.body) {
+        if (
+          current instanceof HTMLElement &&
+          isScrollableY(current) &&
+          (current === layout || !toolItem?.contains(current))
+        ) {
+          const item = {
+            element: current,
+            scrollTop: current.scrollTop,
+            handler: null,
+          };
+          item.handler = () => restoreLockedSelectionScroll(item);
+          current.addEventListener('scroll', item.handler, {
+            capture: true,
+            passive: true,
+          });
+          lockedSelectionScrollEls.push(item);
+        }
+        if (current === layout) break;
+        current = current.parentElement;
+      }
+    };
+
     const detachSelectionScrollListener = () => {
       if (!selectionScrollEl) return;
       selectionScrollEl.removeEventListener('scroll', handleSelectionScroll);
       selectionScrollEl = null;
+      detachSelectionScrollLocks();
     };
 
     const handleSelectionScroll = () => {
@@ -455,6 +510,7 @@ export default {
       selectionScrollEl = getSelectionScrollElement(event.target);
       selectionScrollTop = selectionScrollEl?.scrollTop || 0;
       selectionScrollAt = performance.now();
+      collectSelectionScrollLocks(event.target);
       selectionScrollEl?.addEventListener('scroll', handleSelectionScroll, {
         passive: true,
       });
@@ -467,6 +523,7 @@ export default {
         Math.abs(event.clientY - selectionDragStart.y);
       if (moved < 4) return;
       isSelectingText = true;
+      lockedSelectionScrollEls.forEach(restoreLockedSelectionScroll);
       userScrolledUp.value = true;
       lastUserScrollIntentAt = Date.now();
     };
@@ -544,6 +601,10 @@ export default {
 
     const handleToolResultsWheel = (event) => {
       if (isChatMode.value || event.ctrlKey || event.metaKey) return;
+      if (isSelectingText) {
+        event.preventDefault();
+        return;
+      }
       const layout = toolResultsLayoutRef.value;
       if (!layout) return;
       const target = event.target instanceof Element ? event.target : layout;
