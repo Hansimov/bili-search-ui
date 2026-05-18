@@ -371,9 +371,6 @@
               class="tool-comments-result"
             >
               <div class="tool-comments-toolbar">
-                <div class="tool-comments-toolbar-meta">
-                  {{ getVideoCommentsToolbarText(call) }}
-                </div>
                 <div class="tool-comments-controls" @click.stop>
                   <label class="tool-comments-sort" aria-label="评论排序">
                     <select
@@ -592,24 +589,28 @@
                         class="tool-comment-replies"
                       >
                         <div class="tool-comment-replies-actions">
-                          <q-btn
-                            flat
-                            dense
-                            no-caps
-                            size="sm"
-                            :icon="
-                              isCommentRootCollapsed(idx, item, root)
-                                ? 'chevron_right'
-                                : 'expand_more'
-                            "
-                            :label="
-                              isCommentRootCollapsed(idx, item, root)
-                                ? `展开 ${getVisibleCommentReplies(idx, root).length} 条回复${getMaxReplyLikeSuffix(root)}`
-                                : `收起 ${getVisibleCommentReplies(idx, root).length} 条回复`
-                            "
+                          <button
+                            type="button"
                             class="tool-comment-replies-toggle"
                             @click.stop="toggleCommentRoot(idx, item, root)"
-                          />
+                          >
+                            <q-icon
+                              class="tool-comment-replies-toggle-icon"
+                              :name="
+                                isCommentRootCollapsed(idx, item, root)
+                                  ? 'chevron_right'
+                                  : 'expand_more'
+                              "
+                              size="14px"
+                            />
+                            <span>
+                              {{
+                                isCommentRootCollapsed(idx, item, root)
+                                  ? `展开 ${getVisibleCommentReplies(idx, root).length} 条回复${getMaxReplyLikeSuffix(root)}`
+                                  : `收起 ${getVisibleCommentReplies(idx, root).length} 条回复`
+                              }}
+                            </span>
+                          </button>
                           <button
                             type="button"
                             class="tool-comments-chip tool-comments-chip--small"
@@ -2678,29 +2679,20 @@ export default defineComponent({
       const summary = item.summary || {};
       const loaded = getVideoCommentLoadedCount(item);
       const estimated = Number(summary.estimated_total || 0);
-      const total = Math.max(
+      const stored = Math.max(
         Number(summary.comment_count || 0),
         Number(summary.stored_count || 0),
-        Number(summary.root_count || 0),
         loaded
       );
-      const mode = item.mode === 'full' ? '完整' : '快速';
+      const total = Math.max(estimated, stored, loaded);
       const running = isCommentItemActivelySyncing(item);
       const incomplete =
         !running &&
         item.mode === 'full' &&
         summary.is_complete === false &&
-        estimated > total;
+        total > stored;
       const suffix = running ? ' · 后台同步中' : incomplete ? ' · 未完整' : '';
-      if (total && total !== loaded) {
-        const estimateText =
-          estimated && estimated > total ? ` / 约 ${estimated}` : '';
-        return `${mode} · 展示 ${loaded} / 已存 ${total}${estimateText}${suffix}`;
-      }
-      if (estimated && estimated > loaded) {
-        return `${mode} · 展示 ${loaded} / 约 ${estimated}${suffix}`;
-      }
-      return `${mode} · ${loaded} 条${suffix}`;
+      return `加载 ${loaded} / 存储 ${stored} / 总计 ${total}${suffix}`;
     };
 
     const downloadCommentsJson = (call: ToolCall) => {
@@ -2765,6 +2757,19 @@ export default defineComponent({
       call: ToolCall,
       item: VideoCommentsItem
     ): boolean => {
+      if (item.status === 'running' || item.refresh_status === 'running') {
+        return true;
+      }
+      const summary = item.summary || {};
+      if (
+        item.status === 'completed' ||
+        summary.is_complete === true ||
+        summary.complete_exhausted === true ||
+        getVideoCommentLoadedCount(item) > 0 ||
+        Number(summary.comment_count || summary.stored_count || 0) > 0
+      ) {
+        return false;
+      }
       const result = (call.result as Record<string, unknown>) || {};
       const bvid = String(item.bvid || call.args?.bvid || '').trim();
       const scheduled = Array.isArray(result.scheduled)
@@ -2773,11 +2778,7 @@ export default defineComponent({
       const running = Array.isArray(result.running)
         ? result.running.map((value) => String(value))
         : [];
-      return (
-        item.status === 'running' ||
-        item.refresh_status === 'running' ||
-        Boolean(bvid && (scheduled.includes(bvid) || running.includes(bvid)))
-      );
+      return Boolean(bvid && (scheduled.includes(bvid) || running.includes(bvid)));
     };
 
     const needsMoreCommentSync = (item: VideoCommentsItem): boolean => {
@@ -2804,12 +2805,17 @@ export default defineComponent({
     const shouldShowCommentsLoadMore = (
       call: ToolCall,
       item: VideoCommentsItem
-    ): boolean =>
-      item.mode === 'full' &&
-      (hasMoreStoredComments(item) ||
-        needsMoreCommentSync(item) ||
-        isCommentItemQueuedOrRunning(call, item) ||
-        Boolean(getCommentItemState(call, item).loading));
+    ): boolean => {
+      const state = getCommentItemState(call, item);
+      return (
+        item.mode === 'full' &&
+        (Boolean(state.loading) ||
+          hasMoreStoredComments(item) ||
+          needsMoreCommentSync(item) ||
+          (getVideoCommentLoadedCount(item) === 0 &&
+            isCommentItemQueuedOrRunning(call, item)))
+      );
+    };
 
     const getCommentsLoadMoreText = (
       call: ToolCall,
@@ -2831,7 +2837,7 @@ export default defineComponent({
       if (mode === 'hot') return 'hot';
       if (mode === 'time_asc') return 'oldest';
       if (mode === 'time_desc') return 'latest';
-      return 'default';
+      return 'hot';
     };
 
     const mergeCommentsById = (
@@ -2954,11 +2960,20 @@ export default defineComponent({
     const shouldAutoRefreshCommentItem = (
       call: ToolCall,
       item: VideoCommentsItem
-    ): boolean =>
-      item.mode === 'full' &&
-      isCommentItemQueuedOrRunning(call, item) &&
-      getItemComments(item).length === 0 &&
-      !getCommentItemState(call, item).loading;
+    ): boolean => {
+      if (item.mode !== 'full' || getCommentItemState(call, item).loading) {
+        return false;
+      }
+      if (hasMoreStoredComments(item)) {
+        return true;
+      }
+      if (needsMoreCommentSync(item)) {
+        return true;
+      }
+      return (
+        isCommentItemQueuedOrRunning(call, item) && getItemComments(item).length === 0
+      );
+    };
 
     const scheduleCommentAutoRefresh = (
       idx: number,
@@ -2997,10 +3012,6 @@ export default defineComponent({
           clearCommentAutoRefreshTimer(key);
         }
       });
-    };
-
-    const getVideoCommentsToolbarText = (call: ToolCall): string => {
-      return getVideoCommentsAggregateText(call) || '评论结果';
     };
 
     /** Normalize bilibili pic URL to include https: protocol */
@@ -3305,7 +3316,6 @@ export default defineComponent({
       getVideoCommentTitle,
       getVideoCommentOwnerText,
       getVideoCommentItemMeta,
-      getVideoCommentsToolbarText,
       downloadCommentsJson,
       getCommentItemState,
       isCommentItemQueuedOrRunning,
@@ -3731,7 +3741,7 @@ export default defineComponent({
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .tool-comments-sort {
@@ -4184,32 +4194,36 @@ a.tool-comment-author:hover {
 }
 
 .tool-comment-replies-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
   align-self: flex-start;
-  min-width: 0 !important;
-  min-height: 22px;
-  padding: 0 !important;
-  margin-left: 0 !important;
-  font-size: 11px !important;
-  opacity: 0.58;
-}
-
-.tool-comment-replies-toggle :deep(.q-btn) {
-  min-width: 0 !important;
-  padding-left: 0 !important;
-}
-
-.tool-comment-replies-toggle :deep(.q-btn__content) {
-  justify-content: flex-start;
   gap: 2px;
   min-width: 0;
+  min-height: 22px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.58;
+  cursor: pointer;
 }
 
-.tool-comment-replies-toggle :deep(.q-icon) {
-  width: 14px;
-  min-width: 14px;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  text-align: left;
+.tool-comment-replies-toggle:hover {
+  opacity: 0.82;
+}
+
+.tool-comment-replies-toggle-icon {
+  width: 12px;
+  min-width: 12px;
+  margin-left: -2px;
+  display: inline-flex;
+  justify-content: flex-start;
+  line-height: 1;
 }
 
 .tool-comments-sort--small select {

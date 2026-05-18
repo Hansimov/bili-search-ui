@@ -525,10 +525,7 @@ describe('ToolCallDisplay component', () => {
         await wrapper.find('.tool-call-header').trigger('click');
 
         expect(wrapper.find('.tool-comments-visual').exists()).toBe(true);
-        expect(wrapper.find('.tool-comments-toolbar-meta').text()).toBe('3 条评论');
-        expect(wrapper.find('.tool-comments-toolbar-meta').text()).not.toContain(
-            '1 个视频'
-        );
+        expect(wrapper.find('.tool-comments-toolbar-meta').exists()).toBe(false);
         expect(wrapper.find('.tool-comments-video-header').text()).toContain(
             '评论测试视频'
         );
@@ -696,9 +693,7 @@ describe('ToolCallDisplay component', () => {
 
         expect(wrapper.text()).toContain('后台同步中，正在加载首批评论');
         expect(wrapper.text()).not.toContain('当前没有可展示的评论');
-        expect(wrapper.find('.tool-comments-toolbar-meta').text()).toBe(
-            '0/120 条评论'
-        );
+        expect(wrapper.find('.tool-comments-toolbar-meta').exists()).toBe(false);
         wrapper.unmount();
     });
 
@@ -757,8 +752,8 @@ describe('ToolCallDisplay component', () => {
             '1000/3456 条评论'
         );
         await wrapper.find('.tool-call-header').trigger('click');
-        expect(wrapper.find('.tool-comments-toolbar-meta').text()).toBe(
-            '1000/3456 条评论'
+        expect(wrapper.find('.tool-comments-video-meta').text()).toContain(
+            '加载 1000 / 存储 3443 / 总计 3456'
         );
         expect(wrapper.text()).toContain('查看全文');
         expect(wrapper.text()).not.toContain('点击查看全文');
