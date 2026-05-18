@@ -386,7 +386,7 @@
                   </label>
                   <button
                     type="button"
-                    class="tool-comments-chip"
+                    class="tool-comments-chip tool-comments-chip--filter"
                     :class="{
                       'tool-comments-chip--active':
                         isCommentLikedFilterActive(idx, call),
@@ -397,7 +397,7 @@
                   </button>
                   <button
                     type="button"
-                    class="tool-comments-chip"
+                    class="tool-comments-chip tool-comments-chip--filter"
                     :class="{
                       'tool-comments-chip--active':
                         isCommentAuthorFilterActive(idx, call),
@@ -439,6 +439,15 @@
                   >
                     <q-icon name="download" size="13px" />
                     下载 JSON
+                  </button>
+                  <button
+                    v-if="shouldShowToolbarCommentsLoadMore(call)"
+                    type="button"
+                    class="tool-comments-chip tool-comments-chip--load-more tool-comments-load-more-toolbar"
+                    :disabled="isToolbarCommentsLoadMoreLoading(call)"
+                    @click.stop="loadMoreCommentsFromToolbar(idx, call)"
+                  >
+                    {{ getToolbarCommentsLoadMoreText(call) }}
                   </button>
                   <button
                     type="button"
@@ -611,8 +620,16 @@
                             !isCommentRootCollapsed(idx, item, root),
                         }"
                       >
-                        <div class="tool-comment-replies-actions">
+                        <div
+                          v-if="
+                            shouldShowCommentRepliesActions(idx, item, root)
+                          "
+                          class="tool-comment-replies-actions"
+                        >
                           <button
+                            v-if="
+                              shouldShowCommentRepliesToggle(idx, item, root)
+                            "
                             type="button"
                             class="tool-comment-replies-toggle"
                             @click.stop="toggleCommentRoot(idx, call, item, root)"
@@ -629,66 +646,76 @@
                             <span>
                               {{
                                 isCommentRootCollapsed(idx, item, root)
-                                  ? `展开 ${getVisibleCommentReplyCount(idx, root)} 条回复${getMaxReplyLikeSuffix(root)}`
+                                  ? `展开 ${getVisibleCommentReplyCount(idx, root)} 条回复`
                                   : `收起 ${getVisibleCommentReplyCount(idx, root)} 条回复`
                               }}
                             </span>
                           </button>
-                          <label
-                            class="tool-comments-sort tool-comments-sort--small"
-                            aria-label="楼层回复排序"
+                          <template
+                            v-if="shouldShowCommentRepliesControls(idx, root)"
                           >
-                            <select
-                              :value="getCommentLayerSortMode(idx, root)"
-                              title="楼层回复排序"
-                              @change="
-                                handleCommentLayerSortChange(idx, root, $event)
+                            <label
+                              class="tool-comments-sort tool-comments-sort--small"
+                              aria-label="楼层回复排序"
+                            >
+                              <select
+                                :value="getCommentLayerSortMode(idx, root)"
+                                title="楼层回复排序"
+                                @change="
+                                  handleCommentLayerSortChange(idx, root, $event)
+                                "
+                              >
+                                <option value="default">默认排序</option>
+                                <option value="hot">热度</option>
+                                <option value="time_asc">时间正序</option>
+                                <option value="time_desc">时间逆序</option>
+                              </select>
+                            </label>
+                            <button
+                              type="button"
+                              class="tool-comments-chip tool-comments-chip--filter tool-comments-chip--small"
+                              :class="{
+                                'tool-comments-chip--active':
+                                  isCommentLayerLikedFilterActive(idx, root),
+                              }"
+                              @click.stop="
+                                toggleCommentLayerLikedFilter(idx, call, item, root)
                               "
                             >
-                              <option value="default">默认</option>
-                              <option value="hot">热度</option>
-                              <option value="time_asc">时间正序</option>
-                              <option value="time_desc">时间逆序</option>
-                            </select>
-                          </label>
-                          <button
-                            type="button"
-                            class="tool-comments-chip tool-comments-chip--small"
-                            :class="{
-                              'tool-comments-chip--active':
-                                isCommentLayerLikedFilterActive(idx, root),
-                            }"
-                            @click.stop="
-                              toggleCommentLayerLikedFilter(idx, call, item, root)
-                            "
-                          >
-                            仅看有赞
-                          </button>
-                          <button
-                            type="button"
-                            class="tool-comments-chip tool-comments-chip--small"
-                            :class="{
-                              'tool-comments-chip--active':
-                                isCommentLayerOwnerFilterActive(idx, root),
-                            }"
-                            @click.stop="
-                              toggleCommentLayerOwnerFilter(idx, call, item, root)
-                            "
-                          >
-                            仅看层主回复
-                          </button>
+                              仅看有赞
+                            </button>
+                            <button
+                              type="button"
+                              class="tool-comments-chip tool-comments-chip--filter tool-comments-chip--small"
+                              :class="{
+                                'tool-comments-chip--active':
+                                  isCommentLayerOwnerFilterActive(idx, root),
+                              }"
+                              @click.stop="
+                                toggleCommentLayerOwnerFilter(idx, call, item, root)
+                              "
+                            >
+                              仅看层主回复
+                            </button>
+                          </template>
                         </div>
                         <div
-                          v-if="!isCommentRootCollapsed(idx, item, root)"
+                          v-if="getRenderedCommentReplies(idx, item, root).length"
                           class="tool-comment-reply-list"
+                          :class="{
+                            'tool-comment-reply-list--preview':
+                              isCommentRootCollapsed(idx, item, root),
+                          }"
                         >
                           <div
-                            v-for="reply in getVisibleCommentReplies(idx, root)"
+                            v-for="reply in getRenderedCommentReplies(idx, item, root)"
                             :key="getCommentId(reply)"
                             class="tool-comment-reply"
                             :class="{
                               'tool-comment--highlighted':
                                 isCommentHighlighted(idx, item, reply),
+                              'tool-comment-reply--preview':
+                                isCommentRootCollapsed(idx, item, root),
                             }"
                             :data-comment-id="getCommentId(reply)"
                           >
@@ -2269,6 +2296,9 @@ export default defineComponent({
         return sorted
           .map((comment, index) => ({ comment, index }))
           .sort((a, b) => {
+            if (a.comment.is_top !== b.comment.is_top) {
+              return a.comment.is_top ? -1 : 1;
+            }
             const delta =
               getHybridDefaultCommentScore(b.comment, stats) -
               getHybridDefaultCommentScore(a.comment, stats);
@@ -2490,15 +2520,59 @@ export default defineComponent({
       return sortComments(getFilteredCommentReplies(idx, root), filters.sortMode);
     };
 
-    const getMaxReplyLikeValue = (root: VideoCommentNode): number =>
-      root.replies.reduce(
-        (maxValue, reply) => Math.max(maxValue, getCommentLikeValue(reply)),
-        0
-      );
+    const getCollapsedHotReply = (
+      root: VideoCommentNode
+    ): VideoComment | null => {
+      let bestReply: VideoComment | null = null;
+      let bestLike = 0;
+      let bestTime = 0;
+      root.replies.forEach((reply) => {
+        const like = getCommentLikeValue(reply);
+        if (like < 2) return;
+        const ctime = Number(reply.ctime || 0);
+        if (like > bestLike || (like === bestLike && ctime > bestTime)) {
+          bestReply = reply;
+          bestLike = like;
+          bestTime = ctime;
+        }
+      });
+      return bestReply;
+    };
 
-    const getMaxReplyLikeSuffix = (root: VideoCommentNode): string => {
-      const value = getMaxReplyLikeValue(root);
-      return value > 0 ? ` · 最高赞 ${getCommentLikeText({ like: value })}` : '';
+    const shouldShowCommentRepliesActions = (
+      idx: number,
+      item: VideoCommentsItem,
+      root: VideoCommentNode
+    ): boolean =>
+      shouldShowCommentRepliesToggle(idx, item, root) ||
+      shouldShowCommentRepliesControls(idx, root);
+
+    const shouldShowCommentRepliesToggle = (
+      idx: number,
+      item: VideoCommentsItem,
+      root: VideoCommentNode
+    ): boolean => {
+      const visibleCount = getVisibleCommentReplyCount(idx, root);
+      if (visibleCount <= 0) return false;
+      if (!isCommentRootCollapsed(idx, item, root)) return true;
+      return !(visibleCount === 1 && getCollapsedHotReply(root));
+    };
+
+    const shouldShowCommentRepliesControls = (
+      idx: number,
+      root: VideoCommentNode
+    ): boolean => getVisibleCommentReplyCount(idx, root) > 1;
+
+    const getRenderedCommentReplies = (
+      idx: number,
+      item: VideoCommentsItem,
+      root: VideoCommentNode
+    ): VideoComment[] => {
+      if (!isCommentRootCollapsed(idx, item, root)) {
+        return getVisibleCommentReplies(idx, root);
+      }
+      const hotReply = getCollapsedHotReply(root);
+      return hotReply ? [hotReply] : [];
     };
 
     const setAllCommentRootsCollapsed = (
@@ -3041,6 +3115,26 @@ export default defineComponent({
       return '加载更多评论';
     };
 
+    const getToolbarLoadMoreItem = (
+      call: ToolCall
+    ): VideoCommentsItem | undefined =>
+      getVideoCommentItems(call).find((item) =>
+        shouldShowCommentsLoadMore(call, item)
+      );
+
+    const shouldShowToolbarCommentsLoadMore = (call: ToolCall): boolean =>
+      Boolean(getToolbarLoadMoreItem(call));
+
+    const isToolbarCommentsLoadMoreLoading = (call: ToolCall): boolean => {
+      const item = getToolbarLoadMoreItem(call);
+      return item ? Boolean(getCommentItemState(call, item).loading) : false;
+    };
+
+    const getToolbarCommentsLoadMoreText = (call: ToolCall): string => {
+      const item = getToolbarLoadMoreItem(call);
+      return item ? getCommentsLoadMoreText(call, item) : '加载更多';
+    };
+
     const getBackendCommentOrder = (
       mode: CommentSortMode
     ): 'default' | 'hot' | 'latest' | 'oldest' => {
@@ -3162,6 +3256,12 @@ export default defineComponent({
           error: error instanceof Error ? error.message : String(error),
         };
       }
+    };
+
+    const loadMoreCommentsFromToolbar = async (idx: number, call: ToolCall) => {
+      const item = getToolbarLoadMoreItem(call);
+      if (!item) return;
+      await loadMoreComments(idx, call, item);
     };
 
     const clearCommentAutoRefreshTimer = (key: string) => {
@@ -3589,13 +3689,20 @@ export default defineComponent({
       getAllCommentRootsCollapseMode,
       toggleCommentRoot,
       setAllCommentRootsCollapsed,
-      getMaxReplyLikeSuffix,
+      shouldShowCommentRepliesActions,
+      shouldShowCommentRepliesToggle,
+      shouldShowCommentRepliesControls,
+      getRenderedCommentReplies,
       isCommentLayerOwnerFilterActive,
       isCommentLayerLikedFilterActive,
       toggleCommentLayerOwnerFilter,
       toggleCommentLayerLikedFilter,
       getCommentLayerSortMode,
       handleCommentLayerSortChange,
+      shouldShowToolbarCommentsLoadMore,
+      isToolbarCommentsLoadMoreLoading,
+      getToolbarCommentsLoadMoreText,
+      loadMoreCommentsFromToolbar,
       isCommentReferenceExpanded,
       toggleCommentReference,
       scrollCommentsToTop,
@@ -4002,9 +4109,9 @@ export default defineComponent({
 
 .tool-comments-sort select {
   height: 24px;
-  min-width: 86px;
-  max-width: 96px;
-  padding: 0 22px 0 7px;
+  min-width: 78px;
+  max-width: 88px;
+  padding: 0 18px 0 7px;
   border: 1px solid rgba(128, 128, 128, 0.16);
   border-radius: 6px;
   background-color: rgba(255, 255, 255, 0.84);
@@ -4050,15 +4157,15 @@ export default defineComponent({
 }
 
 .tool-comments-chip--fold {
-  background: rgba(92, 107, 125, 0.06);
-  border-color: rgba(92, 107, 125, 0.14);
-  color: rgba(77, 91, 109, 0.74);
+  background: rgba(128, 128, 128, 0.045);
+  border-color: rgba(128, 128, 128, 0.14);
+  color: rgba(65, 78, 94, 0.72);
 }
 
 .tool-comments-chip--expand {
-  background: rgba(0, 150, 136, 0.07);
-  border-color: rgba(0, 150, 136, 0.15);
-  color: rgba(0, 121, 107, 0.78);
+  background: rgba(128, 128, 128, 0.045);
+  border-color: rgba(128, 128, 128, 0.14);
+  color: rgba(65, 78, 94, 0.72);
 }
 
 .tool-comments-chip--top {
@@ -4067,7 +4174,32 @@ export default defineComponent({
   color: rgba(173, 92, 17, 0.76);
 }
 
+.tool-comments-chip--load-more {
+  background: rgba(25, 118, 210, 0.075);
+  border-color: rgba(25, 118, 210, 0.16);
+  color: rgba(25, 118, 210, 0.86);
+}
+
+.tool-comments-chip:disabled,
+.tool-comments-load-more-toolbar:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
 .tool-comments-chip--active {
+  background: rgba(25, 118, 210, 0.12);
+  border-color: rgba(25, 118, 210, 0.22);
+  color: rgba(25, 118, 210, 0.92);
+}
+
+.tool-comments-chip.tool-comments-chip--filter.tool-comments-chip--active {
+  background: rgba(25, 118, 210, 0.12);
+  border-color: rgba(25, 118, 210, 0.22);
+  color: rgba(25, 118, 210, 0.92);
+}
+
+.tool-comments-chip--fold.tool-comments-chip--active,
+.tool-comments-chip--expand.tool-comments-chip--active {
   background: rgba(0, 150, 136, 0.12);
   border-color: rgba(0, 150, 136, 0.24);
   color: rgba(0, 121, 107, 0.92);
@@ -4082,6 +4214,10 @@ export default defineComponent({
 .tool-comments-top-chip {
   margin-left: 0;
   min-width: 66px;
+}
+
+.tool-comments-load-more-toolbar {
+  min-width: 74px;
 }
 
 .tool-comments-download-json {
@@ -4575,8 +4711,8 @@ a.tool-comment-author:hover {
 
 .tool-comments-sort--small select {
   height: 21px;
-  min-width: 68px;
-  max-width: 82px;
+  min-width: 74px;
+  max-width: 78px;
   padding-left: 6px;
   font-size: 10.5px;
 }
@@ -4585,6 +4721,14 @@ a.tool-comment-author:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.tool-comment-reply-list--preview {
+  margin-top: -2px;
+}
+
+.tool-comment-reply--preview {
+  opacity: 0.88;
 }
 
 body.body--dark .tool-comment-author,
@@ -4732,15 +4876,15 @@ body.body--dark .tool-comments-chip {
 }
 
 body.body--dark .tool-comments-chip--fold {
-  background: rgba(209, 217, 224, 0.065);
+  background: rgba(255, 255, 255, 0.07);
   border-color: rgba(209, 217, 224, 0.12);
   color: rgba(209, 217, 224, 0.7);
 }
 
 body.body--dark .tool-comments-chip--expand {
-  background: rgba(77, 182, 172, 0.105);
-  border-color: rgba(77, 182, 172, 0.18);
-  color: rgba(128, 218, 208, 0.82);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(209, 217, 224, 0.12);
+  color: rgba(209, 217, 224, 0.7);
 }
 
 body.body--dark .tool-comments-chip--top {
@@ -4749,7 +4893,27 @@ body.body--dark .tool-comments-chip--top {
   color: rgba(255, 202, 119, 0.82);
 }
 
+body.body--dark .tool-comments-chip--load-more {
+  background: rgba(144, 202, 249, 0.1);
+  border-color: rgba(144, 202, 249, 0.18);
+  color: #90caf9;
+}
+
 body.body--dark .tool-comments-chip--active {
+  background: rgba(144, 202, 249, 0.14);
+  border-color: rgba(144, 202, 249, 0.24);
+  color: #90caf9;
+}
+
+body.body--dark
+  .tool-comments-chip.tool-comments-chip--filter.tool-comments-chip--active {
+  background: rgba(144, 202, 249, 0.14);
+  border-color: rgba(144, 202, 249, 0.24);
+  color: #90caf9;
+}
+
+body.body--dark .tool-comments-chip--fold.tool-comments-chip--active,
+body.body--dark .tool-comments-chip--expand.tool-comments-chip--active {
   background: rgba(77, 182, 172, 0.16);
   border-color: rgba(77, 182, 172, 0.28);
   color: rgba(128, 218, 208, 0.92);

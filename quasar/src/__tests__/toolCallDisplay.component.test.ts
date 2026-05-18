@@ -538,7 +538,9 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('根评论作者');
         expect(wrapper.text()).not.toContain('根评论作者 · 1');
         expect(wrapper.text()).toContain('一级评论内容');
-        expect(wrapper.text()).not.toContain('回复作者');
+        expect(wrapper.text()).toContain('回复作者');
+        expect(wrapper.text()).toContain('回复一级评论');
+        expect(wrapper.text()).not.toContain('回复楼中楼');
         await wrapper.find('.tool-comment-replies-toggle').trigger('click');
         expect(wrapper.text()).toContain('回复作者');
         expect(wrapper.text()).toContain('回复一级评论');
@@ -623,9 +625,12 @@ describe('ToolCallDisplay component', () => {
             .findAll('button')
             .find((button) => button.text().includes('折叠楼层'))
             ?.trigger('click');
-        expect(wrapper.text()).toContain('展开 2 条回复 · 最高赞 7');
+        expect(wrapper.text()).toContain('展开 2 条回复');
+        expect(wrapper.text()).not.toContain('最高赞 7');
 
-        expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(false);
+        expect(wrapper.find('.tool-comment-reply-list--preview').exists()).toBe(true);
+        expect(wrapper.text()).toContain('回复一级评论');
+        expect(wrapper.text()).not.toContain('回复楼中楼');
         const expandButton = wrapper
             .findAll('button')
             .find((button) => button.text().includes('展开 2 条回复'));
@@ -635,12 +640,13 @@ describe('ToolCallDisplay component', () => {
 
         await expandButton?.trigger('click');
         await nextTick();
-        expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(false);
+        expect(wrapper.find('.tool-comment-reply-list--preview').exists()).toBe(true);
         await wrapper
             .find('.tool-comment-replies-actions .tool-comments-chip')
             .trigger('click');
         await nextTick();
         expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(true);
+        expect(wrapper.find('.tool-comments-sort--small').exists()).toBe(false);
 
         const createObjectURL = vi.fn(() => 'blob:comments');
         const revokeObjectURL = vi.fn();
@@ -776,9 +782,22 @@ describe('ToolCallDisplay component', () => {
                         title: '混合排序测试',
                         owner: { mid: 1, name: '测试UP主' },
                         mode: 'full',
-                        summary: { comment_count: 3 },
-                        pagination: { returned: 3, loaded: 3, limit: 1000 },
+                        summary: { comment_count: 4 },
+                        pagination: { returned: 4, loaded: 4, limit: 1000 },
                         comments: [
+                            {
+                                rpid: 4,
+                                ctime: 500,
+                                parent: 0,
+                                root: 0,
+                                root_rpid: 4,
+                                is_root: true,
+                                depth: 1,
+                                member: { mid: 14, uname: '置顶低赞' },
+                                content: { message: '置顶内容' },
+                                like: 0,
+                                is_top: true,
+                            },
                             {
                                 rpid: 1,
                                 ctime: 1000,
@@ -835,6 +854,7 @@ describe('ToolCallDisplay component', () => {
             .findAll('.tool-comment-content')
             .map((node) => node.text());
         expect(contents).toEqual([
+            '置顶内容',
             '较久热评内容',
             '最新低赞内容',
             '旧低赞内容',
