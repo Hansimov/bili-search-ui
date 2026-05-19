@@ -26,7 +26,7 @@ export const abortToolCall = () => {
     exploreStore.setExploreLoading(false);
 };
 
-interface ToolCallCachePayload {
+export interface ToolCallCachePayload {
     stepResults: ExploreStepResult[];
     toolCall: ToolCall | null;
 }
@@ -93,7 +93,7 @@ const normalizeToolCallFromEvent = (event: ToolEvent): ToolCall | null => {
     };
 };
 
-const buildUtilityStepResults = (toolCall: ToolCall | null): ExploreStepResult[] => {
+export const buildUtilityStepResults = (toolCall: ToolCall | null): ExploreStepResult[] => {
     if (!toolCall) return [];
     const hasError = toolCall.result &&
         typeof toolCall.result === 'object' &&
@@ -218,18 +218,26 @@ const executeUtilityStream = async (
 };
 
 /** 缓存实用工具结果到 IndexedDB */
-const cacheToolCallResults = async (
+export const cacheToolCallResults = async (
     query: string,
-    payload: ToolCallCachePayload
+    payload: ToolCallCachePayload,
+    options: { sessionId?: string } = {}
 ): Promise<void> => {
     try {
+        query = normalizeToolCommandInput(query);
         const plainResults = JSON.parse(JSON.stringify(payload));
-        await cacheService.set(
-            STORE_NAMES.DATA,
-            `utility:${query}`,
-            plainResults,
-            { ttl: EXPLORE_CACHE_TTL, namespace: 'utility-results' }
-        );
+        const cacheKeys = [`utility:${query}`];
+        if (options.sessionId) {
+            cacheKeys.unshift(`utility-session:${options.sessionId}`);
+        }
+        await Promise.all(cacheKeys.map((key) =>
+            cacheService.set(
+                STORE_NAMES.DATA,
+                key,
+                plainResults,
+                { ttl: EXPLORE_CACHE_TTL, namespace: 'utility-results' }
+            )
+        ));
         console.log(`[ToolCallCache] Cached results for: ${query}`);
     } catch (error) {
         console.error('[ToolCallCache] Failed to cache results:', error);
@@ -250,7 +258,13 @@ export const restoreToolCallFromCache = async (
     if (!queryValue) return false;
 
     try {
-        let cached = await cacheService.get<ToolCallCachePayload>(
+        let cached = sessionId
+            ? await cacheService.get<ToolCallCachePayload>(
+                STORE_NAMES.DATA,
+                `utility-session:${sessionId}`
+            )
+            : null;
+        cached ||= await cacheService.get<ToolCallCachePayload>(
             STORE_NAMES.DATA,
             `utility:${queryValue}`
         );
@@ -367,7 +381,7 @@ export const executeToolCall = async ({
             await cacheToolCallResults(queryValue, {
                 stepResults,
                 toolCall: latestToolCall,
-            });
+            }, { sessionId: utilitySessionId });
 
             const searchModeStore = useSearchModeStore();
             const currentMode = searchModeStore.initialSessionMode || searchModeStore.currentMode;
@@ -410,7 +424,7 @@ export const executeToolCall = async ({
             cacheToolCallResults(queryValue, {
                 stepResults: exploreResult.data,
                 toolCall,
-            }).catch(console.error);
+            }, { sessionId: utilitySessionId }).catch(console.error);
 
             // 将搜索结果索引到智能补全服务
             const smartService = getSmartSuggestService();

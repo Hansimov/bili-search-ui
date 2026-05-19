@@ -1069,6 +1069,7 @@
         <figure class="tool-comment-image-stage">
           <div
             ref="commentImageFrameRef"
+            tabindex="0"
             class="tool-comment-image-frame"
             :class="{
               'tool-comment-image-frame--zoomed':
@@ -1077,6 +1078,8 @@
                 commentImagePan.active,
               'tool-comment-image-frame--long':
                 isActiveCommentImageLong(),
+              'tool-comment-image-frame--fit-width':
+                commentImageViewer.fitMode === 'width',
             }"
             @pointerdown="startCommentImagePan"
             @pointermove="moveCommentImagePan"
@@ -1084,6 +1087,7 @@
             @pointercancel="endCommentImagePan"
             @pointerleave="endCommentImagePan"
             @wheel="handleCommentImageWheel"
+            @keydown="handleCommentImageFrameKeydown"
           >
             <div class="tool-comment-image-counter" aria-live="polite">
               <span>{{ commentImageViewer.index + 1 }} / {{ commentImageViewer.images.length }}</span>
@@ -1156,6 +1160,12 @@ import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
 import { formatToolCallArgs } from 'src/utils/toolCall';
 import { renderMarkdown } from 'src/utils/markdown';
 import { getCachedImageUrl } from 'src/services/imageCacheService';
+import {
+  cacheService,
+  EXPLORE_CACHE_TTL,
+  STORE_NAMES,
+} from 'src/services/cacheService';
+import type { ExploreStepResult } from 'src/stores/resultStore';
 
 /** Video hit from search result */
 interface VideoHit {
@@ -1409,6 +1419,7 @@ const COMMENT_IMAGE_SCALE_MIN = 0.1;
 const COMMENT_IMAGE_SCALE_MAX = 2.5;
 const COMMENT_IMAGE_SCALE_STEP = 0.1;
 const COMMENT_IMAGE_SCALE_DEFAULT = 1;
+const COMMENT_IMAGE_FIT_GUTTER_PX = 2;
 const COMMENT_IMAGE_SCALE_OPTIONS = [
   0.1,
   0.2,
@@ -3198,11 +3209,16 @@ export default defineComponent({
       const frameWidth = commentImageFrameSize.value.width;
       const frameHeight = commentImageFrameSize.value.height;
       if (!frameWidth || !frameHeight) return COMMENT_IMAGE_SCALE_DEFAULT;
+      const safeFrameWidth = Math.max(1, frameWidth - COMMENT_IMAGE_FIT_GUTTER_PX);
+      const safeFrameHeight = Math.max(
+        1,
+        frameHeight - COMMENT_IMAGE_FIT_GUTTER_PX
+      );
       return clampCommentImageScale(
         Math.min(
           COMMENT_IMAGE_SCALE_DEFAULT,
-          frameWidth / naturalWidth,
-          frameHeight / naturalHeight
+          safeFrameWidth / naturalWidth,
+          safeFrameHeight / naturalHeight
         )
       );
     };
@@ -3214,7 +3230,8 @@ export default defineComponent({
       if (!naturalWidth) return COMMENT_IMAGE_SCALE_DEFAULT;
       const frameWidth = commentImageFrameSize.value.width;
       if (!frameWidth) return COMMENT_IMAGE_SCALE_DEFAULT;
-      return clampCommentImageScale(frameWidth / naturalWidth);
+      const safeFrameWidth = Math.max(1, frameWidth - COMMENT_IMAGE_FIT_GUTTER_PX);
+      return clampCommentImageScale(safeFrameWidth / naturalWidth);
     };
 
     const getCommentImageTargetScale = (): number => {
@@ -3426,6 +3443,7 @@ export default defineComponent({
       nextTick(() => {
         observeCommentImageFrame();
         resetCommentImageFrameScroll();
+        focusCommentImageFrame();
       });
       cacheActiveCommentImageNeighborhood();
       window.setTimeout(cacheAllCommentViewerImages, 800);
@@ -3526,6 +3544,11 @@ export default defineComponent({
       frame.scrollTop = 0;
     };
 
+    const focusCommentImageFrame = () => {
+      const frame = commentImageFrameRef.value;
+      frame?.focus({ preventScroll: true });
+    };
+
     const showPreviousCommentImage = () => {
       const length = commentImageViewer.value.images.length;
       if (!length) return;
@@ -3535,6 +3558,7 @@ export default defineComponent({
       nextTick(() => {
         observeCommentImageFrame();
         resetCommentImageFrameScroll();
+        focusCommentImageFrame();
       });
       cacheActiveCommentImageNeighborhood();
     };
@@ -3547,6 +3571,7 @@ export default defineComponent({
       nextTick(() => {
         observeCommentImageFrame();
         resetCommentImageFrameScroll();
+        focusCommentImageFrame();
       });
       cacheActiveCommentImageNeighborhood();
     };
@@ -3595,6 +3620,33 @@ export default defineComponent({
       if (canScroll) {
         event.stopPropagation();
       }
+    };
+
+    const handleCommentImageFrameKeydown = (event: KeyboardEvent) => {
+      const frame = event.currentTarget as HTMLElement | null;
+      if (!frame) return;
+      const lineStep = 84;
+      const pageStep = Math.max(120, frame.clientHeight * 0.85);
+      let delta = 0;
+      if (event.key === 'ArrowDown') {
+        delta = lineStep;
+      } else if (event.key === 'ArrowUp') {
+        delta = -lineStep;
+      } else if (event.key === 'PageDown') {
+        delta = pageStep;
+      } else if (event.key === 'PageUp') {
+        delta = -pageStep;
+      } else {
+        return;
+      }
+      const nextTop = Math.min(
+        Math.max(0, frame.scrollTop + delta),
+        Math.max(0, frame.scrollHeight - frame.clientHeight)
+      );
+      if (nextTop === frame.scrollTop) return;
+      event.preventDefault();
+      event.stopPropagation();
+      frame.scrollTop = nextTop;
     };
 
     const endCommentImagePan = (event: PointerEvent) => {
@@ -3907,6 +3959,98 @@ export default defineComponent({
       return result;
     };
 
+    const isSameVideoCommentItem = (
+      left: VideoCommentsItem,
+      right: VideoCommentsItem
+    ): boolean =>
+      String(left.bvid || '') === String(right.bvid || '') &&
+      String(left.mode || '') === String(right.mode || '');
+
+    const buildCachedUtilityStepResults = (
+      toolCall: ToolCall | null
+    ): ExploreStepResult[] => {
+      if (!toolCall) return [];
+      const hasError =
+        toolCall.result &&
+        typeof toolCall.result === 'object' &&
+        'error' in (toolCall.result as Record<string, unknown>);
+      const status = hasError
+        ? 'failed'
+        : toolCall.status === 'pending' || toolCall.status === 'streaming'
+        ? 'running'
+        : 'finished';
+      return [
+        {
+          step: 1,
+          name: toolCall.type,
+          name_zh:
+            toolCall.type === 'video_comments'
+              ? '视频评论'
+              : toolCall.type === 'video_comments_full'
+              ? '完整评论'
+              : toolCall.type,
+          status,
+          input: toolCall.args,
+          output: { tool_result: toolCall.result || {} },
+          output_type: 'tool_result',
+          comment: '',
+        },
+      ];
+    };
+
+    const getCurrentUtilitySessionId = (): string => {
+      if (typeof window === 'undefined') return '';
+      const match = window.location.pathname.match(/^\/chat\/([^/?#]+)/);
+      return match ? decodeURIComponent(match[1] || '') : '';
+    };
+
+    const cacheUtilitySessionToolCallSnapshot = async (
+      toolCall: ToolCall,
+      stepResults: ExploreStepResult[]
+    ) => {
+      const sessionId = getCurrentUtilitySessionId();
+      if (!sessionId) return;
+      const payload = JSON.parse(
+        JSON.stringify({
+          stepResults,
+          toolCall,
+        })
+      );
+      await cacheService.set(
+        STORE_NAMES.DATA,
+        `utility-session:${sessionId}`,
+        payload,
+        {
+          ttl: EXPLORE_CACHE_TTL,
+          namespace: 'utility-results',
+        }
+      );
+    };
+
+    const persistMergedVideoCommentToolCall = (
+      call: ToolCall,
+      originalItem: VideoCommentsItem,
+      mergedItem: VideoCommentsItem
+    ) => {
+      const activeCall = call;
+      const result = (activeCall.result as Record<string, unknown>) || {};
+      const items = Array.isArray(result.items)
+        ? (result.items as VideoCommentsItem[]).map((candidate) =>
+            isSameVideoCommentItem(candidate, originalItem) ? mergedItem : candidate
+          )
+        : [mergedItem];
+      const updatedCall: ToolCall = {
+        ...activeCall,
+        status: activeCall.status === 'pending' ? 'streaming' : activeCall.status,
+        result: {
+          ...result,
+          items,
+        },
+      };
+      const stepResults = buildCachedUtilityStepResults(updatedCall);
+      void cacheUtilitySessionToolCallSnapshot(updatedCall, stepResults);
+    };
+
     const loadMoreComments = async (
       idx: number,
       call: ToolCall,
@@ -3997,6 +4141,19 @@ export default defineComponent({
           loading: false,
           error: '',
         };
+        persistMergedVideoCommentToolCall(call, item, {
+          ...nextItem,
+          comments,
+          summary: nextItem.summary || item.summary,
+          pagination: {
+            ...(nextItem.pagination || {}),
+            loaded: comments.length,
+            returned: comments.length,
+          },
+          status: nextStatus,
+          refresh_status:
+            nextStatus === 'running' ? nextItem.refresh_status : undefined,
+        });
       } catch (error) {
         loadedCommentItems.value[key] = {
           ...state,
@@ -4516,6 +4673,7 @@ export default defineComponent({
       moveCommentImagePan,
       endCommentImagePan,
       handleCommentImageWheel,
+      handleCommentImageFrameKeydown,
       jumpToActiveCommentImageComment,
       getToolError,
       getQueryList,
@@ -5945,6 +6103,11 @@ body.body--dark .tool-comments-empty--syncing {
 .tool-comment-image-frame--zoomed {
   overflow: auto;
   cursor: grab;
+}
+
+.tool-comment-image-frame--fit-width {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .tool-comment-image-frame--panning {
