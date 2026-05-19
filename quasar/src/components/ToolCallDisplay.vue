@@ -975,43 +975,122 @@
     class="tool-comment-image-overlay"
     @click.self="closeCommentImageViewer"
   >
-    <button
-      type="button"
-      class="tool-comment-image-nav tool-comment-image-nav--prev"
-      @click.stop="showPreviousCommentImage"
+    <section
+      class="tool-comment-image-shell"
+      :style="getCommentImageShellStyle()"
+      @click.stop
     >
-      ‹
-    </button>
-    <figure class="tool-comment-image-stage">
-      <img :src="getActiveCommentImage()?.url" alt="" />
-      <figcaption class="tool-comment-image-meta">
-        <span>
-          {{ getCommentAuthor(getActiveCommentImageComment()) }}
-        </span>
-        <span>{{ getCommentTime(getActiveCommentImageComment()) }}</span>
-        <span>
-          {{ commentImageViewer.index + 1 }} /
-          {{ commentImageViewer.images.length }}
-        </span>
-      </figcaption>
-      <div class="tool-comment-image-caption">
-        {{ getCommentMessage(getActiveCommentImageComment()) }}
+      <div class="tool-comment-image-toolbar">
+        <div class="tool-comment-image-toolbar-group">
+          <button
+            type="button"
+            class="tool-comment-image-toolbar-button"
+            @click.stop="showPreviousCommentImage"
+          >
+            上一张
+          </button>
+          <button
+            type="button"
+            class="tool-comment-image-toolbar-button"
+            @click.stop="showNextCommentImage"
+          >
+            下一张
+          </button>
+        </div>
+        <div class="tool-comment-image-toolbar-group tool-comment-image-zoom">
+          <button
+            type="button"
+            class="tool-comment-image-toolbar-button tool-comment-image-zoom-out"
+            @click.stop="zoomOutCommentImage"
+          >
+            缩小
+          </button>
+          <input
+            class="tool-comment-image-zoom-range"
+            type="range"
+            :min="COMMENT_IMAGE_SCALE_MIN"
+            :max="COMMENT_IMAGE_SCALE_MAX"
+            :step="COMMENT_IMAGE_SCALE_STEP"
+            :value="commentImageViewer.scale"
+            aria-label="缩放比例"
+            @input="setCommentImageScaleFromEvent"
+            @click.stop
+          />
+          <button
+            type="button"
+            class="tool-comment-image-toolbar-button tool-comment-image-scale"
+            @click.stop="resetCommentImageScale"
+          >
+            {{ getCommentImageScalePercent() }}
+          </button>
+          <button
+            type="button"
+            class="tool-comment-image-toolbar-button tool-comment-image-zoom-in"
+            @click.stop="zoomInCommentImage"
+          >
+            放大
+          </button>
+        </div>
+        <button
+          type="button"
+          class="tool-comment-image-toolbar-button tool-comment-image-close"
+          @click.stop="closeCommentImageViewer"
+        >
+          关闭
+        </button>
       </div>
-    </figure>
-    <button
-      type="button"
-      class="tool-comment-image-nav tool-comment-image-nav--next"
-      @click.stop="showNextCommentImage"
-    >
-      ›
-    </button>
-    <button
-      type="button"
-      class="tool-comment-image-close"
-      @click.stop="closeCommentImageViewer"
-    >
-      关闭
-    </button>
+      <div class="tool-comment-image-body">
+        <button
+          type="button"
+          class="tool-comment-image-nav tool-comment-image-nav--prev"
+          @click.stop="showPreviousCommentImage"
+        >
+          ‹
+        </button>
+        <figure class="tool-comment-image-stage">
+          <div
+            class="tool-comment-image-frame"
+            :class="{
+              'tool-comment-image-frame--zoomed':
+                commentImageViewer.scale > COMMENT_IMAGE_SCALE_DEFAULT,
+            }"
+            @click.self="closeCommentImageViewer"
+          >
+            <img
+              :src="getActiveCommentImage()?.url"
+              :style="getCommentImageScaleStyle()"
+              alt=""
+              @click.stop
+            />
+          </div>
+        </figure>
+        <button
+          type="button"
+          class="tool-comment-image-nav tool-comment-image-nav--next"
+          @click.stop="showNextCommentImage"
+        >
+          ›
+        </button>
+      </div>
+      <footer class="tool-comment-image-info">
+        <div class="tool-comment-image-meta">
+          <span class="tool-comment-image-author">
+            {{ getCommentAuthor(getActiveCommentImageComment()) }}
+          </span>
+          <span>{{ getCommentTime(getActiveCommentImageComment()) }}</span>
+          <span>
+            全部 {{ commentImageViewer.index + 1 }} /
+            {{ commentImageViewer.images.length }}
+          </span>
+          <span v-if="getActiveCommentImagePositionText()">
+            {{ getActiveCommentImagePositionText() }}
+          </span>
+        </div>
+        <div class="tool-comment-image-caption">
+          {{ getCommentMessage(getActiveCommentImageComment()) }}
+        </div>
+      </footer>
+    </section>
   </div>
 </template>
 
@@ -1194,12 +1273,15 @@ interface CommentImageEntry {
   url: string;
   comment: VideoComment;
   bvid: string;
+  pictureIndex: number;
+  commentPictureCount: number;
 }
 
 interface CommentImageViewerState {
   open: boolean;
   images: CommentImageEntry[];
   index: number;
+  scale: number;
 }
 
 const DISPLAYABLE_INTERNAL_TOOLS = new Set(['run_small_llm_task']);
@@ -1266,6 +1348,11 @@ const TOOL_RUNNING_STATUS_TEXTS: Record<string, string> = {
   video_comments_full: '读取中...',
 };
 
+const COMMENT_IMAGE_SCALE_MIN = 0.5;
+const COMMENT_IMAGE_SCALE_MAX = 2.5;
+const COMMENT_IMAGE_SCALE_STEP = 0.1;
+const COMMENT_IMAGE_SCALE_DEFAULT = 1;
+
 export default defineComponent({
   name: 'ToolCallDisplay',
   props: {
@@ -1309,6 +1396,12 @@ export default defineComponent({
       open: false,
       images: [],
       index: 0,
+      scale: COMMENT_IMAGE_SCALE_DEFAULT,
+    });
+    const commentImageViewport = ref({
+      width: 0,
+      height: 0,
+      rootZoom: 1,
     });
     const previousStatuses = ref<Record<number, string | undefined>>({});
     const isCompactToolDisplay = ref(false);
@@ -1321,6 +1414,7 @@ export default defineComponent({
     >();
     const COMMENT_ROOT_INITIAL_RENDER_LIMIT = 160;
     const COMMENT_ROOT_RENDER_STEP = 160;
+    let previousBodyOverflow = '';
     const visibleToolCalls = computed(() =>
       props.toolCalls.filter(
         (call) =>
@@ -2561,7 +2655,7 @@ export default defineComponent({
     const shouldShowCommentRepliesControls = (
       idx: number,
       root: VideoCommentNode
-    ): boolean => getVisibleCommentReplyCount(idx, root) > 1;
+    ): boolean => root.replies.length > 1;
 
     const getRenderedCommentReplies = (
       idx: number,
@@ -2857,19 +2951,102 @@ export default defineComponent({
       getVideoCommentItems(call).forEach((item) => {
         getVideoCommentTree(item).forEach((root) => {
           [root, ...root.replies].forEach((comment) => {
-            getCommentPictures(comment).forEach((picture) => {
+            const pictures = getCommentPictures(comment);
+            pictures.forEach((picture, pictureIndex) => {
               const url = getCommentPictureUrl(picture);
               if (!url) return;
               images.push({
                 url,
                 comment,
                 bvid: String(item.bvid || ''),
+                pictureIndex,
+                commentPictureCount: pictures.length,
               });
             });
           });
         });
       });
       return images;
+    };
+
+    const clampCommentImageScale = (value: number): number =>
+      Math.min(
+        COMMENT_IMAGE_SCALE_MAX,
+        Math.max(COMMENT_IMAGE_SCALE_MIN, Number(value.toFixed(2)))
+      );
+
+    const setCommentImageScale = (value: number) => {
+      commentImageViewer.value.scale = clampCommentImageScale(value);
+    };
+
+    const setCommentImageScaleFromEvent = (event: Event) => {
+      const input = event.target as HTMLInputElement | null;
+      setCommentImageScale(Number(input?.value || COMMENT_IMAGE_SCALE_DEFAULT));
+    };
+
+    const resetCommentImageScale = () => {
+      setCommentImageScale(COMMENT_IMAGE_SCALE_DEFAULT);
+    };
+
+    const zoomOutCommentImage = () => {
+      setCommentImageScale(
+        commentImageViewer.value.scale - COMMENT_IMAGE_SCALE_STEP
+      );
+    };
+
+    const zoomInCommentImage = () => {
+      setCommentImageScale(
+        commentImageViewer.value.scale + COMMENT_IMAGE_SCALE_STEP
+      );
+    };
+
+    const getCommentImageScalePercent = (): string =>
+      `${Math.round(commentImageViewer.value.scale * 100)}%`;
+
+    const getCommentImageScaleStyle = () => {
+      const scale = commentImageViewer.value.scale;
+      if (scale > COMMENT_IMAGE_SCALE_DEFAULT) {
+        return {
+          width: `${Math.round(scale * 100)}%`,
+          maxWidth: 'none',
+          maxHeight: 'none',
+          transform: 'none',
+        };
+      }
+      return {
+        transform: `scale(${scale})`,
+      };
+    };
+
+    const getRootZoom = (): number => {
+      if (typeof document === 'undefined') return 1;
+      const zoom = Number(getComputedStyle(document.documentElement).zoom || 1);
+      return Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+    };
+
+    const updateCommentImageViewport = () => {
+      if (typeof window === 'undefined') return;
+      commentImageViewport.value = {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        rootZoom: getRootZoom(),
+      };
+    };
+
+    const getCommentImageShellStyle = () => {
+      const viewport = commentImageViewport.value;
+      const rootZoom = viewport.rootZoom || 1;
+      const viewportHeight = viewport.height || 0;
+      if (!viewportHeight) return {};
+      const margin = isCompactToolDisplay.value ? 20 : 48;
+      const maxHeight = Math.max(
+        260,
+        Math.min(920, viewportHeight / rootZoom - margin)
+      );
+      return {
+        height: `${maxHeight}px`,
+        maxHeight: `${maxHeight}px`,
+      };
     };
 
     const openCommentImageViewer = (
@@ -2880,12 +3057,14 @@ export default defineComponent({
       const currentPictures = getCommentPictures(comment);
       const currentUrl = getCommentPictureUrl(currentPictures[pictureIndex] || {});
       const images = collectCommentImages(call);
+      if (!currentUrl && !images.length) return;
       const currentCommentId = getCommentId(comment);
       const index = Math.max(
         images.findIndex(
           (entry) =>
             getCommentId(entry.comment) === currentCommentId &&
-            entry.url === currentUrl
+            entry.url === currentUrl &&
+            entry.pictureIndex === pictureIndex
         ),
         0
       );
@@ -2894,10 +3073,20 @@ export default defineComponent({
         images: images.length
           ? images
           : currentUrl
-          ? [{ url: currentUrl, comment, bvid: '' }]
+          ? [
+              {
+                url: currentUrl,
+                comment,
+                bvid: '',
+                pictureIndex,
+                commentPictureCount: currentPictures.length,
+              },
+            ]
           : [],
         index,
+        scale: COMMENT_IMAGE_SCALE_DEFAULT,
       };
+      updateCommentImageViewport();
     };
 
     const getActiveCommentImage = (): CommentImageEntry | null => {
@@ -2909,7 +3098,12 @@ export default defineComponent({
       getActiveCommentImage()?.comment || {};
 
     const closeCommentImageViewer = () => {
-      commentImageViewer.value = { open: false, images: [], index: 0 };
+      commentImageViewer.value = {
+        open: false,
+        images: [],
+        index: 0,
+        scale: COMMENT_IMAGE_SCALE_DEFAULT,
+      };
     };
 
     const showPreviousCommentImage = () => {
@@ -2917,12 +3111,70 @@ export default defineComponent({
       if (!length) return;
       commentImageViewer.value.index =
         (commentImageViewer.value.index - 1 + length) % length;
+      resetCommentImageScale();
     };
 
     const showNextCommentImage = () => {
       const length = commentImageViewer.value.images.length;
       if (!length) return;
       commentImageViewer.value.index = (commentImageViewer.value.index + 1) % length;
+      resetCommentImageScale();
+    };
+
+    const getActiveCommentImagePositionText = (): string => {
+      const image = getActiveCommentImage();
+      if (!image || image.commentPictureCount <= 1) return '';
+      return `本评论 ${image.pictureIndex + 1} / ${image.commentPictureCount}`;
+    };
+
+    const syncCommentImageViewerBodyLock = (open: boolean) => {
+      if (typeof document === 'undefined') return;
+      const body = document.body;
+      if (open) {
+        if (!body.dataset.toolCommentImageLocked) {
+          previousBodyOverflow = body.style.overflow;
+          body.dataset.toolCommentImageLocked = 'true';
+        }
+        body.style.overflow = 'hidden';
+        return;
+      }
+      if (body.dataset.toolCommentImageLocked) {
+        body.style.overflow = previousBodyOverflow;
+        delete body.dataset.toolCommentImageLocked;
+        previousBodyOverflow = '';
+      }
+    };
+
+    const handleCommentImageViewerKeydown = (event: KeyboardEvent) => {
+      if (!commentImageViewer.value.open) return;
+      const target = event.target as HTMLElement | null;
+      const isRangeInput =
+        target instanceof HTMLInputElement && target.type === 'range';
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeCommentImageViewer();
+        return;
+      }
+      if (isRangeInput) return;
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        showPreviousCommentImage();
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        showNextCommentImage();
+        return;
+      }
+      if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        zoomInCommentImage();
+        return;
+      }
+      if (event.key === '-') {
+        event.preventDefault();
+        zoomOutCommentImage();
+      }
     };
 
     const getVideoCommentItemMeta = (item: VideoCommentsItem): string => {
@@ -3585,6 +3837,16 @@ export default defineComponent({
       { deep: true, immediate: true }
     );
 
+    watch(
+      () => commentImageViewer.value.open,
+      (open) => {
+        syncCommentImageViewerBodyLock(open);
+        if (open) {
+          nextTick(updateCommentImageViewport);
+        }
+      }
+    );
+
     const toggleExpand = (idx: number) => {
       const call = visibleToolCalls.value[idx];
       if (call && isExpandable(call)) {
@@ -3607,14 +3869,26 @@ export default defineComponent({
     };
 
     onMounted(() => {
-      if (typeof window === 'undefined' || !window.matchMedia) return;
-      compactMediaQuery = window.matchMedia(COMPACT_TOOL_DISPLAY_QUERY);
-      updateCompactToolDisplay();
-      compactMediaQuery.addEventListener?.('change', updateCompactToolDisplay);
+      if (typeof window === 'undefined') return;
+      if (window.matchMedia) {
+        compactMediaQuery = window.matchMedia(COMPACT_TOOL_DISPLAY_QUERY);
+        updateCompactToolDisplay();
+        compactMediaQuery.addEventListener?.('change', updateCompactToolDisplay);
+      }
+      updateCommentImageViewport();
+      window.addEventListener('resize', updateCommentImageViewport);
+      document.addEventListener('keydown', handleCommentImageViewerKeydown);
     });
 
     onBeforeUnmount(() => {
       clearAllCommentAutoRefreshTimers();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('keydown', handleCommentImageViewerKeydown);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', updateCommentImageViewport);
+      }
+      syncCommentImageViewerBodyLock(false);
       compactMediaQuery?.removeEventListener?.(
         'change',
         updateCompactToolDisplay
@@ -3707,12 +3981,24 @@ export default defineComponent({
       toggleCommentReference,
       scrollCommentsToTop,
       commentImageViewer,
+      COMMENT_IMAGE_SCALE_MIN,
+      COMMENT_IMAGE_SCALE_MAX,
+      COMMENT_IMAGE_SCALE_STEP,
+      COMMENT_IMAGE_SCALE_DEFAULT,
       openCommentImageViewer,
       getActiveCommentImage,
       getActiveCommentImageComment,
       closeCommentImageViewer,
       showPreviousCommentImage,
       showNextCommentImage,
+      zoomOutCommentImage,
+      zoomInCommentImage,
+      resetCommentImageScale,
+      setCommentImageScaleFromEvent,
+      getCommentImageScalePercent,
+      getCommentImageScaleStyle,
+      getCommentImageShellStyle,
+      getActiveCommentImagePositionText,
       getToolError,
       getQueryList,
       formatToolArgs,
@@ -4992,79 +5278,199 @@ body.body--dark .tool-comments-empty--syncing {
 }
 
 .tool-comment-image-overlay {
+  box-sizing: border-box;
   position: fixed;
   inset: 0;
   z-index: 7000;
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 56px;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 28px;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
   background: rgba(12, 18, 26, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.tool-comment-image-shell {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  width: min(1120px, 100%);
+  height: min(calc(100dvh - 48px), 920px);
+  max-height: calc(100dvh - 48px);
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(13, 18, 25, 0.94);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
+}
+
+.tool-comment-image-toolbar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tool-comment-image-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tool-comment-image-toolbar-button {
+  box-sizing: border-box;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(120, 150, 180, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(238, 244, 252, 0.88);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tool-comment-image-toolbar-button:hover {
+  border-color: rgba(92, 174, 236, 0.42);
+  background: rgba(73, 135, 190, 0.18);
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.tool-comment-image-zoom {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.tool-comment-image-zoom-range {
+  width: min(180px, 22vw);
+  accent-color: #58a6d9;
+}
+
+.tool-comment-image-scale {
+  min-width: 58px;
+  padding-inline: 8px;
+  color: rgba(180, 220, 250, 0.94);
+}
+
+.tool-comment-image-body {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 12px;
+  min-height: 0;
 }
 
 .tool-comment-image-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  box-sizing: border-box;
   min-width: 0;
-  max-height: calc(100vh - 56px);
+  min-height: 0;
+  height: 100%;
   margin: 0;
 }
 
-.tool-comment-image-stage img {
+.tool-comment-image-frame {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(124, 151, 177, 0.42) rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  background: rgba(4, 7, 11, 0.42);
+  cursor: zoom-out;
+}
+
+.tool-comment-image-frame--zoomed {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.tool-comment-image-frame img {
+  display: block;
   max-width: 100%;
-  max-height: calc(100vh - 142px);
+  max-height: 100%;
   object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.36);
+  transform-origin: center center;
+  transition: transform 0.16s ease;
+  cursor: default;
+}
+
+.tool-comment-image-info {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 0;
+  max-height: 22vh;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .tool-comment-image-meta {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 8px;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(218, 231, 245, 0.76);
   font-size: 12px;
+}
+
+.tool-comment-image-author {
+  color: rgba(118, 193, 243, 0.96);
+  font-weight: 650;
 }
 
 .tool-comment-image-caption {
-  max-width: 760px;
-  max-height: 44px;
-  overflow: hidden;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px;
-  line-height: 1.45;
-  text-align: center;
+  color: rgba(244, 248, 252, 0.88);
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: left;
+  white-space: pre-wrap;
 }
 
-.tool-comment-image-nav,
-.tool-comment-image-close {
+.tool-comment-image-nav {
+  box-sizing: border-box;
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 54px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.88);
+  font-size: 34px;
+  line-height: 1;
   cursor: pointer;
 }
 
-.tool-comment-image-nav {
-  width: 44px;
-  height: 52px;
-  font-size: 34px;
-  line-height: 1;
-}
-
-.tool-comment-image-close {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  min-height: 30px;
-  padding: 0 12px;
-  font-size: 12px;
+.tool-comment-image-nav:hover {
+  border-color: rgba(92, 174, 236, 0.42);
+  background: rgba(73, 135, 190, 0.18);
 }
 
 .tool-owner-group {
@@ -5643,14 +6049,51 @@ body.body--dark .tool-google-result-open {
   }
 
   .tool-comment-image-overlay {
-    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    padding: 10px;
+  }
+
+  .tool-comment-image-shell {
+    height: calc(100dvh - 20px);
+    max-height: calc(100dvh - 20px);
+    gap: 8px;
+    padding: 8px;
+    border-radius: 10px;
+  }
+
+  .tool-comment-image-toolbar {
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .tool-comment-image-toolbar-group {
     gap: 6px;
-    padding: 18px 10px;
+  }
+
+  .tool-comment-image-zoom {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .tool-comment-image-zoom-range {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 80px;
+  }
+
+  .tool-comment-image-body {
+    grid-template-columns: 34px minmax(0, 1fr) 34px;
+    gap: 6px;
   }
 
   .tool-comment-image-nav {
-    width: 34px;
-    height: 44px;
+    width: 32px;
+    height: 42px;
+    font-size: 28px;
+  }
+
+  .tool-comment-image-info {
+    max-height: 26vh;
+    padding: 8px 9px;
   }
 
   .per-query-header {

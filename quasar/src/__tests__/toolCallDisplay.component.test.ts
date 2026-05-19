@@ -254,6 +254,11 @@ const videoCommentsCall: ToolCall = {
                                     width: 640,
                                     height: 360,
                                 },
+                                {
+                                    url: '//i0.hdslb.com/bfs/new_dyn/root-2.jpg',
+                                    width: 360,
+                                    height: 900,
+                                },
                             ],
                         },
                         like: 88,
@@ -565,7 +570,7 @@ describe('ToolCallDisplay component', () => {
             'https://space.bilibili.com/1'
         );
         const thumbnails = wrapper.findAll('.tool-comment-image-thumb img');
-        expect(thumbnails).toHaveLength(2);
+        expect(thumbnails).toHaveLength(3);
         expect(thumbnails[0]?.attributes('src')).toContain(
             'i0.hdslb.com/bfs/new_dyn/root.jpg'
         );
@@ -585,11 +590,25 @@ describe('ToolCallDisplay component', () => {
         await wrapper.find('.tool-comment-image-thumb').trigger('click');
 
         expect(wrapper.find('.tool-comment-image-overlay').exists()).toBe(true);
-        expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('1 / 2');
+        expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('全部 1 / 3');
+        expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('本评论 1 / 2');
+        await nextTick();
+        expect(document.body.style.overflow).toBe('hidden');
+        await wrapper.find('.tool-comment-image-zoom-in').trigger('click');
+        expect(wrapper.find('.tool-comment-image-scale').text()).toContain('110%');
+        expect(
+            wrapper.find('.tool-comment-image-frame--zoomed').exists()
+        ).toBe(true);
         await wrapper.find('.tool-comment-image-nav--next').trigger('click');
-        expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('2 / 2');
+        expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('全部 2 / 3');
+        expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('本评论 2 / 2');
+        expect(wrapper.find('.tool-comment-image-scale').text()).toContain('100%');
+        expect(
+            wrapper.find('.tool-comment-image-frame--zoomed').exists()
+        ).toBe(false);
         await wrapper.find('.tool-comment-image-close').trigger('click');
         expect(wrapper.find('.tool-comment-image-overlay').exists()).toBe(false);
+        expect(document.body.style.overflow).toBe('');
 
         const commentReplyWord = wrapper
             .findAll('.tool-comment-reply-word')
@@ -646,7 +665,7 @@ describe('ToolCallDisplay component', () => {
             .trigger('click');
         await nextTick();
         expect(wrapper.find('.tool-comment-reply-list').exists()).toBe(true);
-        expect(wrapper.find('.tool-comments-sort--small').exists()).toBe(false);
+        expect(wrapper.find('.tool-comments-sort--small').exists()).toBe(true);
 
         const createObjectURL = vi.fn(() => 'blob:comments');
         const revokeObjectURL = vi.fn();
