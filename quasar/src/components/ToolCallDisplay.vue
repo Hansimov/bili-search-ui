@@ -3622,9 +3622,13 @@ export default defineComponent({
       }
     };
 
-    const handleCommentImageFrameKeydown = (event: KeyboardEvent) => {
-      const frame = event.currentTarget as HTMLElement | null;
-      if (!frame) return;
+    const scrollCommentImageFrameByKey = (
+      event: KeyboardEvent,
+      frame: HTMLElement | null = commentImageFrameRef.value
+    ): boolean => {
+      if (!frame || frame.scrollHeight <= frame.clientHeight + 1) {
+        return false;
+      }
       const lineStep = 84;
       const pageStep = Math.max(120, frame.clientHeight * 0.85);
       let delta = 0;
@@ -3637,16 +3641,24 @@ export default defineComponent({
       } else if (event.key === 'PageUp') {
         delta = -pageStep;
       } else {
-        return;
+        return false;
       }
       const nextTop = Math.min(
         Math.max(0, frame.scrollTop + delta),
         Math.max(0, frame.scrollHeight - frame.clientHeight)
       );
-      if (nextTop === frame.scrollTop) return;
+      if (nextTop === frame.scrollTop) return false;
       event.preventDefault();
       event.stopPropagation();
       frame.scrollTop = nextTop;
+      return true;
+    };
+
+    const handleCommentImageFrameKeydown = (event: KeyboardEvent) => {
+      scrollCommentImageFrameByKey(
+        event,
+        event.currentTarget as HTMLElement | null
+      );
     };
 
     const endCommentImagePan = (event: PointerEvent) => {
@@ -3696,14 +3708,20 @@ export default defineComponent({
     const handleCommentImageViewerKeydown = (event: KeyboardEvent) => {
       if (!commentImageViewer.value.open) return;
       const target = event.target as HTMLElement | null;
-      const isRangeInput =
-        target instanceof HTMLInputElement && target.type === 'range';
+      const isEditableTarget =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement ||
+        Boolean(target?.isContentEditable);
       if (event.key === 'Escape') {
         event.preventDefault();
         closeCommentImageViewer();
         return;
       }
-      if (isRangeInput) return;
+      if (isEditableTarget) return;
+      if (scrollCommentImageFrameByKey(event)) {
+        return;
+      }
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
         showPreviousCommentImage();
@@ -6098,6 +6116,11 @@ body.body--dark .tool-comments-empty--syncing {
   cursor: default;
   touch-action: none;
   user-select: none;
+}
+
+.tool-comment-image-frame:focus,
+.tool-comment-image-frame:focus-visible {
+  outline: none;
 }
 
 .tool-comment-image-frame--zoomed {
