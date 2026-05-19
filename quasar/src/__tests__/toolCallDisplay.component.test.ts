@@ -717,7 +717,7 @@ describe('ToolCallDisplay component', () => {
                         title: '分页测试视频',
                         owner: { mid: 1, name: '测试UP主' },
                         mode: 'full',
-                        summary: { comment_count: 3, estimated_total: 3 },
+                        summary: { comment_count: 5, estimated_total: 5 },
                         pagination: {
                             pn: 1,
                             ps: 2,
@@ -744,7 +744,7 @@ describe('ToolCallDisplay component', () => {
                         {
                             bvid: 'BVloadmore',
                             mode: 'full',
-                            summary: { comment_count: 3, estimated_total: 3 },
+                            summary: { comment_count: 5, estimated_total: 5 },
                             pagination: {
                                 pn: 2,
                                 ps: 2,
@@ -769,12 +769,12 @@ describe('ToolCallDisplay component', () => {
                         {
                             bvid: 'BVloadmore',
                             mode: 'full',
-                            summary: { comment_count: 3, estimated_total: 3 },
+                            summary: { comment_count: 5, estimated_total: 5 },
                             pagination: {
                                 pn: 3,
                                 ps: 2,
                                 returned: 1,
-                                loaded: 3,
+                                loaded: 5,
                                 has_more_stored: false,
                                 next_pn: 4,
                             },
@@ -894,6 +894,298 @@ describe('ToolCallDisplay component', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string).pn).toBe(3);
         expect(wrapper.text()).toContain('补齐缺失评论6');
+    });
+
+    it('rescans earlier stored pages when running comment sync shifts page boundaries', async () => {
+        const pageComment = (rpid: number, message: string) => ({
+            rpid,
+            ctime: 1779000000 + rpid,
+            parent: 0,
+            root: 0,
+            root_rpid: rpid,
+            is_root: true,
+            depth: 1,
+            member: { mid: rpid, uname: `作者${rpid}` },
+            content: { message },
+            like: 0,
+        });
+        const driftingCall: ToolCall = {
+            type: 'video_comments_full',
+            args: { bvid: 'BVdrifting', mode: 'full', limit: 2 },
+            status: 'completed',
+            result: {
+                status: 'partial',
+                running: ['BVdrifting'],
+                items: [
+                    {
+                        bvid: 'BVdrifting',
+                        title: '动态分页漂移测试',
+                        owner: { mid: 1, name: '测试UP主' },
+                        mode: 'full',
+                        status: 'running',
+                        refresh_status: 'running',
+                        summary: {
+                            stored_count: 3,
+                            estimated_total: 5,
+                            is_complete: false,
+                        },
+                        pagination: {
+                            pn: 2,
+                            ps: 2,
+                            returned: 1,
+                            loaded: 3,
+                            has_more_stored: true,
+                            next_pn: 3,
+                        },
+                        comments: [
+                            pageComment(1, '已有评论1'),
+                            pageComment(2, '已有评论2'),
+                            pageComment(3, '已有评论3'),
+                        ],
+                    },
+                ],
+            },
+        };
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    running: ['BVdrifting'],
+                    items: [
+                        {
+                            bvid: 'BVdrifting',
+                            mode: 'full',
+                            status: 'running',
+                            refresh_status: 'running',
+                            summary: {
+                                stored_count: 5,
+                                estimated_total: 5,
+                                is_complete: false,
+                            },
+                            pagination: {
+                                pn: 2,
+                                ps: 2,
+                                returned: 2,
+                                loaded: 4,
+                                has_more_stored: true,
+                                next_pn: 3,
+                            },
+                            comments: [
+                                pageComment(2, '已有评论2'),
+                                pageComment(3, '已有评论3'),
+                            ],
+                        },
+                    ],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    running: ['BVdrifting'],
+                    items: [
+                        {
+                            bvid: 'BVdrifting',
+                            mode: 'full',
+                            status: 'running',
+                            refresh_status: 'running',
+                            summary: {
+                                stored_count: 5,
+                                estimated_total: 5,
+                                is_complete: false,
+                            },
+                            pagination: {
+                                pn: 3,
+                                ps: 2,
+                                returned: 0,
+                                loaded: 4,
+                                has_more_stored: true,
+                                next_pn: 4,
+                            },
+                            comments: [],
+                        },
+                    ],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    running: ['BVdrifting'],
+                    items: [
+                        {
+                            bvid: 'BVdrifting',
+                            mode: 'full',
+                            status: 'running',
+                            refresh_status: 'running',
+                            summary: {
+                                stored_count: 5,
+                                estimated_total: 5,
+                                is_complete: false,
+                            },
+                            pagination: {
+                                pn: 1,
+                                ps: 2,
+                                returned: 2,
+                                loaded: 2,
+                                has_more_stored: true,
+                                next_pn: 2,
+                            },
+                            comments: [
+                                pageComment(4, '新插入热评4'),
+                                pageComment(5, '新插入热评5'),
+                            ],
+                        },
+                    ],
+                }),
+            });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const wrapper = mount(ToolCallDisplay, {
+            props: { toolCalls: [driftingCall] },
+            global: {
+                stubs: {
+                    'q-btn': true,
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        await wrapper.find('.tool-call-header').trigger('click');
+        await wrapper.find('.tool-comments-load-more-button').trigger('click');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await nextTick();
+
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(fetchMock.mock.calls.map((call) => JSON.parse(call[1]?.body as string).pn)).toEqual([
+            2,
+            3,
+            1,
+        ]);
+        expect(wrapper.text()).toContain('新插入热评4');
+        expect(wrapper.text()).toContain('新插入热评5');
+    });
+
+    it('clears stale running flags so incomplete comments can be force-resynced', async () => {
+        const pageComment = (rpid: number, message: string) => ({
+            rpid,
+            ctime: 1779000000 + rpid,
+            parent: 0,
+            root: 0,
+            root_rpid: rpid,
+            is_root: true,
+            depth: 1,
+            member: { mid: rpid, uname: `作者${rpid}` },
+            content: { message },
+            like: 0,
+        });
+        const staleRunningCall: ToolCall = {
+            type: 'video_comments_full',
+            args: { bvid: 'BVstalerunning', mode: 'full', limit: 2 },
+            status: 'completed',
+            result: {
+                status: 'partial',
+                running: ['BVstalerunning'],
+                items: [
+                    {
+                        bvid: 'BVstalerunning',
+                        title: '过期 running 测试',
+                        owner: { mid: 1, name: '测试UP主' },
+                        mode: 'full',
+                        status: 'completed',
+                        summary: {
+                            stored_count: 3,
+                            estimated_total: 5,
+                            is_complete: false,
+                        },
+                        pagination: {
+                            pn: 2,
+                            ps: 2,
+                            returned: 1,
+                            loaded: 3,
+                            has_more_stored: false,
+                            next_pn: 3,
+                        },
+                        comments: [1, 2, 3].map((rpid) =>
+                            pageComment(rpid, `已有评论${rpid}`)
+                        ),
+                    },
+                ],
+            },
+        };
+        const responseItem = {
+            bvid: 'BVstalerunning',
+            mode: 'full',
+            status: 'completed',
+            summary: {
+                stored_count: 3,
+                estimated_total: 5,
+                is_complete: false,
+            },
+            pagination: {
+                pn: 1,
+                ps: 2,
+                returned: 2,
+                loaded: 3,
+                has_more_stored: false,
+                next_pn: 2,
+            },
+            comments: [1, 2, 3].map((rpid) =>
+                pageComment(rpid, `已有评论${rpid}`)
+            ),
+        };
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    status: 'ok',
+                    running: [],
+                    scheduled: [],
+                    items: [responseItem],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    status: 'partial',
+                    running: ['BVstalerunning'],
+                    scheduled: ['BVstalerunning'],
+                    items: [
+                        {
+                            ...responseItem,
+                            status: 'running',
+                            refresh_status: 'running',
+                        },
+                    ],
+                }),
+            });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const wrapper = mount(ToolCallDisplay, {
+            props: { toolCalls: [staleRunningCall] },
+            global: {
+                stubs: {
+                    'q-btn': true,
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        await wrapper.find('.tool-call-header').trigger('click');
+        await wrapper.find('.tool-comments-load-more-button').trigger('click');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await nextTick();
+        await wrapper.find('.tool-comments-load-more-button').trigger('click');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await nextTick();
+
+        const requestBodies = fetchMock.mock.calls.map((call) =>
+            JSON.parse(call[1]?.body as string)
+        );
+        expect(requestBodies[0]?.force).toBe(false);
+        expect(requestBodies[1]?.force).toBe(true);
     });
 
     it('shows running cold-cache comments as syncing instead of empty', async () => {

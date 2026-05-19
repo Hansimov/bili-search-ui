@@ -1316,6 +1316,7 @@ interface LoadedCommentItemState {
   error?: string;
   nextPn?: number;
   requestedStoredPages?: Record<string, boolean>;
+  queuedOrRunning?: boolean;
 }
 
 type CommentSortMode = 'default' | 'hot' | 'time_asc' | 'time_desc';
@@ -3852,6 +3853,10 @@ export default defineComponent({
       call: ToolCall,
       item: VideoCommentsItem
     ): boolean => {
+      const state = getCommentItemState(call, item);
+      if (state.queuedOrRunning !== undefined) {
+        return state.queuedOrRunning;
+      }
       if (item.status === 'running' || item.refresh_status === 'running') {
         return true;
       }
@@ -3973,11 +3978,12 @@ export default defineComponent({
       state: LoadedCommentItemState,
       item: VideoCommentsItem,
       currentCount: number,
-      pageSize: number
+      pageSize: number,
+      currentAttemptPages: Record<string, boolean> = {}
     ): number => {
-      const requestedPages = new Set(
-        Object.entries(state.requestedStoredPages || {})
-          .filter(([, requested]) => requested)
+      const currentPages = new Set(
+        Object.entries(currentAttemptPages)
+          .filter(([, attempted]) => attempted)
           .map(([page]) => Number(page))
           .filter((page) => Number.isFinite(page) && page > 0)
       );
@@ -3987,14 +3993,17 @@ export default defineComponent({
       const derivedNext = Math.max(Math.floor(currentCount / pageSize) + 1, 1);
       const upperBound = Math.max(maxStoredPage || 0, derivedNext);
       for (let page = derivedNext; page <= upperBound; page += 1) {
-        if (!requestedPages.has(page)) return page;
+        if (!currentPages.has(page)) return page;
+      }
+      for (let page = 1; page <= upperBound; page += 1) {
+        if (!currentPages.has(page)) return page;
       }
 
       const stateNext = Number(state.nextPn || 0);
-      if (stateNext > 1 && !requestedPages.has(stateNext)) return stateNext;
+      if (stateNext > 1 && !currentPages.has(stateNext)) return stateNext;
       const pagination = item.pagination || {};
       const itemNext = Number(pagination.next_pn || 0);
-      if (itemNext > 1 && !requestedPages.has(itemNext)) return itemNext;
+      if (itemNext > 1 && !currentPages.has(itemNext)) return itemNext;
       return Math.max(derivedNext, stateNext, itemNext, 1);
     };
 
@@ -4093,7 +4102,8 @@ export default defineComponent({
     const persistMergedVideoCommentToolCall = (
       call: ToolCall,
       originalItem: VideoCommentsItem,
-      mergedItem: VideoCommentsItem
+      mergedItem: VideoCommentsItem,
+      payload?: Record<string, unknown>
     ) => {
       const activeCall = call;
       const result = (activeCall.result as Record<string, unknown>) || {};
@@ -4107,6 +4117,11 @@ export default defineComponent({
         status: activeCall.status === 'pending' ? 'streaming' : activeCall.status,
         result: {
           ...result,
+          status: payload?.status || result.status,
+          scheduled: Array.isArray(payload?.scheduled)
+            ? payload?.scheduled
+            : result.scheduled,
+          running: Array.isArray(payload?.running) ? payload?.running : result.running,
           items,
         },
       };
@@ -4155,11 +4170,13 @@ export default defineComponent({
         let latestItem: VideoCommentsItem | undefined;
         let latestPayload: Record<string, unknown> | undefined;
         const requestedStoredPages = { ...(state.requestedStoredPages || {}) };
+        const currentAttemptPages: Record<string, boolean> = {};
         const maxStoredPageAttempts = shouldFetchStored ? 5 : 1;
 
         for (let attempt = 0; attempt < maxStoredPageAttempts; attempt += 1) {
           if (shouldFetchStored) {
             requestedStoredPages[String(requestPn)] = true;
+            currentAttemptPages[String(requestPn)] = true;
           }
           const response = await fetch('/api/video_comments', {
             method: 'POST',
@@ -4212,14 +4229,15 @@ export default defineComponent({
               pagination,
             },
             comments.length,
-            pageSize
+            pageSize,
+            currentAttemptPages
           );
           if (
             !shouldFetchStored ||
             comments.length > beforeCount ||
             (storedCount > 0 && comments.length >= storedCount) ||
             !nextCandidatePn ||
-            Boolean(requestedStoredPages[String(nextCandidatePn)])
+            Boolean(currentAttemptPages[String(nextCandidatePn)])
           ) {
             break;
           }
@@ -4232,6 +4250,12 @@ export default defineComponent({
         const runningBvids = Array.isArray(latestPayload.running)
           ? latestPayload.running.map((value) => String(value))
           : [];
+        const scheduledBvids = Array.isArray(latestPayload.scheduled)
+          ? latestPayload.scheduled.map((value) => String(value))
+          : [];
+        const isQueuedOrRunning =
+          runningBvids.includes(String(item.bvid)) ||
+          scheduledBvids.includes(String(item.bvid));
         const nextStatus =
           latestItem.status === 'running' && !runningBvids.includes(String(item.bvid))
             ? 'completed'
@@ -4253,6 +4277,7 @@ export default defineComponent({
           error: '',
           nextPn: followingPn > 1 ? followingPn : undefined,
           requestedStoredPages,
+          queuedOrRunning: isQueuedOrRunning,
         };
         persistMergedVideoCommentToolCall(call, item, {
           ...latestItem,
@@ -4266,7 +4291,7 @@ export default defineComponent({
           status: nextStatus,
           refresh_status:
             nextStatus === 'running' ? latestItem.refresh_status : undefined,
-        });
+        }, latestPayload);
       } catch (error) {
         loadedCommentItems.value[key] = {
           ...state,
