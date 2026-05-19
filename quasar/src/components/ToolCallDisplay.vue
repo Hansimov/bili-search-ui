@@ -1034,9 +1034,24 @@
           <button
             type="button"
             class="tool-comment-image-toolbar-button tool-comment-image-fit"
-            @click.stop="resetCommentImageScale"
+            :class="{
+              'tool-comment-image-toolbar-button--active':
+                commentImageViewer.fitMode === 'width',
+            }"
+            @click.stop="fitCommentImageWidth"
           >
-            适屏
+            适配宽度
+          </button>
+          <button
+            type="button"
+            class="tool-comment-image-toolbar-button tool-comment-image-fit"
+            :class="{
+              'tool-comment-image-toolbar-button--active':
+                commentImageViewer.fitMode === 'contain',
+            }"
+            @click.stop="fitCommentImageWindow"
+          >
+            适配窗口
           </button>
           <button
             type="button"
@@ -1067,7 +1082,7 @@
             class="tool-comment-image-frame"
             :class="{
               'tool-comment-image-frame--zoomed':
-                commentImageViewer.scale > COMMENT_IMAGE_SCALE_DEFAULT,
+                isCommentImageZoomed(),
               'tool-comment-image-frame--panning':
                 commentImagePan.active,
               'tool-comment-image-frame--long':
@@ -1080,7 +1095,7 @@
             @pointerleave="endCommentImagePan"
           >
             <div class="tool-comment-image-counter" aria-live="polite">
-              <span>全部 {{ commentImageViewer.index + 1 }} / {{ commentImageViewer.images.length }}</span>
+              <span>{{ commentImageViewer.index + 1 }} / {{ commentImageViewer.images.length }}</span>
               <span v-if="getActiveCommentImagePositionText()">
                 {{ getActiveCommentImagePositionText() }}
               </span>
@@ -1088,7 +1103,7 @@
             </div>
             <img
               :key="getActiveCommentImageKey()"
-              :src="getActiveCommentImage()?.url"
+              :src="getActiveCommentImageSrc()"
               :style="getCommentImageScaleStyle()"
               alt=""
               draggable="false"
@@ -1149,6 +1164,7 @@ import { getRenderableImageUrl, normalizeRemoteImageUrl } from 'src/utils/imageU
 import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
 import { formatToolCallArgs } from 'src/utils/toolCall';
 import { renderMarkdown } from 'src/utils/markdown';
+import { getCachedImageUrl } from 'src/services/imageCacheService';
 
 /** Video hit from search result */
 interface VideoHit {
@@ -1320,6 +1336,7 @@ interface CommentImageViewerState {
   images: CommentImageEntry[];
   index: number;
   scale: number;
+  fitMode: CommentImageFitMode;
 }
 
 interface CommentImagePanState {
@@ -1330,6 +1347,8 @@ interface CommentImagePanState {
   scrollLeft: number;
   scrollTop: number;
 }
+
+type CommentImageFitMode = 'contain' | 'width' | 'manual';
 
 const DISPLAYABLE_INTERNAL_TOOLS = new Set(['run_small_llm_task']);
 const SMALL_MODEL_TEXT_TOOLS = new Set([
@@ -1397,9 +1416,35 @@ const TOOL_RUNNING_STATUS_TEXTS: Record<string, string> = {
 
 const COMMENT_IMAGE_SCALE_MIN = 0.5;
 const COMMENT_IMAGE_SCALE_MAX = 2.5;
-const COMMENT_IMAGE_SCALE_STEP = 0.25;
+const COMMENT_IMAGE_SCALE_STEP = 0.1;
 const COMMENT_IMAGE_SCALE_DEFAULT = 1;
-const COMMENT_IMAGE_SCALE_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5];
+const COMMENT_IMAGE_SCALE_OPTIONS = [
+  0.5,
+  0.6,
+  0.7,
+  0.75,
+  0.8,
+  0.9,
+  1,
+  1.1,
+  1.2,
+  1.25,
+  1.3,
+  1.4,
+  1.5,
+  1.6,
+  1.7,
+  1.75,
+  1.8,
+  1.9,
+  2,
+  2.1,
+  2.2,
+  2.25,
+  2.3,
+  2.4,
+  2.5,
+];
 
 export default defineComponent({
   name: 'ToolCallDisplay',
@@ -1445,7 +1490,9 @@ export default defineComponent({
       images: [],
       index: 0,
       scale: COMMENT_IMAGE_SCALE_DEFAULT,
+      fitMode: 'contain',
     });
+    const cachedCommentImageUrls = ref<Record<string, string>>({});
     const commentImagePan = ref<CommentImagePanState>({
       active: false,
       pointerId: null,
@@ -3052,6 +3099,7 @@ export default defineComponent({
 
     const setCommentImageScale = (value: number) => {
       commentImageViewer.value.scale = clampCommentImageScale(value);
+      commentImageViewer.value.fitMode = 'manual';
     };
 
     const setCommentImageScaleFromEvent = (event: Event) => {
@@ -3060,7 +3108,18 @@ export default defineComponent({
     };
 
     const resetCommentImageScale = () => {
-      setCommentImageScale(COMMENT_IMAGE_SCALE_DEFAULT);
+      commentImageViewer.value.scale = COMMENT_IMAGE_SCALE_DEFAULT;
+      commentImageViewer.value.fitMode = 'contain';
+    };
+
+    const fitCommentImageWindow = () => {
+      commentImageViewer.value.fitMode = 'contain';
+      commentImageViewer.value.scale = COMMENT_IMAGE_SCALE_DEFAULT;
+    };
+
+    const fitCommentImageWidth = () => {
+      commentImageViewer.value.fitMode = 'width';
+      commentImageViewer.value.scale = COMMENT_IMAGE_SCALE_DEFAULT;
     };
 
     const zoomOutCommentImage = () => {
@@ -3083,6 +3142,22 @@ export default defineComponent({
 
     const getCommentImageScaleStyle = () => {
       const scale = commentImageViewer.value.scale;
+      if (commentImageViewer.value.fitMode === 'contain') {
+        return {
+          width: 'auto',
+          maxWidth: '100%',
+          maxHeight: '100%',
+          transform: 'none',
+        };
+      }
+      if (commentImageViewer.value.fitMode === 'width') {
+        return {
+          width: '100%',
+          maxWidth: '100%',
+          maxHeight: 'none',
+          transform: 'none',
+        };
+      }
       if (scale > COMMENT_IMAGE_SCALE_DEFAULT) {
         return {
           width: `${Math.round(scale * 100)}%`,
@@ -3094,6 +3169,44 @@ export default defineComponent({
       return {
         transform: `scale(${scale})`,
       };
+    };
+
+    const getActiveCommentImageSrc = (): string => {
+      const image = getActiveCommentImage();
+      if (!image) return '';
+      return cachedCommentImageUrls.value[image.url] || image.url;
+    };
+
+    const cacheCommentImageUrls = async (urls: string[]) => {
+      if (typeof indexedDB === 'undefined') return;
+      const uniqueUrls = Array.from(new Set(urls.filter(Boolean)));
+      for (const url of uniqueUrls) {
+        if (cachedCommentImageUrls.value[url]) continue;
+        try {
+          const cachedUrl = await getCachedImageUrl(url);
+          if (cachedUrl) {
+            cachedCommentImageUrls.value[url] = cachedUrl;
+          }
+        } catch {
+          cachedCommentImageUrls.value[url] = url;
+        }
+      }
+    };
+
+    const cacheActiveCommentImageNeighborhood = () => {
+      const viewer = commentImageViewer.value;
+      if (!viewer.open || !viewer.images.length) return;
+      const length = viewer.images.length;
+      const offsets = [0, 1, -1, 2, -2];
+      const nearUrls = offsets
+        .map((offset) => viewer.images[(viewer.index + offset + length) % length]?.url)
+        .filter(Boolean);
+      cacheCommentImageUrls(nearUrls);
+    };
+
+    const cacheAllCommentViewerImages = () => {
+      const urls = commentImageViewer.value.images.map((image) => image.url);
+      cacheCommentImageUrls(urls);
     };
 
     const getRootZoom = (): number => {
@@ -3175,8 +3288,11 @@ export default defineComponent({
           : [],
         index,
         scale: COMMENT_IMAGE_SCALE_DEFAULT,
+        fitMode: 'contain',
       };
       updateCommentImageViewport();
+      cacheActiveCommentImageNeighborhood();
+      window.setTimeout(cacheAllCommentViewerImages, 800);
     };
 
     const getActiveCommentImage = (): CommentImageEntry | null => {
@@ -3194,6 +3310,7 @@ export default defineComponent({
     };
 
     const isCommentImageZoomed = (): boolean =>
+      commentImageViewer.value.fitMode === 'width' ||
       commentImageViewer.value.scale > COMMENT_IMAGE_SCALE_DEFAULT;
 
     const isActiveCommentImageLong = (): boolean => {
@@ -3220,6 +3337,7 @@ export default defineComponent({
         images: [],
         index: 0,
         scale: COMMENT_IMAGE_SCALE_DEFAULT,
+        fitMode: 'contain',
       };
       commentImagePan.value = {
         active: false,
@@ -3237,6 +3355,7 @@ export default defineComponent({
       commentImageViewer.value.index =
         (commentImageViewer.value.index - 1 + length) % length;
       resetCommentImageScale();
+      cacheActiveCommentImageNeighborhood();
     };
 
     const showNextCommentImage = () => {
@@ -3244,6 +3363,7 @@ export default defineComponent({
       if (!length) return;
       commentImageViewer.value.index = (commentImageViewer.value.index + 1) % length;
       resetCommentImageScale();
+      cacheActiveCommentImageNeighborhood();
     };
 
     const getActiveCommentImagePositionText = (): string => {
@@ -3253,9 +3373,12 @@ export default defineComponent({
     };
 
     const startCommentImagePan = (event: PointerEvent) => {
-      if (!isCommentImageZoomed()) return;
       const frame = event.currentTarget as HTMLElement | null;
       if (!frame) return;
+      const canPan =
+        frame.scrollWidth > frame.clientWidth + 1 ||
+        frame.scrollHeight > frame.clientHeight + 1;
+      if (!isCommentImageZoomed() && !canPan) return;
       event.preventDefault();
       frame.setPointerCapture?.(event.pointerId);
       commentImagePan.value = {
@@ -4167,17 +4290,21 @@ export default defineComponent({
       getActiveCommentImage,
       getActiveCommentImageComment,
       getActiveCommentImageKey,
+      getActiveCommentImageSrc,
       closeCommentImageViewer,
       showPreviousCommentImage,
       showNextCommentImage,
       zoomOutCommentImage,
       zoomInCommentImage,
       resetCommentImageScale,
+      fitCommentImageWindow,
+      fitCommentImageWidth,
       setCommentImageScaleFromEvent,
       getCommentImageScalePercent,
       formatCommentImageScaleOption,
       getCommentImageScaleStyle,
       getCommentImageShellStyle,
+      isCommentImageZoomed,
       isActiveCommentImageLong,
       handleActiveCommentImageLoad,
       getActiveCommentImagePositionText,
@@ -5533,6 +5660,12 @@ body.body--dark .tool-comments-empty--syncing {
   color: rgba(255, 255, 255, 0.96);
 }
 
+.tool-comment-image-toolbar-button--active {
+  border-color: rgba(77, 182, 172, 0.34);
+  background: rgba(77, 182, 172, 0.18);
+  color: rgba(190, 246, 237, 0.96);
+}
+
 .tool-comment-image-zoom {
   flex: 1 1 auto;
   justify-content: center;
@@ -5559,8 +5692,13 @@ body.body--dark .tool-comments-empty--syncing {
   color-scheme: dark;
 }
 
+.tool-comment-image-scale-select option {
+  background: #1d2530;
+  color: rgba(238, 244, 252, 0.94);
+}
+
 .tool-comment-image-fit {
-  min-width: 46px;
+  min-width: 70px;
   padding-inline: 9px;
 }
 
