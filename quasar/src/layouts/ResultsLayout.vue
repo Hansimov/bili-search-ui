@@ -33,7 +33,7 @@ const headerStyle = computed(() => {
   if (layoutStore.hasSidebar()) {
     return {
       left: `${layoutStore.sidebarWidth()}px`,
-      transition: 'left 0.25s ease',
+      transition: 'none',
     };
   }
   return {};
@@ -43,7 +43,7 @@ const searchBarBottomStyle = computed(() => {
   if (layoutStore.hasSidebar()) {
     return {
       left: `${layoutStore.sidebarWidth()}px`,
-      transition: 'left 0.25s ease',
+      transition: 'none',
     };
   }
   return {};

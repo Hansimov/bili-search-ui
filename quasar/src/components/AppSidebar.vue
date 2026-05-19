@@ -107,9 +107,11 @@
         </div>
       </div>
 
-      <!-- 搜索历史列表（仅展开模式） -->
-      <transition name="fade">
-        <div v-if="sidebarExpanded && showHistoryList" class="sidebar-history">
+      <!-- 搜索历史列表（保留 DOM，避免侧边栏切换时反复挂载历史列表） -->
+      <div
+        v-show="sidebarExpanded && showHistoryList"
+        class="sidebar-history"
+      >
           <q-scroll-area class="history-scroll-area" @scroll="onHistoryScroll">
             <div
               v-if="searchHistoryStore.totalCount === 0"
@@ -330,8 +332,7 @@
               </div>
             </template>
           </q-scroll-area>
-        </div>
-      </transition>
+      </div>
 
       <!-- 重命名对话框 -->
       <q-dialog v-model="showRenameDialog">
@@ -1631,8 +1632,9 @@ watch(
   top: 0;
   bottom: 0;
   z-index: 2100;
-  transition: width 0.25s ease, transform 0.25s ease;
+  transition: transform 0.25s ease;
   overflow: hidden;
+  contain: layout paint style;
 }
 
 /*
@@ -1654,7 +1656,10 @@ watch(
 
 /* 桌面端（>= 768px）：推动内容 */
 .app-sidebar.sidebar-desktop {
-  width: 50px;
+  width: 260px;
+  clip-path: inset(0 210px 0 0);
+  transition: clip-path 0.12s ease-out, transform 0.18s ease-out;
+  will-change: clip-path;
 }
 /* collapsed 状态：整个侧边栏显示 chevron-right 光标 */
 .app-sidebar.sidebar-desktop.sidebar-collapsed {
@@ -1664,6 +1669,7 @@ watch(
 }
 .app-sidebar.sidebar-desktop.sidebar-expanded {
   width: 260px;
+  clip-path: inset(0 0 0 0);
 }
 
 /* 平板 overlay 展开态（570-767px）：从收起态变为展开 overlay */
@@ -1696,7 +1702,7 @@ body.body--dark .app-sidebar {
   bottom: 0;
   width: 10px;
   z-index: 2101; /* above sidebar (2100) */
-  transition: left 0.25s ease, background-color 0.15s ease;
+  transition: left 0.12s ease-out, background-color 0.15s ease;
 }
 /* 收起状态：chevron-right 光标（类似 angle-right / ›） */
 .sidebar-edge-handle.edge-expand {

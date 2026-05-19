@@ -1005,17 +1005,6 @@
           >
             缩小
           </button>
-          <input
-            class="tool-comment-image-zoom-range"
-            type="range"
-            :min="COMMENT_IMAGE_SCALE_MIN"
-            :max="COMMENT_IMAGE_SCALE_MAX"
-            :step="COMMENT_IMAGE_SCALE_STEP"
-            :value="commentImageViewer.scale"
-            aria-label="缩放比例"
-            @input="setCommentImageScaleFromEvent"
-            @click.stop
-          />
           <select
             class="tool-comment-image-scale-select"
             :value="String(commentImageViewer.scale)"
@@ -1024,13 +1013,20 @@
             @click.stop
           >
             <option
-              v-for="option in COMMENT_IMAGE_SCALE_OPTIONS"
+              v-for="option in getCommentImageScaleOptions()"
               :key="option"
               :value="String(option)"
             >
               {{ formatCommentImageScaleOption(option) }}
             </option>
           </select>
+          <button
+            type="button"
+            class="tool-comment-image-toolbar-button tool-comment-image-zoom-in"
+            @click.stop="zoomInCommentImage"
+          >
+            放大
+          </button>
           <button
             type="button"
             class="tool-comment-image-toolbar-button tool-comment-image-fit"
@@ -1053,13 +1049,6 @@
           >
             适配窗口
           </button>
-          <button
-            type="button"
-            class="tool-comment-image-toolbar-button tool-comment-image-zoom-in"
-            @click.stop="zoomInCommentImage"
-          >
-            放大
-          </button>
         </div>
         <button
           type="button"
@@ -1079,6 +1068,7 @@
         </button>
         <figure class="tool-comment-image-stage">
           <div
+            ref="commentImageFrameRef"
             class="tool-comment-image-frame"
             :class="{
               'tool-comment-image-frame--zoomed':
@@ -1414,11 +1404,16 @@ const TOOL_RUNNING_STATUS_TEXTS: Record<string, string> = {
   video_comments_full: '读取中...',
 };
 
-const COMMENT_IMAGE_SCALE_MIN = 0.5;
+const COMMENT_IMAGE_SCALE_MIN = 0.1;
 const COMMENT_IMAGE_SCALE_MAX = 2.5;
 const COMMENT_IMAGE_SCALE_STEP = 0.1;
 const COMMENT_IMAGE_SCALE_DEFAULT = 1;
 const COMMENT_IMAGE_SCALE_OPTIONS = [
+  0.1,
+  0.2,
+  0.25,
+  0.3,
+  0.4,
   0.5,
   0.6,
   0.7,
@@ -1471,6 +1466,7 @@ export default defineComponent({
   emits: ['viewAllResults'],
   setup(props) {
     const containerRef = ref<HTMLElement | null>(null);
+    const commentImageFrameRef = ref<HTMLElement | null>(null);
     const expanded = ref<Record<number, boolean>>({});
     const commentSortModes = ref<Record<string, CommentSortMode>>({});
     const commentFilters = ref<Record<string, CommentFilterState>>({});
@@ -1493,6 +1489,9 @@ export default defineComponent({
       fitMode: 'contain',
     });
     const cachedCommentImageUrls = ref<Record<string, string>>({});
+    const commentImageNaturalSizes = ref<
+      Record<string, { width: number; height: number }>
+    >({});
     const commentImagePan = ref<CommentImagePanState>({
       active: false,
       pointerId: null,
@@ -1506,6 +1505,10 @@ export default defineComponent({
       height: 0,
       rootZoom: 1,
     });
+    const commentImageFrameSize = ref({
+      width: 0,
+      height: 0,
+    });
     const previousStatuses = ref<Record<number, string | undefined>>({});
     const isCompactToolDisplay = ref(false);
     let compactMediaQuery: MediaQueryList | null = null;
@@ -1518,6 +1521,7 @@ export default defineComponent({
     const COMMENT_ROOT_INITIAL_RENDER_LIMIT = 160;
     const COMMENT_ROOT_RENDER_STEP = 160;
     let previousBodyOverflow = '';
+    let commentImageFrameResizeObserver: ResizeObserver | null = null;
     const visibleToolCalls = computed(() =>
       props.toolCalls.filter(
         (call) =>
@@ -3094,11 +3098,15 @@ export default defineComponent({
     const clampCommentImageScale = (value: number): number =>
       Math.min(
         COMMENT_IMAGE_SCALE_MAX,
-        Math.max(COMMENT_IMAGE_SCALE_MIN, Number(value.toFixed(2)))
+        Math.max(COMMENT_IMAGE_SCALE_MIN, Number(value.toFixed(4)))
       );
 
-    const setCommentImageScale = (value: number) => {
+    const setCommentImageScaleValue = (value: number) => {
       commentImageViewer.value.scale = clampCommentImageScale(value);
+    };
+
+    const setCommentImageScale = (value: number) => {
+      setCommentImageScaleValue(value);
       commentImageViewer.value.fitMode = 'manual';
     };
 
@@ -3108,18 +3116,18 @@ export default defineComponent({
     };
 
     const resetCommentImageScale = () => {
-      commentImageViewer.value.scale = COMMENT_IMAGE_SCALE_DEFAULT;
       commentImageViewer.value.fitMode = 'contain';
+      syncCommentImageFitScale();
     };
 
     const fitCommentImageWindow = () => {
       commentImageViewer.value.fitMode = 'contain';
-      commentImageViewer.value.scale = COMMENT_IMAGE_SCALE_DEFAULT;
+      syncCommentImageFitScale();
     };
 
     const fitCommentImageWidth = () => {
       commentImageViewer.value.fitMode = 'width';
-      commentImageViewer.value.scale = COMMENT_IMAGE_SCALE_DEFAULT;
+      syncCommentImageFitScale();
     };
 
     const zoomOutCommentImage = () => {
@@ -3140,9 +3148,71 @@ export default defineComponent({
     const formatCommentImageScaleOption = (value: number): string =>
       `${Math.round(value * 100)}%`;
 
-    const getCommentImageScaleStyle = () => {
-      const scale = commentImageViewer.value.scale;
+    const getCommentImageScaleOptions = (): number[] => {
+      const currentScale = clampCommentImageScale(commentImageViewer.value.scale);
+      const currentPercent = Math.round(currentScale * 100);
+      return Array.from(
+        new Set([
+          ...COMMENT_IMAGE_SCALE_OPTIONS.filter(
+            (option) =>
+              Math.round(option * 100) !== currentPercent ||
+              Math.abs(option - currentScale) < 0.0001
+          ),
+          currentScale,
+        ])
+      ).sort((a, b) => a - b);
+    };
+
+    const getCommentImageFitWindowScaleForSize = (
+      naturalSize: { width?: number; height?: number }
+    ): number => {
+      const naturalWidth = naturalSize.width || 0;
+      const naturalHeight = naturalSize.height || 0;
+      if (!naturalWidth || !naturalHeight) return COMMENT_IMAGE_SCALE_DEFAULT;
+      const frameWidth = commentImageFrameSize.value.width || naturalWidth;
+      const frameHeight = commentImageFrameSize.value.height || naturalHeight;
+      return clampCommentImageScale(
+        Math.min(
+          COMMENT_IMAGE_SCALE_DEFAULT,
+          frameWidth / naturalWidth,
+          frameHeight / naturalHeight
+        )
+      );
+    };
+
+    const getCommentImageFitWidthScaleForSize = (
+      naturalSize: { width?: number; height?: number }
+    ): number => {
+      const naturalWidth = naturalSize.width || 0;
+      if (!naturalWidth) return COMMENT_IMAGE_SCALE_DEFAULT;
+      const frameWidth = commentImageFrameSize.value.width || naturalWidth;
+      return clampCommentImageScale(frameWidth / naturalWidth);
+    };
+
+    const getCommentImageTargetScale = (): number => {
+      const image = getActiveCommentImage();
+      const naturalSize = getCommentImageNaturalSize(image);
       if (commentImageViewer.value.fitMode === 'contain') {
+        return getCommentImageFitWindowScaleForSize(naturalSize);
+      }
+      if (commentImageViewer.value.fitMode === 'width') {
+        return getCommentImageFitWidthScaleForSize(naturalSize);
+      }
+      return clampCommentImageScale(commentImageViewer.value.scale);
+    };
+
+    const syncCommentImageFitScale = () => {
+      if (commentImageViewer.value.fitMode === 'manual') return;
+      const nextScale = getCommentImageTargetScale();
+      if (Math.abs(nextScale - commentImageViewer.value.scale) < 0.005) return;
+      setCommentImageScaleValue(nextScale);
+    };
+
+    const getCommentImageScaleStyle = () => {
+      const image = getActiveCommentImage();
+      const naturalSize = getCommentImageNaturalSize(image);
+      const naturalWidth = naturalSize.width || 0;
+      if (!naturalWidth) {
         return {
           width: 'auto',
           maxWidth: '100%',
@@ -3150,24 +3220,12 @@ export default defineComponent({
           transform: 'none',
         };
       }
-      if (commentImageViewer.value.fitMode === 'width') {
-        return {
-          width: '100%',
-          maxWidth: '100%',
-          maxHeight: 'none',
-          transform: 'none',
-        };
-      }
-      if (scale > COMMENT_IMAGE_SCALE_DEFAULT) {
-        return {
-          width: `${Math.round(scale * 100)}%`,
-          maxWidth: 'none',
-          maxHeight: 'none',
-          transform: 'none',
-        };
-      }
+      const scale = getCommentImageTargetScale();
       return {
-        transform: `scale(${scale})`,
+        width: `${Math.round(naturalWidth * scale)}px`,
+        maxWidth: 'none',
+        maxHeight: 'none',
+        transform: 'none',
       };
     };
 
@@ -3222,6 +3280,31 @@ export default defineComponent({
         height: window.innerHeight,
         rootZoom: getRootZoom(),
       };
+    };
+
+    const updateCommentImageFrameSize = () => {
+      const frame = commentImageFrameRef.value;
+      if (!frame) {
+        commentImageFrameSize.value = { width: 0, height: 0 };
+        return;
+      }
+      commentImageFrameSize.value = {
+        width: frame.clientWidth,
+        height: frame.clientHeight,
+      };
+      syncCommentImageFitScale();
+    };
+
+    const observeCommentImageFrame = () => {
+      commentImageFrameResizeObserver?.disconnect();
+      commentImageFrameResizeObserver = null;
+      const frame = commentImageFrameRef.value;
+      updateCommentImageFrameSize();
+      if (!frame || typeof ResizeObserver === 'undefined') return;
+      commentImageFrameResizeObserver = new ResizeObserver(() => {
+        updateCommentImageFrameSize();
+      });
+      commentImageFrameResizeObserver.observe(frame);
     };
 
     const getCommentImageShellStyle = () => {
@@ -3291,6 +3374,7 @@ export default defineComponent({
         fitMode: 'contain',
       };
       updateCommentImageViewport();
+      nextTick(observeCommentImageFrame);
       cacheActiveCommentImageNeighborhood();
       window.setTimeout(cacheAllCommentViewerImages, 800);
     };
@@ -3309,14 +3393,42 @@ export default defineComponent({
       return `${getCommentId(image.comment)}-${image.pictureIndex}-${image.url}`;
     };
 
-    const isCommentImageZoomed = (): boolean =>
-      commentImageViewer.value.fitMode === 'width' ||
-      commentImageViewer.value.scale > COMMENT_IMAGE_SCALE_DEFAULT;
+    const getCommentImageNaturalSize = (
+      image: CommentImageEntry | null
+    ): { width?: number; height?: number } => {
+      if (!image) return {};
+      return commentImageNaturalSizes.value[image.url] || {
+        width: image.width,
+        height: image.height,
+      };
+    };
+
+    const isCommentImageZoomed = (): boolean => {
+      const image = getActiveCommentImage();
+      const naturalSize = getCommentImageNaturalSize(image);
+      const naturalWidth = naturalSize.width || 0;
+      const naturalHeight = naturalSize.height || 0;
+      if (!naturalWidth || !naturalHeight) return false;
+      const scale = getCommentImageTargetScale();
+      const frameWidth = commentImageFrameSize.value.width || 0;
+      const frameHeight = commentImageFrameSize.value.height || 0;
+      if (!frameWidth || !frameHeight) {
+        return (
+          commentImageViewer.value.fitMode === 'width' ||
+          scale > COMMENT_IMAGE_SCALE_DEFAULT
+        );
+      }
+      return (
+        naturalWidth * scale > frameWidth + 1 ||
+        naturalHeight * scale > frameHeight + 1
+      );
+    };
 
     const isActiveCommentImageLong = (): boolean => {
       const image = getActiveCommentImage();
-      if (!image?.width || !image.height) return false;
-      return image.height / image.width >= 1.85;
+      const naturalSize = getCommentImageNaturalSize(image);
+      if (!naturalSize.width || !naturalSize.height) return false;
+      return naturalSize.height / naturalSize.width >= 1.85;
     };
 
     const handleActiveCommentImageLoad = (event: Event) => {
@@ -3326,8 +3438,11 @@ export default defineComponent({
       const width = element.naturalWidth;
       const height = element.naturalHeight;
       if (width > 0 && height > 0) {
-        image.width = width;
-        image.height = height;
+        commentImageNaturalSizes.value = {
+          ...commentImageNaturalSizes.value,
+          [image.url]: { width, height },
+        };
+        syncCommentImageFitScale();
       }
     };
 
@@ -3347,6 +3462,9 @@ export default defineComponent({
         scrollLeft: 0,
         scrollTop: 0,
       };
+      commentImageFrameResizeObserver?.disconnect();
+      commentImageFrameResizeObserver = null;
+      commentImageFrameSize.value = { width: 0, height: 0 };
     };
 
     const showPreviousCommentImage = () => {
@@ -4141,7 +4259,10 @@ export default defineComponent({
       (open) => {
         syncCommentImageViewerBodyLock(open);
         if (open) {
-          nextTick(updateCommentImageViewport);
+          nextTick(() => {
+            updateCommentImageViewport();
+            observeCommentImageFrame();
+          });
         }
       }
     );
@@ -4187,6 +4308,8 @@ export default defineComponent({
       if (typeof window !== 'undefined') {
         window.removeEventListener('resize', updateCommentImageViewport);
       }
+      commentImageFrameResizeObserver?.disconnect();
+      commentImageFrameResizeObserver = null;
       syncCommentImageViewerBodyLock(false);
       compactMediaQuery?.removeEventListener?.(
         'change',
@@ -4197,6 +4320,7 @@ export default defineComponent({
 
     return {
       containerRef,
+      commentImageFrameRef,
       expanded,
       isCompactToolDisplay,
       visibleToolCalls,
@@ -4301,6 +4425,7 @@ export default defineComponent({
       fitCommentImageWidth,
       setCommentImageScaleFromEvent,
       getCommentImageScalePercent,
+      getCommentImageScaleOptions,
       formatCommentImageScaleOption,
       getCommentImageScaleStyle,
       getCommentImageShellStyle,
@@ -4858,6 +4983,7 @@ export default defineComponent({
   overflow: auto;
   padding-right: 2px;
   scrollbar-width: thin;
+  contain: layout paint style;
 }
 
 .tool-call-container * {
@@ -4932,6 +5058,7 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 10px;
+  contain: layout paint style;
 }
 
 .tool-comment-root {
@@ -4941,6 +5068,7 @@ export default defineComponent({
   padding: 0 0 0 10px;
   border-left: 2px solid rgba(128, 128, 128, 0.13);
   border-radius: 6px;
+  contain: layout paint style;
   transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -5671,15 +5799,10 @@ body.body--dark .tool-comments-empty--syncing {
   justify-content: center;
 }
 
-.tool-comment-image-zoom-range {
-  width: min(180px, 22vw);
-  accent-color: #58a6d9;
-}
-
 .tool-comment-image-scale-select {
   box-sizing: border-box;
   flex: 0 0 auto;
-  width: 88px;
+  width: 76px;
   height: 30px;
   padding: 0 24px 0 9px;
   border: 1px solid rgba(120, 150, 180, 0.28);
@@ -5723,8 +5846,8 @@ body.body--dark .tool-comments-empty--syncing {
   box-sizing: border-box;
   position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: safe center;
+  justify-content: safe center;
   min-width: 0;
   min-height: 0;
   width: 100%;
@@ -5740,8 +5863,6 @@ body.body--dark .tool-comments-empty--syncing {
 }
 
 .tool-comment-image-frame--zoomed {
-  align-items: flex-start;
-  justify-content: flex-start;
   cursor: grab;
 }
 
@@ -5793,6 +5914,7 @@ body.body--dark .tool-comments-empty--syncing {
 }
 
 .tool-comment-image-frame img {
+  flex: 0 0 auto;
   display: block;
   max-width: 100%;
   max-height: 100%;
@@ -5800,7 +5922,7 @@ body.body--dark .tool-comments-empty--syncing {
   border-radius: 8px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.36);
   transform-origin: center center;
-  transition: transform 0.16s ease;
+  transition: width 0.14s ease, transform 0.16s ease;
   cursor: default;
   user-select: none;
 }
@@ -6493,12 +6615,6 @@ body.body--dark .tool-google-result-open {
     flex-basis: 100%;
   }
 
-  .tool-comment-image-zoom-range {
-    flex: 1 1 auto;
-    width: auto;
-    min-width: 80px;
-  }
-
   .tool-comment-image-body {
     grid-template-columns: 38px minmax(0, 1fr) 38px;
     gap: 6px;
@@ -6521,7 +6637,7 @@ body.body--dark .tool-google-result-open {
   }
 
   .tool-comment-image-scale-select {
-    width: 82px;
+    width: 74px;
   }
 
   .tool-comment-image-info {
