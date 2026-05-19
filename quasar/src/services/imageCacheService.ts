@@ -9,13 +9,17 @@
  */
 
 import { cacheService, STORE_NAMES, IMAGE_CACHE_TTL } from './cacheService';
-import { getRenderableImageUrl } from 'src/utils/imageUrl';
+import { getRenderableImageUrl, normalizeRemoteImageUrl } from 'src/utils/imageUrl';
 
 /** 内存中的 Blob URL 映射，用于快速访问和生命周期管理 */
 const blobUrlMap = new Map<string, string>();
 
 /** 正在加载中的请求，避免重复下载同一图片 */
 const pendingRequests = new Map<string, Promise<string | null>>();
+
+/** 已经通过原始 URL 预热过的图片，用于保留浏览器右键复制/新开时的 CDN 地址。 */
+const warmedOriginalUrlSet = new Set<string>();
+const pendingOriginalWarmRequests = new Map<string, Promise<void>>();
 
 /**
  * 获取缓存的图片 URL
@@ -130,6 +134,44 @@ export async function preloadImages(
             batch.map((url) => getCachedImageUrl(url))
         );
     }
+}
+
+/**
+ * 用原始图片 URL 预热浏览器 HTTP 缓存。
+ *
+ * 这个函数不会返回 Blob URL，也不会改写成代理 URL；适用于需要在 DOM 中保留
+ * 原始 CDN 地址的场景，例如评论图片的右键复制图片地址和新窗口打开图片。
+ */
+export async function warmBrowserImageCache(imageUrl: string): Promise<void> {
+    const originalUrl = normalizeRemoteImageUrl(imageUrl);
+    if (!originalUrl || warmedOriginalUrlSet.has(originalUrl)) return;
+
+    const pending = pendingOriginalWarmRequests.get(originalUrl);
+    if (pending) {
+        await pending;
+        return;
+    }
+
+    if (typeof Image === 'undefined') return;
+
+    const warmPromise = new Promise<void>((resolve) => {
+        const image = new Image();
+        image.referrerPolicy = 'no-referrer';
+        image.decoding = 'async';
+        image.onload = () => {
+            warmedOriginalUrlSet.add(originalUrl);
+            resolve();
+        };
+        image.onerror = () => {
+            resolve();
+        };
+        image.src = originalUrl;
+    }).finally(() => {
+        pendingOriginalWarmRequests.delete(originalUrl);
+    });
+
+    pendingOriginalWarmRequests.set(originalUrl, warmPromise);
+    await warmPromise;
 }
 
 /**

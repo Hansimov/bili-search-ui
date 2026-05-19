@@ -602,10 +602,14 @@
                                 :data-fallback-src="
                                   getCommentPictureFallbackUrl(picture)
                                 "
+                                :data-original-src="getCommentPictureUrl(picture)"
                                 alt=""
-                                loading="eager"
+                                loading="lazy"
                                 decoding="async"
                                 referrerpolicy="no-referrer"
+                                @load="
+                                  cacheCommentPictureUrl(getCommentPictureUrl(picture))
+                                "
                                 @error="handleCommentPictureError"
                               />
                             </button>
@@ -822,10 +826,14 @@
                                   :data-fallback-src="
                                     getCommentPictureFallbackUrl(picture)
                                   "
+                                  :data-original-src="getCommentPictureUrl(picture)"
                                   alt=""
-                                  loading="eager"
+                                  loading="lazy"
                                   decoding="async"
                                   referrerpolicy="no-referrer"
+                                  @load="
+                                    cacheCommentPictureUrl(getCommentPictureUrl(picture))
+                                  "
                                   @error="handleCommentPictureError"
                                 />
                               </button>
@@ -1099,9 +1107,12 @@
             <img
               :key="getActiveCommentImageKey()"
               :src="getActiveCommentImageSrc()"
+              :data-original-src="getActiveCommentImageSrc()"
               :style="getCommentImageScaleStyle()"
               alt=""
               draggable="false"
+              decoding="async"
+              referrerpolicy="no-referrer"
               @load="handleActiveCommentImageLoad"
               @click.stop
               @dragstart.prevent
@@ -1159,7 +1170,7 @@ import { getRenderableImageUrl, normalizeRemoteImageUrl } from 'src/utils/imageU
 import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
 import { formatToolCallArgs } from 'src/utils/toolCall';
 import { renderMarkdown } from 'src/utils/markdown';
-import { getCachedImageUrl } from 'src/services/imageCacheService';
+import { warmBrowserImageCache } from 'src/services/imageCacheService';
 import {
   cacheService,
   EXPLORE_CACHE_TTL,
@@ -1303,6 +1314,8 @@ interface LoadedCommentItemState {
   refresh_status?: string;
   loading?: boolean;
   error?: string;
+  nextPn?: number;
+  requestedStoredPages?: Record<string, boolean>;
 }
 
 type CommentSortMode = 'default' | 'hot' | 'time_asc' | 'time_desc';
@@ -2242,14 +2255,14 @@ export default defineComponent({
     };
 
     const getCommentPictureUrl = (picture: VideoCommentPicture): string =>
-      getRenderableImageUrl(
+      normalizeRemoteImageUrl(
         String(picture.url || picture.src || picture.img_src || '').trim()
       );
 
     const getCommentPictureFallbackUrl = (
       picture: VideoCommentPicture
     ): string =>
-      normalizeRemoteImageUrl(
+      getRenderableImageUrl(
         String(picture.url || picture.src || picture.img_src || '').trim()
       );
 
@@ -3296,7 +3309,7 @@ export default defineComponent({
     const getActiveCommentImageSrc = (): string => {
       const image = getActiveCommentImage();
       if (!image) return '';
-      return cachedCommentImageUrls.value[image.url] || image.url;
+      return image.url;
     };
 
     const cacheCommentImageUrls = async (urls: string[]) => {
@@ -3304,15 +3317,18 @@ export default defineComponent({
       const uniqueUrls = Array.from(new Set(urls.filter(Boolean)));
       for (const url of uniqueUrls) {
         if (cachedCommentImageUrls.value[url]) continue;
+        cachedCommentImageUrls.value[url] = url;
         try {
-          const cachedUrl = await getCachedImageUrl(url);
-          if (cachedUrl) {
-            cachedCommentImageUrls.value[url] = cachedUrl;
-          }
+          await warmBrowserImageCache(url);
         } catch {
           cachedCommentImageUrls.value[url] = url;
         }
       }
+    };
+
+    const cacheCommentPictureUrl = (url: string) => {
+      if (!url) return;
+      void cacheCommentImageUrls([url]);
     };
 
     const cacheActiveCommentImageNeighborhood = () => {
@@ -3953,6 +3969,35 @@ export default defineComponent({
       return item ? getCommentsLoadMoreText(call, item) : '加载更多';
     };
 
+    const getStoredCommentsNextPn = (
+      state: LoadedCommentItemState,
+      item: VideoCommentsItem,
+      currentCount: number,
+      pageSize: number
+    ): number => {
+      const requestedPages = new Set(
+        Object.entries(state.requestedStoredPages || {})
+          .filter(([, requested]) => requested)
+          .map(([page]) => Number(page))
+          .filter((page) => Number.isFinite(page) && page > 0)
+      );
+      const summary = item.summary || {};
+      const stored = Number(summary.comment_count || summary.stored_count || 0);
+      const maxStoredPage = stored > 0 ? Math.ceil(stored / pageSize) : 0;
+      const derivedNext = Math.max(Math.floor(currentCount / pageSize) + 1, 1);
+      const upperBound = Math.max(maxStoredPage || 0, derivedNext);
+      for (let page = derivedNext; page <= upperBound; page += 1) {
+        if (!requestedPages.has(page)) return page;
+      }
+
+      const stateNext = Number(state.nextPn || 0);
+      if (stateNext > 1 && !requestedPages.has(stateNext)) return stateNext;
+      const pagination = item.pagination || {};
+      const itemNext = Number(pagination.next_pn || 0);
+      if (itemNext > 1 && !requestedPages.has(itemNext)) return itemNext;
+      return Math.max(derivedNext, stateNext, itemNext, 1);
+    };
+
     const getBackendCommentOrder = (
       mode: CommentSortMode
     ): 'default' | 'hot' | 'latest' | 'oldest' => {
@@ -4092,10 +4137,9 @@ export default defineComponent({
         return;
       }
       const pageSize = getCommentPageSize(call, item);
-      const nextPn =
-        shouldFetchStored && currentComments.length >= pageSize
-          ? Math.floor(currentComments.length / pageSize) + 1
-          : 1;
+      const nextPn = shouldFetchStored
+        ? getStoredCommentsNextPn(state, item, currentComments.length, pageSize)
+        : 1;
       const shouldWait =
         options.wait ??
         ((shouldSyncMore || shouldLoadInitialMore) && currentComments.length === 0);
@@ -4106,71 +4150,122 @@ export default defineComponent({
           !shouldPollRunning);
       loadedCommentItems.value[key] = { ...state, loading: true, error: '' };
       try {
-        const response = await fetch('/api/video_comments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bvid: item.bvid,
-            mode: item.mode || call.args?.mode || 'full',
-            pn: nextPn,
-            ps: pageSize,
-            order: getBackendCommentOrder(getCommentSortMode(idx, call)),
-            wait: shouldWait,
-            timeout_seconds: currentComments.length === 0 ? 60 : 180,
-            complete: true,
-            force: shouldForce,
-            max_depth: 2,
-            max_child_count: 1000,
-          }),
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+        let requestPn = nextPn;
+        let comments = currentComments;
+        let latestItem: VideoCommentsItem | undefined;
+        let latestPayload: Record<string, unknown> | undefined;
+        const requestedStoredPages = { ...(state.requestedStoredPages || {}) };
+        const maxStoredPageAttempts = shouldFetchStored ? 5 : 1;
+
+        for (let attempt = 0; attempt < maxStoredPageAttempts; attempt += 1) {
+          if (shouldFetchStored) {
+            requestedStoredPages[String(requestPn)] = true;
+          }
+          const response = await fetch('/api/video_comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              bvid: item.bvid,
+              mode: item.mode || call.args?.mode || 'full',
+              pn: requestPn,
+              ps: pageSize,
+              order: getBackendCommentOrder(getCommentSortMode(idx, call)),
+              wait: shouldWait,
+              timeout_seconds: currentComments.length === 0 ? 60 : 180,
+              complete: true,
+              force: shouldForce,
+              max_depth: 2,
+              max_child_count: 1000,
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const payload = (await response.json()) as Record<string, unknown>;
+          const nextItem = Array.isArray(payload.items)
+            ? (payload.items[0] as VideoCommentsItem | undefined)
+            : undefined;
+          if (!nextItem) {
+            throw new Error('评论服务没有返回视频评论数据');
+          }
+
+          const beforeCount = comments.length;
+          comments = mergeCommentsById(comments, getItemComments(nextItem));
+          latestItem = nextItem;
+          latestPayload = payload;
+
+          const pagination = nextItem.pagination || {};
+          const backendNextPn = Number(pagination.next_pn || requestPn + 1);
+          const nextSummary = nextItem.summary || item.summary || {};
+          const storedCount = Number(
+            nextSummary.comment_count || nextSummary.stored_count || 0
+          );
+          const nextCandidatePn = getStoredCommentsNextPn(
+            {
+              ...state,
+              nextPn: backendNextPn,
+              requestedStoredPages,
+            },
+            {
+              ...item,
+              summary: nextSummary,
+              pagination,
+            },
+            comments.length,
+            pageSize
+          );
+          if (
+            !shouldFetchStored ||
+            comments.length > beforeCount ||
+            (storedCount > 0 && comments.length >= storedCount) ||
+            !nextCandidatePn ||
+            Boolean(requestedStoredPages[String(nextCandidatePn)])
+          ) {
+            break;
+          }
+          requestPn = nextCandidatePn;
         }
-        const payload = (await response.json()) as Record<string, unknown>;
-        const nextItem = Array.isArray(payload.items)
-          ? (payload.items[0] as VideoCommentsItem | undefined)
-          : undefined;
-        if (!nextItem) {
+
+        if (!latestItem || !latestPayload) {
           throw new Error('评论服务没有返回视频评论数据');
         }
-        const nextComments = getItemComments(nextItem);
-        const runningBvids = Array.isArray(payload.running)
-          ? payload.running.map((value) => String(value))
+        const runningBvids = Array.isArray(latestPayload.running)
+          ? latestPayload.running.map((value) => String(value))
           : [];
         const nextStatus =
-          nextItem.status === 'running' && !runningBvids.includes(String(item.bvid))
+          latestItem.status === 'running' && !runningBvids.includes(String(item.bvid))
             ? 'completed'
-            : nextItem.status;
-        const comments =
-          nextPn <= 1 && currentComments.length < pageSize
-            ? mergeCommentsById(currentComments, nextComments)
-            : mergeCommentsById(currentComments, nextComments);
+            : latestItem.status;
+        const nextPagination = latestItem.pagination || {};
+        const followingPn = Number(nextPagination.next_pn || requestPn + 1);
         loadedCommentItems.value[key] = {
           comments,
-          summary: nextItem.summary || item.summary,
+          summary: latestItem.summary || item.summary,
           pagination: {
-            ...(nextItem.pagination || {}),
+            ...nextPagination,
             loaded: comments.length,
             returned: comments.length,
           },
           status: nextStatus,
           refresh_status:
-            nextStatus === 'running' ? nextItem.refresh_status : undefined,
+            nextStatus === 'running' ? latestItem.refresh_status : undefined,
           loading: false,
           error: '',
+          nextPn: followingPn > 1 ? followingPn : undefined,
+          requestedStoredPages,
         };
         persistMergedVideoCommentToolCall(call, item, {
-          ...nextItem,
+          ...latestItem,
           comments,
-          summary: nextItem.summary || item.summary,
+          summary: latestItem.summary || item.summary,
           pagination: {
-            ...(nextItem.pagination || {}),
+            ...nextPagination,
             loaded: comments.length,
             returned: comments.length,
           },
           status: nextStatus,
           refresh_status:
-            nextStatus === 'running' ? nextItem.refresh_status : undefined,
+            nextStatus === 'running' ? latestItem.refresh_status : undefined,
         });
       } catch (error) {
         loadedCommentItems.value[key] = {
@@ -4625,6 +4720,7 @@ export default defineComponent({
       getCommentPictures,
       getCommentPictureUrl,
       getCommentPictureFallbackUrl,
+      cacheCommentPictureUrl,
       handleCommentPictureError,
       shouldShowCommentReplyAction,
       getCommentReplyActionText,

@@ -579,7 +579,7 @@ describe('ToolCallDisplay component', () => {
         );
         await thumbnails[0]?.trigger('error');
         expect(thumbnails[0]?.attributes('src')).toContain(
-            'https://i0.hdslb.com/bfs/new_dyn/root.jpg'
+            '/bili-img/i0.hdslb.com/bfs/new_dyn/root.jpg'
         );
         expect(wrapper.find('.tool-comments-sort span').exists()).toBe(false);
         const replyWords = wrapper.findAll('.tool-comment-reply-word');
@@ -592,6 +592,12 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.find('.tool-comment-image-overlay').exists()).toBe(true);
         expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('1 / 3');
         expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('本评论 1 / 2');
+        expect(wrapper.find('.tool-comment-image-frame img').attributes('src')).toContain(
+            'i0.hdslb.com/bfs/new_dyn/root.jpg'
+        );
+        expect(wrapper.find('.tool-comment-image-frame img').attributes('src')).not.toMatch(
+            /^blob:/
+        );
         await nextTick();
         expect(document.body.style.overflow).toBe('hidden');
         await wrapper.find('.tool-comment-image-zoom-in').trigger('click');
@@ -684,6 +690,210 @@ describe('ToolCallDisplay component', () => {
         expect(createObjectURL).toHaveBeenCalledTimes(1);
         expect(anchorClick).toHaveBeenCalledTimes(1);
         anchorClick.mockRestore();
+    });
+
+    it('advances stored comment pages when a load-more page only contains duplicates', async () => {
+        const pageComment = (rpid: number, message: string) => ({
+            rpid,
+            ctime: 1779000000 + rpid,
+            parent: 0,
+            root: 0,
+            root_rpid: rpid,
+            is_root: true,
+            depth: 1,
+            member: { mid: rpid, uname: `作者${rpid}` },
+            content: { message },
+            like: 0,
+        });
+        const loadMoreCall: ToolCall = {
+            type: 'video_comments_full',
+            args: { bvid: 'BVloadmore', mode: 'full', limit: 2 },
+            status: 'completed',
+            result: {
+                status: 'ok',
+                items: [
+                    {
+                        bvid: 'BVloadmore',
+                        title: '分页测试视频',
+                        owner: { mid: 1, name: '测试UP主' },
+                        mode: 'full',
+                        summary: { comment_count: 3, estimated_total: 3 },
+                        pagination: {
+                            pn: 1,
+                            ps: 2,
+                            returned: 2,
+                            loaded: 2,
+                            has_more_stored: true,
+                            next_pn: 2,
+                        },
+                        comments: [
+                            pageComment(1, '第一页第一条'),
+                            pageComment(2, '第一页第二条'),
+                        ],
+                    },
+                ],
+            },
+        };
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    running: [],
+                    items: [
+                        {
+                            bvid: 'BVloadmore',
+                            mode: 'full',
+                            summary: { comment_count: 3, estimated_total: 3 },
+                            pagination: {
+                                pn: 2,
+                                ps: 2,
+                                returned: 2,
+                                loaded: 4,
+                                has_more_stored: true,
+                                next_pn: 3,
+                            },
+                            comments: [
+                                pageComment(1, '第一页第一条'),
+                                pageComment(2, '第一页第二条'),
+                            ],
+                        },
+                    ],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    running: [],
+                    items: [
+                        {
+                            bvid: 'BVloadmore',
+                            mode: 'full',
+                            summary: { comment_count: 3, estimated_total: 3 },
+                            pagination: {
+                                pn: 3,
+                                ps: 2,
+                                returned: 1,
+                                loaded: 3,
+                                has_more_stored: false,
+                                next_pn: 4,
+                            },
+                            comments: [pageComment(3, '第三页新增评论')],
+                        },
+                    ],
+                }),
+            });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const wrapper = mount(ToolCallDisplay, {
+            props: { toolCalls: [loadMoreCall] },
+            global: {
+                stubs: {
+                    'q-btn': true,
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        await wrapper.find('.tool-call-header').trigger('click');
+        await wrapper.find('.tool-comments-load-more-button').trigger('click');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await nextTick();
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string).pn).toBe(2);
+        expect(JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string).pn).toBe(3);
+        expect(wrapper.text()).toContain('第三页新增评论');
+    });
+
+    it('backfills missing stored comment pages when cached pagination is ahead of loaded comments', async () => {
+        const pageComment = (rpid: number, message: string) => ({
+            rpid,
+            ctime: 1779000000 + rpid,
+            parent: 0,
+            root: 0,
+            root_rpid: rpid,
+            is_root: true,
+            depth: 1,
+            member: { mid: rpid, uname: `作者${rpid}` },
+            content: { message },
+            like: 0,
+        });
+        const staleCursorCall: ToolCall = {
+            type: 'video_comments_full',
+            args: { bvid: 'BVstalecursor', mode: 'full', limit: 2 },
+            status: 'completed',
+            result: {
+                status: 'ok',
+                items: [
+                    {
+                        bvid: 'BVstalecursor',
+                        title: '缺页缓存测试',
+                        owner: { mid: 1, name: '测试UP主' },
+                        mode: 'full',
+                        summary: { comment_count: 8, estimated_total: 8 },
+                        pagination: {
+                            pn: 4,
+                            ps: 2,
+                            returned: 1,
+                            loaded: 5,
+                            has_more_stored: true,
+                            next_pn: 5,
+                        },
+                        comments: [1, 2, 3, 4, 5].map((rpid) =>
+                            pageComment(rpid, `已加载评论${rpid}`)
+                        ),
+                    },
+                ],
+            },
+        };
+        const fetchMock = vi.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                running: [],
+                items: [
+                    {
+                        bvid: 'BVstalecursor',
+                        mode: 'full',
+                        summary: { comment_count: 8, estimated_total: 8 },
+                        pagination: {
+                            pn: 3,
+                            ps: 2,
+                            returned: 2,
+                            loaded: 6,
+                            has_more_stored: true,
+                            next_pn: 4,
+                        },
+                        comments: [
+                            pageComment(5, '已加载评论5'),
+                            pageComment(6, '补齐缺失评论6'),
+                        ],
+                    },
+                ],
+            }),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const wrapper = mount(ToolCallDisplay, {
+            props: { toolCalls: [staleCursorCall] },
+            global: {
+                stubs: {
+                    'q-btn': true,
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        await wrapper.find('.tool-call-header').trigger('click');
+        await wrapper.find('.tool-comments-load-more-button').trigger('click');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await nextTick();
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string).pn).toBe(3);
+        expect(wrapper.text()).toContain('补齐缺失评论6');
     });
 
     it('shows running cold-cache comments as syncing instead of empty', async () => {
