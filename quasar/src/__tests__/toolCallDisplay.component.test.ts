@@ -595,14 +595,18 @@ describe('ToolCallDisplay component', () => {
         await nextTick();
         expect(document.body.style.overflow).toBe('hidden');
         await wrapper.find('.tool-comment-image-zoom-in').trigger('click');
-        expect(wrapper.find('.tool-comment-image-scale').text()).toContain('110%');
+        expect(
+            wrapper.find('.tool-comment-image-scale-select').element
+        ).toHaveProperty('value', '1.25');
         expect(
             wrapper.find('.tool-comment-image-frame--zoomed').exists()
         ).toBe(true);
         await wrapper.find('.tool-comment-image-nav--next').trigger('click');
         expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('全部 2 / 3');
         expect(wrapper.find('.tool-comment-image-overlay').text()).toContain('本评论 2 / 2');
-        expect(wrapper.find('.tool-comment-image-scale').text()).toContain('100%');
+        expect(
+            wrapper.find('.tool-comment-image-scale-select').element
+        ).toHaveProperty('value', '1');
         expect(
             wrapper.find('.tool-comment-image-frame--zoomed').exists()
         ).toBe(false);
