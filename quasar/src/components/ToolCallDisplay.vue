@@ -1266,6 +1266,8 @@ interface VideoComment {
     images?: VideoCommentPicture[];
   };
   like?: string | number;
+  reply_count?: string | number;
+  child_count?: string | number;
   is_hot?: boolean;
   is_top?: boolean;
   reply_to_name?: string;
@@ -2454,16 +2456,46 @@ export default defineComponent({
       return roots;
     };
 
+    const getCommentReplies = (
+      comment: VideoCommentNode | VideoComment
+    ): VideoComment[] => (comment as VideoCommentNode).replies || [];
+
     const getCommentReplyCount = (
       comment: VideoCommentNode | VideoComment
-    ): number => Number((comment as VideoCommentNode).replies?.length || 0);
+    ): number =>
+      Math.max(
+        getCommentReplies(comment).length,
+        Number(comment.reply_count || 0),
+        Number(comment.child_count || 0)
+      );
+
+    const getCommentReplyLikeTotal = (
+      comment: VideoCommentNode | VideoComment
+    ): number =>
+      getCommentReplies(comment).reduce(
+        (sum, reply) => sum + getCommentLikeValue(reply),
+        0
+      );
+
+    const getCommentReplyParticipantCount = (
+      comment: VideoCommentNode | VideoComment
+    ): number => {
+      const mids = new Set<string>();
+      getCommentReplies(comment).forEach((reply) => {
+        const mid = String(reply.member?.mid || '').trim();
+        if (mid) mids.add(mid);
+      });
+      return mids.size;
+    };
 
     const commentHeatScore = (comment: VideoCommentNode | VideoComment): number =>
       (comment.is_top ? 1_000_000_000_000 : 0) +
       (comment.is_hot ? 1_000_000_000 : 0) +
-      getCommentLikeValue(comment) * 10_000 +
-      getCommentReplyCount(comment) * 100 +
-      Number(comment.ctime || 0);
+      getCommentLikeValue(comment) * 1_000_000 +
+      getCommentReplyLikeTotal(comment) * 180_000 +
+      getCommentReplyParticipantCount(comment) * 50_000 +
+      getCommentReplyCount(comment) * 8_000 +
+      Number(comment.ctime || 0) / 10_000;
 
     const getHybridDefaultCommentScore = <T extends VideoComment>(
       comment: T,
@@ -2471,6 +2503,8 @@ export default defineComponent({
         minCtime: number;
         maxCtime: number;
         maxLike: number;
+        maxReplyLikeTotal: number;
+        maxReplyParticipantCount: number;
         maxReplyCount: number;
       }
     ): number => {
@@ -2481,13 +2515,28 @@ export default defineComponent({
       const likeScore = stats.maxLike
         ? Math.log1p(getCommentLikeValue(comment)) / Math.log1p(stats.maxLike)
         : 0;
+      const replyLikeScore = stats.maxReplyLikeTotal
+        ? Math.log1p(getCommentReplyLikeTotal(comment)) /
+          Math.log1p(stats.maxReplyLikeTotal)
+        : 0;
+      const participantScore = stats.maxReplyParticipantCount
+        ? Math.log1p(getCommentReplyParticipantCount(comment)) /
+          Math.log1p(stats.maxReplyParticipantCount)
+        : 0;
       const replyScore = stats.maxReplyCount
         ? Math.log1p(getCommentReplyCount(comment)) /
           Math.log1p(stats.maxReplyCount)
         : 0;
       const markerScore = (comment.is_top ? 0.16 : 0) + (comment.is_hot ? 0.1 : 0);
-      const heatScore = Math.min(1, likeScore * 0.72 + replyScore * 0.18 + markerScore);
-      return heatScore * 0.58 + recencyScore * 0.42;
+      const heatScore = Math.min(
+        1,
+        likeScore * 0.6 +
+          replyLikeScore * 0.18 +
+          participantScore * 0.08 +
+          replyScore * 0.07 +
+          markerScore
+      );
+      return heatScore * 0.78 + recencyScore * 0.22;
     };
 
     const sortComments = <T extends VideoComment>(
@@ -2507,6 +2556,14 @@ export default defineComponent({
               minCtime: ctime > 0 ? Math.min(acc.minCtime, ctime) : acc.minCtime,
               maxCtime: Math.max(acc.maxCtime, ctime),
               maxLike: Math.max(acc.maxLike, getCommentLikeValue(comment)),
+              maxReplyLikeTotal: Math.max(
+                acc.maxReplyLikeTotal,
+                getCommentReplyLikeTotal(comment)
+              ),
+              maxReplyParticipantCount: Math.max(
+                acc.maxReplyParticipantCount,
+                getCommentReplyParticipantCount(comment)
+              ),
               maxReplyCount: Math.max(acc.maxReplyCount, getCommentReplyCount(comment)),
             };
           },
@@ -2514,6 +2571,8 @@ export default defineComponent({
             minCtime: Number.POSITIVE_INFINITY,
             maxCtime: 0,
             maxLike: 0,
+            maxReplyLikeTotal: 0,
+            maxReplyParticipantCount: 0,
             maxReplyCount: 0,
           }
         );
@@ -3839,6 +3898,23 @@ export default defineComponent({
       return estimated > 0 ? Math.min(target, estimated) : target;
     };
 
+    const getCommentLoadMoreTargetCount = (
+      call: ToolCall,
+      item: VideoCommentsItem,
+      startCount: number,
+      pageSize: number
+    ): number => {
+      const summary = item.summary || {};
+      const stored = Number(summary.comment_count || summary.stored_count || 0);
+      const desired = getCommentDesiredLoadedCount(call, item);
+      const oneWindowTarget = startCount + pageSize;
+      const availableTarget =
+        stored > startCount
+          ? Math.min(oneWindowTarget, stored)
+          : Math.min(oneWindowTarget, Math.max(desired, startCount));
+      return Math.max(startCount, availableTarget);
+    };
+
     const hasMoreStoredComments = (item: VideoCommentsItem): boolean => {
       const pagination = item.pagination || {};
       const summary = item.summary || {};
@@ -3846,13 +3922,29 @@ export default defineComponent({
         pagination.loaded || getItemComments(item).length || pagination.returned || 0
       );
       const stored = Number(summary.comment_count || summary.stored_count || 0);
-      return Boolean(pagination.has_more_stored) || (stored > 0 && loaded < stored);
+      const estimated = Number(summary.estimated_total || 0);
+      const incompleteMoreEstimated =
+        item.mode === 'full' &&
+        summary.is_complete === false &&
+        estimated > loaded;
+      return (
+        (Boolean(pagination.has_more_stored) &&
+          (!stored || loaded < stored || incompleteMoreEstimated)) ||
+        (stored > 0 && loaded < stored)
+      );
     };
 
     const isCommentItemQueuedOrRunning = (
       call: ToolCall,
       item: VideoCommentsItem
     ): boolean => {
+      const summary = item.summary || {};
+      const loaded = getVideoCommentLoadedCount(item);
+      const stored = Number(summary.comment_count || summary.stored_count || 0);
+      const estimated = Number(summary.estimated_total || 0);
+      if (item.mode === 'full' && loaded >= Math.max(stored, estimated, 1)) {
+        return false;
+      }
       const state = getCommentItemState(call, item);
       if (state.queuedOrRunning !== undefined) {
         return state.queuedOrRunning;
@@ -3860,7 +3952,6 @@ export default defineComponent({
       if (item.status === 'running' || item.refresh_status === 'running') {
         return true;
       }
-      const summary = item.summary || {};
       if (
         summary.is_complete === true ||
         summary.complete_exhausted === true
@@ -4171,7 +4262,14 @@ export default defineComponent({
         let latestPayload: Record<string, unknown> | undefined;
         const requestedStoredPages = { ...(state.requestedStoredPages || {}) };
         const currentAttemptPages: Record<string, boolean> = {};
-        const maxStoredPageAttempts = shouldFetchStored ? 5 : 1;
+        const startCount = currentComments.length;
+        let targetLoadedCount = getCommentLoadMoreTargetCount(
+          call,
+          item,
+          startCount,
+          pageSize
+        );
+        const maxStoredPageAttempts = shouldFetchStored ? 8 : 1;
 
         for (let attempt = 0; attempt < maxStoredPageAttempts; attempt += 1) {
           if (shouldFetchStored) {
@@ -4206,7 +4304,6 @@ export default defineComponent({
             throw new Error('评论服务没有返回视频评论数据');
           }
 
-          const beforeCount = comments.length;
           comments = mergeCommentsById(comments, getItemComments(nextItem));
           latestItem = nextItem;
           latestPayload = payload;
@@ -4216,6 +4313,15 @@ export default defineComponent({
           const nextSummary = nextItem.summary || item.summary || {};
           const storedCount = Number(
             nextSummary.comment_count || nextSummary.stored_count || 0
+          );
+          targetLoadedCount = Math.max(
+            targetLoadedCount,
+            getCommentLoadMoreTargetCount(
+              call,
+              { ...item, summary: nextSummary },
+              startCount,
+              pageSize
+            )
           );
           const nextCandidatePn = getStoredCommentsNextPn(
             {
@@ -4234,7 +4340,7 @@ export default defineComponent({
           );
           if (
             !shouldFetchStored ||
-            comments.length > beforeCount ||
+            comments.length >= targetLoadedCount ||
             (storedCount > 0 && comments.length >= storedCount) ||
             !nextCandidatePn ||
             Boolean(currentAttemptPages[String(nextCandidatePn)])
