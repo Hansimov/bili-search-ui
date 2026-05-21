@@ -127,9 +127,31 @@ describe('ChatResponsePanel actions', () => {
         };
         mockChatStore.content = '当前回答 markdown';
         mockChatStore.hasContent = true;
+        mockChatStore.isLoading = false;
+        mockChatStore.hasThinkingContent = false;
+        mockChatStore.isThinkingPhase = false;
+        mockChatStore.thinkingContent = '';
+        mockChatStore.streamSegments = [];
+        mockChatStore.toolEvents = [];
         mockChatStore.isDone = true;
         mockChatStore.isAborted = false;
         mockChatStore.hasError = false;
+    });
+
+    it('shows the thinking shell immediately after reasoning reset', async () => {
+        mockChatStore.isLoading = true;
+        mockChatStore.hasContent = false;
+        mockChatStore.content = '';
+        mockChatStore.currentSession.content = '';
+        mockChatStore.isDone = false;
+        mockChatStore.hasThinkingContent = false;
+        mockChatStore.isThinkingPhase = true;
+
+        const wrapper = await mountPanel();
+
+        expect(wrapper.find('.chat-loading').exists()).toBe(false);
+        expect(wrapper.find('.chat-thinking-section').exists()).toBe(true);
+        expect(wrapper.find('.thinking-active-indicator').text()).toContain('思考中');
     });
 
     it('edits the current query inline and still supports answer actions', async () => {

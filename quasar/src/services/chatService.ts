@@ -153,6 +153,12 @@ export interface ChatCompletionParams {
 
 const ANSWER_VISIBLE_GRACE_MS = 400;
 
+type StreamDonePayload = {
+    perfStats?: PerfStats;
+    usage?: Usage;
+    usageTrace?: UsageTrace;
+};
+
 function hasStreamingSmallTaskEvent(events: ToolEvent[] | undefined): boolean {
     return Boolean(
         events?.some((event) =>
@@ -222,6 +228,8 @@ export async function chatCompletionStream(
     let buffer = '';
     let hasYieldedFirstContent = false;
     let hasDeliveredAnswerContent = false;
+    let hasSeenAssistantStream = false;
+    let hasEmittedDone = false;
 
     const yieldToUi = async (): Promise<void> => {
         await new Promise<void>((resolve) => {
@@ -245,15 +253,24 @@ export async function chatCompletionStream(
         });
     };
 
+    const emitDone = async (payload: StreamDonePayload = {}): Promise<void> => {
+        if (hasEmittedDone) return;
+        hasEmittedDone = true;
+        if (hasDeliveredAnswerContent) {
+            await allowAnswerToSettle();
+        }
+        callbacks.onDone?.(
+            payload.perfStats,
+            payload.usage,
+            payload.usageTrace,
+        );
+    };
+
     const processEvent = (rawEvent: string): {
         shouldStop: boolean;
         deliveredContent: boolean;
         shouldYieldToUi: boolean;
-        pendingDone?: {
-            perfStats?: PerfStats;
-            usage?: Usage;
-            usageTrace?: UsageTrace;
-        };
+        pendingDone?: StreamDonePayload;
     } => {
         const lines = rawEvent
             .split('\n')
@@ -293,19 +310,13 @@ export async function chatCompletionStream(
                 shouldStop: true,
                 deliveredContent: false,
                 shouldYieldToUi: false,
-                pendingDone: undefined,
+                pendingDone: {},
             };
         }
 
         let deliveredContent = false;
         let shouldYieldToUi = false;
-        let pendingDone:
-            | {
-                perfStats?: PerfStats;
-                usage?: Usage;
-                usageTrace?: UsageTrace;
-            }
-            | undefined;
+        let pendingDone: StreamDonePayload | undefined;
 
         try {
             const parsed = JSON.parse(dataStr);
@@ -344,6 +355,7 @@ export async function chatCompletionStream(
             const delta = choice.delta;
 
             if (delta.role === 'assistant') {
+                hasSeenAssistantStream = true;
                 callbacks.onStart?.(chunk);
             }
 
@@ -362,10 +374,12 @@ export async function chatCompletionStream(
             }
 
             if (delta.reasoning_content) {
+                hasSeenAssistantStream = true;
                 callbacks.onThinking?.(delta.reasoning_content);
             }
 
             if (delta.content) {
+                hasSeenAssistantStream = true;
                 callbacks.onContent?.(delta.content);
                 deliveredContent = true;
                 hasDeliveredAnswerContent = true;
@@ -376,6 +390,7 @@ export async function chatCompletionStream(
             }
 
             if (chunk.tool_events) {
+                hasSeenAssistantStream = true;
                 for (const event of chunk.tool_events) {
                     callbacks.onToolEvent?.(event);
                 }
@@ -384,7 +399,7 @@ export async function chatCompletionStream(
                 }
             }
 
-            if (choice.finish_reason === 'stop') {
+            if (choice.finish_reason && choice.finish_reason !== 'tool_calls') {
                 pendingDone = {
                     perfStats: chunk.perf_stats,
                     usage: chunk.usage,
@@ -411,21 +426,14 @@ export async function chatCompletionStream(
             const rawEvent = buffer.slice(0, separatorIndex);
             buffer = buffer.slice(separatorIndex + 2);
             const result = processEvent(rawEvent);
-            if (result.shouldStop) {
-                return true;
-            }
             if (result.shouldYieldToUi) {
                 await yieldToUi();
             }
             if (result.pendingDone) {
-                if (hasDeliveredAnswerContent) {
-                    await allowAnswerToSettle();
-                }
-                callbacks.onDone?.(
-                    result.pendingDone.perfStats,
-                    result.pendingDone.usage,
-                    result.pendingDone.usageTrace,
-                );
+                await emitDone(result.pendingDone);
+            }
+            if (result.shouldStop) {
+                return true;
             }
             separatorIndex = buffer.indexOf('\n\n');
         }
@@ -438,14 +446,7 @@ export async function chatCompletionStream(
                 await yieldToUi();
             }
             if (result.pendingDone) {
-                if (hasDeliveredAnswerContent) {
-                    await allowAnswerToSettle();
-                }
-                callbacks.onDone?.(
-                    result.pendingDone.perfStats,
-                    result.pendingDone.usage,
-                    result.pendingDone.usageTrace,
-                );
+                await emitDone(result.pendingDone);
             }
             if (result.shouldStop) {
                 return true;
@@ -460,7 +461,10 @@ export async function chatCompletionStream(
             const { done, value } = await reader.read();
             if (done) {
                 buffer += decoder.decode();
-                await processBufferedEvents(true);
+                const stopped = await processBufferedEvents(true);
+                if (!stopped && hasSeenAssistantStream) {
+                    await emitDone();
+                }
                 break;
             }
 

@@ -345,6 +345,7 @@
             isLoading &&
             !hasContent &&
             !hasThinkingContent &&
+            !isThinkingPhase &&
             toolEvents.length === 0
           "
           class="chat-loading"
@@ -357,7 +358,7 @@
 
         <!-- 当前回合：思考过程+工具调用（按 streamSegments 时间线交替渲染） -->
         <div
-          v-if="hasThinkingContent || allToolCalls.length > 0"
+          v-if="hasThinkingContent || allToolCalls.length > 0 || isThinkingPhase"
           class="chat-thinking-section"
         >
           <!-- 折叠头 -->

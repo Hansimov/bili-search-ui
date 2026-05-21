@@ -337,4 +337,113 @@ describe('chatService SSE parsing', () => {
         );
         expect(callbacks.onError).not.toHaveBeenCalled();
     });
+
+    it('chatCompletionStream 应在只有 DONE 没有 finish_reason 时完成收尾', async () => {
+        vi.useFakeTimers();
+
+        const response = new Response(
+            new ReadableStream({
+                start(controller) {
+                    controller.enqueue(
+                        encoder.encode(
+                            [
+                                'data: {"stream_id":"stream-5"}\n\n',
+                                'data: {"id":"chunk-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}\n\n',
+                                'data: {"id":"chunk-2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"最终答案"},"finish_reason":null}]}\n\n',
+                                'data: [DONE]\n\n',
+                            ].join('')
+                        )
+                    );
+                    controller.close();
+                },
+            }),
+            {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            }
+        );
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+
+        const callbacks = {
+            onStreamId: vi.fn(),
+            onStart: vi.fn(),
+            onContent: vi.fn(),
+            onDone: vi.fn(),
+            onError: vi.fn(),
+        };
+
+        const streamPromise = chatCompletionStream(
+            {
+                messages: [{ role: 'user', content: '测试 DONE fallback' }],
+            },
+            callbacks
+        );
+
+        await vi.runAllTimersAsync();
+        await streamPromise;
+
+        expect(callbacks.onContent).toHaveBeenCalledWith('最终答案');
+        expect(callbacks.onDone).toHaveBeenCalledTimes(1);
+        expect(callbacks.onDone).toHaveBeenCalledWith(
+            undefined,
+            undefined,
+            undefined
+        );
+        expect(callbacks.onError).not.toHaveBeenCalled();
+    });
+
+    it('chatCompletionStream 应在正常 EOF 但缺少 DONE 时完成收尾', async () => {
+        vi.useFakeTimers();
+
+        const response = new Response(
+            new ReadableStream({
+                start(controller) {
+                    controller.enqueue(
+                        encoder.encode(
+                            [
+                                'data: {"stream_id":"stream-6"}\n\n',
+                                'data: {"id":"chunk-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}\n\n',
+                                'data: {"id":"chunk-2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"最终答案"},"finish_reason":null}]}\n\n',
+                            ].join('')
+                        )
+                    );
+                    controller.close();
+                },
+            }),
+            {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            }
+        );
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+
+        const callbacks = {
+            onStreamId: vi.fn(),
+            onStart: vi.fn(),
+            onContent: vi.fn(),
+            onDone: vi.fn(),
+            onError: vi.fn(),
+        };
+
+        const streamPromise = chatCompletionStream(
+            {
+                messages: [{ role: 'user', content: '测试 EOF fallback' }],
+            },
+            callbacks
+        );
+
+        await vi.runAllTimersAsync();
+        await streamPromise;
+
+        expect(callbacks.onContent).toHaveBeenCalledWith('最终答案');
+        expect(callbacks.onDone).toHaveBeenCalledTimes(1);
+        expect(callbacks.onDone).toHaveBeenCalledWith(
+            undefined,
+            undefined,
+            undefined
+        );
+        expect(callbacks.onError).not.toHaveBeenCalled();
+    });
 });
