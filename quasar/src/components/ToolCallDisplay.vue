@@ -2147,6 +2147,8 @@ export default defineComponent({
       const label = normalized.split(':')[0]?.trim() || normalized;
       if (label === 'semantic-recall') return '语义召回代理';
       if (label === 'precision-anchor') return '精准锚定代理';
+      if (label === 'constraint-mapper') return '约束映射代理';
+      if (label === 'evidence-skeptic') return '证据审视代理';
       if (label === 'alternative-hypotheses') return '备选假设代理';
       return label;
     };

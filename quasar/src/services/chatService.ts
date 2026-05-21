@@ -159,19 +159,6 @@ type StreamDonePayload = {
     usageTrace?: UsageTrace;
 };
 
-function hasStreamingSmallTaskEvent(events: ToolEvent[] | undefined): boolean {
-    return Boolean(
-        events?.some((event) =>
-            (event.calls || []).some(
-                (call) =>
-                    (call.type === 'run_small_llm_task' ||
-                        call.type === 'summarize_transcript') &&
-                    (call.status === 'streaming' || call.status === 'completed')
-            )
-        )
-    );
-}
-
 /**
  * Send a streaming chat completion request via SSE.
  *
@@ -394,9 +381,7 @@ export async function chatCompletionStream(
                 for (const event of chunk.tool_events) {
                     callbacks.onToolEvent?.(event);
                 }
-                if (hasStreamingSmallTaskEvent(chunk.tool_events)) {
-                    shouldYieldToUi = true;
-                }
+                shouldYieldToUi = true;
             }
 
             if (choice.finish_reason && choice.finish_reason !== 'tool_calls') {

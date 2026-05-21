@@ -83,17 +83,8 @@
           </button>
           <span
             v-if="getHistoryLinkedAssistant(msgIdx)"
-            class="chat-round-toggle-bar-state"
+            class="chat-round-toggle-bar-state chat-round-toggle-bar-state--icon-only"
           >
-            <span>
-              {{
-                isHistoryAnswerExpanded(
-                  getHistoryLinkedAssistant(msgIdx)?.id || ''
-                )
-                  ? '收起回复'
-                  : '展开回复'
-              }}
-            </span>
             <q-icon
               :name="
                 isHistoryAnswerExpanded(
