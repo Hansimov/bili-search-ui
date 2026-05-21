@@ -1,5 +1,5 @@
 <template>
-  <div ref="containerRef" class="tool-call-container">
+  <div ref="containerRef" class="tool-call-container" v-bind="rootAttrs">
     <div
       v-for="(call, idx) in visibleToolCalls"
       :key="`${call.type}-${idx}`"
@@ -255,14 +255,14 @@
                 class="tool-text-result tool-markdown-result"
                 :class="getSmallTaskResultClasses(call)"
                 @wheel="handleSmallTaskWheel($event, idx)"
-                v-html="renderSmallTaskMarkdown(call)"
+                v-html="renderSmallTaskMarkdown(call, idx)"
               ></div>
               <pre
                 v-else
                 class="tool-text-result"
                 :class="getSmallTaskResultClasses(call)"
                 @wheel="handleSmallTaskWheel($event, idx)"
-                >{{ getSmallTaskResultText(call) }}</pre
+                >{{ getSmallTaskResultText(call, idx) }}</pre
               >
             </div>
 
@@ -1171,6 +1171,7 @@ import { normalizeVideoHit, normalizeVideoPicUrl } from 'src/utils/videoHit';
 import { formatToolCallArgs } from 'src/utils/toolCall';
 import { renderMarkdown } from 'src/utils/markdown';
 import { warmBrowserImageCache } from 'src/services/imageCacheService';
+import { getSmoothStreamingNextText } from 'src/composables/useSmoothStreamingText';
 import {
   cacheService,
   EXPLORE_CACHE_TTL,
@@ -1471,6 +1472,7 @@ const COMMENT_IMAGE_SCALE_OPTIONS = [
 
 export default defineComponent({
   name: 'ToolCallDisplay',
+  inheritAttrs: false,
   props: {
     toolCalls: {
       type: Array as PropType<ToolCall[]>,
@@ -1492,7 +1494,7 @@ export default defineComponent({
     },
   },
   emits: ['viewAllResults'],
-  setup(props) {
+  setup(props, { attrs }) {
     const containerRef = ref<HTMLElement | null>(null);
     const commentImageFrameRef = ref<HTMLElement | null>(null);
     const expanded = ref<Record<number, boolean>>({});
@@ -1539,9 +1541,12 @@ export default defineComponent({
     });
     const previousStatuses = ref<Record<number, string | undefined>>({});
     const isCompactToolDisplay = ref(false);
+    const smoothSmallTaskTexts = ref<Record<string, string>>({});
     let compactMediaQuery: MediaQueryList | null = null;
     const commentAutoRefreshTimers = new Map<string, number>();
     const commentAutoRefreshAttempts = new Map<string, number>();
+    const smoothSmallTaskTargets = new Map<string, string>();
+    let smoothSmallTaskFrameId: number | null = null;
     const commentTreeCache = new WeakMap<
       VideoComment[],
       { length: number; roots: VideoCommentNode[] }
@@ -2063,7 +2068,10 @@ export default defineComponent({
       return (call.result as SmallTaskResult) || {};
     };
 
-    const getSmallTaskResultText = (call: ToolCall): string => {
+    const getSmallTaskDisplayKey = (call: ToolCall, idx: number): string =>
+      `${idx}:${call.type}:${call.result_id || JSON.stringify(call.args || {})}`;
+
+    const getSmallTaskResultRawText = (call: ToolCall): string => {
       const resultText = String(getSmallTaskResult(call)?.result || '').trim();
       if (resultText) {
         return resultText;
@@ -2074,11 +2082,16 @@ export default defineComponent({
       return '';
     };
 
+    const getSmallTaskResultText = (call: ToolCall, idx = 0): string => {
+      const key = getSmallTaskDisplayKey(call, idx);
+      return smoothSmallTaskTexts.value[key] ?? getSmallTaskResultRawText(call);
+    };
+
     const shouldRenderSmallTaskMarkdown = (call: ToolCall): boolean =>
       call.type === 'summarize_transcript' || call.type === 'ask_transcript';
 
-    const renderSmallTaskMarkdown = (call: ToolCall): string =>
-      renderMarkdown(getSmallTaskResultText(call));
+    const renderSmallTaskMarkdown = (call: ToolCall, idx = 0): string =>
+      renderMarkdown(getSmallTaskResultText(call, idx));
 
     const getStreamingStatusText = (call: ToolCall): string =>
       TOOL_RUNNING_STATUS_TEXTS[call.type] || '执行中...';
@@ -4620,6 +4633,122 @@ export default defineComponent({
       });
     };
 
+    const cancelSmoothSmallTaskFrame = () => {
+      if (
+        smoothSmallTaskFrameId != null &&
+        typeof window !== 'undefined' &&
+        typeof window.cancelAnimationFrame === 'function'
+      ) {
+        window.cancelAnimationFrame(smoothSmallTaskFrameId);
+      }
+      smoothSmallTaskFrameId = null;
+    };
+
+    const stepSmoothSmallTaskTexts = () => {
+      smoothSmallTaskFrameId = null;
+      let hasChanged = false;
+      let needsNextFrame = false;
+      const nextTexts = { ...smoothSmallTaskTexts.value };
+
+      smoothSmallTaskTargets.forEach((target, key) => {
+        const current = nextTexts[key] || '';
+        if (current === target) {
+          return;
+        }
+        const next = getSmoothStreamingNextText(current, target, {
+          frameMs: 20,
+          minCharsPerFrame: 2,
+          maxCharsPerFrame: 34,
+          growthRatio: 0.24,
+        });
+        if (next !== current) {
+          nextTexts[key] = next;
+          hasChanged = true;
+        }
+        if (next !== target) {
+          needsNextFrame = true;
+        }
+      });
+
+      if (hasChanged) {
+        smoothSmallTaskTexts.value = nextTexts;
+        syncStreamingSmallTaskScrollPositions();
+      }
+      if (needsNextFrame) {
+        scheduleSmoothSmallTaskFrame();
+      }
+    };
+
+    const scheduleSmoothSmallTaskFrame = () => {
+      if (smoothSmallTaskFrameId != null) {
+        return;
+      }
+      if (
+        typeof window === 'undefined' ||
+        typeof window.requestAnimationFrame !== 'function'
+      ) {
+        smoothSmallTaskTexts.value = Object.fromEntries(smoothSmallTaskTargets);
+        return;
+      }
+      smoothSmallTaskFrameId = window.requestAnimationFrame(
+        stepSmoothSmallTaskTexts
+      );
+    };
+
+    const syncSmoothSmallTaskTexts = () => {
+      const activeKeys = new Set<string>();
+      const nextTexts = { ...smoothSmallTaskTexts.value };
+      let hasChanged = false;
+      let shouldAnimate = false;
+
+      visibleToolCalls.value.forEach((call, idx) => {
+        if (!isSmallModelTextTool(call)) {
+          return;
+        }
+        const key = getSmallTaskDisplayKey(call, idx);
+        const target = getSmallTaskResultRawText(call);
+        const current = nextTexts[key];
+        activeKeys.add(key);
+        smoothSmallTaskTargets.set(key, target);
+
+        const canSmooth =
+          call.status === 'streaming' &&
+          typeof current === 'string' &&
+          target.startsWith(current) &&
+          target.length > current.length;
+
+        if (current === undefined || !canSmooth) {
+          if (current !== target) {
+            nextTexts[key] = target;
+            hasChanged = true;
+          }
+          return;
+        }
+        shouldAnimate = true;
+      });
+
+      Object.keys(nextTexts).forEach((key) => {
+        if (!activeKeys.has(key)) {
+          delete nextTexts[key];
+          smoothSmallTaskTargets.delete(key);
+          hasChanged = true;
+        }
+      });
+      Array.from(smoothSmallTaskTargets.keys()).forEach((key) => {
+        if (!activeKeys.has(key)) {
+          smoothSmallTaskTargets.delete(key);
+        }
+      });
+
+      if (hasChanged) {
+        smoothSmallTaskTexts.value = nextTexts;
+        syncStreamingSmallTaskScrollPositions();
+      }
+      if (shouldAnimate) {
+        scheduleSmoothSmallTaskFrame();
+      }
+    };
+
     const handleSmallTaskWheel = (event: WheelEvent, idx: number) => {
       const targetEl = event.currentTarget as HTMLElement | null;
       if (targetEl) {
@@ -4649,6 +4778,20 @@ export default defineComponent({
       scrollEl.scrollTop += event.deltaY;
     };
 
+    watch(
+      () =>
+        visibleToolCalls.value.map((call, idx) => {
+          if (!isSmallModelTextTool(call)) {
+            return `${idx}:${call.type}:${call.status}`;
+          }
+          return `${getSmallTaskDisplayKey(call, idx)}:${call.status}:${getSmallTaskResultRawText(
+            call
+          )}`;
+        }),
+      syncSmoothSmallTaskTexts,
+      { immediate: true }
+    );
+
     // ── Watch: Auto-expand completed search_videos calls with animation ──
     // 先设置为 false（确保 DOM 渲染出 0fr 状态），再通过 nextTick 延迟设为 true
     // 使 CSS grid-template-rows 过渡动画生效
@@ -4657,9 +4800,7 @@ export default defineComponent({
         visibleToolCalls.value.map((call) => {
           const smallTaskResult =
             isSmallModelTextTool(call)
-              ? String(
-                  (call.result as SmallTaskResult | undefined)?.result || ''
-                )
+              ? getSmallTaskResultRawText(call)
               : '';
           return `${call.type}::${call.status}::${
             call.visibility || ''
@@ -4781,6 +4922,7 @@ export default defineComponent({
     });
 
     onBeforeUnmount(() => {
+      cancelSmoothSmallTaskFrame();
       clearAllCommentAutoRefreshTimers();
       if (typeof document !== 'undefined') {
         document.removeEventListener('keydown', handleCommentImageViewerKeydown);
@@ -4799,6 +4941,7 @@ export default defineComponent({
     });
 
     return {
+      rootAttrs: attrs,
       containerRef,
       commentImageFrameRef,
       expanded,
@@ -6582,8 +6725,10 @@ body.body--dark .tool-comments-empty--syncing {
 }
 
 .tool-text-result--summary {
-  max-height: none;
-  overflow-y: visible;
+  max-height: min(58vh, 560px);
+  overflow-y: auto;
+  overflow-anchor: none;
+  scrollbar-width: thin;
 }
 
 .tool-markdown-result {
@@ -7016,8 +7161,8 @@ body.body--dark .tool-google-result-open {
   }
 
   .tool-text-result--summary {
-    max-height: none;
-    overflow-y: visible;
+    max-height: min(52vh, 420px);
+    overflow-y: auto;
   }
 
   .tool-results-grid {

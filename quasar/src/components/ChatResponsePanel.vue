@@ -571,6 +571,7 @@ import {
 } from 'src/utils/chatVideoLinkView';
 import { normalizeVideoHit } from 'src/utils/videoHit';
 import { fetchUserBriefs } from 'src/services/ownerBriefService';
+import { useSmoothStreamingText } from 'src/composables/useSmoothStreamingText';
 import ToolCallDisplay from './ToolCallDisplay.vue';
 import BiliVideoTooltip from './BiliVideoTooltip.vue';
 import SearchModeEmptyState from './SearchModeEmptyState.vue';
@@ -626,6 +627,30 @@ export default defineComponent({
     const userQuery = computed(() => chatStore.currentSession.query || '');
     const currentSessionMode = computed(() => chatStore.currentSession.mode);
     const currentMode = computed(() => searchModeStore.currentMode);
+    const currentContentSource = computed(() => chatStore.content || '');
+    const smoothCurrentContent = useSmoothStreamingText(
+      currentContentSource,
+      () => isLoading.value && !isAborted.value,
+      {
+        frameMs: 22,
+        minCharsPerFrame: 2,
+        maxCharsPerFrame: 28,
+        growthRatio: 0.24,
+      }
+    );
+    watch(
+      currentContentSource,
+      (content) => {
+        smoothCurrentContent.sync(content);
+      },
+      { immediate: true }
+    );
+    watch(
+      () => chatStore.currentSessionId,
+      () => {
+        smoothCurrentContent.applyImmediately(chatStore.content || '');
+      }
+    );
     const showEmptyState = computed(() => {
       return (
         currentMode.value !== 'utility' &&
@@ -700,7 +725,7 @@ export default defineComponent({
 
     /** 渲染 Markdown 内容为 HTML */
     const renderedContent = computed(() => {
-      const raw = chatStore.content;
+      const raw = smoothCurrentContent.displayed.value;
       if (!raw) return '';
       return renderAnswerMd(raw);
     });
