@@ -932,7 +932,10 @@ export default defineComponent({
     };
 
     /** 从单个 tool segment 中提取去重后的 ToolCall 列表 */
-    const displayableInternalTools = new Set(['run_small_llm_task']);
+    const displayableInternalTools = new Set([
+      'plan_video_queries',
+      'run_small_llm_task',
+    ]);
 
     const isDisplayableToolCall = (call: ToolCall): boolean =>
       call.visibility !== 'internal' || displayableInternalTools.has(call.type);

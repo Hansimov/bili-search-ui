@@ -149,6 +149,41 @@ const streamingSmallTaskPlaceholderCall: ToolCall = {
     },
 };
 
+const planVideoQueriesCall: ToolCall = {
+    type: 'plan_video_queries',
+    args: {
+        task: '为含义模糊的视频需求构造互补检索语句',
+    },
+    status: 'completed',
+    visibility: 'internal',
+    result: {
+        task: '为含义模糊的视频需求构造互补检索语句',
+        queries: [
+            {
+                query: 'CS2 炼狱小镇 教学',
+                purpose: '锚定最可能的视频主题',
+                agent: 'precision-anchor: isolate stable subject',
+            },
+            {
+                query: 'Inferno 游戏 攻略 q=vl',
+                purpose: '保留语义探索空间',
+                agent: 'semantic-recall: broaden likely meanings',
+            },
+        ],
+        agent_outputs: [
+            {
+                role: 'precision-anchor: isolate stable subject',
+                queries: [
+                    {
+                        query: 'CS2 炼狱小镇 教学',
+                        purpose: '稳定主体',
+                    },
+                ],
+            },
+        ],
+    },
+};
+
 const summarizeCall: ToolCall = {
     type: 'summarize_transcript',
     args: {
@@ -1627,6 +1662,34 @@ describe('ToolCallDisplay component', () => {
         expect(wrapper.text()).toContain('生成中...');
         expect(wrapper.text()).toContain('小模型已开始处理，等待首批内容...');
         expect(wrapper.find('.tool-text-result').exists()).toBe(true);
+    });
+
+    it('renders internal plan_video_queries agent process', () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [planVideoQueriesCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('查询代理');
+        expect(wrapper.text()).toContain('2 条候选');
+        expect(wrapper.text()).toContain('查询代理规划');
+        expect(wrapper.text()).toContain('CS2 炼狱小镇 教学');
+        expect(wrapper.text()).toContain('锚定最可能的视频主题');
+        expect(wrapper.text()).toContain('精准锚定代理');
+        expect(wrapper.find('.tool-agent-plan').exists()).toBe(true);
+        expect(wrapper.find('.tool-agent-query-list').exists()).toBe(true);
+        expect(wrapper.find('.tool-agent-output-list').exists()).toBe(true);
     });
 
     it('renders summarize_transcript output as restrained markdown instead of pre text', () => {

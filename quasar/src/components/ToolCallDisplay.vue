@@ -367,6 +367,71 @@
             </div>
 
             <div
+              v-else-if="call.type === 'plan_video_queries'"
+              class="tool-agent-plan"
+            >
+              <div class="tool-agent-plan-head">
+                <q-icon name="account_tree" size="14px" />
+                <div class="tool-agent-plan-head-text">
+                  <span class="tool-agent-plan-title">查询代理规划</span>
+                  <span v-if="getPlanVideoTask(call)" class="tool-agent-plan-task">
+                    {{ getPlanVideoTask(call) }}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                v-if="getPlanVideoQueries(call).length"
+                class="tool-agent-query-list"
+              >
+                <div
+                  v-for="(query, qidx) in getPlanVideoQueries(call)"
+                  :key="`${query.query}-${qidx}`"
+                  class="tool-agent-query-row"
+                >
+                  <span class="tool-agent-query-index">{{ qidx + 1 }}</span>
+                  <div class="tool-agent-query-main">
+                    <span class="tool-agent-query-text">{{ query.query }}</span>
+                    <span v-if="query.purpose" class="tool-agent-query-purpose">
+                      {{ query.purpose }}
+                    </span>
+                    <span v-if="query.agent" class="tool-agent-query-agent">
+                      {{ formatPlanAgentRole(query.agent) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="getPlanAgentOutputs(call).length"
+                class="tool-agent-output-list"
+              >
+                <details
+                  v-for="(agent, aidx) in getPlanAgentOutputs(call)"
+                  :key="`${agent.role}-${aidx}`"
+                  class="tool-agent-output"
+                >
+                  <summary>
+                    <span>{{ formatPlanAgentRole(agent.role) }}</span>
+                    <span class="tool-agent-output-count">
+                      {{ agent.queries.length }} 条候选
+                    </span>
+                  </summary>
+                  <div class="tool-agent-output-queries">
+                    <div
+                      v-for="(query, qidx) in agent.queries"
+                      :key="`${query.query}-${qidx}`"
+                      class="tool-agent-output-query"
+                    >
+                      <span>{{ query.query }}</span>
+                      <small v-if="query.purpose">{{ query.purpose }}</small>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            <div
               v-else-if="isVideoCommentsTool(call)"
               class="tool-comments-result"
             >
@@ -1226,6 +1291,17 @@ interface OwnerSourceGroup {
   error?: string;
 }
 
+interface PlanVideoQuery {
+  query: string;
+  purpose?: string;
+  agent?: string;
+}
+
+interface PlanAgentOutput {
+  role: string;
+  queries: PlanVideoQuery[];
+}
+
 interface TranscriptResult {
   title?: string;
   bvid?: string;
@@ -1368,7 +1444,10 @@ interface CommentImagePanState {
 
 type CommentImageFitMode = 'contain' | 'width' | 'manual';
 
-const DISPLAYABLE_INTERNAL_TOOLS = new Set(['run_small_llm_task']);
+const DISPLAYABLE_INTERNAL_TOOLS = new Set([
+  'plan_video_queries',
+  'run_small_llm_task',
+]);
 const SMALL_MODEL_TEXT_TOOLS = new Set([
   'ask_transcript',
   'run_small_llm_task',
@@ -1384,6 +1463,7 @@ const TOOL_LABELS: Record<string, string> = {
   search_google: '搜索网页',
   get_video_transcript: '读取转写',
   ask_transcript: '提问',
+  plan_video_queries: '查询代理',
   run_small_llm_task: '小模型',
   summarize_transcript: '视频总结',
   video_comments: '视频评论',
@@ -1405,6 +1485,7 @@ const TOOL_ICONS: Record<string, string> = {
   search_google: 'travel_explore',
   get_video_transcript: 'subtitles',
   ask_transcript: 'smart_toy',
+  plan_video_queries: 'account_tree',
   run_small_llm_task: 'smart_toy',
   summarize_transcript: 'summarize',
   video_comments: 'forum',
@@ -1426,6 +1507,7 @@ const TOOL_RUNNING_STATUS_TEXTS: Record<string, string> = {
   search_google: '搜索中...',
   get_video_transcript: '读取中...',
   ask_transcript: '提问中...',
+  plan_video_queries: '规划中...',
   run_small_llm_task: '生成中...',
   summarize_transcript: '总结中...',
   video_comments: '读取中...',
@@ -1817,6 +1899,13 @@ export default defineComponent({
             result.source_groups.length > 0)
         );
       }
+      if (call.type === 'plan_video_queries') {
+        return (
+          call.status === 'pending' ||
+          getPlanVideoQueries(call).length > 0 ||
+          getPlanAgentOutputs(call).length > 0
+        );
+      }
       if (call.type === 'get_video_transcript') {
         const result = call.result as TranscriptResult;
         return !!(result?.transcript?.text || result?.title || result?.bvid);
@@ -1931,6 +2020,9 @@ export default defineComponent({
         );
         return `${total} 位作者`;
       }
+      if (call.type === 'plan_video_queries') {
+        return `${getPlanVideoQueries(call).length} 条候选`;
+      }
       if (call.type === 'get_video_transcript') {
         const result = call.result as TranscriptResult;
         const selected = Number(
@@ -1997,6 +2089,66 @@ export default defineComponent({
       if (!snippet) return '';
       if (snippet.endsWith('...') || snippet.endsWith('…')) return snippet;
       return `${snippet}...`;
+    };
+
+    const getPlanVideoResult = (call: ToolCall): Record<string, unknown> => {
+      if (call.type !== 'plan_video_queries') return {};
+      return ((call.result || call.summary || {}) as Record<string, unknown>) || {};
+    };
+
+    const getPlanVideoTask = (call: ToolCall): string => {
+      const result = getPlanVideoResult(call);
+      return String(result.task || call.args?.task || '').trim();
+    };
+
+    const normalizePlanQueryRows = (rows: unknown): PlanVideoQuery[] => {
+      if (!Array.isArray(rows)) return [];
+      return rows
+        .map((row) => {
+          if (typeof row === 'string') {
+            return { query: row.trim() };
+          }
+          if (row && typeof row === 'object') {
+            const value = row as Record<string, unknown>;
+            return {
+              query: String(value.query || '').trim(),
+              purpose: String(value.purpose || '').trim(),
+              agent: String(value.agent || '').trim(),
+            };
+          }
+          return { query: '' };
+        })
+        .filter((row) => row.query);
+    };
+
+    const getPlanVideoQueries = (call: ToolCall): PlanVideoQuery[] =>
+      normalizePlanQueryRows(getPlanVideoResult(call).queries);
+
+    const getPlanAgentOutputs = (call: ToolCall): PlanAgentOutput[] => {
+      const outputs = getPlanVideoResult(call).agent_outputs;
+      if (!Array.isArray(outputs)) return [];
+      return outputs
+        .map((output) => {
+          if (!output || typeof output !== 'object') {
+            return { role: '', queries: [] };
+          }
+          const value = output as Record<string, unknown>;
+          return {
+            role: String(value.role || '').trim(),
+            queries: normalizePlanQueryRows(value.queries),
+          };
+        })
+        .filter((output) => output.role || output.queries.length > 0);
+    };
+
+    const formatPlanAgentRole = (role: string): string => {
+      const normalized = String(role || '').trim();
+      if (!normalized) return '查询代理';
+      const label = normalized.split(':')[0]?.trim() || normalized;
+      if (label === 'semantic-recall') return '语义召回代理';
+      if (label === 'precision-anchor') return '精准锚定代理';
+      if (label === 'alternative-hypotheses') return '备选假设代理';
+      return label;
     };
 
     const getOwnerResults = (call: ToolCall): OwnerResult[] => {
@@ -5080,6 +5232,10 @@ export default defineComponent({
       getGoogleResults,
       getGoogleDisplayedUrl,
       getGoogleSnippet,
+      getPlanVideoTask,
+      getPlanVideoQueries,
+      getPlanAgentOutputs,
+      formatPlanAgentRole,
       getOwnerResults,
       getOwnerGroups,
       getTranscriptResult,
@@ -5318,6 +5474,142 @@ export default defineComponent({
   font-size: 11px;
   opacity: 0.36;
   margin-left: 4px;
+}
+
+.tool-agent-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tool-agent-plan-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid rgba(75, 190, 170, 0.16);
+  border-radius: 7px;
+  background: rgba(75, 190, 170, 0.055);
+  color: rgba(180, 235, 226, 0.9);
+}
+
+.tool-agent-plan-head-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-agent-plan-title {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.tool-agent-plan-task {
+  color: rgba(220, 228, 236, 0.62);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.tool-agent-query-list,
+.tool-agent-output-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-agent-query-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 7px;
+  align-items: flex-start;
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: rgba(120, 150, 170, 0.08);
+}
+
+.tool-agent-query-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(75, 190, 170, 0.16);
+  color: rgba(195, 245, 236, 0.9);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tool-agent-query-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-agent-query-text {
+  color: rgba(238, 243, 248, 0.88);
+  font-size: 12px;
+  font-weight: 620;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.tool-agent-query-purpose,
+.tool-agent-query-agent {
+  color: rgba(190, 202, 214, 0.58);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.tool-agent-query-agent {
+  color: rgba(126, 210, 196, 0.72);
+}
+
+.tool-agent-output {
+  border: 1px solid rgba(128, 150, 170, 0.13);
+  border-radius: 7px;
+  background: rgba(128, 150, 170, 0.04);
+}
+
+.tool-agent-output summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  cursor: pointer;
+  color: rgba(215, 224, 232, 0.74);
+  font-size: 11px;
+  user-select: none;
+}
+
+.tool-agent-output-count {
+  color: rgba(126, 210, 196, 0.7);
+}
+
+.tool-agent-output-queries {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0 9px 8px;
+}
+
+.tool-agent-output-query {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(126, 210, 196, 0.2);
+  color: rgba(225, 232, 238, 0.72);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.tool-agent-output-query small {
+  color: rgba(190, 202, 214, 0.5);
 }
 
 .tool-results-grid {
