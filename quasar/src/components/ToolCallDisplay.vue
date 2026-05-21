@@ -373,9 +373,31 @@
               <div class="tool-agent-plan-head">
                 <q-icon name="account_tree" size="14px" />
                 <div class="tool-agent-plan-head-text">
-                  <span class="tool-agent-plan-title">查询代理规划</span>
+                  <span class="tool-agent-plan-title">查询Agent规划</span>
                   <span v-if="getPlanVideoTask(call)" class="tool-agent-plan-task">
                     {{ getPlanVideoTask(call) }}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                v-if="shouldShowPlanAgentSteps(call)"
+                class="tool-agent-step-list"
+              >
+                <div
+                  v-for="step in getPlanAgentSteps(call)"
+                  :key="step.role"
+                  :class="[
+                    'tool-agent-step',
+                    `tool-agent-step--${step.status || 'pending'}`,
+                  ]"
+                >
+                  <span class="tool-agent-step-dot" />
+                  <span class="tool-agent-step-label">
+                    {{ step.label || formatPlanAgentRole(step.role) }}
+                  </span>
+                  <span class="tool-agent-step-status">
+                    {{ formatPlanAgentStepStatus(step.status) }}
                   </span>
                 </div>
               </div>
@@ -428,6 +450,65 @@
                     </div>
                   </div>
                 </details>
+              </div>
+            </div>
+
+            <div
+              v-else-if="call.type === 'answer_review'"
+              class="tool-answer-review"
+            >
+              <div class="tool-answer-review-head">
+                <q-icon name="fact_check" size="14px" />
+                <span>答案审视</span>
+                <span
+                  :class="[
+                    'tool-answer-review-status',
+                    getAnswerReviewPasses(call)
+                      ? 'tool-answer-review-status--pass'
+                      : 'tool-answer-review-status--revise',
+                  ]"
+                >
+                  {{ getAnswerReviewStatusText(call) }}
+                </span>
+              </div>
+              <div
+                v-if="getAnswerReviewIssues(call).length"
+                class="tool-answer-review-issues"
+              >
+                <span
+                  v-for="(issue, issueIdx) in getAnswerReviewIssues(call)"
+                  :key="`${issue}-${issueIdx}`"
+                >
+                  {{ issue }}
+                </span>
+              </div>
+            </div>
+
+            <div
+              v-else-if="call.type === 'analyze_video_results'"
+              class="tool-result-analysis"
+            >
+              <div class="tool-result-analysis-head">
+                <q-icon name="troubleshoot" size="14px" />
+                <span>决策Agent</span>
+                <span class="tool-result-analysis-badge">
+                  {{ getResultAnalysisDecisionText(call) }}
+                </span>
+              </div>
+              <p v-if="getResultAnalysisSummary(call)">
+                {{ getResultAnalysisSummary(call) }}
+              </p>
+              <div
+                v-if="getResultAnalysisChips(call).length"
+                class="tool-result-analysis-chips"
+              >
+                <span
+                  v-for="(chip, chipIdx) in getResultAnalysisChips(call)"
+                  :key="`${chip.label}-${chip.text}-${chipIdx}`"
+                  :class="['tool-result-analysis-chip', `tool-result-analysis-chip--${chip.kind}`]"
+                >
+                  {{ chip.label }}：{{ chip.text }}
+                </span>
               </div>
             </div>
 
@@ -1299,7 +1380,17 @@ interface PlanVideoQuery {
 
 interface PlanAgentOutput {
   role: string;
+  label?: string;
+  status?: string;
+  notes?: string;
+  elapsed_ms?: number;
   queries: PlanVideoQuery[];
+}
+
+interface PlanAgentStep {
+  role: string;
+  label?: string;
+  status?: string;
 }
 
 interface TranscriptResult {
@@ -1445,6 +1536,8 @@ interface CommentImagePanState {
 type CommentImageFitMode = 'contain' | 'width' | 'manual';
 
 const DISPLAYABLE_INTERNAL_TOOLS = new Set([
+  'analyze_video_results',
+  'answer_review',
   'plan_video_queries',
   'run_small_llm_task',
 ]);
@@ -1463,7 +1556,9 @@ const TOOL_LABELS: Record<string, string> = {
   search_google: '搜索网页',
   get_video_transcript: '读取转写',
   ask_transcript: '提问',
-  plan_video_queries: '查询代理',
+  analyze_video_results: '决策Agent',
+  answer_review: '答案审视',
+  plan_video_queries: '查询Agent',
   run_small_llm_task: '小模型',
   summarize_transcript: '视频总结',
   video_comments: '视频评论',
@@ -1485,6 +1580,8 @@ const TOOL_ICONS: Record<string, string> = {
   search_google: 'travel_explore',
   get_video_transcript: 'subtitles',
   ask_transcript: 'smart_toy',
+  analyze_video_results: 'troubleshoot',
+  answer_review: 'fact_check',
   plan_video_queries: 'account_tree',
   run_small_llm_task: 'smart_toy',
   summarize_transcript: 'summarize',
@@ -1507,6 +1604,8 @@ const TOOL_RUNNING_STATUS_TEXTS: Record<string, string> = {
   search_google: '搜索中...',
   get_video_transcript: '读取中...',
   ask_transcript: '提问中...',
+  analyze_video_results: '分析中...',
+  answer_review: '审视中...',
   plan_video_queries: '规划中...',
   run_small_llm_task: '生成中...',
   summarize_transcript: '总结中...',
@@ -1902,9 +2001,17 @@ export default defineComponent({
       if (call.type === 'plan_video_queries') {
         return (
           call.status === 'pending' ||
+          call.status === 'streaming' ||
+          getPlanAgentSteps(call).length > 0 ||
           getPlanVideoQueries(call).length > 0 ||
           getPlanAgentOutputs(call).length > 0
         );
+      }
+      if (call.type === 'answer_review') {
+        return call.status === 'pending' || !!call.result || !!call.summary;
+      }
+      if (call.type === 'analyze_video_results') {
+        return call.status === 'pending' || !!call.result || !!call.summary;
       }
       if (call.type === 'get_video_transcript') {
         const result = call.result as TranscriptResult;
@@ -2023,6 +2130,12 @@ export default defineComponent({
       if (call.type === 'plan_video_queries') {
         return `${getPlanVideoQueries(call).length} 条候选`;
       }
+      if (call.type === 'answer_review') {
+        return getAnswerReviewStatusText(call);
+      }
+      if (call.type === 'analyze_video_results') {
+        return getResultAnalysisDecisionText(call);
+      }
       if (call.type === 'get_video_transcript') {
         const result = call.result as TranscriptResult;
         const selected = Number(
@@ -2135,22 +2248,121 @@ export default defineComponent({
           const value = output as Record<string, unknown>;
           return {
             role: String(value.role || '').trim(),
+            label: String(value.label || '').trim(),
+            status: String(value.status || '').trim(),
+            notes: String(value.notes || '').trim(),
+            elapsed_ms: Number(value.elapsed_ms || 0),
             queries: normalizePlanQueryRows(value.queries),
           };
         })
         .filter((output) => output.role || output.queries.length > 0);
     };
 
+    const getPlanAgentSteps = (call: ToolCall): PlanAgentStep[] => {
+      const steps = getPlanVideoResult(call).agent_steps;
+      if (!Array.isArray(steps)) return [];
+      return steps
+        .map((step) => {
+          if (!step || typeof step !== 'object') {
+            return { role: '' };
+          }
+          const value = step as Record<string, unknown>;
+          return {
+            role: String(value.role || '').trim(),
+            label: String(value.label || '').trim(),
+            status: String(value.status || '').trim(),
+          };
+        })
+        .filter((step) => step.role);
+    };
+
+    const shouldShowPlanAgentSteps = (call: ToolCall): boolean =>
+      call.status !== 'completed' && getPlanAgentSteps(call).length > 0;
+
+    const formatPlanAgentStepStatus = (status?: string): string => {
+      if (status === 'completed') return '完成';
+      if (status === 'failed') return '失败';
+      if (status === 'running' || status === 'streaming') return '处理中';
+      return '等待';
+    };
+
     const formatPlanAgentRole = (role: string): string => {
       const normalized = String(role || '').trim();
-      if (!normalized) return '查询代理';
+      if (!normalized) return '查询Agent';
       const label = normalized.split(':')[0]?.trim() || normalized;
-      if (label === 'semantic-recall') return '语义召回代理';
-      if (label === 'precision-anchor') return '精准锚定代理';
-      if (label === 'constraint-mapper') return '约束映射代理';
-      if (label === 'evidence-skeptic') return '证据审视代理';
-      if (label === 'alternative-hypotheses') return '备选假设代理';
+      if (label === 'semantic-recall') return '语义召回 Agent';
+      if (label === 'subject-mapper') return '主体映射 Agent';
+      if (label === 'semantic-prober') return '语义探测 Agent';
+      if (label === 'precision-anchor') return '精准锚定 Agent';
+      if (label === 'facet-expander') return '子主题扩展 Agent';
+      if (label === 'noise-auditor') return '噪声审视 Agent';
+      if (label === 'constraint-mapper') return '约束映射 Agent';
+      if (label === 'evidence-skeptic') return '证据审视 Agent';
+      if (label === 'alternative-hypotheses') return '备选假设 Agent';
       return label;
+    };
+
+    const getAnswerReviewResult = (call: ToolCall): Record<string, unknown> =>
+      ((call.result || call.summary || {}) as Record<string, unknown>) || {};
+
+    const getAnswerReviewPasses = (call: ToolCall): boolean => {
+      const result = getAnswerReviewResult(call);
+      return Boolean(result.passes ?? call.status !== 'completed');
+    };
+
+    const getAnswerReviewStatusText = (call: ToolCall): string => {
+      if (call.status === 'pending' || call.status === 'streaming') return '审视中';
+      const result = getAnswerReviewResult(call);
+      if (result.skipped) return '已跳过';
+      if (getAnswerReviewPasses(call)) return '已通过';
+      const action = String(result.action || '').trim();
+      if (action === 'continue_search') return '需要补充检索';
+      return '需要修正';
+    };
+
+    const getAnswerReviewIssues = (call: ToolCall): string[] => {
+      const issues = getAnswerReviewResult(call).issues;
+      if (!Array.isArray(issues)) return [];
+      return issues.map((issue) => String(issue || '').trim()).filter(Boolean);
+    };
+
+    const getResultAnalysisResult = (call: ToolCall): Record<string, unknown> =>
+      ((call.result || call.summary || {}) as Record<string, unknown>) || {};
+
+    const getResultAnalysisDecisionText = (call: ToolCall): string => {
+      if (call.status === 'pending' || call.status === 'streaming') return '分析中';
+      const result = getResultAnalysisResult(call);
+      const decision = String(result.next_decision || '').trim();
+      if (decision === 'answer') return '可回答';
+      if (decision === 'ask_clarification') return '需澄清';
+      if (decision === 'refine_search') return '需补搜';
+      const coverage = String(result.coverage || '').trim();
+      if (coverage === 'sufficient') return '覆盖充分';
+      if (coverage === 'poor') return '覆盖不足';
+      return '已分析';
+    };
+
+    const getResultAnalysisSummary = (call: ToolCall): string =>
+      String(getResultAnalysisResult(call).summary || '').trim();
+
+    const getResultAnalysisChips = (
+      call: ToolCall
+    ): Array<{ kind: string; label: string; text: string }> => {
+      const result = getResultAnalysisResult(call);
+      const rows: Array<{ kind: string; label: string; text: string }> = [];
+      const addRows = (key: string, kind: string, label: string, limit: number) => {
+        const values = result[key];
+        if (!Array.isArray(values)) return;
+        for (const value of values.slice(0, limit)) {
+          const text = String(value || '').trim();
+          if (text) rows.push({ kind, label, text });
+        }
+      };
+      addRows('confirmed_subjects', 'confirmed', '确认', 3);
+      addRows('noise_patterns', 'noise', '噪声', 3);
+      addRows('gaps', 'gap', '缺口', 3);
+      addRows('next_search_tasks', 'task', '下一步', 3);
+      return rows;
     };
 
     const getOwnerResults = (call: ToolCall): OwnerResult[] => {
@@ -5000,6 +5212,36 @@ export default defineComponent({
             return;
           }
 
+          if (
+            call.type === 'plan_video_queries' ||
+            call.type === 'analyze_video_results' ||
+            call.type === 'answer_review'
+          ) {
+            if (
+              (call.status === 'pending' || call.status === 'streaming') &&
+              previousExpanded !== true
+            ) {
+              anchorsToRestore.push(captureScrollAnchor(idx));
+              nextExpanded[idx] = true;
+              return;
+            }
+            if (
+              call.status === 'completed' &&
+              previousStatus !== 'completed' &&
+              previousExpanded !== false
+            ) {
+              anchorsToRestore.push(captureScrollAnchor(idx));
+              nextExpanded[idx] = false;
+              return;
+            }
+            if (previousExpanded !== undefined) {
+              nextExpanded[idx] = previousExpanded;
+              return;
+            }
+            nextExpanded[idx] = call.status !== 'completed';
+            return;
+          }
+
           if (previousExpanded !== undefined) {
             nextExpanded[idx] = previousExpanded;
             return;
@@ -5237,7 +5479,16 @@ export default defineComponent({
       getPlanVideoTask,
       getPlanVideoQueries,
       getPlanAgentOutputs,
+      getPlanAgentSteps,
+      shouldShowPlanAgentSteps,
+      formatPlanAgentStepStatus,
       formatPlanAgentRole,
+      getAnswerReviewPasses,
+      getAnswerReviewStatusText,
+      getAnswerReviewIssues,
+      getResultAnalysisDecisionText,
+      getResultAnalysisSummary,
+      getResultAnalysisChips,
       getOwnerResults,
       getOwnerGroups,
       getTranscriptResult,
@@ -5423,11 +5674,18 @@ export default defineComponent({
 .tool-call-results-wrapper {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease,
+    transform 0.22s ease;
 }
 
 .tool-call-results-wrapper.expanded {
   grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .tool-call-results-inner {
@@ -5512,6 +5770,69 @@ export default defineComponent({
   color: rgba(220, 228, 236, 0.62);
   font-size: 11px;
   line-height: 1.45;
+}
+
+.tool-agent-step-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 6px;
+  overflow: hidden;
+  animation: tool-agent-steps-in 0.18s ease-out;
+}
+
+.tool-agent-step {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: rgba(120, 150, 170, 0.065);
+  border: 1px solid rgba(120, 150, 170, 0.1);
+  color: rgba(214, 224, 234, 0.7);
+  font-size: 11px;
+}
+
+.tool-agent-step-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(150, 165, 180, 0.55);
+  flex: 0 0 auto;
+}
+
+.tool-agent-step--completed .tool-agent-step-dot {
+  background: rgba(75, 190, 170, 0.9);
+  box-shadow: 0 0 0 3px rgba(75, 190, 170, 0.12);
+}
+
+.tool-agent-step--failed .tool-agent-step-dot {
+  background: rgba(245, 120, 120, 0.85);
+}
+
+.tool-agent-step-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 560;
+}
+
+.tool-agent-step-status {
+  margin-left: auto;
+  color: rgba(180, 195, 208, 0.5);
+  flex: 0 0 auto;
+}
+
+@keyframes tool-agent-steps-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .tool-agent-query-list,
@@ -5612,6 +5933,123 @@ export default defineComponent({
 
 .tool-agent-output-query small {
   color: rgba(190, 202, 214, 0.5);
+}
+
+.tool-answer-review {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px 9px;
+  border-radius: 7px;
+  border: 1px solid rgba(132, 166, 210, 0.16);
+  background: rgba(88, 118, 160, 0.06);
+}
+
+.tool-answer-review-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(220, 228, 236, 0.76);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.tool-answer-review-status {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tool-answer-review-status--pass {
+  color: rgba(130, 218, 194, 0.9);
+  background: rgba(75, 190, 170, 0.11);
+}
+
+.tool-answer-review-status--revise {
+  color: rgba(255, 190, 150, 0.92);
+  background: rgba(255, 160, 110, 0.1);
+}
+
+.tool-answer-review-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: rgba(205, 214, 224, 0.58);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.tool-result-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 9px;
+  border-radius: 7px;
+  border: 1px solid rgba(86, 173, 220, 0.16);
+  background: rgba(70, 118, 165, 0.06);
+}
+
+.tool-result-analysis-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(220, 230, 238, 0.78);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.tool-result-analysis-badge {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(86, 173, 220, 0.12);
+  color: rgba(155, 215, 245, 0.9);
+  font-size: 11px;
+}
+
+.tool-result-analysis p {
+  margin: 0;
+  color: rgba(210, 220, 230, 0.66);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.tool-result-analysis-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tool-result-analysis-chip {
+  max-width: 100%;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(130, 155, 180, 0.12);
+  background: rgba(130, 155, 180, 0.08);
+  color: rgba(212, 222, 232, 0.68);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.tool-result-analysis-chip--confirmed {
+  border-color: rgba(75, 190, 170, 0.16);
+  background: rgba(75, 190, 170, 0.08);
+  color: rgba(165, 230, 218, 0.82);
+}
+
+.tool-result-analysis-chip--noise {
+  border-color: rgba(240, 150, 120, 0.16);
+  background: rgba(240, 150, 120, 0.08);
+  color: rgba(245, 190, 170, 0.82);
+}
+
+.tool-result-analysis-chip--gap,
+.tool-result-analysis-chip--task {
+  border-color: rgba(120, 170, 230, 0.16);
+  background: rgba(120, 170, 230, 0.08);
+  color: rgba(180, 210, 245, 0.82);
 }
 
 .tool-results-grid {

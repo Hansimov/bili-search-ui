@@ -217,6 +217,119 @@ export async function chatCompletionStream(
     let hasDeliveredAnswerContent = false;
     let hasSeenAssistantStream = false;
     let hasEmittedDone = false;
+    let analysisBlockActive = false;
+    let analysisMarkerBuffer = '';
+    let leadingBacktickBuffer = '';
+
+    const analysisStartMarkers = ['[分析]', '[Analysis]'];
+    const analysisEndMarkers = ['[/分析]', '[/Analysis]'];
+
+    const splitTrailingMarkerPrefix = (
+        text: string,
+        markers: string[]
+    ): { safeText: string; markerPrefix: string } => {
+        const maxLength = Math.min(
+            text.length,
+            Math.max(...markers.map((marker) => marker.length)) - 1
+        );
+        for (let length = maxLength; length > 0; length -= 1) {
+            const suffix = text.slice(-length);
+            const lowerSuffix = suffix.toLowerCase();
+            if (
+                markers.some((marker) =>
+                    marker.toLowerCase().startsWith(lowerSuffix)
+                )
+            ) {
+                return {
+                    safeText: text.slice(0, -length),
+                    markerPrefix: suffix,
+                };
+            }
+        }
+        return { safeText: text, markerPrefix: '' };
+    };
+
+    const flushAnalysisMarkerBuffer = (): void => {
+        if (!analysisMarkerBuffer) return;
+        if (analysisBlockActive) {
+            callbacks.onThinking?.(analysisMarkerBuffer);
+        } else {
+            callbacks.onContent?.(analysisMarkerBuffer);
+            hasDeliveredAnswerContent = true;
+        }
+        analysisMarkerBuffer = '';
+    };
+
+    const routeContentDelta = (content: string): {
+        deliveredContent: boolean;
+        deliveredAnswerContent: boolean;
+    } => {
+        const startPattern = /\[(分析|Analysis)\]/i;
+        const endPattern = /\[\/(分析|Analysis)\]/i;
+        let rest = analysisMarkerBuffer + content;
+        analysisMarkerBuffer = '';
+        let deliveredContent = false;
+        let deliveredAnswerContent = false;
+
+        const deliverContent = (text: string): void => {
+            if (!text) return;
+            if (!hasDeliveredAnswerContent && !deliveredAnswerContent) {
+                const candidate = leadingBacktickBuffer + text;
+                if (/^\s*`{1,3}\s*$/.test(candidate)) {
+                    leadingBacktickBuffer = candidate;
+                    return;
+                }
+                const cleaned = candidate.replace(/^\s*`{1,3}\s*\n+/, '');
+                leadingBacktickBuffer = '';
+                if (!cleaned) return;
+                callbacks.onContent?.(cleaned);
+            } else {
+                callbacks.onContent?.(text);
+            }
+            deliveredContent = true;
+            deliveredAnswerContent = true;
+        };
+
+        while (rest) {
+            if (analysisBlockActive) {
+                const endMatch = rest.match(endPattern);
+                if (!endMatch || endMatch.index == null) {
+                    const { safeText, markerPrefix } =
+                        splitTrailingMarkerPrefix(rest, analysisEndMarkers);
+                    if (safeText) callbacks.onThinking?.(safeText);
+                    analysisMarkerBuffer = markerPrefix;
+                    rest = '';
+                    continue;
+                }
+                const thinkingText = rest.slice(0, endMatch.index);
+                if (thinkingText) callbacks.onThinking?.(thinkingText);
+                rest = rest.slice(endMatch.index + endMatch[0].length);
+                analysisBlockActive = false;
+                continue;
+            }
+
+            const startMatch = rest.match(startPattern);
+            if (!startMatch || startMatch.index == null) {
+                const { safeText, markerPrefix } =
+                    splitTrailingMarkerPrefix(rest, analysisStartMarkers);
+                if (safeText) {
+                    deliverContent(safeText);
+                }
+                analysisMarkerBuffer = markerPrefix;
+                rest = '';
+                continue;
+            }
+
+            const before = rest.slice(0, startMatch.index);
+            if (before.trim()) {
+                deliverContent(before);
+            }
+            rest = rest.slice(startMatch.index + startMatch[0].length);
+            analysisBlockActive = true;
+        }
+
+        return { deliveredContent, deliveredAnswerContent };
+    };
 
     const yieldToUi = async (): Promise<void> => {
         await new Promise<void>((resolve) => {
@@ -348,6 +461,9 @@ export async function chatCompletionStream(
 
             if (delta.retract_content) {
                 callbacks.onRetractContent?.();
+                analysisBlockActive = false;
+                analysisMarkerBuffer = '';
+                leadingBacktickBuffer = '';
                 return {
                     shouldStop: false,
                     deliveredContent: false,
@@ -358,6 +474,9 @@ export async function chatCompletionStream(
 
             if (delta.reset_reasoning) {
                 callbacks.onResetThinking?.(delta.reasoning_phase);
+                analysisBlockActive = false;
+                analysisMarkerBuffer = '';
+                leadingBacktickBuffer = '';
             }
 
             if (delta.reasoning_content) {
@@ -367,10 +486,12 @@ export async function chatCompletionStream(
 
             if (delta.content) {
                 hasSeenAssistantStream = true;
-                callbacks.onContent?.(delta.content);
-                deliveredContent = true;
-                hasDeliveredAnswerContent = true;
-                if (!hasYieldedFirstContent) {
+                const routed = routeContentDelta(delta.content);
+                deliveredContent = routed.deliveredContent;
+                if (routed.deliveredAnswerContent) {
+                    hasDeliveredAnswerContent = true;
+                }
+                if (routed.deliveredAnswerContent && !hasYieldedFirstContent) {
                     shouldYieldToUi = true;
                     hasYieldedFirstContent = true;
                 }
@@ -385,6 +506,8 @@ export async function chatCompletionStream(
             }
 
             if (choice.finish_reason && choice.finish_reason !== 'tool_calls') {
+                flushAnalysisMarkerBuffer();
+                leadingBacktickBuffer = '';
                 pendingDone = {
                     perfStats: chunk.perf_stats,
                     usage: chunk.usage,

@@ -924,6 +924,8 @@ export default defineComponent({
 
     /** 从单个 tool segment 中提取去重后的 ToolCall 列表 */
     const displayableInternalTools = new Set([
+      'analyze_video_results',
+      'answer_review',
       'plan_video_queries',
       'run_small_llm_task',
     ]);

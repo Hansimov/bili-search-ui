@@ -184,6 +184,50 @@ const planVideoQueriesCall: ToolCall = {
     },
 };
 
+const streamingPlanVideoQueriesCall: ToolCall = {
+    type: 'plan_video_queries',
+    args: {
+        task: '为含义模糊的视频需求构造互补检索语句',
+    },
+    status: 'streaming',
+    visibility: 'internal',
+    result: {
+        task: '为含义模糊的视频需求构造互补检索语句',
+        agent_steps: [
+            {
+                role: 'semantic-recall: broaden likely meanings',
+                label: '语义召回 Agent',
+                status: 'completed',
+            },
+            {
+                role: 'precision-anchor: isolate stable subject',
+                label: '精准锚定 Agent',
+                status: 'pending',
+            },
+        ],
+        queries: [
+            {
+                query: 'CS2 炼狱小镇 教学',
+                purpose: '锚定最可能的视频主题',
+            },
+        ],
+    },
+};
+
+const answerReviewCall: ToolCall = {
+    type: 'answer_review',
+    args: {
+        target: 'final_answer',
+    },
+    status: 'completed',
+    visibility: 'internal',
+    result: {
+        passes: false,
+        action: 'revise',
+        issues: ['答案泄露了内部搜索语法'],
+    },
+};
+
 const summarizeCall: ToolCall = {
     type: 'summarize_transcript',
     args: {
@@ -1681,15 +1725,40 @@ describe('ToolCallDisplay component', () => {
             },
         });
 
-        expect(wrapper.text()).toContain('查询代理');
+        expect(wrapper.text()).toContain('查询Agent');
         expect(wrapper.text()).toContain('2 条候选');
-        expect(wrapper.text()).toContain('查询代理规划');
+        expect(wrapper.text()).toContain('查询Agent规划');
         expect(wrapper.text()).toContain('CS2 炼狱小镇 教学');
         expect(wrapper.text()).toContain('锚定最可能的视频主题');
-        expect(wrapper.text()).toContain('精准锚定代理');
+        expect(wrapper.text()).toContain('精准锚定 Agent');
         expect(wrapper.find('.tool-agent-plan').exists()).toBe(true);
         expect(wrapper.find('.tool-agent-query-list').exists()).toBe(true);
         expect(wrapper.find('.tool-agent-output-list').exists()).toBe(true);
+    });
+
+    it('renders streaming query-agent steps and answer review status', () => {
+        const wrapper = mount(ToolCallDisplay, {
+            props: {
+                toolCalls: [streamingPlanVideoQueriesCall, answerReviewCall],
+            },
+            global: {
+                stubs: {
+                    'q-btn': {
+                        props: ['label'],
+                        template: '<button>{{ label }}</button>',
+                    },
+                    'q-icon': true,
+                    'q-spinner-dots': true,
+                },
+            },
+        });
+
+        expect(wrapper.text()).toContain('语义召回 Agent');
+        expect(wrapper.text()).toContain('等待');
+        expect(wrapper.find('.tool-agent-step-list').exists()).toBe(true);
+        expect(wrapper.text()).toContain('答案审视');
+        expect(wrapper.text()).toContain('需要修正');
+        expect(wrapper.text()).toContain('答案泄露了内部搜索语法');
     });
 
     it('renders summarize_transcript output as restrained markdown instead of pre text', () => {

@@ -229,6 +229,158 @@ describe('chatService SSE parsing', () => {
         expect(callbacks.onError).not.toHaveBeenCalled();
     });
 
+    it('routes bracketed analysis content to thinking instead of answer body', async () => {
+        const streamPayload = [
+            'data: {"stream_id":"stream-analysis"}\n\n',
+            'data: {"id":"chunk-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"[分析]\\n先判断意图"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-3","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"\\n[/分析]\\n最终答案"},"finish_reason":"stop"}]}\n\n',
+            'data: [DONE]\n\n',
+        ];
+
+        const response = new Response(
+            new ReadableStream({
+                start(controller) {
+                    for (const chunk of streamPayload) {
+                        controller.enqueue(encoder.encode(chunk));
+                    }
+                    controller.close();
+                },
+            }),
+            {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            }
+        );
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+
+        const callbacks = {
+            onThinking: vi.fn(),
+            onContent: vi.fn(),
+            onDone: vi.fn(),
+            onError: vi.fn(),
+        };
+
+        await chatCompletionStream(
+            {
+                messages: [{ role: 'user', content: '测试' }],
+                thinking: true,
+            },
+            callbacks
+        );
+
+        expect(callbacks.onThinking).toHaveBeenCalledWith('\n先判断意图');
+        expect(callbacks.onContent).toHaveBeenCalledWith('\n最终答案');
+        expect(callbacks.onContent).not.toHaveBeenCalledWith(
+            expect.stringContaining('[分析]')
+        );
+        expect(callbacks.onError).not.toHaveBeenCalled();
+    });
+
+    it('routes split bracketed analysis markers across chunks', async () => {
+        const streamPayload = [
+            'data: {"stream_id":"stream-analysis-split"}\n\n',
+            'data: {"id":"chunk-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"[Anal"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-3","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"ysis]intermediate"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-4","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"[/Anal"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-5","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"ysis]answer"},"finish_reason":"stop"}]}\n\n',
+            'data: [DONE]\n\n',
+        ];
+
+        const response = new Response(
+            new ReadableStream({
+                start(controller) {
+                    for (const chunk of streamPayload) {
+                        controller.enqueue(encoder.encode(chunk));
+                    }
+                    controller.close();
+                },
+            }),
+            {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            }
+        );
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+
+        const callbacks = {
+            onThinking: vi.fn(),
+            onContent: vi.fn(),
+            onDone: vi.fn(),
+            onError: vi.fn(),
+        };
+
+        await chatCompletionStream(
+            {
+                messages: [{ role: 'user', content: '测试' }],
+                thinking: true,
+            },
+            callbacks
+        );
+
+        const thinking = callbacks.onThinking.mock.calls
+            .map((call) => call[0])
+            .join('');
+        const content = callbacks.onContent.mock.calls
+            .map((call) => call[0])
+            .join('');
+        expect(thinking).toBe('intermediate');
+        expect(content).toBe('answer');
+        expect(content).not.toContain('[Analysis]');
+        expect(callbacks.onError).not.toHaveBeenCalled();
+    });
+
+    it('suppresses orphan leading backtick protocol noise while streaming content', async () => {
+        const streamPayload = [
+            'data: {"stream_id":"stream-backtick"}\n\n',
+            'data: {"id":"chunk-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"`"},"finish_reason":null}]}\n\n',
+            'data: {"id":"chunk-3","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"\\n最终答案"},"finish_reason":"stop"}]}\n\n',
+            'data: [DONE]\n\n',
+        ];
+
+        const response = new Response(
+            new ReadableStream({
+                start(controller) {
+                    for (const chunk of streamPayload) {
+                        controller.enqueue(encoder.encode(chunk));
+                    }
+                    controller.close();
+                },
+            }),
+            {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            }
+        );
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+
+        const callbacks = {
+            onContent: vi.fn(),
+            onDone: vi.fn(),
+            onError: vi.fn(),
+        };
+
+        await chatCompletionStream(
+            {
+                messages: [{ role: 'user', content: '测试' }],
+                thinking: true,
+            },
+            callbacks
+        );
+
+        const content = callbacks.onContent.mock.calls
+            .map((call) => call[0])
+            .join('');
+        expect(content).toBe('最终答案');
+        expect(content).not.toContain('`');
+        expect(callbacks.onError).not.toHaveBeenCalled();
+    });
+
     it('chatCompletionStream 应处理 reasoning reset 事件', async () => {
         const streamPayload = [
             'data: {"stream_id":"stream-3b"}\n\n',
